@@ -46,13 +46,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       {/* Top Welcome / Action Banner (Desktop & Mobile) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-white via-slate-50 to-brand-50/50 dark:from-slate-900 dark:via-slate-900/90 dark:to-brand-950/40 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div>
-          <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+          <h2 className="text-[24px] font-heading font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             <span>Depot Operational Command</span>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-brand-100 dark:bg-brand-500/20 text-brand-700 dark:text-brand-300 border border-brand-300 dark:border-brand-500/30">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-sans font-semibold bg-brand-100 dark:bg-brand-500/20 text-brand-700 dark:text-brand-300 border border-brand-300 dark:border-brand-500/30">
               Live Real-Time
             </span>
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-[14px] font-sans text-slate-500 dark:text-slate-400 mt-1">
             Volumetric tank inventory, credit aging ledger, pump meter audit, and container tracking for Lagos operations.
           </p>
         </div>
@@ -61,16 +61,16 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <div className="flex items-center gap-2.5 flex-shrink-0">
           <button
             onClick={() => onNavigate('intake')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-xs font-bold transition-all active:scale-95 shadow-sm"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-[14px] font-sans font-semibold transition-all active:scale-95 shadow-sm"
           >
-            <Truck className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+            <Truck className="w-[18px] h-[18px] text-slate-600 dark:text-slate-300" />
             <span>Log Truck Intake</span>
           </button>
           <button
             onClick={() => onNavigate('order')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-xs font-black shadow-lg shadow-brand-500/20 transition-all active:scale-95"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-[14px] font-sans font-bold shadow-lg shadow-brand-500/20 transition-all active:scale-95"
           >
-            <PlusCircle className="w-4 h-4 text-slate-950" />
+            <PlusCircle className="w-[18px] h-[18px] text-slate-950" />
             <span>Quick Dispense</span>
           </button>
         </div>
@@ -81,41 +81,41 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         {/* 1. Cash / Transfer Sales Today */}
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Cash & Transfer</span>
+            <span className="text-[12px] font-sans font-medium uppercase tracking-wider">Cash & Transfer</span>
             <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <div className="text-lg lg:text-xl font-mono font-black text-emerald-600 dark:text-emerald-400">
+          <div className="text-[32px] font-mono font-bold leading-tight text-emerald-600 dark:text-emerald-400">
             {formatNaira(todayStats.cashTransferSales)}
           </div>
-          <div className="text-[10px] text-slate-400 mt-1">Collected today</div>
+          <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-1">Collected today</div>
         </div>
 
         {/* 2. Credit Outstanding */}
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Credit Ledger</span>
-            <CreditCard className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            <span className="text-[12px] font-sans font-medium uppercase tracking-wider">Credit Ledger</span>
+            <CreditCard className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           </div>
-          <div className="text-lg lg:text-xl font-mono font-black text-amber-600 dark:text-amber-400">
+          <div className="text-[32px] font-mono font-bold leading-tight text-slate-900 dark:text-slate-100">
             {formatNaira(todayStats.creditOutstanding)}
           </div>
-          <div className="text-[10px] text-slate-400 mt-1">Total open balance</div>
+          <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-1">Total open balance</div>
         </div>
 
         {/* 3. Company Kegs Out */}
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Company Kegs Out</span>
-            <Package className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+            <span className="text-[12px] font-sans font-medium uppercase tracking-wider">Company Kegs Out</span>
+            <Package className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           </div>
-          <div className="text-lg lg:text-xl font-mono font-black text-sky-600 dark:text-sky-400">
+          <div className="text-[32px] font-mono font-bold leading-tight text-slate-900 dark:text-slate-100">
             {todayStats.companyKegsOut}{' '}
-            <span className="text-xs font-normal text-slate-500 dark:text-slate-400">kegs</span>
+            <span className="text-[14px] font-sans font-normal text-slate-500 dark:text-slate-400">kegs</span>
           </div>
-          <div className="text-[10px] text-slate-400 mt-1">In customer custody</div>
+          <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-1">In customer custody</div>
         </div>
 
-        {/* 4. Kegs at Depot (Red if < settings.kegs_at_depot_low_threshold) */}
+        {/* 4. Kegs at Depot (Red ONLY if < settings.kegs_at_depot_low_threshold) */}
         <div
           className={`p-4 rounded-2xl border transition-all shadow-sm ${
             kegInventory.isDepotStockCritical
@@ -125,7 +125,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         >
           <div className="flex items-center justify-between mb-2">
             <span
-              className={`text-[11px] font-semibold uppercase tracking-wider ${
+              className={`text-[12px] font-sans font-medium uppercase tracking-wider ${
                 kegInventory.isDepotStockCritical ? 'text-rose-700 dark:text-rose-300' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
@@ -133,21 +133,21 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             </span>
             <Boxes
               className={`w-4 h-4 ${
-                kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400' : 'text-brand-600 dark:text-brand-400'
+                kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'
               }`}
             />
           </div>
           <div
-            className={`text-lg lg:text-xl font-mono font-black ${
+            className={`text-[32px] font-mono font-bold leading-tight ${
               kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'
             }`}
           >
             {todayStats.kegsAtDepot}{' '}
-            <span className="text-xs font-normal text-slate-500 dark:text-slate-400">kegs</span>
+            <span className="text-[14px] font-sans font-normal text-slate-500 dark:text-slate-400">kegs</span>
           </div>
           <div
-            className={`text-[10px] mt-1 ${
-              kegInventory.isDepotStockCritical ? 'text-rose-700 dark:text-rose-300 font-bold' : 'text-slate-400'
+            className={`text-[12px] font-sans mt-1 ${
+              kegInventory.isDepotStockCritical ? 'text-rose-700 dark:text-rose-300 font-bold' : 'text-slate-500 dark:text-slate-400'
             }`}
           >
             {kegInventory.isDepotStockCritical ? `CRITICAL: Stock < ${settings.kegs_at_depot_low_threshold}` : 'Physical yard inventory'}
@@ -157,26 +157,26 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         {/* 5. Customer-Owned Kegs Filled Today */}
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Customer Kegs</span>
-            <Droplet className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            <span className="text-[12px] font-sans font-medium uppercase tracking-wider">Customer Kegs</span>
+            <Droplet className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           </div>
-          <div className="text-lg lg:text-xl font-mono font-black text-purple-600 dark:text-purple-300">
+          <div className="text-[32px] font-mono font-bold leading-tight text-slate-900 dark:text-slate-100">
             {todayStats.customerKegsFilledToday}{' '}
-            <span className="text-xs font-normal text-slate-500 dark:text-slate-400">filled</span>
+            <span className="text-[14px] font-sans font-normal text-slate-500 dark:text-slate-400">filled</span>
           </div>
-          <div className="text-[10px] text-slate-400 mt-1">Own containers today</div>
+          <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-1">Own containers today</div>
         </div>
 
-        {/* 6. Spent Today / Float Status */}
+        {/* 6. Spent Today / Float Status (Neutral unless overdraft) */}
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Expenses Today</span>
-            <span className="w-2 h-2 rounded-full bg-rose-500" />
+            <span className="text-[12px] font-sans font-medium uppercase tracking-wider">Expenses Today</span>
+            <Package className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           </div>
-          <div className="text-lg lg:text-xl font-mono font-black text-rose-600 dark:text-rose-400">
+          <div className={`text-[32px] font-mono font-bold leading-tight ${todayStats.dailyFloatRemaining < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-slate-100'}`}>
             {formatNaira(todayStats.expensesToday)}
           </div>
-          <div className="text-[10px] text-slate-400 mt-1">
+          <div className="text-[12px] font-mono text-slate-500 dark:text-slate-400 mt-1">
             Float: {formatNaira(todayStats.dailyFloatRemaining)}
           </div>
         </div>
@@ -187,13 +187,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-400">
-              <Fuel className="w-4 h-4" />
+              <Fuel className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+              <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white">
                 Depot Dispense Pumps & Meter Audit Status
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400">
                 Continuous odometer tracking to catch unlogged counter sales at the pump.
               </p>
             </div>
@@ -201,7 +201,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
           <button
             onClick={() => onNavigate('order')}
-            className="text-xs font-bold text-purple-700 dark:text-purple-400 hover:underline flex items-center gap-1 self-start sm:self-auto"
+            className="text-[12px] font-sans font-semibold text-purple-700 dark:text-purple-400 hover:underline flex items-center gap-1 self-start sm:self-auto"
           >
             <span>Record Pump Reading</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -230,19 +230,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 key={pump.id}
                 className={`p-4 rounded-xl border transition-all ${
                   hasAlert
-                    ? 'bg-purple-50/50 dark:bg-purple-950/20 border-purple-400 dark:border-purple-800'
+                    ? 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-400 dark:border-rose-800'
                     : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800/80'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <span className="font-sans font-bold text-[14px] text-slate-900 dark:text-white flex items-center gap-1.5">
                     <span
-                      className="w-2 h-2 rounded-full"
+                      className="w-2.5 h-2.5 rounded-full"
                       style={{ backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }}
                     />
                     <span>{pump.label}</span>
                   </span>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                  <span className={`px-2 py-0.5 rounded text-[11px] font-mono tabular-nums font-bold ${
                     hasAlert
                       ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-300'
                       : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300'
@@ -251,16 +251,16 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   </span>
                 </div>
 
-                <div className="space-y-1.5 text-xs font-mono">
+                <div className="space-y-1.5 text-[12px] font-mono tabular-nums">
                   <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                    <span>Cumulative Meter:</span>
+                    <span className="font-sans">Cumulative Meter:</span>
                     <span className="font-bold text-slate-900 dark:text-slate-100">
                       {pump.last_meter_reading.toLocaleString()} L
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                    <span>Dispensed Today:</span>
-                    <span className="font-bold text-purple-700 dark:text-purple-400">
+                    <span className="font-sans">Dispensed Today:</span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100">
                       {todayPumpLitres.toLocaleString()} L
                     </span>
                   </div>
@@ -279,19 +279,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             <div className="flex items-center gap-3">
               <div className="w-3.5 h-3.5 rounded-full bg-amber-500 shadow-sm shadow-amber-500/50" />
               <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white">
                   Golden Vegetable Oil Tanks
                 </h3>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400">
                   Standard Density: ~1,090 L/Ton · FIFO Draw Sequence
                 </p>
               </div>
             </div>
             <div className="text-right">
-              <span className="text-xs font-mono font-extrabold text-amber-600 dark:text-amber-400">
+              <span className="text-[14px] font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100">
                 {vegStock.toLocaleString()} L
               </span>
-              <span className="text-[10px] text-slate-400 block">
+              <span className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400 block">
                 ≈ {(vegStock / settings.litres_per_keg).toFixed(0)} Kegs
               </span>
             </div>
@@ -309,7 +309,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
             {/* Individual active veg tanks list */}
             <div className="w-full space-y-2.5">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              <div className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Active In-Feed Tanks
               </div>
               {tanks
@@ -319,24 +319,24 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   return (
                     <div
                       key={t.id}
-                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs font-mono"
+                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-[12px] font-mono tabular-nums"
                     >
-                      <div className="space-y-0.5">
+                      <div className="space-y-0.5 font-sans">
                         <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-amber-700 dark:text-amber-400 font-mono">
+                          <span className="text-[11px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">
                             Tank #{idx + 1}
                           </span>
                           <span>{t.truck_label}</span>
                         </div>
-                        <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
                           Intake: {formatDepotDate(t.date)} · Received: {t.received_litres.toLocaleString()}L
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-bold text-amber-600 dark:text-amber-400">
+                        <div className="font-bold text-slate-900 dark:text-slate-100">
                           {t.remaining_litres.toLocaleString()} L
                         </div>
-                        <div className="text-[10px] text-slate-400">
+                        <div className="text-[11px] text-slate-400">
                           {pct.toFixed(0)}% full
                         </div>
                       </div>
@@ -353,19 +353,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             <div className="flex items-center gap-3">
               <div className="w-3.5 h-3.5 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50" />
               <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white">
                   Red / Palm Oil Tanks
                 </h3>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400">
                   Standard Density: ~1,085 L/Ton · FIFO Draw Sequence
                 </p>
               </div>
             </div>
             <div className="text-right">
-              <span className="text-xs font-mono font-extrabold text-rose-600 dark:text-rose-400">
+              <span className="text-[14px] font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100">
                 {redStock.toLocaleString()} L
               </span>
-              <span className="text-[10px] text-slate-400 block">
+              <span className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400 block">
                 ≈ {(redStock / settings.litres_per_keg).toFixed(0)} Kegs
               </span>
             </div>
@@ -383,7 +383,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
             {/* Individual active red tanks list */}
             <div className="w-full space-y-2.5">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              <div className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Active In-Feed Tanks
               </div>
               {tanks
@@ -393,24 +393,24 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   return (
                     <div
                       key={t.id}
-                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs font-mono"
+                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-[12px] font-mono tabular-nums"
                     >
-                      <div className="space-y-0.5">
+                      <div className="space-y-0.5 font-sans">
                         <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-rose-700 dark:text-rose-400 font-mono">
+                          <span className="text-[11px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono">
                             Tank #{idx + 1}
                           </span>
                           <span>{t.truck_label}</span>
                         </div>
-                        <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
                           Intake: {formatDepotDate(t.date)} · Received: {t.received_litres.toLocaleString()}L
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-bold text-rose-600 dark:text-rose-400">
+                        <div className="font-bold text-slate-900 dark:text-slate-100">
                           {t.remaining_litres.toLocaleString()} L
                         </div>
-                        <div className="text-[10px] text-slate-400">
+                        <div className="text-[11px] text-slate-400">
                           {pct.toFixed(0)}% full
                         </div>
                       </div>
@@ -425,11 +425,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       {/* Split Alert Stream: FOUR DISTINCT ALERT TYPES (Desktop 4-col, Tablet 2-col, Mobile 1-col) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-500" />
+          <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-amber-500" />
             <span>Active Risk Signals & Operational Alerts</span>
           </h3>
-          <span className="text-xs text-slate-500 dark:text-slate-400">
+          <span className="text-[12px] font-sans text-slate-500 dark:text-slate-400">
             {activeAlerts.totalAlertCount === 0
               ? 'All systems within normal thresholds'
               : `${activeAlerts.totalAlertCount} alerts requiring counter attention`}
@@ -441,17 +441,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5 mb-3">
-                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-xs uppercase tracking-wider">
+                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-[12px] font-sans uppercase tracking-wider">
                   <Clock className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                   <span>1. Overdue Invoices</span>
                 </div>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30">
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono tabular-nums font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30">
                   {activeAlerts.overdueCredit.length}
                 </span>
               </div>
 
               {activeAlerts.overdueCredit.length === 0 ? (
-                <p className="text-xs text-slate-400 py-3 text-center">
+                <p className="text-[12px] font-sans text-slate-400 py-3 text-center">
                   No overdue credit accounts.
                 </p>
               ) : (
@@ -460,19 +460,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                     <div
                       key={alert.customer.id}
                       onClick={() => onNavigate('customers')}
-                      className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-xs"
+                      className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-[12px]"
                     >
                       <div>
-                        <div className="font-bold text-slate-900 dark:text-slate-200">{alert.customer.name}</div>
-                        <div className="text-[10px] text-rose-600 dark:text-rose-400 font-mono font-semibold">
+                        <div className="font-bold text-slate-900 dark:text-slate-200 font-sans">{alert.customer.name}</div>
+                        <div className="text-[11px] text-rose-600 dark:text-rose-400 font-mono tabular-nums font-semibold">
                           Overdue by {alert.overdueDays} days
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-mono font-bold text-rose-700 dark:text-rose-300">
+                        <div className="font-mono tabular-nums font-bold text-rose-700 dark:text-rose-300">
                           {formatNaira(alert.amount)}
                         </div>
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center justify-end gap-0.5">
+                        <span className="text-[11px] font-sans text-slate-500 dark:text-slate-400 flex items-center justify-end gap-0.5">
                           View <ArrowRight className="w-2.5 h-2.5" />
                         </span>
                       </div>
@@ -487,17 +487,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5 mb-3">
-                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-bold text-xs uppercase tracking-wider">
-                  <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-[12px] font-sans uppercase tracking-wider">
+                  <ShieldAlert className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                   <span>2. Credit Cap Breaches</span>
                 </div>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30">
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono tabular-nums font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30">
                   {activeAlerts.overLimit.length}
                 </span>
               </div>
 
               {activeAlerts.overLimit.length === 0 ? (
-                <p className="text-xs text-slate-400 py-3 text-center">
+                <p className="text-[12px] font-sans text-slate-400 py-3 text-center">
                   All accounts within approved credit caps.
                 </p>
               ) : (
@@ -506,19 +506,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                     <div
                       key={alert.customer.id}
                       onClick={() => onNavigate('customers')}
-                      className="cursor-pointer p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors flex items-center justify-between text-xs"
+                      className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-[12px]"
                     >
                       <div>
-                        <div className="font-bold text-slate-900 dark:text-slate-200">{alert.customer.name}</div>
-                        <div className="text-[10px] text-amber-700 dark:text-amber-400">
+                        <div className="font-bold text-slate-900 dark:text-slate-200 font-sans">{alert.customer.name}</div>
+                        <div className="text-[11px] text-slate-600 dark:text-slate-400 font-mono tabular-nums">
                           Limit: {formatNaira(alert.limit)}
                         </div>
                       </div>
-                      <div className="text-right font-mono">
-                        <div className="font-bold text-amber-800 dark:text-amber-300">
+                      <div className="text-right font-mono tabular-nums">
+                        <div className="font-bold text-rose-800 dark:text-rose-300">
                           {formatNaira(alert.balance)}
                         </div>
-                        <div className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold">
+                        <div className="text-[11px] text-rose-600 dark:text-rose-400 font-semibold">
                           +{formatNaira(alert.excess)} over
                         </div>
                       </div>
@@ -533,17 +533,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5 mb-3">
-                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-xs uppercase tracking-wider">
+                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-[12px] font-sans uppercase tracking-wider">
                   <Truck className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                   <span>3. Truck Shortfall (&gt; {settings.truck_shortfall_threshold}L)</span>
                 </div>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30">
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono tabular-nums font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30">
                   {activeAlerts.deliveryShortfall.length}
                 </span>
               </div>
 
               {activeAlerts.deliveryShortfall.length === 0 ? (
-                <p className="text-xs text-slate-400 py-3 text-center">
+                <p className="text-[12px] font-sans text-slate-400 py-3 text-center">
                   No high-variance intakes logged.
                 </p>
               ) : (
@@ -552,19 +552,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                     <div
                       key={idx}
                       onClick={() => onNavigate('intake')}
-                      className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-xs"
+                      className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-[12px]"
                     >
                       <div>
-                        <div className="font-bold text-slate-900 dark:text-slate-200">{alert.tank.truck_label}</div>
-                        <div className="text-[10px] text-slate-500 font-mono">
+                        <div className="font-bold text-slate-900 dark:text-slate-200 font-sans">{alert.tank.truck_label}</div>
+                        <div className="text-[11px] text-slate-500 font-mono tabular-nums">
                           {formatDepotDate(alert.tank.date)}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-mono font-bold text-rose-600 dark:text-rose-400">
+                        <div className="font-mono tabular-nums font-bold text-rose-600 dark:text-rose-400">
                           -{alert.shortfallLitres} L
                         </div>
-                        <span className="text-[10px] text-slate-500 flex items-center justify-end gap-0.5">
+                        <span className="text-[11px] font-sans text-slate-500 flex items-center justify-end gap-0.5">
                           Audit <ArrowRight className="w-2.5 h-2.5" />
                         </span>
                       </div>
@@ -576,20 +576,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           </div>
 
           {/* Alert Stream 4: Pump Meter Variance Audits (> settings.pump_variance_threshold) */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-purple-200 dark:border-purple-900/80 shadow-sm flex flex-col justify-between">
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-rose-200 dark:border-rose-900/80 shadow-sm flex flex-col justify-between">
             <div>
-              <div className="flex items-center justify-between border-b border-purple-200 dark:border-purple-900/60 pb-2.5 mb-3">
-                <div className="flex items-center gap-2 text-purple-700 dark:text-purple-400 font-bold text-xs uppercase tracking-wider">
-                  <Gauge className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+              <div className="flex items-center justify-between border-b border-rose-200 dark:border-rose-900/60 pb-2.5 mb-3">
+                <div className="flex items-center gap-2 text-rose-700 dark:text-rose-400 font-bold text-[12px] font-sans uppercase tracking-wider">
+                  <Gauge className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                   <span>4. Pump Meter Variance</span>
                 </div>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-purple-100 dark:bg-purple-500/20 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-500/30">
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono tabular-nums font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-500/30">
                   {activeAlerts.pumpVariance.length}
                 </span>
               </div>
 
               {activeAlerts.pumpVariance.length === 0 ? (
-                <p className="text-xs text-slate-400 py-3 text-center">
+                <p className="text-[12px] font-sans text-slate-400 py-3 text-center">
                   All pump meter deltas align with logged orders.
                 </p>
               ) : (
@@ -598,19 +598,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                     <div
                       key={idx}
                       onClick={() => onNavigate('order')}
-                      className="cursor-pointer p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900/50 hover:bg-purple-100 dark:hover:bg-purple-950/50 transition-colors flex items-center justify-between text-xs"
+                      className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-[12px]"
                     >
                       <div>
-                        <div className="font-bold text-purple-950 dark:text-purple-200">{audit.pumpLabel}</div>
-                        <div className="text-[10px] text-purple-700 dark:text-purple-400 font-mono">
+                        <div className="font-bold text-slate-900 dark:text-slate-200 font-sans">{audit.pumpLabel}</div>
+                        <div className="text-[11px] text-rose-700 dark:text-rose-400 font-mono tabular-nums">
                           Meter: +{audit.meterDelta}L | Logged: {audit.expectedLitres}L
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-mono font-bold text-purple-700 dark:text-purple-300">
+                        <div className="font-mono tabular-nums font-bold text-rose-700 dark:text-rose-300">
                           {audit.variance > 0 ? `+${audit.variance}` : audit.variance} L
                         </div>
-                        <span className="text-[10px] text-slate-500 flex items-center justify-end gap-0.5">
+                        <span className="text-[11px] font-sans text-slate-500 flex items-center justify-end gap-0.5">
                           Audit <ArrowRight className="w-2.5 h-2.5" />
                         </span>
                       </div>

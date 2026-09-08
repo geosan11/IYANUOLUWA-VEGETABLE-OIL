@@ -203,27 +203,34 @@ export const NewOrderScreen: React.FC = () => {
       {/* Page Title & Context Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div>
-          <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            <ShoppingCart className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+          <h2 className="text-[24px] font-heading font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <ShoppingCart className="w-5 h-5 text-slate-600 dark:text-slate-300" />
             <span>Counter Dispense & New Order</span>
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-[14px] font-sans text-slate-500 dark:text-slate-400 mt-1">
             Automated FIFO tank draw, pump meter tracking, customer credit validation, and instant receipt generation.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono text-slate-700 dark:text-slate-300">
-            <span>Available {selectedProduct.name}:</span>{' '}
-            <span className="font-bold text-amber-600 dark:text-amber-400">{productStock.toLocaleString()} L</span>
+          <div className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[12px] font-mono tabular-nums text-slate-700 dark:text-slate-300">
+            <span className="font-sans">Available {selectedProduct.name}:</span>{' '}
+            <span className="font-bold text-slate-900 dark:text-slate-100">{productStock.toLocaleString()} L</span>
+          </div>
+
+          <div className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[12px] font-mono tabular-nums text-slate-700 dark:text-slate-300">
+            <span className="font-sans">Depot Kegs:</span>{' '}
+            <span className={`font-bold ${kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-slate-100'}`}>
+              {kegInventory.kegsAtDepot}
+            </span>
           </div>
 
           <button
             type="button"
             onClick={() => setIsPumpReadingOpen(!isPumpReadingOpen)}
-            className="px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800/80 text-xs font-bold flex items-center gap-1.5 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-all active:scale-95"
+            className="px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800/80 text-[12px] font-sans font-bold flex items-center gap-1.5 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-all active:scale-95"
           >
-            <Gauge className="w-3.5 h-3.5" />
+            <Gauge className="w-4 h-4" />
             <span>{isPumpReadingOpen ? 'Hide Pump Logger' : 'Record Pump Reading'}</span>
             {isPumpReadingOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
@@ -236,24 +243,24 @@ export const NewOrderScreen: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-purple-200 dark:border-purple-900/60 pb-3 mb-4">
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-xl bg-purple-600 text-white shadow-sm">
-                <Gauge className="w-4 h-4" />
+                <Gauge className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-purple-950 dark:text-purple-200 uppercase tracking-tight">
+                <h3 className="text-[18px] font-heading font-semibold text-purple-950 dark:text-purple-200">
                   Periodic Pump Meter Audit Entry
                 </h3>
-                <p className="text-xs text-purple-700/80 dark:text-purple-300/70">
+                <p className="text-[12px] font-sans text-purple-700/80 dark:text-purple-300/70">
                   Record cumulative pump odometer reading to audit against logged dispense orders.
                 </p>
               </div>
             </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-200 dark:bg-purple-900/60 text-purple-900 dark:text-purple-200 font-bold self-start sm:self-auto">
+            <span className="text-[11px] font-mono tabular-nums px-2 py-0.5 rounded bg-purple-200 dark:bg-purple-900/60 text-purple-900 dark:text-purple-200 font-bold self-start sm:self-auto">
               Variance Threshold: {settings.pump_variance_threshold}L
             </span>
           </div>
 
           {pumpReadingStatus && (
-            <div className={`p-3 rounded-xl mb-4 text-xs font-medium flex items-center gap-2 ${
+            <div className={`p-3 rounded-xl mb-4 text-[12px] font-sans font-medium flex items-center gap-2 ${
               pumpReadingStatus.success
                 ? 'bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/40 text-emerald-900 dark:text-emerald-300'
                 : 'bg-rose-100 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-500/40 text-rose-900 dark:text-rose-300'
@@ -263,14 +270,14 @@ export const NewOrderScreen: React.FC = () => {
             </div>
           )}
 
-          <form onSubmit={handleRecordReadingSubmit} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 text-xs">
+          <form onSubmit={handleRecordReadingSubmit} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 text-[12px]">
             {/* Select Pump */}
             <div className="lg:col-span-4 space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Select Depot Pump</label>
+              <label className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Select Depot Pump</label>
               <select
                 value={readingPumpId}
                 onChange={e => setReadingPumpId(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-purple-500"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-sans font-semibold text-[14px] focus:outline-none focus:border-purple-500"
               >
                 {pumps.map(p => (
                   <option key={p.id} value={p.id}>
@@ -283,8 +290,8 @@ export const NewOrderScreen: React.FC = () => {
             {/* New Meter Reading Input */}
             <div className="lg:col-span-3 space-y-1">
               <div className="flex justify-between">
-                <label className="font-semibold text-slate-700 dark:text-slate-300">Cumulative Reading (L)</label>
-                <span className="text-[10px] text-slate-500 font-mono">Min: {selectedReadingPump?.last_meter_reading.toLocaleString()}L</span>
+                <label className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Cumulative Reading (L)</label>
+                <span className="text-[11px] text-slate-500 font-mono tabular-nums">Min: {selectedReadingPump?.last_meter_reading.toLocaleString()}L</span>
               </div>
               <div className="relative">
                 <input
@@ -294,22 +301,22 @@ export const NewOrderScreen: React.FC = () => {
                   value={newMeterReading}
                   onChange={e => setNewMeterReading(e.target.value)}
                   placeholder={(selectedReadingPump ? selectedReadingPump.last_meter_reading + 50 : 1000).toString()}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:border-purple-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-purple-500"
                   required
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-[10px]">Litres</span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-[11px]">Litres</span>
               </div>
             </div>
 
             {/* Note / Shift */}
             <div className="lg:col-span-3 space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Audit Note / Shift Handover</label>
+              <label className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Audit Note / Shift</label>
               <input
                 type="text"
                 value={readingNote}
                 onChange={e => setReadingNote(e.target.value)}
                 placeholder="e.g. Afternoon shift audit"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-purple-500"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 text-[14px] font-sans focus:outline-none focus:border-purple-500"
               />
             </div>
 
@@ -317,9 +324,9 @@ export const NewOrderScreen: React.FC = () => {
             <div className="lg:col-span-2 flex items-end">
               <button
                 type="submit"
-                className="w-full py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                className="w-full py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-sans font-bold text-[14px] shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5"
               >
-                <Save className="w-3.5 h-3.5" />
+                <Save className="w-4 h-4" />
                 <span>Log Reading</span>
               </button>
             </div>
@@ -343,14 +350,14 @@ export const NewOrderScreen: React.FC = () => {
 
           {/* 1. Customer Select */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <User className="w-4 h-4 text-brand-600 dark:text-brand-400" />
               <span>Customer Account</span>
             </label>
             <select
               value={customerId}
               onChange={e => setCustomerId(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-semibold text-xs focus:outline-none focus:border-brand-500"
+              className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-sans font-semibold text-[14px] focus:outline-none focus:border-brand-500"
             >
               {customers.map(c => (
                 <option key={c.id} value={c.id}>
@@ -362,7 +369,7 @@ export const NewOrderScreen: React.FC = () => {
 
           {/* 2. Product Selection Chips */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">Product Type</label>
+            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">Product Type</label>
             <div className="grid grid-cols-2 gap-3">
               {products.map(p => {
                 const isSelected = productId === p.id;
@@ -380,8 +387,8 @@ export const NewOrderScreen: React.FC = () => {
                         : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                     }`}
                   >
-                    <div className="text-xs font-bold">{p.name}</div>
-                    <div className="text-[10px] opacity-80 mt-0.5">
+                    <div className="text-[14px] font-sans font-bold">{p.name}</div>
+                    <div className="text-[11px] font-sans opacity-80 mt-0.5">
                       {isVeg ? 'Golden Veg Oil' : 'Palm Oil / Epo Pupa'}
                     </div>
                   </button>
@@ -392,8 +399,8 @@ export const NewOrderScreen: React.FC = () => {
 
           {/* 3. Dispensing Pump Selection */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <Fuel className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <Fuel className="w-4 h-4 text-purple-600 dark:text-purple-400" />
               <span>Dispense Pump Meter Line</span>
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -404,14 +411,14 @@ export const NewOrderScreen: React.FC = () => {
                     type="button"
                     key={pump.id}
                     onClick={() => setSelectedPumpId(pump.id)}
-                    className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
+                    className={`p-2.5 rounded-xl border text-left text-[12px] transition-all ${
                       isSelected
                         ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-500 text-purple-900 dark:text-purple-300 font-bold shadow-sm'
                         : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                     }`}
                   >
-                    <div className="font-bold truncate">{pump.label}</div>
-                    <div className="text-[10px] font-mono text-slate-500 mt-0.5">
+                    <div className="font-sans font-bold truncate">{pump.label}</div>
+                    <div className="text-[11px] font-mono tabular-nums text-slate-500 mt-0.5">
                       Meter: {pump.last_meter_reading.toLocaleString()}L
                     </div>
                   </button>
@@ -423,8 +430,8 @@ export const NewOrderScreen: React.FC = () => {
           {/* 4. Unit & Quantity */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Volume & Unit</label>
-              <span className="text-xs font-mono font-bold text-brand-600 dark:text-brand-400">
+              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Volume & Unit</label>
+              <span className="text-[12px] font-mono tabular-nums font-bold text-brand-600 dark:text-brand-400">
                 = {pricing.litres.toLocaleString()} Litres
               </span>
             </div>
@@ -435,10 +442,10 @@ export const NewOrderScreen: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setUnit('keg')}
-                  className={`py-2 rounded-lg text-xs font-bold transition-all ${
+                  className={`py-2 rounded-lg text-[12px] font-sans font-bold transition-all ${
                     unit === 'keg'
                       ? 'bg-brand-500 text-slate-950 shadow-sm'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
                   }`}
                 >
                   Kegs ({settings.litres_per_keg}L)
@@ -446,10 +453,10 @@ export const NewOrderScreen: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setUnit('litre')}
-                  className={`py-2 rounded-lg text-xs font-bold transition-all ${
+                  className={`py-2 rounded-lg text-[12px] font-sans font-bold transition-all ${
                     unit === 'litre'
                       ? 'bg-brand-500 text-slate-950 shadow-sm'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
                   }`}
                 >
                   Litres
@@ -466,7 +473,7 @@ export const NewOrderScreen: React.FC = () => {
                   onChange={e => setQty(e.target.value)}
                   placeholder="10"
                   inputMode="decimal"
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-base font-mono font-bold focus:outline-none focus:border-brand-500 text-right"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[16px] font-mono tabular-nums font-bold focus:outline-none focus:border-brand-500 text-right"
                   required
                 />
               </div>
@@ -474,13 +481,13 @@ export const NewOrderScreen: React.FC = () => {
 
             {/* Quick Increment Chips */}
             <div className="flex flex-wrap items-center gap-2 pt-1">
-              <span className="text-[10px] font-semibold text-slate-500 uppercase">Quick Add:</span>
+              <span className="text-[11px] font-sans font-semibold text-slate-500 uppercase">Quick Add:</span>
               {[1, 5, 10, 20, 50].map(val => (
                 <button
                   type="button"
                   key={val}
                   onClick={() => handleQuickQtyAdd(val)}
-                  className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold text-slate-700 dark:text-slate-300 hover:border-brand-500 hover:text-brand-600 dark:hover:text-white transition-colors"
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[12px] font-mono tabular-nums font-bold text-slate-700 dark:text-slate-300 hover:border-brand-500 hover:text-brand-600 dark:hover:text-white transition-colors"
                 >
                   +{val} {unit}
                 </button>
@@ -491,11 +498,11 @@ export const NewOrderScreen: React.FC = () => {
           {/* 5. Keg Source (Only if unit === 'keg') */}
           {unit === 'keg' && (
             <div className="space-y-1.5 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <Package className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Package className="w-4 h-4 text-brand-600 dark:text-brand-400" />
                 <span>Container / Jerrycan Source</span>
               </label>
-              <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="grid grid-cols-2 gap-2 text-[12px]">
                 <button
                   type="button"
                   onClick={() => setKegSource('company')}
@@ -505,8 +512,8 @@ export const NewOrderScreen: React.FC = () => {
                       : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
                   }`}
                 >
-                  <div className="font-bold">Company-Owned Keg</div>
-                  <div className="text-[10px] text-slate-500">Returnable obligation logged</div>
+                  <div className="font-sans font-bold">Company-Owned Keg</div>
+                  <div className="text-[11px] font-sans text-slate-500">Returnable obligation logged</div>
                 </button>
 
                 <button
@@ -518,8 +525,8 @@ export const NewOrderScreen: React.FC = () => {
                       : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
                   }`}
                 >
-                  <div className="font-bold">Customer-Owned Keg</div>
-                  <div className="text-[10px] text-slate-500">Bypasses keg return ledger</div>
+                  <div className="font-sans font-bold">Customer-Owned Keg</div>
+                  <div className="text-[11px] font-sans text-slate-500">Bypasses keg return ledger</div>
                 </button>
               </div>
             </div>
@@ -527,11 +534,11 @@ export const NewOrderScreen: React.FC = () => {
 
           {/* 6. Payment Method */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <CreditCard className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <CreditCard className="w-4 h-4 text-brand-600 dark:text-brand-400" />
               <span>Payment Terms / Method</span>
             </label>
-            <div className="grid grid-cols-3 gap-2 text-xs font-semibold">
+            <div className="grid grid-cols-3 gap-2 text-[12px] font-sans font-semibold">
               {(['credit', 'cash', 'transfer'] as PaymentMethod[]).map(method => (
                 <button
                   type="button"
@@ -540,7 +547,7 @@ export const NewOrderScreen: React.FC = () => {
                   className={`py-2.5 rounded-xl border capitalize transition-all min-h-[44px] ${
                     paymentMethod === method
                       ? 'bg-brand-500 text-slate-950 font-bold border-brand-500 shadow-sm'
-                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
                   }`}
                 >
                   {method}
@@ -551,7 +558,7 @@ export const NewOrderScreen: React.FC = () => {
 
           {/* 7. Soft Warnings & Overrides */}
           {isKegShortage && (
-            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 text-xs text-amber-900 dark:text-amber-300 space-y-2">
+            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 text-[12px] font-sans text-amber-900 dark:text-amber-300 space-y-2">
               <div className="flex items-center gap-2 font-bold">
                 <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
                 <span>Depot Keg Shortage Warning</span>
@@ -572,12 +579,12 @@ export const NewOrderScreen: React.FC = () => {
           )}
 
           {isCreditExceeded && (
-            <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/80 text-xs text-rose-900 dark:text-rose-300 space-y-2">
+            <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/80 text-[12px] font-sans text-rose-900 dark:text-rose-300 space-y-2">
               <div className="flex items-center gap-2 font-bold">
                 <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />
                 <span>Credit Limit Breach Warning</span>
               </div>
-              <p className="text-[11px] text-rose-800 dark:text-rose-200">
+              <p className="text-[11px] text-rose-800 dark:text-rose-200 font-mono tabular-nums">
                 Projected balance ({formatNaira(customerStats ? customerStats.currentBalance + pricing.amount : 0)})
                 exceeds credit limit ({formatNaira(selectedCustomer.credit_limit)}).
               </p>
@@ -595,22 +602,22 @@ export const NewOrderScreen: React.FC = () => {
 
           {/* 8. Optional Note */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Order Note / Reference (Optional)</label>
+            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Order Note / Reference (Optional)</label>
             <input
               type="text"
               value={note}
               onChange={e => setNote(e.target.value)}
               placeholder="e.g. Dispensed into customer white cans, gate dispatch slip #890"
-              className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 text-xs focus:outline-none focus:border-brand-500"
+              className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 text-[14px] font-sans focus:outline-none focus:border-brand-500"
             />
           </div>
 
           {/* 9. Submit Button */}
           <button
             type="submit"
-            className="w-full py-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-brand-500/25 transition-all flex items-center justify-center gap-2 active:scale-98"
+            className="w-full py-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[14px] uppercase tracking-wider shadow-lg shadow-brand-500/25 transition-all flex items-center justify-center gap-2 active:scale-98"
           >
-            <Receipt className="w-4 h-4 text-slate-950" />
+            <Receipt className="w-[18px] h-[18px] text-slate-950" />
             <span>Record Dispense & Issue Official Receipt</span>
           </button>
         </form>
@@ -620,40 +627,40 @@ export const NewOrderScreen: React.FC = () => {
           {/* Order Financial Calculation Card */}
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              <span className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
                 Order Billing Summary
               </span>
-              <span className="text-xs font-mono font-bold text-brand-600 dark:text-brand-400">
+              <span className="text-[12px] font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100">
                 ₦{ratePerLitre.toLocaleString()}/L
               </span>
             </div>
 
-            <div className="space-y-2 text-xs font-mono">
+            <div className="space-y-2 text-[12px] font-mono tabular-nums">
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>Customer Tier:</span>
+                <span className="font-sans">Customer Tier:</span>
                 <span className="font-bold text-slate-900 dark:text-slate-200 capitalize">{selectedCustomer.type}</span>
               </div>
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>Dispensed Volume:</span>
+                <span className="font-sans">Dispensed Volume:</span>
                 <span className="font-bold text-slate-900 dark:text-slate-200">{pricing.litres.toLocaleString()} L</span>
               </div>
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>Price per {settings.litres_per_keg}L Keg:</span>
+                <span className="font-sans">Price per {settings.litres_per_keg}L Keg:</span>
                 <span className="font-bold text-slate-900 dark:text-slate-200">{formatNaira(pricing.ratePerKeg)}</span>
               </div>
 
               {creditDueDate && (
                 <div className="flex justify-between text-amber-700 dark:text-amber-400 pt-1 border-t border-slate-100 dark:border-slate-800">
                   <span className="flex items-center gap-1 font-sans">
-                    <Calendar className="w-3 h-3" /> Due Date ({selectedCustomer.credit_term_days}d):
+                    <Calendar className="w-3.5 h-3.5" /> Due Date ({selectedCustomer.credit_term_days}d):
                   </span>
                   <span className="font-bold">{formatDepotDate(creditDueDate)}</span>
                 </div>
               )}
 
               <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-between items-baseline font-sans">
-                <span className="text-sm font-bold text-slate-900 dark:text-white">Total Order Value:</span>
-                <span className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+                <span className="text-[14px] font-bold text-slate-900 dark:text-white">Total Order Value:</span>
+                <span className="text-[32px] font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400">
                   {formatNaira(pricing.amount)}
                 </span>
               </div>
@@ -663,19 +670,19 @@ export const NewOrderScreen: React.FC = () => {
           {/* Customer Credit Position Card */}
           {customerStats && (
             <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm">
-              <div className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              <div className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
                 Customer Ledger Position
               </div>
-              <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="grid grid-cols-2 gap-3 text-[12px]">
                 <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-                  <div className="text-[10px] text-slate-500">Current Balance</div>
-                  <div className="text-sm font-mono font-black text-slate-900 dark:text-slate-100 mt-0.5">
+                  <div className="text-[11px] font-sans text-slate-500">Current Balance</div>
+                  <div className="text-[16px] font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100 mt-0.5">
                     {formatNaira(customerStats.currentBalance)}
                   </div>
                 </div>
                 <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-                  <div className="text-[10px] text-slate-500">Credit Limit</div>
-                  <div className="text-sm font-mono font-bold text-slate-700 dark:text-slate-300 mt-0.5">
+                  <div className="text-[11px] font-sans text-slate-500">Credit Limit</div>
+                  <div className="text-[16px] font-mono tabular-nums font-bold text-slate-700 dark:text-slate-300 mt-0.5">
                     {formatNaira(selectedCustomer.credit_limit)}
                   </div>
                 </div>
@@ -687,10 +694,10 @@ export const NewOrderScreen: React.FC = () => {
           {activeFifoTank && (
             <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                <span className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
                   Target Tank (FIFO Sequence)
                 </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold">
+                <span className="text-[11px] font-mono tabular-nums px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold">
                   Oldest Active
                 </span>
               </div>
@@ -703,15 +710,15 @@ export const NewOrderScreen: React.FC = () => {
                   size="sm"
                   showLabels={false}
                 />
-                <div className="space-y-1 text-xs">
+                <div className="space-y-1 text-[12px] font-sans">
                   <div className="font-bold text-slate-900 dark:text-white truncate max-w-[180px]">
                     {activeFifoTank.truck_label}
                   </div>
                   <div className="text-slate-500 text-[11px]">
-                    Stock in Tank: <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{activeFifoTank.remaining_litres.toLocaleString()}L</span>
+                    Stock in Tank: <span className="font-mono tabular-nums font-bold text-slate-800 dark:text-slate-200">{activeFifoTank.remaining_litres.toLocaleString()}L</span>
                   </div>
                   <div className="text-slate-500 text-[11px]">
-                    After Draw: <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                    After Draw: <span className="font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100">
                       {Math.max(0, activeFifoTank.remaining_litres - pricing.litres).toLocaleString()}L
                     </span>
                   </div>

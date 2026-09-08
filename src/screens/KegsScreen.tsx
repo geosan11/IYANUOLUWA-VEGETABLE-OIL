@@ -8,7 +8,6 @@ import {
   RotateCcw,
   CheckCircle2,
   History,
-  ExternalLink,
   Plus
 } from 'lucide-react';
 
@@ -45,20 +44,20 @@ export const KegsScreen: React.FC = () => {
       {/* Top Banner & Title */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div>
-          <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            <Package className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+          <h2 className="text-[24px] font-heading font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <Package className="w-5 h-5 text-slate-600 dark:text-slate-300" />
             <span>Keg Container Inventory & Depot Gate Ledger</span>
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-[14px] font-sans text-slate-500 dark:text-slate-400 mt-1">
             Track company-owned 30L return obligations vs customer-owned containers with physical yard inventory limits.
           </p>
         </div>
       </div>
 
       {logSuccessMsg && (
-        <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
+        <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300 text-[12px] font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
-          <span className="font-semibold">{logSuccessMsg}</span>
+          <span>{logSuccessMsg}</span>
         </div>
       )}
 
@@ -67,19 +66,19 @@ export const KegsScreen: React.FC = () => {
         {/* 1. Total Company Kegs Asset (Read-only with Settings Link) */}
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <span className="text-[12px] font-sans font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Total Company Fleet
             </span>
-            <span className="text-[10px] text-slate-400">Settings Controlled</span>
+            <span className="text-[11px] font-sans text-slate-400">Settings Controlled</span>
           </div>
 
-          <div className="text-2xl font-black font-mono text-slate-900 dark:text-slate-100">
-            {settings.total_company_kegs} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">total fleet</span>
+          <div className="text-[32px] font-mono tabular-nums font-bold leading-tight text-slate-900 dark:text-slate-100">
+            {settings.total_company_kegs} <span className="text-[14px] font-sans font-normal text-slate-500 dark:text-slate-400">total fleet</span>
           </div>
 
           <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 mt-2 text-[11px]">
-            <span className="text-slate-500">Fleet asset cap</span>
-            <span className="text-brand-600 dark:text-brand-400 font-semibold flex items-center gap-1">
+            <span className="text-slate-500 font-sans">Fleet asset cap</span>
+            <span className="text-brand-600 dark:text-brand-400 font-semibold font-sans flex items-center gap-1">
               Read-only
             </span>
           </div>
@@ -88,15 +87,15 @@ export const KegsScreen: React.FC = () => {
         {/* 2. Total Kegs Out in Field */}
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <span className="text-[12px] font-sans font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Kegs Out in Field
             </span>
-            <Boxes className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+            <Boxes className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           </div>
-          <div className="text-2xl font-black font-mono text-sky-600 dark:text-sky-400">
-            {kegInventory.totalKegsOut} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">with customers</span>
+          <div className="text-[32px] font-mono tabular-nums font-bold leading-tight text-slate-900 dark:text-slate-100">
+            {kegInventory.totalKegsOut} <span className="text-[14px] font-sans font-normal text-slate-500 dark:text-slate-400">with customers</span>
           </div>
-          <div className="text-[10px] text-slate-500 mt-2">
+          <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-2">
             Active return obligations awaiting gate collection.
           </div>
         </div>
@@ -111,7 +110,7 @@ export const KegsScreen: React.FC = () => {
         >
           <div className="flex items-center justify-between mb-2">
             <span
-              className={`text-[11px] font-bold uppercase tracking-wider ${
+              className={`text-[12px] font-sans font-medium uppercase tracking-wider ${
                 kegInventory.isDepotStockCritical ? 'text-rose-700 dark:text-rose-300 font-bold' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
@@ -119,20 +118,20 @@ export const KegsScreen: React.FC = () => {
             </span>
             <RotateCcw
               className={`w-4 h-4 ${
-                kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400 animate-pulse' : 'text-brand-600 dark:text-brand-400'
+                kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400 animate-pulse' : 'text-slate-500 dark:text-slate-400'
               }`}
             />
           </div>
           <div
-            className={`text-2xl font-black font-mono ${
-              kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+            className={`text-[32px] font-mono tabular-nums font-bold leading-tight ${
+              kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-slate-100'
             }`}
           >
-            {kegInventory.kegsAtDepot} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">ready to fill</span>
+            {kegInventory.kegsAtDepot} <span className="text-[14px] font-sans font-normal text-slate-500 dark:text-slate-400">ready to fill</span>
           </div>
           <div
-            className={`text-[10px] mt-2 ${
-              kegInventory.isDepotStockCritical ? 'text-rose-700 dark:text-rose-300 font-bold' : 'text-slate-500'
+            className={`text-[12px] font-sans mt-2 ${
+              kegInventory.isDepotStockCritical ? 'text-rose-700 dark:text-rose-300 font-bold' : 'text-slate-500 dark:text-slate-400'
             }`}
           >
             {kegInventory.isDepotStockCritical
@@ -148,11 +147,11 @@ export const KegsScreen: React.FC = () => {
         <div className="lg:col-span-7 p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
             <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                <Boxes className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+              <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <Boxes className="w-5 h-5 text-brand-600 dark:text-brand-400" />
                 <span>Customer Keg Balance Matrix</span>
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
                 Supplied vs Returned company jerrycans with quick-return entry.
               </p>
             </div>
@@ -161,7 +160,7 @@ export const KegsScreen: React.FC = () => {
           {/* Desktop Table & Mobile Cards */}
           <div className="hidden sm:block overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
             <table className="w-full text-xs text-left">
-              <thead className="bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800">
+              <thead className="bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 uppercase font-semibold text-[11px] tracking-wider border-b border-slate-200 dark:border-slate-800 font-sans">
                 <tr>
                   <th className="px-4 py-3">Customer</th>
                   <th className="px-3 py-3 text-center">Supplied</th>
@@ -170,7 +169,7 @@ export const KegsScreen: React.FC = () => {
                   <th className="px-4 py-3 text-right">Gate Quick Return</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80 font-mono">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80 font-mono tabular-nums">
                 {customers.map(cust => {
                   const custOrders = orders.filter(o => o.customer_id === cust.id && o.keg_source === 'company' && o.unit === 'keg');
                   const supplied = custOrders.reduce((sum, o) => sum + Number(o.qty || 0), 0);
@@ -181,17 +180,17 @@ export const KegsScreen: React.FC = () => {
                   return (
                     <tr key={cust.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-900/50">
                       <td className="px-4 py-3 font-sans">
-                        <div className="font-bold text-slate-900 dark:text-slate-200">{cust.name}</div>
-                        <div className="text-[10px] text-slate-500 capitalize">{cust.type} account</div>
+                        <div className="font-heading font-semibold text-[14px] text-slate-900 dark:text-slate-200">{cust.name}</div>
+                        <div className="text-[11px] text-slate-500 capitalize font-sans">{cust.type} account</div>
                       </td>
-                      <td className="px-3 py-3 text-center text-slate-600 dark:text-slate-400">
+                      <td className="px-3 py-3 text-center text-slate-600 dark:text-slate-400 text-[13px]">
                         {supplied}
                       </td>
-                      <td className="px-3 py-3 text-center text-emerald-600 dark:text-emerald-400">
+                      <td className="px-3 py-3 text-center text-emerald-600 dark:text-emerald-400 font-semibold text-[13px]">
                         {returned}
                       </td>
                       <td className="px-3 py-3 text-center font-bold">
-                        <span className={`px-2 py-0.5 rounded text-[11px] ${
+                        <span className={`px-2 py-0.5 rounded text-[11px] font-mono tabular-nums ${
                           balance > 0
                             ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-extrabold'
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
@@ -213,12 +212,12 @@ export const KegsScreen: React.FC = () => {
                                 [cust.id]: e.target.value
                               })
                             }
-                            className="w-16 px-2 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs font-mono font-bold text-right focus:outline-none focus:border-brand-500"
+                            className="w-16 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[14px] font-mono tabular-nums font-bold text-right focus:outline-none focus:border-brand-500"
                           />
                           <button
                             type="button"
                             onClick={() => handleQuickReturn(cust.id)}
-                            className="px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-400 text-slate-950 font-bold text-[11px] shadow-sm transition-all active:scale-95 whitespace-nowrap"
+                            className="px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[12px] shadow-sm transition-all active:scale-95 whitespace-nowrap"
                           >
                             + Return
                           </button>
@@ -247,10 +246,10 @@ export const KegsScreen: React.FC = () => {
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-bold text-slate-900 dark:text-white text-xs">{cust.name}</div>
-                      <div className="text-[10px] text-slate-500 capitalize">{cust.type} account</div>
+                      <div className="font-heading font-semibold text-slate-900 dark:text-white text-[14px]">{cust.name}</div>
+                      <div className="text-[11px] text-slate-500 capitalize font-sans">{cust.type} account</div>
                     </div>
-                    <span className={`px-2 py-0.5 rounded text-xs font-mono font-bold ${
+                    <span className={`px-2 py-0.5 rounded text-[11px] font-mono tabular-nums font-bold ${
                       balance > 0
                         ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
                         : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
@@ -259,14 +258,14 @@ export const KegsScreen: React.FC = () => {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                    <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                      <span className="text-[10px] text-slate-500 block">Total Supplied</span>
-                      <span className="font-bold text-slate-800 dark:text-slate-200">{supplied}</span>
+                  <div className="grid grid-cols-2 gap-2 text-xs font-mono tabular-nums">
+                    <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[11px] font-sans text-slate-500 block">Total Supplied</span>
+                      <span className="font-bold text-[14px] text-slate-800 dark:text-slate-200">{supplied}</span>
                     </div>
-                    <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                      <span className="text-[10px] text-slate-500 block">Total Returned</span>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{returned}</span>
+                    <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[11px] font-sans text-slate-500 block">Total Returned</span>
+                      <span className="font-bold text-[14px] text-emerald-600 dark:text-emerald-400">{returned}</span>
                     </div>
                   </div>
 
@@ -284,14 +283,14 @@ export const KegsScreen: React.FC = () => {
                           [cust.id]: e.target.value
                         })
                       }
-                      className="w-24 px-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-mono font-bold text-right focus:outline-none focus:border-brand-500"
+                      className="w-24 px-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-[14px] font-mono tabular-nums font-bold text-right focus:outline-none focus:border-brand-500"
                     />
                     <button
                       type="button"
                       onClick={() => handleQuickReturn(cust.id)}
-                      className="flex-1 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-bold text-xs shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1"
+                      className="flex-1 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus className="w-4 h-4" />
                       <span>Log Gate Return</span>
                     </button>
                   </div>
@@ -304,17 +303,17 @@ export const KegsScreen: React.FC = () => {
         {/* Right: Gate Returns Audit Log (lg:col-span-5) */}
         <div className="lg:col-span-5 p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
           <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-              <History className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <History className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               <span>Depot Gate Return Audit History</span>
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
               Verified timestamped physical drop-offs at the depot gate.
             </p>
           </div>
 
           {kegReturns.length === 0 ? (
-            <p className="text-xs text-slate-400 py-8 text-center">
+            <p className="text-[12px] font-sans text-slate-400 py-8 text-center">
               No keg returns logged yet.
             </p>
           ) : (
@@ -327,14 +326,14 @@ export const KegsScreen: React.FC = () => {
                     className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs"
                   >
                     <div className="space-y-0.5">
-                      <div className="font-bold text-slate-900 dark:text-slate-200">{cust?.name || 'Customer'}</div>
-                      <div className="text-[10px] text-slate-500 font-mono">
+                      <div className="font-heading font-semibold text-[14px] text-slate-900 dark:text-slate-200">{cust?.name || 'Customer'}</div>
+                      <div className="text-[11px] text-slate-500 font-mono tabular-nums">
                         {formatDepotDate(item.date)} · {formatDepotTime(item.date)}
                       </div>
                     </div>
 
                     <div className="text-right">
-                      <div className="inline-flex items-center gap-1 font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                      <div className="inline-flex items-center gap-1 font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 text-[12px]">
                         <ArrowDownLeft className="w-3.5 h-3.5" />
                         <span>+{item.qty} Kegs</span>
                       </div>

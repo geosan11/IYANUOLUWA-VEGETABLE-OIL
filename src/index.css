@@ -6,6 +6,16 @@
   body {
     @apply font-sans bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased;
   }
+
+  h1, h2, h3, h4 {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+}
+
+.font-mono, .tabular-nums {
+  font-family: 'IBM Plex Mono', Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
 /* Custom Scrollbars */
@@ -68,7 +78,7 @@
     padding: 10px !important;
     background: white !important;
     color: black !important;
-    font-family: 'JetBrains Mono', 'Courier New', monospace !important;
+    font-family: 'IBM Plex Mono', Menlo, Courier, monospace !important;
     box-shadow: none !important;
     border: none !important;
   }

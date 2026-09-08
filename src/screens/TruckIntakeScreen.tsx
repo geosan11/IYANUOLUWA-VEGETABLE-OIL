@@ -76,19 +76,19 @@ export const TruckIntakeScreen: React.FC = () => {
       {/* Page Title & Context Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div>
-          <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            <Truck className="w-5 h-5 text-amber-500 dark:text-amber-400" />
+          <h2 className="text-[24px] font-heading font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <Truck className="w-5 h-5 text-slate-600 dark:text-slate-300" />
             <span>Truck Intake & Volumetric Offload</span>
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-[14px] font-sans text-slate-500 dark:text-slate-400 mt-1">
             Convert delivery tonnage into litres and {settings.litres_per_keg}L kegs. Automatic shortfall detection and capacity checks.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono text-slate-700 dark:text-slate-300">
-            <span className="text-slate-500 dark:text-slate-400">Depot Kegs:</span>{' '}
-            <span className={`font-bold ${kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400' : 'text-brand-600 dark:text-brand-400'}`}>
+          <div className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[12px] font-mono tabular-nums text-slate-700 dark:text-slate-300">
+            <span className="text-slate-500 dark:text-slate-400 font-sans">Depot Kegs:</span>{' '}
+            <span className={`font-bold ${kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-slate-100'}`}>
               {kegInventory.kegsAtDepot}
             </span>
           </div>
@@ -96,9 +96,9 @@ export const TruckIntakeScreen: React.FC = () => {
       </div>
 
       {successMessage && (
-        <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
+        <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300 text-[12px] font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
-          <span className="font-semibold">{successMessage}</span>
+          <span>{successMessage}</span>
         </div>
       )}
 
@@ -110,16 +110,16 @@ export const TruckIntakeScreen: React.FC = () => {
           className="lg:col-span-7 p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5"
         >
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
-              <Scale className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+            <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <Scale className="w-5 h-5 text-brand-600 dark:text-brand-400" />
               <span>Intake Parameters & Offload Data</span>
             </h3>
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">1 Keg = {settings.litres_per_keg} Litres</span>
+            <span className="text-[12px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">1 Keg = {settings.litres_per_keg} Litres</span>
           </div>
 
           {/* Product Select */}
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">Select Product</label>
+            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">Select Product</label>
             <div className="grid grid-cols-2 gap-3">
               {products.map(p => {
                 const isSelected = p.id === productId;
@@ -137,8 +137,8 @@ export const TruckIntakeScreen: React.FC = () => {
                     }`}
                   >
                     <div>
-                      <div className="text-xs font-bold">{p.name}</div>
-                      <div className="text-[10px] opacity-75 font-mono">~{p.litres_per_ton} L/Ton</div>
+                      <div className="text-[14px] font-sans font-bold">{p.name}</div>
+                      <div className="text-[11px] opacity-75 font-mono tabular-nums">~{p.litres_per_ton} L/Ton</div>
                     </div>
                     <span
                       className="w-3 h-3 rounded-full"
@@ -153,7 +153,7 @@ export const TruckIntakeScreen: React.FC = () => {
           {/* Truck Plate and Driver Name 2-Column */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
                 Truck License / Plate No.
               </label>
               <input
@@ -161,13 +161,13 @@ export const TruckIntakeScreen: React.FC = () => {
                 placeholder="e.g. Truck 3 · KJA-492-XA"
                 value={truckLabel}
                 onChange={e => setTruckLabel(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 text-xs focus:outline-none focus:border-brand-500 font-mono font-bold"
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 text-[14px] font-mono font-bold focus:outline-none focus:border-brand-500"
                 required
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
                 Driver Name (Leader Line Connected)
               </label>
               <input
@@ -175,7 +175,7 @@ export const TruckIntakeScreen: React.FC = () => {
                 placeholder="e.g. Alhaji Musa"
                 value={driverName}
                 onChange={e => setDriverName(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 text-xs focus:outline-none focus:border-brand-500"
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 text-[14px] font-sans font-medium focus:outline-none focus:border-brand-500"
               />
             </div>
           </div>
@@ -183,10 +183,10 @@ export const TruckIntakeScreen: React.FC = () => {
           {/* Scale Weight in Tons */}
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
                 Delivery Weight (Metric Tons)
               </label>
-              <span className="text-[10px] text-slate-500 font-mono">
+              <span className="text-[11px] text-slate-500 font-mono tabular-nums">
                 Multiplier: {selectedProduct.litres_per_ton} L/Ton
               </span>
             </div>
@@ -199,10 +199,10 @@ export const TruckIntakeScreen: React.FC = () => {
                 value={tons}
                 inputMode="decimal"
                 onChange={e => setTons(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-base font-mono font-bold focus:outline-none focus:border-brand-500"
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[16px] font-mono tabular-nums font-bold focus:outline-none focus:border-brand-500"
                 required
               />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[12px] font-mono font-bold text-slate-400">
                 TONS
               </span>
             </div>
@@ -212,7 +212,7 @@ export const TruckIntakeScreen: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Actual Kegs Filled */}
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
                 Actual Kegs Filled ({settings.litres_per_keg}L)
               </label>
               <input
@@ -223,14 +223,14 @@ export const TruckIntakeScreen: React.FC = () => {
                 value={actualKegs}
                 inputMode="numeric"
                 onChange={e => setActualKegs(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-mono font-bold text-xs focus:outline-none focus:border-brand-500"
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
                 required
               />
             </div>
 
             {/* Leftover Bulk Litres */}
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
                 Leftover Recovered (Litres)
               </label>
               <input
@@ -241,14 +241,14 @@ export const TruckIntakeScreen: React.FC = () => {
                 value={leftoverLitres}
                 inputMode="decimal"
                 onChange={e => setLeftoverLitres(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-mono font-bold text-xs focus:outline-none focus:border-brand-500"
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
               />
             </div>
           </div>
 
           {/* Depot Capacity Warning Banner */}
           {metrics.exceedsDepotKegCapacity && (
-            <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 text-xs text-amber-900 dark:text-amber-300 flex items-start gap-2.5 animate-in fade-in">
+            <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 text-[12px] font-sans text-amber-900 dark:text-amber-300 flex items-start gap-2.5 animate-in fade-in">
               <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
               <div>
                 <span className="font-bold block">Depot Keg Capacity Warning</span>
@@ -262,9 +262,9 @@ export const TruckIntakeScreen: React.FC = () => {
           {/* Submit Button */}
           <button
             type="submit"
-            className="w-full py-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2 active:scale-98"
+            className="w-full py-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[14px] uppercase tracking-wider shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2 active:scale-98"
           >
-            <ArrowDownToLine className="w-4 h-4 text-slate-950" />
+            <ArrowDownToLine className="w-[18px] h-[18px] text-slate-950" />
             <span>Complete Offload & Animate Tank Fill</span>
           </button>
         </form>
@@ -274,34 +274,34 @@ export const TruckIntakeScreen: React.FC = () => {
           {/* Live Mathematical Conversion Card */}
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              <span className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
                 Live Volumetric Conversion
               </span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300 font-bold">
+              <span className="text-[11px] font-mono tabular-nums px-2 py-0.5 rounded bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300 font-bold">
                 Formula Verified
               </span>
             </div>
 
-            <div className="space-y-3 text-xs font-mono">
+            <div className="space-y-3 text-[12px] font-mono tabular-nums">
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>Expected Litres ({tons || 0}T):</span>
+                <span className="font-sans">Expected Litres ({tons || 0}T):</span>
                 <span className="font-bold text-slate-900 dark:text-slate-200">{metrics.expectedLitres.toLocaleString()} L</span>
               </div>
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>Expected 30L Kegs:</span>
+                <span className="font-sans">Expected 30L Kegs:</span>
                 <span className="font-bold text-slate-900 dark:text-slate-200">~{metrics.expectedKegs} kegs</span>
               </div>
               <div className="flex justify-between text-slate-600 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800">
-                <span>Recovered Volume:</span>
+                <span className="font-sans">Recovered Volume:</span>
                 <span className="font-bold text-slate-900 dark:text-slate-200">{metrics.recoveredLitres.toLocaleString()} L</span>
               </div>
 
               {/* Live Shortfall Gauge / Alert */}
               <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="font-sans font-bold text-slate-700 dark:text-slate-300 text-xs">Delivery Variance:</span>
+                  <span className="font-sans font-bold text-slate-700 dark:text-slate-300 text-[12px]">Delivery Variance:</span>
                   <span
-                    className={`font-mono font-black text-sm px-2 py-0.5 rounded-md ${
+                    className={`font-mono tabular-nums font-bold text-[14px] px-2 py-0.5 rounded-md ${
                       isShortfallTriggered
                         ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-500/30'
                         : metrics.shortfall > 0
@@ -309,7 +309,7 @@ export const TruckIntakeScreen: React.FC = () => {
                         : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
                     }`}
                   >
-                    {metrics.shortfall > 0 ? `-${metrics.shortfall} L` : `${metrics.shortfall} L`}
+                    {metrics.shortfall > 0 ? `-${metrics.shortfall} L` : `${metrics.shortfall} L (Clean)`}
                   </span>
                 </div>
 
@@ -328,10 +328,10 @@ export const TruckIntakeScreen: React.FC = () => {
           {/* Live Tanker Truck Simulation Preview */}
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm flex flex-col">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              <span className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
                 Live Offload Tanker Simulation
               </span>
-              <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+              <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
                 Previewing Live Form
               </span>
             </div>
@@ -360,15 +360,15 @@ export const TruckIntakeScreen: React.FC = () => {
       <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-4">
           <div>
-            <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+            <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
               <History className="w-5 h-5 text-brand-600 dark:text-brand-400" />
               <span>Depot Storage Tanks & Tanker Offload Fleet</span>
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
               Simplified tanker-truck anatomy with horizontal liquid fill gauges, driver leader lines, and delivery variance tracking.
             </p>
           </div>
-          <span className="text-xs font-mono font-bold px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 self-start sm:self-auto">
+          <span className="text-[12px] font-mono tabular-nums font-bold px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 self-start sm:self-auto">
             {tanks.length} Active Storage Tanks
           </span>
         </div>
