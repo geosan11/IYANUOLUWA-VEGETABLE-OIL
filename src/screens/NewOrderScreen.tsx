@@ -375,12 +375,12 @@ export const NewOrderScreen: React.FC = () => {
         </div>
       )}
 
-      {/* Main Grid: Form Left (7 cols) & Contextual Preview Right (5 cols) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* Main Grid: Form Left (7 cols) & Contextual Preview Right (5 cols) at ≥900px */}
+      <div className="grid grid-cols-1 split:grid-cols-12 gap-6">
         {/* LEFT COLUMN: ORDER ENTRY FORM (7 COLS) */}
         <form
           onSubmit={handleSubmit}
-          className="lg:col-span-7 p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm"
+          className="split:col-span-7 p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm"
         >
           {errorMessage && (
             <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-300 text-xs flex items-center gap-2 animate-in fade-in">
@@ -805,10 +805,10 @@ export const NewOrderScreen: React.FC = () => {
           </button>
         </form>
 
-        {/* RIGHT COLUMN: REAL-TIME CONTEXTUAL PREVIEW (5 COLS) */}
-        <div className="lg:col-span-5 space-y-4">
-          {/* Mobile Accordion Toggle Strip */}
-          <div className="lg:hidden p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        {/* RIGHT COLUMN: REAL-TIME CONTEXTUAL PREVIEW (5 COLS AT ≥900px) */}
+        <div className="split:col-span-5 space-y-4">
+          {/* Mobile Accordion Toggle Strip (<900px only) */}
+          <div className="split:hidden p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
             <div>
               <div className="text-[11px] font-sans text-slate-500 uppercase tracking-wider font-semibold">
                 Total Order Value
@@ -827,8 +827,8 @@ export const NewOrderScreen: React.FC = () => {
             </button>
           </div>
 
-          {/* Collapsible Cards container: always visible on lg, toggled on mobile */}
-          <div className={`${isPricingDetailsOpen ? 'space-y-5' : 'hidden lg:block lg:space-y-5'}`}>
+          {/* Cards container: always visible on desktop/tablet ≥900px, toggled on mobile <900px */}
+          <div className={`${isPricingDetailsOpen ? 'space-y-5' : 'hidden split:block split:space-y-5'}`}>
             {/* Order Financial Calculation Card */}
             <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">

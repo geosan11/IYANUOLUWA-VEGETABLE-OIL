@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
 import { Customer, CustomerType, PaymentMethod } from '../types';
 import { BottomSheet } from '../components/common/BottomSheet';
+import { useIsDesktopSplit } from '../hooks/useBreakpoint';
 import { formatNaira, formatDepotDate } from '../services/businessLogic';
 import {
   Users,
@@ -16,7 +17,9 @@ import {
   Package,
   AlertCircle,
   Receipt,
-  ArrowRightLeft
+  ArrowRightLeft,
+  CheckCircle2,
+  Calendar
 } from 'lucide-react';
 
 type FilterChip = 'all' | 'overdue' | 'high_balance' | 'corporate' | 'agent';
@@ -31,11 +34,20 @@ export const CustomersScreen: React.FC = () => {
     addCustomer
   } = useStore();
 
+  const isDesktop = useIsDesktopSplit();
+
   const [activeFilter, setActiveFilter] = useState<FilterChip>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(customers[0]?.id || '');
   const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null);
 
-  // Mobile Sheet State
+  // Quick In-Panel Payment State (Desktop Master-Detail)
+  const [inlineAmount, setInlineAmount] = useState<string>('');
+  const [inlineMethod, setInlineMethod] = useState<PaymentMethod>('transfer');
+  const [inlineFeedback, setInlineFeedback] = useState<string | null>(null);
+  const [inlineError, setInlineError] = useState<string | null>(null);
+
+  // Mobile Sheet State (<900px)
   const [selectedCustomerForSheet, setSelectedCustomerForSheet] = useState<Customer | null>(null);
 
   // Payment Recording State
@@ -121,6 +133,42 @@ export const CustomersScreen: React.FC = () => {
       return true;
     });
   }, [customers, customerStatsMap, activeFilter, searchQuery]);
+
+  // Master-Detail Active Customer Selection
+  const activeCustomer = useMemo(() => {
+    const found = filteredCustomers.find(c => c.id === selectedCustomerId);
+    if (found) return found;
+    return filteredCustomers[0] || customers[0] || null;
+  }, [filteredCustomers, selectedCustomerId, customers]);
+
+  const activeStats = activeCustomer ? customerStatsMap[activeCustomer.id] : null;
+  const activeAging = activeStats?.agingBadge;
+  const isActiveOverdue = activeAging?.status === 'overdue';
+  const activeTransfers = useMemo(() => {
+    if (!activeCustomer) return [];
+    return transfers.filter(
+      t => t.from_customer_id === activeCustomer.id || t.to_customer_id === activeCustomer.id
+    );
+  }, [transfers, activeCustomer]);
+
+  const handleInlinePaymentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeCustomer) return;
+    const num = parseFloat(inlineAmount);
+    if (isNaN(num) || num <= 0) {
+      setInlineError('Please enter a valid payment amount.');
+      return;
+    }
+    const res = recordCustomerPayment(activeCustomer.id, num, inlineMethod);
+    if (res.success) {
+      setInlineAmount('');
+      setInlineFeedback(`Payment of ${formatNaira(num)} recorded for ${activeCustomer.name}.`);
+      setInlineError(null);
+      setTimeout(() => setInlineFeedback(null), 4000);
+    } else {
+      setInlineError(res.error || 'Failed to record payment.');
+    }
+  };
 
   const toggleExpand = (id: string) => {
     setExpandedCustomerId(prev => (prev === id ? null : id));
@@ -242,368 +290,450 @@ export const CustomersScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* Customer List / Table Cards (Desktop-First) */}
-      <div className="space-y-3">
-        {filteredCustomers.length === 0 ? (
-          <div className="p-8 text-center rounded-2xl bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-[14px] font-sans shadow-sm">
-            No customers match the active filters or search term.
-          </div>
-        ) : (
-          filteredCustomers.map(customer => {
-            const stats = customerStatsMap[customer.id];
-            const isExpanded = expandedCustomerId === customer.id;
-            const currentBal = stats ? stats.currentBalance : 0;
-            const kegsOut = stats ? stats.totalCompanyKegsOut : 0;
-            const aging = stats?.agingBadge;
-            const isOverdue = aging?.status === 'overdue';
+      {/* Master-Detail Grid (≥900px: List on Left, Persistent Panel on Right; <900px: List + Sheet) */}
+      <div className="grid grid-cols-1 split:grid-cols-12 gap-6 items-start">
+        {/* LEFT COLUMN: CUSTOMER LIST (split:col-span-7) */}
+        <div className="split:col-span-7 space-y-2.5">
+          {filteredCustomers.length === 0 ? (
+            <div className="p-8 text-center rounded-2xl bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-[14px] font-sans shadow-sm">
+              No customers match the active filters or search term.
+            </div>
+          ) : (
+            filteredCustomers.map(customer => {
+              const stats = customerStatsMap[customer.id];
+              const isSelected = activeCustomer?.id === customer.id;
+              const currentBal = stats ? stats.currentBalance : 0;
+              const kegsOut = stats ? stats.totalCompanyKegsOut : 0;
+              const aging = stats?.agingBadge;
+              const isOverdue = aging?.status === 'overdue';
 
-            // Pre-filled WhatsApp message for manual tap
-            const whatsappText = encodeURIComponent(
-              `Hello ${customer.name},\n\nThis is a polite reminder from Iyanuoluwa Vegetable & Palm Oil Depot. You have an outstanding balance of ${formatNaira(
-                currentBal
-              )} which is currently overdue.\n\nPlease arrange for payment settlement via bank transfer at your earliest convenience.\n\nThank you!`
-            );
-            const cleanPhone = customer.phone.replace(/[^0-9]/g, '');
-            const whatsappUrl = `https://wa.me/${cleanPhone}?text=${whatsappText}`;
+              const cleanPhone = customer.phone.replace(/[^0-9]/g, '');
+              const whatsappText = encodeURIComponent(
+                `Hello ${customer.name},\n\nThis is a polite reminder from Iyanuoluwa Depot regarding your outstanding balance of ${formatNaira(
+                  currentBal
+                )} which is currently overdue.\n\nPlease arrange for payment settlement at your earliest convenience.\n\nThank you!`
+              );
+              const whatsappUrl = `https://wa.me/${cleanPhone}?text=${whatsappText}`;
 
-            return (
-              <div
-                key={customer.id}
-                className="rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700/80 transition-all overflow-hidden shadow-sm"
-              >
-                {/* Mobile Customer Row (Tap opens Bottom Sheet) */}
-                <div className="sm:hidden p-4 space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div
-                      onClick={() => setSelectedCustomerForSheet(customer)}
-                      className="flex items-start gap-3 cursor-pointer flex-1 min-w-0 active:scale-98 transition-transform"
-                    >
-                      <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-800 dark:text-slate-200 font-extrabold text-[14px] flex-shrink-0">
+              return (
+                <div
+                  key={customer.id}
+                  className={`rounded-2xl transition-all overflow-hidden shadow-sm cursor-pointer ${
+                    isSelected
+                      ? 'border-2 border-brand-500 bg-brand-50/30 dark:bg-brand-950/20 ring-1 ring-brand-500/30'
+                      : 'border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 hover:border-slate-300 dark:hover:border-slate-700'
+                  }`}
+                  onClick={() => {
+                    if (isDesktop) {
+                      setSelectedCustomerId(customer.id);
+                    } else {
+                      setSelectedCustomerForSheet(customer);
+                    }
+                  }}
+                >
+                  {/* Mobile Row (<900px) */}
+                  <div className="split:hidden p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-800 dark:text-slate-200 font-extrabold text-[14px] flex-shrink-0">
+                          {customer.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-heading font-semibold text-[15px] text-slate-900 dark:text-white truncate">
+                            {customer.name}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-sans font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                              {customer.type}
+                            </span>
+                            {aging && (
+                              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono tabular-nums font-bold border ${aging.colorClass}`}>
+                                {aging.label}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Direct Phone / WhatsApp Call */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                        <a
+                          href={`tel:${customer.phone}`}
+                          className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
+                          title="Call Customer"
+                        >
+                          <Phone className="w-4 h-4" />
+                        </a>
+                        {isOverdue && (
+                          <a
+                            href={whatsappUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 transition-colors"
+                            title="WhatsApp"
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/80 text-[12px] font-mono tabular-nums">
+                      <div>
+                        <span className="text-[11px] font-sans text-slate-500 block">Balance:</span>
+                        <span className={`font-bold text-[14px] ${currentBal > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                          {formatNaira(currentBal)}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[11px] font-sans text-slate-500 block">Kegs Out:</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                          {kegsOut} kegs
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-[11px] font-sans font-bold text-brand-600 dark:text-brand-400 pl-2">
+                        <span>Ledger</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Desktop Master Row (≥900px, persistent master-detail selection) */}
+                  <div className="hidden split:flex items-center justify-between p-4 gap-4">
+                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-extrabold text-[14px] flex-shrink-0 transition-colors ${
+                        isSelected
+                          ? 'bg-brand-500 text-slate-950 font-bold'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
+                      }`}>
                         {customer.name.slice(0, 2).toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="font-heading font-semibold text-[15px] text-slate-900 dark:text-white truncate">
-                          {customer.name}
-                        </div>
-                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                          <span className="px-1.5 py-0.2 rounded text-[10px] font-sans font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-heading font-bold text-[15px] text-slate-900 dark:text-white truncate">
+                            {customer.name}
+                          </h4>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-sans font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                             {customer.type}
                           </span>
                           {aging && (
-                            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono tabular-nums font-bold border ${aging.colorClass}`}>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono tabular-nums font-bold border ${aging.colorClass}`}>
                               {aging.label}
                             </span>
                           )}
                         </div>
+                        <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-2">
+                          <span className="font-mono">{customer.phone}</span>
+                          <span>·</span>
+                          <span>Terms: {customer.credit_term_days}d</span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Action buttons (Direct Call always visible) */}
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <a
-                        href={`tel:${customer.phone}`}
-                        className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
-                        title="Call Customer"
-                      >
-                        <Phone className="w-4 h-4" />
-                      </a>
-                      {isOverdue && (
-                        <a
-                          href={whatsappUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 transition-colors"
-                          title="WhatsApp"
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Balance & Kegs with tap affordance */}
-                  <div
-                    onClick={() => setSelectedCustomerForSheet(customer)}
-                    className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/80 cursor-pointer text-[12px] font-mono tabular-nums active:scale-98 transition-transform"
-                  >
-                    <div>
-                      <span className="text-[11px] font-sans text-slate-500 block">Balance:</span>
-                      <span className={`font-bold text-[14px] ${currentBal > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                        {formatNaira(currentBal)}
-                      </span>
-                    </div>
-
-                    <div className="text-right">
-                      <span className="text-[11px] font-sans text-slate-500 block">Kegs Out:</span>
-                      <span className="font-bold text-slate-800 dark:text-slate-200">
-                        {kegsOut} kegs
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1 text-[11px] font-sans font-bold text-brand-600 dark:text-brand-400 pl-2">
-                      <span>Ledger</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
+                    <div className="flex items-center gap-6 flex-shrink-0 font-mono tabular-nums">
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 uppercase font-sans block">Kegs Out</span>
+                        <span className="text-[13px] font-bold text-slate-800 dark:text-slate-200">
+                          {kegsOut} kegs
+                        </span>
+                      </div>
+                      <div className="text-right min-w-[100px]">
+                        <span className="text-[10px] text-slate-400 uppercase font-sans block">Balance</span>
+                        <span className={`text-[15px] font-bold ${currentBal > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                          {formatNaira(currentBal)}
+                        </span>
+                      </div>
+                      <div className="flex items-center text-slate-400">
+                        <ChevronRight className={`w-5 h-5 transition-transform ${isSelected ? 'text-brand-500 translate-x-1' : ''}`} />
+                      </div>
                     </div>
                   </div>
                 </div>
+              );
+            })
+          )}
+        </div>
 
-                {/* Desktop Card (hidden on sm) */}
-                <div className="hidden sm:block">
-                  {/* Main Card Header / Summary Row */}
-                  <div className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  {/* Left: Customer Info */}
-                  <div className="flex items-start gap-3.5">
-                    <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-800 dark:text-slate-200 font-extrabold text-[14px] flex-shrink-0">
-                      {customer.name.slice(0, 2).toUpperCase()}
+        {/* RIGHT COLUMN: PERSISTENT MASTER-DETAIL PANEL (Desktop ≥900px) */}
+        <div className="hidden split:block split:col-span-5 space-y-4 sticky top-4 max-h-[calc(100vh-120px)] overflow-y-auto pr-1">
+          {activeCustomer ? (
+            <div className="space-y-4">
+              {/* Customer Profile & Financial Summary Card */}
+              <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="flex items-start justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-brand-500 text-slate-950 font-heading font-extrabold text-[16px] flex items-center justify-center flex-shrink-0 shadow-sm">
+                      {activeCustomer.name.slice(0, 2).toUpperCase()}
                     </div>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-heading font-semibold text-[16px] text-slate-900 dark:text-white">{customer.name}</h3>
-                        <span className="px-2 py-0.5 rounded text-[11px] font-sans font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                          {customer.type}
+                        <h3 className="font-heading font-bold text-[18px] text-slate-900 dark:text-white">
+                          {activeCustomer.name}
+                        </h3>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-sans font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                          {activeCustomer.type}
                         </span>
-                        {aging && (
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[11px] font-mono tabular-nums font-bold border ${aging.colorClass}`}
-                          >
-                            {aging.label}
+                        {activeAging && (
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono tabular-nums font-bold border ${activeAging.colorClass}`}>
+                            {activeAging.label}
                           </span>
                         )}
                       </div>
-                      <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-3 flex-wrap">
-                        <span>Phone: <span className="font-mono tabular-nums">{customer.phone}</span></span>
+                      <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2">
+                        <span className="font-mono">{activeCustomer.phone}</span>
                         <span>·</span>
-                        <span>Credit Limit: <span className="font-mono tabular-nums font-bold text-slate-700 dark:text-slate-300">{formatNaira(customer.credit_limit)}</span></span>
-                        <span>·</span>
-                        <span>Terms: <span className="font-mono tabular-nums">{customer.credit_term_days} Days</span></span>
+                        <span>Credit Limit: <strong className="font-mono text-slate-800 dark:text-slate-200">{formatNaira(activeCustomer.credit_limit)}</strong></span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Right: Balance, Kegs, and Actions */}
-                  <div className="flex items-center justify-between lg:justify-end gap-4 border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-100 dark:border-slate-800">
-                    {/* Company Kegs in custody */}
-                    <div className="text-left lg:text-right font-mono tabular-nums">
-                      <span className="text-[11px] text-slate-500 dark:text-slate-400 block uppercase font-sans">Kegs Out:</span>
-                      <span className="text-[14px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                        <Package className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-                        <span>{kegsOut} kegs</span>
-                      </span>
-                    </div>
-
-                    {/* Computed Current Balance */}
-                    <div className="text-left lg:text-right font-mono tabular-nums min-w-[120px]">
-                      <span className="text-[11px] text-slate-500 dark:text-slate-400 block uppercase font-sans">Outstanding:</span>
-                      <span
-                        className={`text-[16px] font-bold ${
-                          currentBal > 0
-                            ? currentBal > customer.credit_limit
-                              ? 'text-rose-600 dark:text-rose-400'
-                              : 'text-rose-600 dark:text-rose-400'
-                            : 'text-emerald-600 dark:text-emerald-400'
-                        }`}
-                      >
-                        {formatNaira(currentBal)}
-                      </span>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex items-center gap-2">
-                      {/* Call Button */}
+                  {/* Call & WhatsApp Quick Buttons */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <a
+                      href={`tel:${activeCustomer.phone}`}
+                      className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
+                      title="Direct Call"
+                    >
+                      <Phone className="w-4 h-4" />
+                    </a>
+                    {isActiveOverdue && (
                       <a
-                        href={`tel:${customer.phone}`}
-                        className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
-                        title="Call Customer"
+                        href={`https://wa.me/${activeCustomer.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+                          `Hello ${activeCustomer.name}, this is a polite payment reminder from Iyanuoluwa Depot regarding your overdue balance of ${formatNaira(activeStats ? activeStats.currentBalance : 0)}.`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 transition-colors"
+                        title="WhatsApp Reminder"
                       >
-                        <Phone className="w-4 h-4" />
+                        <MessageSquare className="w-4 h-4" />
                       </a>
-
-                      {/* WhatsApp Reminder Button (SHOWN ONLY WHEN OVERDUE) */}
-                      {isOverdue && (
-                        <a
-                          href={whatsappUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-600/20 dark:hover:bg-emerald-600/30 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/40 text-[12px] font-sans font-bold transition-all shadow-sm"
-                          title="Send WhatsApp Reminder"
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                          <span className="hidden sm:inline">WhatsApp</span>
-                        </a>
-                      )}
-
-                      {/* Record Payment Button */}
-                      <button
-                        onClick={() => handleOpenPayment(customer, currentBal)}
-                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-[12px] font-sans font-bold transition-all active:scale-95 shadow-sm"
-                      >
-                        <CreditCard className="w-4 h-4" />
-                        <span>Pay</span>
-                      </button>
-
-                      {/* Transfer Kegs / Stock Button */}
-                      <button
-                        onClick={() => handleOpenTransfer(customer)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 text-[12px] font-sans font-bold transition-all active:scale-95 shadow-sm"
-                        title="Transfer company kegs or bulk litres to another agent"
-                      >
-                        <ArrowRightLeft className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">Transfer</span>
-                      </button>
-
-                      {/* Accordion expand toggle */}
-                      <button
-                        onClick={() => toggleExpand(customer.id)}
-                        className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                        title="View Open Invoices & Transfers"
-                      >
-                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                      </button>
-                    </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Expandable Section: Open Credit Invoices Drawer */}
-                {isExpanded && (
-                  <div className="bg-slate-50 dark:bg-slate-950/90 border-t border-slate-200 dark:border-slate-800 p-4 sm:p-5 space-y-4 animate-in fade-in duration-150">
-                    <div className="flex items-center justify-between text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                      <span>Open Credit Orders / Aging Invoices ({stats?.openOrders.length || 0})</span>
-                      <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal">
-                        Settled via FIFO (Oldest Due Date First)
-                      </span>
+                {/* 3 Metric Cards */}
+                <div className="grid grid-cols-3 gap-2 text-[12px] font-mono tabular-nums">
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] font-sans text-slate-500 uppercase block">Balance Due</span>
+                    <span className={`text-[16px] font-bold ${
+                      (activeStats?.currentBalance || 0) > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+                    }`}>
+                      {formatNaira(activeStats?.currentBalance || 0)}
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] font-sans text-slate-500 uppercase block">Company Kegs</span>
+                    <span className="text-[16px] font-bold text-slate-800 dark:text-slate-200">
+                      {activeStats?.totalCompanyKegsOut || 0}
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] font-sans text-slate-500 uppercase block">Credit Term</span>
+                    <span className="text-[16px] font-bold text-slate-800 dark:text-slate-200">
+                      {activeCustomer.credit_term_days} Days
+                    </span>
+                  </div>
+                </div>
+
+                {/* Quick In-Panel Payment Form */}
+                <div className="p-4 rounded-xl bg-brand-50/30 dark:bg-brand-950/20 border border-brand-200/80 dark:border-brand-900/40 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-900 dark:text-slate-200 flex items-center gap-1.5">
+                      <CreditCard className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                      <span>In-Panel Payment Settlement</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenTransfer(activeCustomer)}
+                      className="text-[11px] font-sans font-bold text-purple-700 dark:text-purple-300 hover:underline flex items-center gap-1"
+                    >
+                      <ArrowRightLeft className="w-3.5 h-3.5" />
+                      <span>Transfer Kegs</span>
+                    </button>
+                  </div>
+
+                  {inlineFeedback && (
+                    <div className="p-2.5 rounded-lg bg-emerald-100/80 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 text-[12px] font-sans flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <span>{inlineFeedback}</span>
+                    </div>
+                  )}
+
+                  {inlineError && (
+                    <div className="p-2.5 rounded-lg bg-rose-100/80 dark:bg-rose-950/70 border border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-300 text-[12px] font-sans flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                      <span>{inlineError}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleInlinePaymentSubmit} className="space-y-2.5">
+                    {/* Quick Amount Chips */}
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setInlineAmount((activeStats?.currentBalance || 0).toString())}
+                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[11px] font-mono tabular-nums text-slate-700 dark:text-slate-300 hover:border-brand-500 font-semibold"
+                      >
+                        Full Bal ({formatNaira(activeStats?.currentBalance || 0)})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setInlineAmount('50000')}
+                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[11px] font-mono tabular-nums text-slate-700 dark:text-slate-300 hover:border-brand-500 font-semibold"
+                      >
+                        ₦50k
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setInlineAmount('100000')}
+                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[11px] font-mono tabular-nums text-slate-700 dark:text-slate-300 hover:border-brand-500 font-semibold"
+                      >
+                        ₦100k
+                      </button>
                     </div>
 
-                    {stats?.openOrders.length === 0 ? (
-                      <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 py-2">
-                        No outstanding credit invoices for this customer.
-                      </p>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-[12px] font-mono tabular-nums text-left">
-                          <thead>
-                            <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-sans uppercase">
-                              <th className="py-2 px-2">Order Date</th>
-                              <th className="py-2 px-2">Due Date</th>
-                              <th className="py-2 px-2">Product / Qty</th>
-                              <th className="py-2 px-2 text-right">Amount</th>
-                              <th className="py-2 px-2 text-right">Paid</th>
-                              <th className="py-2 px-2 text-right">Balance Due</th>
-                              <th className="py-2 px-2 text-center">Status</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60">
-                            {stats?.openOrders.map(order => {
-                              const remainingDue = order.amount - (order.paid_amount || 0);
-                              const dueDate = order.due_date ? new Date(order.due_date) : null;
-                              const isPastDue = dueDate ? new Date() > dueDate : false;
-
-                              return (
-                                <tr key={order.id} className="hover:bg-slate-100 dark:hover:bg-slate-900/60">
-                                  <td className="py-2.5 px-2 text-slate-700 dark:text-slate-300">
-                                    {formatDepotDate(order.date)}
-                                  </td>
-                                  <td className="py-2.5 px-2 text-slate-700 dark:text-slate-300">
-                                    {formatDepotDate(order.due_date)}
-                                  </td>
-                                  <td className="py-2.5 px-2 text-slate-900 dark:text-slate-200 font-sans font-medium">
-                                    {order.qty} {order.unit}s ({order.product_id === 'veg' ? 'Veg Oil' : 'Palm Oil'})
-                                  </td>
-                                  <td className="py-2.5 px-2 text-right text-slate-700 dark:text-slate-300 font-medium">
-                                    {formatNaira(order.amount)}
-                                  </td>
-                                  <td className="py-2.5 px-2 text-right text-emerald-600 dark:text-emerald-400">
-                                    {formatNaira(order.paid_amount || 0)}
-                                  </td>
-                                  <td className="py-2.5 px-2 text-right font-bold text-slate-900 dark:text-slate-100">
-                                    {formatNaira(remainingDue)}
-                                  </td>
-                                  <td className="py-2.5 px-2 text-center">
-                                    {isPastDue ? (
-                                      <span className="px-1.5 py-0.5 rounded text-[11px] font-sans font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-500/30">
-                                        Overdue
-                                      </span>
-                                    ) : (
-                                      <span className="px-1.5 py-0.5 rounded text-[11px] font-sans bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                                        Active
-                                      </span>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
+                    <div className="grid grid-cols-12 gap-2">
+                      <div className="col-span-7">
+                        <input
+                          type="number"
+                          step="100"
+                          min="1"
+                          value={inlineAmount}
+                          onChange={e => setInlineAmount(e.target.value)}
+                          placeholder="Amount in ₦"
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-[13px] font-mono font-bold focus:outline-none focus:border-brand-500"
+                        />
                       </div>
-                    )}
+                      <div className="col-span-5">
+                        <select
+                          value={inlineMethod}
+                          onChange={e => setInlineMethod(e.target.value as PaymentMethod)}
+                          className="w-full px-2.5 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-[12px] font-sans font-semibold focus:outline-none focus:border-brand-500"
+                        >
+                          <option value="transfer">Transfer</option>
+                          <option value="cash">Cash</option>
+                          <option value="pos">POS</option>
+                        </select>
+                      </div>
+                    </div>
 
-                    {/* Inter-Customer Transfers Section for this customer */}
-                    {(() => {
-                      const customerTransfers = transfers.filter(
-                        t => t.from_customer_id === customer.id || t.to_customer_id === customer.id
-                      );
-                      if (customerTransfers.length === 0) return null;
+                    <button
+                      type="submit"
+                      className="w-full py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-sm transition-all active:scale-98 flex items-center justify-center gap-1.5"
+                    >
+                      <CreditCard className="w-4 h-4" />
+                      <span>Confirm & Record Payment</span>
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              {/* Open Credit Invoices (FIFO Ledger) */}
+              <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                  <span className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-900 dark:text-slate-200 flex items-center gap-1.5">
+                    <Receipt className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                    <span>Open Credit Invoices ({activeStats?.openOrders.length || 0})</span>
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-mono">FIFO Liquidation</span>
+                </div>
+
+                {activeStats?.openOrders && activeStats.openOrders.length > 0 ? (
+                  <div className="space-y-2">
+                    {activeStats.openOrders.map(order => {
+                      const remainingDue = order.amount - (order.paid_amount || 0);
+                      const isPastDue = order.due_date ? new Date() > new Date(order.due_date) : false;
 
                       return (
-                        <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
-                          <div className="flex items-center justify-between text-[12px] font-sans font-medium uppercase tracking-wider text-purple-900 dark:text-purple-300">
-                            <span className="flex items-center gap-1.5">
-                              <ArrowRightLeft className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                              <span>Inter-Customer Transfer History ({customerTransfers.length})</span>
-                            </span>
-                            <span className="text-[11px] text-slate-500 font-normal">Direct Handover (Yard stock unaffected)</span>
+                        <div
+                          key={order.id}
+                          className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs font-mono"
+                        >
+                          <div className="space-y-0.5">
+                            <div className="font-sans font-semibold text-slate-900 dark:text-slate-200">
+                              {order.qty} {order.unit}s · {order.product_id === 'veg' ? 'Veg Oil' : 'Palm Oil'}
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              Due: {formatDepotDate(order.due_date)}
+                            </div>
                           </div>
 
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-[12px] font-mono tabular-nums text-left">
-                              <thead>
-                                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-sans uppercase">
-                                  <th className="py-2 px-2">Date</th>
-                                  <th className="py-2 px-2">Direction</th>
-                                  <th className="py-2 px-2">Counterparty</th>
-                                  <th className="py-2 px-2">Item Type</th>
-                                  <th className="py-2 px-2 text-right">Quantity</th>
-                                  <th className="py-2 px-2">Notes</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60">
-                                {customerTransfers.map(tr => {
-                                  const isSender = tr.from_customer_id === customer.id;
-                                  const counterparty = isSender
-                                    ? customers.find(c => c.id === tr.to_customer_id)?.name || tr.to_customer_id
-                                    : customers.find(c => c.id === tr.from_customer_id)?.name || tr.from_customer_id;
-
-                                  return (
-                                    <tr key={tr.id} className="hover:bg-slate-100 dark:hover:bg-slate-900/60">
-                                      <td className="py-2 px-2 text-slate-700 dark:text-slate-300">{formatDepotDate(tr.date)}</td>
-                                      <td className="py-2 px-2">
-                                        <span className={`px-2 py-0.5 rounded text-[11px] font-sans font-bold ${
-                                          isSender
-                                            ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
-                                            : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
-                                        }`}>
-                                          {isSender ? 'Sent ➔' : 'Received 🡰'}
-                                        </span>
-                                      </td>
-                                      <td className="py-2 px-2 font-sans font-semibold text-slate-900 dark:text-white">{counterparty}</td>
-                                      <td className="py-2 px-2 capitalize font-sans">{tr.item_type === 'keg' ? 'Company Kegs' : 'Bulk Litres'}</td>
-                                      <td className="py-2 px-2 text-right font-bold">{tr.qty} {tr.item_type === 'keg' ? 'kegs' : 'L'}</td>
-                                      <td className="py-2 px-2 font-sans text-slate-500 text-[11px] truncate max-w-[180px]">{tr.note || tr.notes || '—'}</td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
+                          <div className="text-right">
+                            <div className="font-bold text-slate-900 dark:text-slate-100">
+                              {formatNaira(remainingDue)}
+                            </div>
+                            <span className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-sans font-bold ${
+                              isPastDue
+                                ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                            }`}>
+                              {isPastDue ? 'Overdue' : 'Active'}
+                            </span>
                           </div>
                         </div>
                       );
-                    })()}
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-slate-400 text-xs font-sans">
+                    No outstanding credit invoices for this customer.
                   </div>
                 )}
-                </div>
               </div>
-            );
-          })
-        )}
+
+              {/* Inter-Customer Transfers for this Customer */}
+              {activeTransfers.length > 0 && (
+                <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                    <span className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-900 dark:text-slate-200 flex items-center gap-1.5">
+                      <ArrowRightLeft className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      <span>Inter-Customer Transfers ({activeTransfers.length})</span>
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {activeTransfers.map(tr => {
+                      const isSender = tr.from_customer_id === activeCustomer.id;
+                      const counterparty = isSender
+                        ? customers.find(c => c.id === tr.to_customer_id)?.name || tr.to_customer_id
+                        : customers.find(c => c.id === tr.from_customer_id)?.name || tr.from_customer_id;
+
+                      return (
+                        <div
+                          key={tr.id}
+                          className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs"
+                        >
+                          <div className="space-y-0.5">
+                            <div className="font-sans font-semibold text-slate-900 dark:text-slate-200">
+                              {isSender ? `Sent to ${counterparty}` : `Received from ${counterparty}`}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-mono">
+                              {formatDepotDate(tr.date)} · {tr.item_type === 'keg' ? 'Company Kegs' : 'Bulk Litres'}
+                            </div>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold ${
+                            isSender
+                              ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'
+                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
+                          }`}>
+                            {isSender ? '-' : '+'}{tr.qty} {tr.item_type === 'keg' ? 'kegs' : 'L'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="p-8 text-center rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-slate-400 text-sm">
+              Select a customer from the left list to view their ledger & history.
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Record Payment Modal */}

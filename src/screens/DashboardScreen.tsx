@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
 import { TankGauge } from '../components/common/TankGauge';
 import { BottomSheet } from '../components/common/BottomSheet';
+import { SlideOverDrawer } from '../components/common/SlideOverDrawer';
+import { useIsDesktopSplit } from '../hooks/useBreakpoint';
 import { formatNaira, formatDepotDate, formatDepotTime } from '../services/businessLogic';
 import {
   DollarSign,
@@ -57,8 +59,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   const redStock = tankStockByProduct['red']?.totalLitres || 0;
 
   const todayStr = new Date().toISOString().slice(0, 10);
+  const isDesktop = useIsDesktopSplit();
+  const DisclosureContainer = isDesktop ? SlideOverDrawer : BottomSheet;
 
-  // Mobile Bottom Sheet States
+  // Progressive Disclosure States (Side Drawer on Desktop ≥900px, Bottom Sheet on Mobile)
   const [activeStatSheet, setActiveStatSheet] = useState<
     'cash' | 'credit' | 'kegs_out' | 'depot_kegs' | 'customer_kegs' | 'expenses' | null
   >(null);
@@ -1411,8 +1415,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           </div>
         </div>
       )}
-      {/* STAT BREAKDOWN BOTTOM SHEET */}
-      <BottomSheet
+      {/* STAT BREAKDOWN PROGRESSIVE DISCLOSURE (Side Drawer on Desktop ≥900px, Bottom Sheet on Mobile) */}
+      <DisclosureContainer
         isOpen={!!activeStatSheet}
         onClose={() => setActiveStatSheet(null)}
         title={
@@ -1815,10 +1819,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             </div>
           )}
         </div>
-      </BottomSheet>
+      </DisclosureContainer>
 
-      {/* SELECTED ALERT DETAIL BOTTOM SHEET */}
-      <BottomSheet
+      {/* SELECTED ALERT DETAIL PROGRESSIVE DISCLOSURE */}
+      <DisclosureContainer
         isOpen={!!selectedAlert}
         onClose={() => setSelectedAlert(null)}
         title={selectedAlert?.type || 'Operational Alert'}
@@ -1866,10 +1870,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             </button>
           </div>
         )}
-      </BottomSheet>
+      </DisclosureContainer>
 
-      {/* ALL OPERATIONAL ALERTS BOTTOM SHEET */}
-      <BottomSheet
+      {/* ALL OPERATIONAL ALERTS PROGRESSIVE DISCLOSURE */}
+      <DisclosureContainer
         isOpen={isAllAlertsOpen}
         onClose={() => setIsAllAlertsOpen(false)}
         title="All Operational Alerts"
@@ -1908,7 +1912,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             </div>
           ))}
         </div>
-      </BottomSheet>
+      </DisclosureContainer>
     </div>
   );
 };

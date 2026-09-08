@@ -3,6 +3,8 @@ import { useStore } from '../services/store';
 import { TankGauge } from '../components/common/TankGauge';
 import { TruckTankIllustration } from '../components/common/TruckTankIllustration';
 import { BottomSheet } from '../components/common/BottomSheet';
+import { SlideOverDrawer } from '../components/common/SlideOverDrawer';
+import { useIsDesktopSplit } from '../hooks/useBreakpoint';
 import { calculateIntakeMetrics, calculateDipstickVariance, formatDepotDate } from '../services/businessLogic';
 import {
   Truck,
@@ -15,7 +17,8 @@ import {
   History,
   Ruler,
   AlertCircle,
-  ChevronRight
+  ChevronRight,
+  ShoppingCart
 } from 'lucide-react';
 
 export const TruckIntakeScreen: React.FC = () => {
@@ -26,9 +29,13 @@ export const TruckIntakeScreen: React.FC = () => {
     settings,
     pumps,
     dipstickReadings,
+    orders,
+    customers,
     logTruckIntake,
     recordDipstickReading
   } = useStore();
+
+  const isDesktop = useIsDesktopSplit();
 
 
   const [productId, setProductId] = useState<string>('veg');
@@ -40,8 +47,8 @@ export const TruckIntakeScreen: React.FC = () => {
   const [newlyAddedTankId, setNewlyAddedTankId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Mobile Sheet State for Tank Detail
-  const [selectedTankForMobileSheet, setSelectedTankForMobileSheet] = useState<string | null>(null);
+  // Progressive Disclosure State for Tank Detail (Right Drawer on Desktop ≥900px, Bottom Sheet on Mobile)
+  const [selectedTankForDetail, setSelectedTankForDetail] = useState<string | null>(null);
 
   // Tank Dipstick Verification Modal State
   const [dipstickTankId, setDipstickTankId] = useState<string | null>(null);
@@ -441,8 +448,8 @@ export const TruckIntakeScreen: React.FC = () => {
           </span>
         </div>
 
-        {/* Mobile Compact Tank Rows */}
-        <div className="sm:hidden space-y-2.5">
+        {/* Mobile Compact Tank Rows (<900px) */}
+        <div className="split:hidden space-y-2.5">
           {tanks.map(t => {
             const prod = products.find(p => p.id === t.product_id);
             const pct = Math.min(100, (t.remaining_litres / (t.received_litres || 1)) * 100);
@@ -455,7 +462,7 @@ export const TruckIntakeScreen: React.FC = () => {
             return (
               <div
                 key={t.id}
-                onClick={() => setSelectedTankForMobileSheet(t.id)}
+                onClick={() => setSelectedTankForDetail(t.id)}
                 className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 active:scale-98 transition-all cursor-pointer flex flex-col gap-2.5 shadow-sm"
               >
                 <div className="flex items-center justify-between">
@@ -502,8 +509,8 @@ export const TruckIntakeScreen: React.FC = () => {
           })}
         </div>
 
-        {/* Visual Tanker Fleet Grid (Desktop 2-Col) */}
-        <div className="hidden sm:grid grid-cols-1 xl:grid-cols-2 gap-5">
+        {/* Visual Tanker Fleet Grid (Desktop ≥900px 2-Col) */}
+        <div className="hidden split:grid grid-cols-1 xl:grid-cols-2 gap-5">
           {tanks.map(t => {
             const prod = products.find(p => p.id === t.product_id);
             const connectedPump = pumps.find(p => p.product_id === t.product_id);
@@ -514,7 +521,21 @@ export const TruckIntakeScreen: React.FC = () => {
             const latestReading = tankReadings[0];
 
             return (
-              <div key={t.id} className="flex flex-col space-y-2">
+              <div
+                key={t.id}
+                onClick={() => setSelectedTankForDetail(t.id)}
+                className="flex flex-col space-y-2 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 hover:border-brand-400 dark:hover:border-brand-600/70 hover:shadow-md transition-all cursor-pointer group"
+                title="Click to inspect tank audit history & orders drawn in side drawer"
+              >
+                <div className="flex items-center justify-between text-[11px] px-1 pb-1">
+                  <span className="font-mono font-semibold text-slate-500 dark:text-slate-400">
+                    {prod?.name} · {t.tons}T Intake
+                  </span>
+                  <span className="text-brand-600 dark:text-brand-400 font-bold group-hover:underline flex items-center gap-1">
+                    Inspect Tank Drawer <ChevronRight className="w-3.5 h-3.5" />
+                  </span>
+                </div>
+
                 <TruckTankIllustration
                   tank={t}
                   product={prod}
@@ -556,7 +577,10 @@ export const TruckIntakeScreen: React.FC = () => {
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleOpenDipstick(t.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenDipstick(t.id);
+                    }}
                     className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[12px] font-sans font-medium rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-slate-700/80 transition-all text-slate-700 dark:text-slate-200 shadow-sm shrink-0"
                   >
                     <Ruler className="w-3.5 h-3.5" />
@@ -732,53 +756,82 @@ export const TruckIntakeScreen: React.FC = () => {
           </div>
         </div>
       )}
-      {/* Mobile Tank Inspection Bottom Sheet */}
+      {/* Tank Detail Progressive Disclosure (Side Drawer on Desktop ≥900px, Bottom Sheet on Mobile) */}
       {(() => {
-        const selectedMobileTank = tanks.find(t => t.id === selectedTankForMobileSheet);
-        const selectedMobileProduct = products.find(p => p.id === selectedMobileTank?.product_id);
-        const selectedMobilePump = pumps.find(p => p.product_id === selectedMobileTank?.product_id);
-        const mobileTankReadings = selectedMobileTank
+        const selectedTank = tanks.find(t => t.id === selectedTankForDetail);
+        const selectedProduct = products.find(p => p.id === selectedTank?.product_id);
+        const selectedPump = pumps.find(p => p.product_id === selectedTank?.product_id);
+        const tankDipsticks = selectedTank
           ? dipstickReadings
-              .filter(d => d.tank_id === selectedMobileTank.id)
+              .filter(d => d.tank_id === selectedTank.id)
               .sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime())
           : [];
-        const latestMobileReading = mobileTankReadings[0];
+        const latestDipstick = tankDipsticks[0];
+
+        // Orders drawn from this product batch
+        const drawnOrders = selectedTank
+          ? orders
+              .filter(o => o.product_id === selectedTank.product_id)
+              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+              .slice(0, 8)
+          : [];
+
+        const TankContainer = isDesktop ? SlideOverDrawer : BottomSheet;
 
         return (
-          <BottomSheet
-            isOpen={!!selectedTankForMobileSheet}
-            onClose={() => setSelectedTankForMobileSheet(null)}
-            title={selectedMobileTank?.truck_label || 'Tank Details'}
+          <TankContainer
+            isOpen={!!selectedTankForDetail}
+            onClose={() => setSelectedTankForDetail(null)}
+            title={selectedTank?.truck_label || 'Tank Storage Details'}
             subtitle={
-              selectedMobileProduct
-                ? `${selectedMobileProduct.name} · ${selectedMobileTank?.tons} Tons Intake`
+              selectedProduct
+                ? `${selectedProduct.name} · ${selectedTank?.tons} Tons Intake · ${selectedTank?.remaining_litres.toLocaleString()}L Remaining`
                 : ''
             }
           >
-            {selectedMobileTank && selectedMobileProduct && (
-              <div className="space-y-4">
-                <TruckTankIllustration
-                  tank={selectedMobileTank}
-                  product={selectedMobileProduct}
-                  connectedPumpLabel={selectedMobilePump?.label}
-                  animateOnMount={false}
-                />
+            {selectedTank && selectedProduct && (
+              <div className="space-y-6">
+                {/* Tank Illustration Preview */}
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800">
+                  <TruckTankIllustration
+                    tank={selectedTank}
+                    product={selectedProduct}
+                    connectedPumpLabel={selectedPump?.label}
+                    animateOnMount={false}
+                  />
+                </div>
 
-                {/* Dipstick Verification Strip & Action */}
+                {/* Storage Metrics Row */}
+                <div className="grid grid-cols-2 gap-3 font-mono tabular-nums text-xs">
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                    <span className="text-[11px] font-sans text-slate-500 block uppercase">Intake Capacity</span>
+                    <span className="text-[15px] font-bold text-slate-900 dark:text-slate-100">
+                      {selectedTank.tons} Tons ({selectedTank.received_litres.toLocaleString()} L)
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                    <span className="text-[11px] font-sans text-slate-500 block uppercase">Available Stock</span>
+                    <span className="text-[15px] font-bold text-emerald-600 dark:text-emerald-400">
+                      {selectedTank.remaining_litres.toLocaleString()} L
+                    </span>
+                  </div>
+                </div>
+
+                {/* Physical Dipstick Verification Strip & Quick Action */}
                 <div className="bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[13px] font-sans font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
                       <Ruler className="w-4 h-4 text-brand-600 dark:text-brand-400" />
                       <span>Physical Dipstick Status</span>
                     </span>
-                    {latestMobileReading ? (
-                      latestMobileReading.is_flagged ? (
+                    {latestDipstick ? (
+                      latestDipstick.is_flagged ? (
                         <span className="text-[10px] font-mono tabular-nums font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-300 dark:border-rose-800">
-                          VARIANCE {(latestMobileReading.variance ?? 0) > 0 ? `+${latestMobileReading.variance}` : (latestMobileReading.variance ?? 0)}L
+                          VARIANCE {(latestDipstick.variance ?? 0) > 0 ? `+${latestDipstick.variance}` : (latestDipstick.variance ?? 0)}L
                         </span>
                       ) : (
                         <span className="text-[10px] font-mono tabular-nums font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
-                          VERIFIED ({(latestMobileReading.variance ?? 0) > 0 ? `+${latestMobileReading.variance}` : (latestMobileReading.variance ?? 0)}L)
+                          VERIFIED ({(latestDipstick.variance ?? 0) > 0 ? `+${latestDipstick.variance}` : (latestDipstick.variance ?? 0)}L)
                         </span>
                       )
                     ) : (
@@ -790,16 +843,16 @@ export const TruckIntakeScreen: React.FC = () => {
 
                   <div className="text-[12px] font-mono tabular-nums text-slate-600 dark:text-slate-400 space-y-1">
                     <div className="flex justify-between">
-                      <span>Current Ledger Volume:</span>
+                      <span>Current System Ledger:</span>
                       <span className="font-bold text-slate-900 dark:text-slate-100">
-                        {selectedMobileTank.remaining_litres.toLocaleString()} L
+                        {selectedTank.remaining_litres.toLocaleString()} L
                       </span>
                     </div>
-                    {latestMobileReading && (
+                    {latestDipstick && (
                       <div className="flex justify-between">
                         <span>Last Physical Stick:</span>
                         <span className="font-bold text-slate-900 dark:text-slate-100">
-                          {latestMobileReading.reading_litres.toLocaleString()} L ({formatDepotDate(latestMobileReading.recorded_at)})
+                          {latestDipstick.reading_litres.toLocaleString()} L ({formatDepotDate(latestDipstick.recorded_at)})
                         </span>
                       </div>
                     )}
@@ -808,19 +861,116 @@ export const TruckIntakeScreen: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      const id = selectedMobileTank.id;
-                      setSelectedTankForMobileSheet(null);
+                      const id = selectedTank.id;
+                      setSelectedTankForDetail(null);
                       handleOpenDipstick(id);
                     }}
-                    className="w-full py-2.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-[13px] font-sans font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
+                    className="w-full py-2.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-[13px] font-sans font-bold flex items-center justify-center gap-2 shadow-sm transition-all active:scale-98"
                   >
                     <Ruler className="w-4 h-4" />
-                    <span>Record Physical Dipstick</span>
+                    <span>Record Physical Dipstick Audit</span>
                   </button>
+                </div>
+
+                {/* Deeper Dipstick Reading Audit Log */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-heading font-semibold text-[14px] text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <History className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                      <span>Dipstick Audit Log</span>
+                    </h4>
+                    <span className="text-[11px] font-mono text-slate-500">
+                      {tankDipsticks.length} entries
+                    </span>
+                  </div>
+
+                  {tankDipsticks.length > 0 ? (
+                    <div className="space-y-2">
+                      {tankDipsticks.map(stick => (
+                        <div
+                          key={stick.id}
+                          className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs"
+                        >
+                          <div className="space-y-0.5">
+                            <div className="font-mono font-bold text-slate-900 dark:text-slate-200">
+                              {stick.reading_litres.toLocaleString()} L Stick
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-mono">
+                              System: {(stick.system_litres ?? selectedTank.remaining_litres).toLocaleString()} L · {formatDepotDate(stick.recorded_at)}
+                            </div>
+                            {stick.notes && (
+                              <div className="text-[11px] text-slate-400 font-sans italic">
+                                &ldquo;{stick.notes}&rdquo;
+                              </div>
+                            )}
+                          </div>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                              stick.is_flagged
+                                ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-300 dark:border-rose-800'
+                                : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800'
+                            }`}
+                          >
+                            {(stick.variance ?? 0) > 0 ? `+${stick.variance}` : (stick.variance ?? 0)}L
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-slate-400 text-xs font-sans">
+                      No past dipstick audits recorded for this tank yet.
+                    </div>
+                  )}
+                </div>
+
+                {/* Orders Drawn from this Tank / Product Batch */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-heading font-semibold text-[14px] text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <ShoppingCart className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      <span>Recent Orders Drawn</span>
+                    </h4>
+                    <span className="text-[11px] font-mono text-slate-500">
+                      {drawnOrders.length} recent
+                    </span>
+                  </div>
+
+                  {drawnOrders.length > 0 ? (
+                    <div className="space-y-2">
+                      {drawnOrders.map(order => {
+                        const cust = customers.find(c => c.id === order.customer_id);
+                        return (
+                          <div
+                            key={order.id}
+                            className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs"
+                          >
+                            <div className="space-y-0.5">
+                              <div className="font-sans font-semibold text-slate-900 dark:text-slate-200">
+                                {cust?.name || 'Customer'}
+                              </div>
+                              <div className="text-[11px] text-slate-500 font-mono">
+                                {formatDepotDate(order.date)} · {order.unit.toUpperCase()} ({order.qty}) · {order.payment_method}
+                              </div>
+                            </div>
+                            <div className="text-right font-mono">
+                              <span className="font-bold text-slate-900 dark:text-slate-100 block">
+                                -{(order.litres || 0).toLocaleString()} L
+                              </span>
+                              <span className="text-[10px] text-slate-500 uppercase font-sans">Dispensed</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-slate-400 text-xs font-sans">
+                      No customer orders drawn from this product batch yet.
+                    </div>
+                  )}
                 </div>
               </div>
             )}
-          </BottomSheet>
+          </TankContainer>
         );
       })()}
     </div>

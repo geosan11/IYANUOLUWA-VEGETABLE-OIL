@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
 import { Customer } from '../types';
 import { BottomSheet } from '../components/common/BottomSheet';
+import { useIsDesktopSplit } from '../hooks/useBreakpoint';
 import { formatDepotDate, formatDepotTime } from '../services/businessLogic';
 import {
   Package,
@@ -12,8 +13,13 @@ import {
   History,
   Plus,
   ArrowRightLeft,
-  ChevronRight
+  ChevronRight,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
+
+type SortField = 'customer' | 'supplied' | 'returned' | 'balance';
 
 export const KegsScreen: React.FC = () => {
   const {
@@ -26,13 +32,38 @@ export const KegsScreen: React.FC = () => {
     logKegReturn
   } = useStore();
 
+  const isDesktop = useIsDesktopSplit();
+
+  // Search & Filter State
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Sort & Master-Detail Selection State
+  const [sortField, setSortField] = useState<SortField>('balance');
+  const [sortAsc, setSortAsc] = useState<boolean>(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(customers[0]?.id || '');
+
+  // Persistent Detail Panel Return Form State
+  const [detailReturnQty, setDetailReturnQty] = useState<string>('5');
+  const [detailReturnNotes, setDetailReturnNotes] = useState<string>('');
+  const [detailReturnFeedback, setDetailReturnFeedback] = useState<string | null>(null);
+
   // Mobile Sheet States
   const [selectedCustomerForReturn, setSelectedCustomerForReturn] = useState<Customer | null>(null);
   const [isAllGateHistoryOpen, setIsAllGateHistoryOpen] = useState(false);
-
-  // Quick log return per customer state
   const [returnCustomerInputs, setReturnCustomerInputs] = useState<Record<string, string>>({});
   const [logSuccessMsg, setLogSuccessMsg] = useState<string | null>(null);
+
+  // Helper to compute stats for any customer
+  const getCustStats = (custId: string) => {
+    const custOrders = orders.filter(
+      o => o.customer_id === custId && o.keg_source === 'company' && o.unit === 'keg'
+    );
+    const supplied = custOrders.reduce((sum, o) => sum + Number(o.qty || 0), 0);
+    const custReturns = kegReturns.filter(r => r.customer_id === custId);
+    const returned = custReturns.reduce((sum, r) => sum + Number(r.qty || 0), 0);
+    const balance = Math.max(0, supplied - returned);
+    return { supplied, returned, balance };
+  };
 
   // Combined gate history: physical depot returns + inter-customer transfers
   const gateHistoryEvents = useMemo(() => {
@@ -61,6 +92,77 @@ export const KegsScreen: React.FC = () => {
     );
   }, [kegReturns, transfers, customers]);
 
+  // Active customer for desktop detail panel
+  const activeCustomer = useMemo(() => {
+    return customers.find(c => c.id === selectedCustomerId) || customers[0] || null;
+  }, [customers, selectedCustomerId]);
+
+  const activeStats = useMemo(() => {
+    if (!activeCustomer) return { supplied: 0, returned: 0, balance: 0 };
+    return getCustStats(activeCustomer.id);
+  }, [activeCustomer, orders, kegReturns]);
+
+  // History specific to the active customer
+  const activeCustomerHistory = useMemo(() => {
+    if (!activeCustomer) return [];
+    return gateHistoryEvents.filter(ev => {
+      if (ev.type === 'return') {
+        const ret = kegReturns.find(r => r.id === ev.id);
+        return ret?.customer_id === activeCustomer.id;
+      } else {
+        const tr = transfers.find(t => t.id === ev.id);
+        return tr?.from_customer_id === activeCustomer.id || tr?.to_customer_id === activeCustomer.id;
+      }
+    });
+  }, [activeCustomer, gateHistoryEvents, kegReturns, transfers]);
+
+  // Filtered and sorted customer list
+  const sortedCustomers = useMemo(() => {
+    const filtered = customers.filter(c =>
+      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.type.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const listWithStats = filtered.map(cust => ({
+      ...cust,
+      ...getCustStats(cust.id)
+    }));
+
+    return listWithStats.sort((a, b) => {
+      let diff = 0;
+      if (sortField === 'customer') {
+        diff = a.name.localeCompare(b.name);
+      } else if (sortField === 'supplied') {
+        diff = a.supplied - b.supplied;
+      } else if (sortField === 'returned') {
+        diff = a.returned - b.returned;
+      } else if (sortField === 'balance') {
+        diff = a.balance - b.balance;
+      }
+      return sortAsc ? diff : -diff;
+    });
+  }, [customers, orders, kegReturns, searchQuery, sortField, sortAsc]);
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortAsc(!sortAsc);
+    } else {
+      setSortField(field);
+      setSortAsc(field === 'customer');
+    }
+  };
+
+  const renderSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-50 ml-1 inline" />;
+    }
+    return sortAsc ? (
+      <ArrowUp className="w-3 h-3 text-brand-600 dark:text-brand-400 ml-1 inline" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-brand-600 dark:text-brand-400 ml-1 inline" />
+    );
+  };
+
   const handleQuickReturn = (customerId: string) => {
     const qtyStr = returnCustomerInputs[customerId];
     const qty = parseInt(qtyStr, 10) || 0;
@@ -72,6 +174,21 @@ export const KegsScreen: React.FC = () => {
       const cust = customers.find(c => c.id === customerId);
       setLogSuccessMsg(`Successfully logged ${qty} keg returns from ${cust?.name}!`);
       setTimeout(() => setLogSuccessMsg(null), 4000);
+    }
+  };
+
+  const handleDetailPanelReturn = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeCustomer) return;
+    const qty = parseInt(detailReturnQty, 10) || 0;
+    if (qty <= 0) return;
+
+    const result = logKegReturn(activeCustomer.id, qty);
+    if (result.success) {
+      setDetailReturnFeedback(`Logged ${qty} keg returns from ${activeCustomer.name}`);
+      setTimeout(() => setDetailReturnFeedback(null), 4000);
+      setDetailReturnQty('1');
+      setDetailReturnNotes('');
     }
   };
 
@@ -155,7 +272,7 @@ export const KegsScreen: React.FC = () => {
 
       {/* Top Summary Cards (3 Pillars) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* 1. Total Company Kegs Asset (Read-only with Settings Link) */}
+        {/* 1. Total Company Kegs Asset */}
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[12px] font-sans font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
@@ -233,87 +350,116 @@ export const KegsScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* Main 2-Section Grid: Customer Balance Matrix & Gate Return Audit Log */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: Customer Return Obligation Matrix (lg:col-span-7) */}
-        <div className="lg:col-span-7 p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+      {/* MASTER-DETAIL GRID (≥900px: Side-by-Side 7:5 Split) */}
+      <div className="grid grid-cols-1 split:grid-cols-12 gap-6 items-start">
+        {/* LEFT COLUMN: Customer Keg Matrix (split:col-span-7) */}
+        <div className="split:col-span-7 p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
             <div>
               <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                 <Boxes className="w-5 h-5 text-brand-600 dark:text-brand-400" />
                 <span>Customer Keg Balance Matrix</span>
               </h3>
               <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-                Supplied vs Returned company jerrycans with quick-return entry.
+                Supplied vs Returned company jerrycans. Click any row to view detail & log returns.
               </p>
+            </div>
+
+            {/* Customer Search Filter */}
+            <div className="w-full sm:w-48">
+              <input
+                type="text"
+                placeholder="Search customers..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:border-brand-500"
+              />
             </div>
           </div>
 
-          {/* Desktop Table & Mobile Cards */}
-          <div className="hidden sm:block overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+          {/* Desktop/Tablet Sortable Table (hidden on mobile < split:) */}
+          <div className="hidden split:block overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
             <table className="w-full text-xs text-left">
               <thead className="bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 uppercase font-semibold text-[11px] tracking-wider border-b border-slate-200 dark:border-slate-800 font-sans">
                 <tr>
-                  <th className="px-4 py-3">Customer</th>
-                  <th className="px-3 py-3 text-center">Supplied</th>
-                  <th className="px-3 py-3 text-center">Returned</th>
-                  <th className="px-3 py-3 text-center">Unreturned</th>
-                  <th className="px-4 py-3 text-right">Gate Quick Return</th>
+                  <th
+                    onClick={() => handleSort('customer')}
+                    className="px-4 py-3 cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors select-none"
+                  >
+                    Customer {renderSortIcon('customer')}
+                  </th>
+                  <th
+                    onClick={() => handleSort('supplied')}
+                    className="px-3 py-3 text-center cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors select-none"
+                  >
+                    Supplied {renderSortIcon('supplied')}
+                  </th>
+                  <th
+                    onClick={() => handleSort('returned')}
+                    className="px-3 py-3 text-center cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors select-none"
+                  >
+                    Returned {renderSortIcon('returned')}
+                  </th>
+                  <th
+                    onClick={() => handleSort('balance')}
+                    className="px-3 py-3 text-center cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors select-none"
+                  >
+                    Unreturned {renderSortIcon('balance')}
+                  </th>
+                  <th className="px-3 py-3 text-right">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80 font-mono tabular-nums">
-                {customers.map(cust => {
-                  const custOrders = orders.filter(o => o.customer_id === cust.id && o.keg_source === 'company' && o.unit === 'keg');
-                  const supplied = custOrders.reduce((sum, o) => sum + Number(o.qty || 0), 0);
-                  const custReturns = kegReturns.filter(r => r.customer_id === cust.id);
-                  const returned = custReturns.reduce((sum, r) => sum + Number(r.qty || 0), 0);
-                  const balance = Math.max(0, supplied - returned);
+                {sortedCustomers.map(cust => {
+                  const isSelected = selectedCustomerId === cust.id;
 
                   return (
-                    <tr key={cust.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-900/50">
+                    <tr
+                      key={cust.id}
+                      onClick={() => setSelectedCustomerId(cust.id)}
+                      className={`cursor-pointer transition-all ${
+                        isSelected
+                          ? 'bg-brand-50/70 dark:bg-brand-950/30 border-l-4 border-brand-500 font-medium'
+                          : 'hover:bg-slate-50/80 dark:hover:bg-slate-900/50 border-l-4 border-transparent'
+                      }`}
+                    >
                       <td className="px-4 py-3 font-sans">
-                        <div className="font-heading font-semibold text-[14px] text-slate-900 dark:text-slate-200">{cust.name}</div>
-                        <div className="text-[11px] text-slate-500 capitalize font-sans">{cust.type} account</div>
+                        <div className="font-heading font-semibold text-[14px] text-slate-900 dark:text-slate-200">
+                          {cust.name}
+                        </div>
+                        <div className="text-[11px] text-slate-500 capitalize font-sans">
+                          {cust.type} account
+                        </div>
                       </td>
                       <td className="px-3 py-3 text-center text-slate-600 dark:text-slate-400 text-[13px]">
-                        {supplied}
+                        {cust.supplied}
                       </td>
                       <td className="px-3 py-3 text-center text-emerald-600 dark:text-emerald-400 font-semibold text-[13px]">
-                        {returned}
+                        {cust.returned}
                       </td>
                       <td className="px-3 py-3 text-center font-bold">
-                        <span className={`px-2 py-0.5 rounded text-[11px] font-mono tabular-nums ${
-                          balance > 0
-                            ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-extrabold'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
-                        }`}>
-                          {balance}
+                        <span
+                          className={`px-2 py-0.5 rounded text-[11px] font-mono tabular-nums ${
+                            cust.balance > 0
+                              ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-extrabold'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                          }`}
+                        >
+                          {cust.balance}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right font-sans">
-                        <div className="flex items-center justify-end gap-2">
-                          <input
-                            type="number"
-                            min="1"
-                            max={balance || undefined}
-                            placeholder="Qty"
-                            value={returnCustomerInputs[cust.id] || ''}
-                            onChange={e =>
-                              setReturnCustomerInputs({
-                                ...returnCustomerInputs,
-                                [cust.id]: e.target.value
-                              })
-                            }
-                            className="w-16 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[14px] font-mono tabular-nums font-bold text-right focus:outline-none focus:border-brand-500"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleQuickReturn(cust.id)}
-                            className="px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[12px] shadow-sm transition-all active:scale-95 whitespace-nowrap"
-                          >
-                            + Return
-                          </button>
-                        </div>
+                      <td className="px-3 py-3 text-right font-sans">
+                        {cust.balance > 0 ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                            <span>Pending</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                            <span>Settled</span>
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -322,97 +468,235 @@ export const KegsScreen: React.FC = () => {
             </table>
           </div>
 
-          {/* Mobile View: Condensed Touch Rows */}
-          <div className="sm:hidden space-y-2.5">
-            {customers.map(cust => {
-              const custOrders = orders.filter(o => o.customer_id === cust.id && o.keg_source === 'company' && o.unit === 'keg');
-              const supplied = custOrders.reduce((sum, o) => sum + Number(o.qty || 0), 0);
-              const custReturns = kegReturns.filter(r => r.customer_id === cust.id);
-              const returned = custReturns.reduce((sum, r) => sum + Number(r.qty || 0), 0);
-              const balance = Math.max(0, supplied - returned);
-
-              return (
-                <div
-                  key={cust.id}
-                  onClick={() => setSelectedCustomerForReturn(cust)}
-                  className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 active:scale-98 transition-all cursor-pointer shadow-sm"
-                >
-                  <div>
-                    <div className="font-heading font-semibold text-[14px] text-slate-900 dark:text-white">
-                      {cust.name}
-                    </div>
-                    <div className="text-[11px] font-sans text-slate-500 capitalize">
-                      {cust.type} account · {supplied} supplied
-                    </div>
+          {/* Mobile View: Condensed Touch Rows (< split:) */}
+          <div className="split:hidden space-y-2.5">
+            {sortedCustomers.map(cust => (
+              <div
+                key={cust.id}
+                onClick={() => setSelectedCustomerForReturn(cust)}
+                className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 active:scale-98 transition-all cursor-pointer shadow-sm"
+              >
+                <div>
+                  <div className="font-heading font-semibold text-[14px] text-slate-900 dark:text-white">
+                    {cust.name}
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded text-[11px] font-mono tabular-nums font-bold ${
-                      balance > 0
-                        ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
-                        : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
-                    }`}>
-                      {balance} Out
-                    </span>
-                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                  <div className="text-[11px] font-sans text-slate-500 capitalize">
+                    {cust.type} account · {cust.supplied} supplied · {cust.returned} returned
                   </div>
                 </div>
-              );
-            })}
+
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-2.5 py-1 rounded-lg text-[12px] font-mono tabular-nums font-bold ${
+                      cust.balance > 0
+                        ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
+                        : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
+                    }`}
+                  >
+                    {cust.balance} Out
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Right: Gate Returns & Transfer Movements Audit Log (lg:col-span-5) */}
-        <div className="lg:col-span-5 p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
-          <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
-            <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-              <History className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              <span>Gate Returns & Fleet Movement Audit</span>
-            </h3>
-            <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-              Physical depot returns & inter-customer yard transfers.
-            </p>
-          </div>
-
-          {gateHistoryEvents.length === 0 ? (
-            <p className="text-[12px] font-sans text-slate-400 py-8 text-center">
-              No keg movements logged yet.
-            </p>
-          ) : (
-            <>
-              {/* Mobile Truncated Gate History (Top 3 items + View All Sheet Trigger) */}
-              <div className="sm:hidden space-y-2.5">
-                {gateHistoryEvents.slice(0, 3).map(renderGateEventItem)}
-                {gateHistoryEvents.length > 3 && (
-                  <button
-                    type="button"
-                    onClick={() => setIsAllGateHistoryOpen(true)}
-                    className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[12px] font-sans font-semibold flex items-center justify-center gap-1.5 transition-colors border border-slate-200 dark:border-slate-700 active:scale-98"
+        {/* RIGHT COLUMN: Persistent Customer Detail & Return Panel (split:col-span-5) */}
+        <div className="hidden split:block split:col-span-5 space-y-6 sticky top-6">
+          {activeCustomer ? (
+            <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
+              {/* Header */}
+              <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[20px] font-heading font-bold text-slate-900 dark:text-white">
+                    {activeCustomer.name}
+                  </h3>
+                  <span
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-semibold font-sans uppercase tracking-wider ${
+                      activeStats.balance > 0
+                        ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60'
+                        : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
+                    }`}
                   >
-                    <span>View full gate history ({gateHistoryEvents.length} movements)</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
+                    {activeStats.balance > 0 ? `${activeStats.balance} Kegs Due` : 'Account Settled'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 capitalize mt-1">
+                  {activeCustomer.type} account · Customer Keg Profile
+                </p>
+              </div>
+
+              {/* 3 Summary Mini-Cards */}
+              <div className="grid grid-cols-3 gap-2.5 text-center font-mono tabular-nums">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60">
+                  <span className="text-[11px] font-sans text-slate-500 block">Supplied</span>
+                  <span className="text-[18px] font-bold text-slate-900 dark:text-white">
+                    {activeStats.supplied}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60">
+                  <span className="text-[11px] font-sans text-slate-500 block">Returned</span>
+                  <span className="text-[18px] font-bold text-emerald-600 dark:text-emerald-400">
+                    {activeStats.returned}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60">
+                  <span className="text-[11px] font-sans text-amber-800 dark:text-amber-300 block">In Custody</span>
+                  <span className="text-[18px] font-bold text-amber-700 dark:text-amber-300">
+                    {activeStats.balance}
+                  </span>
+                </div>
+              </div>
+
+              {/* Feedback Alert */}
+              {detailReturnFeedback && (
+                <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <span>{detailReturnFeedback}</span>
+                </div>
+              )}
+
+              {/* In-Place Quick Return Form */}
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 space-y-3">
+                <h4 className="text-[13px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <RotateCcw className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                  <span>Log Depot Gate Return</span>
+                </h4>
+
+                <form onSubmit={handleDetailPanelReturn} className="space-y-3">
+                  <div>
+                    <label className="block text-[11px] font-sans text-slate-600 dark:text-slate-400 mb-1">
+                      Kegs Returned to Yard
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max={activeStats.balance || undefined}
+                        required
+                        value={detailReturnQty}
+                        onChange={e => setDetailReturnQty(e.target.value)}
+                        className="w-24 px-3 py-2 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[16px] font-mono tabular-nums font-bold text-right focus:outline-none focus:border-brand-500"
+                      />
+                      {/* Quick fill chips */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {[1, 5, 10, activeStats.balance]
+                          .filter((v, i, self) => v > 0 && v <= (activeStats.balance || 999) && self.indexOf(v) === i)
+                          .map((val, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setDetailReturnQty(val.toString())}
+                              className="px-2.5 py-1 rounded-md bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-[11px] font-mono font-medium border border-slate-200 dark:border-slate-700 transition-colors"
+                            >
+                              +{val} {val === activeStats.balance && activeStats.balance > 0 ? '(All)' : ''}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="Optional return notes or inspection remarks..."
+                      value={detailReturnNotes}
+                      onChange={e => setDetailReturnNotes(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs focus:outline-none focus:border-brand-500"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-sm transition-all flex items-center justify-center gap-2 active:scale-98"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Confirm Gate Return & Restock Yard</span>
                   </button>
+                </form>
+              </div>
+
+              {/* Customer Specific History */}
+              <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[13px] font-heading font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <History className="w-4 h-4 text-slate-500" />
+                    <span>Customer Movement History</span>
+                  </h4>
+                  <span className="text-[11px] font-mono text-slate-400">
+                    {activeCustomerHistory.length} logs
+                  </span>
+                </div>
+
+                {activeCustomerHistory.length === 0 ? (
+                  <p className="text-[12px] font-sans text-slate-400 py-4 text-center">
+                    No return or transfer records found for {activeCustomer.name}.
+                  </p>
+                ) : (
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {activeCustomerHistory.map(renderGateEventItem)}
+                  </div>
                 )}
               </div>
-
-              {/* Desktop Full Scrollable List */}
-              <div className="hidden sm:block space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
-                {gateHistoryEvents.map(renderGateEventItem)}
-              </div>
-            </>
+            </div>
+          ) : (
+            <div className="p-8 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-center text-slate-400">
+              Select a customer to view container balance and log gate returns.
+            </div>
           )}
         </div>
       </div>
 
-      {/* MOBILE LOG KEG RETURN BOTTOM SHEET */}
+      {/* DEPOT GATE RETURNS & FLEET MOVEMENT AUDIT LOG (Full Section) */}
+      <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
+        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div>
+            <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <History className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              <span>Depot Fleet Movement & Yard Gate Ledger</span>
+            </h3>
+            <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+              Physical depot gate returns & inter-customer yard transfers across the entire fleet.
+            </p>
+          </div>
+          <span className="text-[12px] font-mono text-slate-500">
+            {gateHistoryEvents.length} total events
+          </span>
+        </div>
+
+        {gateHistoryEvents.length === 0 ? (
+          <p className="text-[12px] font-sans text-slate-400 py-8 text-center">
+            No keg movements logged yet.
+          </p>
+        ) : (
+          <>
+            {/* Mobile Truncated Gate History (< split: top 3 items + View All Sheet Trigger) */}
+            <div className="split:hidden space-y-2.5">
+              {gateHistoryEvents.slice(0, 3).map(renderGateEventItem)}
+              {gateHistoryEvents.length > 3 && (
+                <button
+                  type="button"
+                  onClick={() => setIsAllGateHistoryOpen(true)}
+                  className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[12px] font-sans font-semibold flex items-center justify-center gap-1.5 transition-colors border border-slate-200 dark:border-slate-700 active:scale-98"
+                >
+                  <span>View full gate history ({gateHistoryEvents.length} movements)</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Desktop Full Grid List (≥ split:) */}
+            <div className="hidden split:grid split:grid-cols-2 gap-3 max-h-[460px] overflow-y-auto pr-1">
+              {gateHistoryEvents.map(renderGateEventItem)}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* MOBILE LOG KEG RETURN BOTTOM SHEET (< split: only) */}
       {selectedCustomerForReturn && (() => {
-        const custOrders = orders.filter(
-          o => o.customer_id === selectedCustomerForReturn.id && o.keg_source === 'company' && o.unit === 'keg'
-        );
-        const supplied = custOrders.reduce((sum, o) => sum + Number(o.qty || 0), 0);
-        const custReturns = kegReturns.filter(r => r.customer_id === selectedCustomerForReturn.id);
-        const returned = custReturns.reduce((sum, r) => sum + Number(r.qty || 0), 0);
-        const balance = Math.max(0, supplied - returned);
+        const stats = getCustStats(selectedCustomerForReturn.id);
         const currentInput = returnCustomerInputs[selectedCustomerForReturn.id] || '';
 
         return (
@@ -427,15 +711,15 @@ export const KegsScreen: React.FC = () => {
               <div className="grid grid-cols-3 gap-2 text-center font-mono tabular-nums text-xs">
                 <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
                   <span className="text-[11px] font-sans text-slate-500 block">Supplied</span>
-                  <span className="text-[16px] font-bold text-slate-800 dark:text-slate-200">{supplied}</span>
+                  <span className="text-[16px] font-bold text-slate-800 dark:text-slate-200">{stats.supplied}</span>
                 </div>
                 <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
                   <span className="text-[11px] font-sans text-slate-500 block">Returned</span>
-                  <span className="text-[16px] font-bold text-emerald-600 dark:text-emerald-400">{returned}</span>
+                  <span className="text-[16px] font-bold text-emerald-600 dark:text-emerald-400">{stats.returned}</span>
                 </div>
                 <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60">
                   <span className="text-[11px] font-sans text-amber-800 dark:text-amber-300 block">In Custody</span>
-                  <span className="text-[16px] font-bold text-amber-700 dark:text-amber-300">{balance}</span>
+                  <span className="text-[16px] font-bold text-amber-700 dark:text-amber-300">{stats.balance}</span>
                 </div>
               </div>
 
@@ -456,7 +740,7 @@ export const KegsScreen: React.FC = () => {
                     <input
                       type="number"
                       min="1"
-                      max={balance || undefined}
+                      max={stats.balance || undefined}
                       required
                       placeholder="e.g. 5"
                       value={currentInput}
@@ -474,7 +758,7 @@ export const KegsScreen: React.FC = () => {
                 {/* Quick Fill Chips */}
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] font-sans text-slate-500">Quick fill:</span>
-                  {[1, 5, 10, balance].filter(v => v > 0 && v <= balance).map((val, idx) => (
+                  {[1, 5, 10, stats.balance].filter(v => v > 0 && v <= stats.balance).map((val, idx) => (
                     <button
                       type="button"
                       key={idx}
@@ -486,7 +770,7 @@ export const KegsScreen: React.FC = () => {
                       }
                       className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-[11px] font-mono tabular-nums font-semibold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
                     >
-                      +{val} {val === balance ? '(All)' : ''}
+                      +{val} {val === stats.balance ? '(All)' : ''}
                     </button>
                   ))}
                 </div>
@@ -504,7 +788,7 @@ export const KegsScreen: React.FC = () => {
         );
       })()}
 
-      {/* MOBILE ALL GATE MOVEMENTS BOTTOM SHEET */}
+      {/* MOBILE ALL GATE MOVEMENTS BOTTOM SHEET (< split: only) */}
       <BottomSheet
         isOpen={isAllGateHistoryOpen}
         onClose={() => setIsAllGateHistoryOpen(false)}

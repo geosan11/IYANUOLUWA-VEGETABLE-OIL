@@ -35,6 +35,9 @@ export const SettingsScreen: React.FC = () => {
     resetToSeedData
   } = useStore();
 
+  // Desktop Tab Navigation
+  const [activeDesktopTab, setActiveDesktopTab] = useState<'company' | 'kegs' | 'pricing' | 'thresholds' | 'system'>('company');
+
   // Mobile BottomSheet Navigation
   const [activeMobileSheet, setActiveMobileSheet] = useState<'company' | 'kegs' | 'pricing' | 'thresholds' | 'system' | null>(null);
 
@@ -184,7 +187,7 @@ export const SettingsScreen: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-16 max-w-5xl mx-auto">
+    <div className="space-y-6 pb-16 max-w-6xl mx-auto">
       {/* Top Banner */}
       <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
         <div>
@@ -205,8 +208,8 @@ export const SettingsScreen: React.FC = () => {
         </div>
       )}
 
-      {/* MOBILE: iOS-Style Grouped Menu (sm:hidden) */}
-      <div className="sm:hidden space-y-4">
+      {/* MOBILE: iOS-Style Grouped Menu (split:hidden) */}
+      <div className="split:hidden space-y-4">
         <div className="text-[11px] font-sans font-semibold uppercase tracking-wider text-slate-400 px-1">
           Configuration Categories
         </div>
@@ -314,525 +317,621 @@ export const SettingsScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* DESKTOP: Full 5-Section Layout (hidden sm:block) */}
-      <div className="hidden sm:block space-y-6">
-      {/* 1. COMPANY PROFILE */}
-      <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm">
-        <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
-          <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-            <Building className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-            <span>1. Company Profile & Official Branding</span>
-          </h3>
-          <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-            Official logo and contact details appearing on app navigation and printed Official Receipts.
-          </p>
-        </div>
-
-        {/* Logo Upload Box */}
-        <div className="flex flex-col sm:flex-row items-center gap-6 p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
-          <div className="w-28 h-28 rounded-2xl bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center p-2 overflow-hidden flex-shrink-0 shadow-sm">
-            {settings.company_logo_url ? (
-              <img
-                src={settings.company_logo_url}
-                alt="Depot Logo"
-                className="w-full h-full object-contain"
-              />
-            ) : (
-              <div className="text-center text-slate-400">
-                <ImageIcon className="w-7 h-7 mx-auto mb-1 opacity-50" />
-                <span className="text-[11px] font-sans block">No logo</span>
-              </div>
-            )}
+      {/* DESKTOP (≥900px): SaaS Master-Detail Layout with Sub-Sidebar */}
+      <div className="hidden split:grid split:grid-cols-12 gap-6 items-start">
+        {/* Left Sub-Sidebar (split:col-span-4) */}
+        <div className="split:col-span-4 bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 space-y-1.5 shadow-sm sticky top-6">
+          <div className="text-[11px] font-sans font-semibold uppercase tracking-wider text-slate-400 px-3 py-2">
+            Configuration Sections
           </div>
 
-          <div className="space-y-2.5 w-full">
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] flex items-center gap-2 transition-all shadow-sm active:scale-95">
-                <Upload className="w-4 h-4" />
-                <span>{isUploading ? 'Uploading to Storage...' : 'Upload Official Logo'}</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleLogoUpload}
-                  disabled={isUploading}
-                  className="hidden"
-                />
-              </label>
+          {[
+            {
+              id: 'company' as const,
+              title: 'Company & Branding',
+              subtitle: companyName || 'Iyanuoluwa Oil',
+              icon: Building,
+              color: 'text-brand-600 dark:text-brand-400',
+              bg: 'bg-brand-50 dark:bg-brand-500/15'
+            },
+            {
+              id: 'kegs' as const,
+              title: 'Keg Fleet Standards',
+              subtitle: `${litresPerKeg}L · ${totalCompanyKegs} fleet`,
+              icon: Package,
+              color: 'text-amber-600 dark:text-amber-400',
+              bg: 'bg-amber-50 dark:bg-amber-500/15'
+            },
+            {
+              id: 'pricing' as const,
+              title: 'Products & Rate Cards',
+              subtitle: `${products.length} products · 3 tiers`,
+              icon: DollarSign,
+              color: 'text-emerald-600 dark:text-emerald-400',
+              bg: 'bg-emerald-50 dark:bg-emerald-500/15'
+            },
+            {
+              id: 'thresholds' as const,
+              title: 'Safety & Thresholds',
+              subtitle: `Low: ${lowStockThreshold}L · Pump: ${pumpVarianceThreshold}L`,
+              icon: AlertTriangle,
+              color: 'text-rose-600 dark:text-rose-400',
+              bg: 'bg-rose-50 dark:bg-rose-500/15'
+            },
+            {
+              id: 'system' as const,
+              title: 'Float & System Tools',
+              subtitle: `Float: ${formatNaira(parseFloat(defaultDailyFloat) || 0)} · ${userRole}`,
+              icon: Shield,
+              color: 'text-purple-600 dark:text-purple-400',
+              bg: 'bg-purple-50 dark:bg-purple-500/15'
+            }
+          ].map(item => {
+            const Icon = item.icon;
+            const isActive = activeDesktopTab === item.id;
 
-              {settings.company_logo_url && (
-                <button
-                  onClick={handleRemoveLogo}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-rose-100 dark:hover:bg-rose-950/60 hover:text-rose-700 dark:hover:text-rose-300 text-slate-700 dark:text-slate-300 text-[13px] font-sans font-semibold border border-slate-200 dark:border-slate-700 flex items-center gap-2 transition-all active:scale-95"
-                >
-                  <Trash2 className="w-4 h-4 text-rose-500 dark:text-rose-400" />
-                  <span>Remove Logo</span>
-                </button>
-              )}
-            </div>
-            <p className="text-[11px] font-sans text-slate-500 dark:text-slate-400">
-              Directly synced with Supabase Storage bucket (<code className="font-mono text-brand-600 dark:text-brand-400">depot_assets</code>). Supports PNG, JPG, SVG.
-            </p>
-          </div>
-        </div>
-
-        {/* Contact Fields */}
-        <form onSubmit={handleSaveCompanyInfo} className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-              Registered Business Name
-            </label>
-            <input
-              type="text"
-              value={companyName}
-              onChange={e => setCompanyName(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-sans font-medium text-[14px] focus:outline-none focus:border-brand-500"
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                Depot Telephone
-              </label>
-              <input
-                type="text"
-                value={companyPhone}
-                onChange={e => setCompanyPhone(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums text-[14px] focus:outline-none focus:border-brand-500"
-                required
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                Physical Depot Address
-              </label>
-              <input
-                type="text"
-                value={companyAddress}
-                onChange={e => setCompanyAddress(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-sans font-medium focus:outline-none focus:border-brand-500"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end pt-1">
-            <button
-              type="submit"
-              className="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
-            >
-              <Save className="w-[18px] h-[18px]" />
-              <span>Save Company Profile</span>
-            </button>
-          </div>
-        </form>
-      </div>
-
-      {/* 2. KEG CONFIGURATION */}
-      <form
-        onSubmit={handleSaveKegConfig}
-        className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm"
-      >
-        <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
-          <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-            <Package className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-            <span>2. Keg Configuration & Fleet Standards</span>
-          </h3>
-          <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-            Single source of truth for container volume conversions, physical fleet size, and depot minimum safety reserve.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-              Litres per Standard Keg
-            </label>
-            <div className="relative">
-              <input
-                type="number"
-                step="1"
-                min="1"
-                value={litresPerKeg}
-                onChange={e => setLitresPerKeg(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
-                required
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">L/keg</span>
-            </div>
-            <p className="text-[11px] font-sans text-slate-500">Standard Lagos depot 30-litre yellow jerrycan volume conversion.</p>
-          </div>
-
-          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-              Total Company Fleet Owned
-            </label>
-            <div className="relative">
-              <input
-                type="number"
-                step="1"
-                min="0"
-                value={totalCompanyKegs}
-                onChange={e => setTotalCompanyKegs(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
-                required
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Kegs</span>
-            </div>
-            <p className="text-[11px] font-sans text-slate-500">Total physical fleet asset cap (read-only on Kegs screen).</p>
-          </div>
-
-          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-              Depot Low Stock Alert Threshold
-            </label>
-            <div className="relative">
-              <input
-                type="number"
-                step="1"
-                min="0"
-                value={kegsAtDepotLowThreshold}
-                onChange={e => setKegsAtDepotLowThreshold(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
-                required
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Kegs</span>
-            </div>
-            <p className="text-[11px] font-sans text-slate-500">Flags critical warning when depot yard stock drops below this.</p>
-          </div>
-        </div>
-
-        <div className="flex justify-end pt-1">
-          <button
-            type="submit"
-            className="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
-          >
-            <Save className="w-[18px] h-[18px]" />
-            <span>Save Keg Parameters</span>
-          </button>
-        </div>
-      </form>
-
-      {/* 3. PRODUCTS & PRICING (DYNAMIC RATE CARD GRID) */}
-      <form
-        onSubmit={handleSaveProductsAndPricing}
-        className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm"
-      >
-        <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-              <span>3. Products & Dynamic Rate Card Grid</span>
-            </h3>
-            <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-              Live owner pricing management: adjust conversion tonnages and per-litre rate cards across customer tiers.
-            </p>
-          </div>
-          <span className="text-[11px] font-mono tabular-nums px-2.5 py-1 rounded-full bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/30 text-brand-700 dark:text-brand-300 font-bold self-start sm:self-auto">
-            Live Counter Pricing
-          </span>
-        </div>
-
-        {/* Product Conversion Tonnages */}
-        <div className="space-y-3">
-          <div className="text-[16px] font-sans font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-            <Layers className="w-4 h-4 text-slate-400" />
-            <span>Product Density Conversion (Litres per Metric Ton)</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {products.map(p => (
-              <div
-                key={p.id}
-                className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4"
-              >
-                <div>
-                  <div className="font-heading font-semibold text-[14px] text-slate-900 dark:text-white">{p.name}</div>
-                  <div className="text-[11px] font-sans text-slate-500">Truck Intake density multiplier</div>
-                </div>
-
-                <div className="relative w-36">
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="100"
-                    value={productTonnages[p.id] || ''}
-                    onChange={e =>
-                      setProductTonnages({ ...productTonnages, [p.id]: e.target.value })
-                    }
-                    className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
-                    required
-                  />
-                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">L/Ton</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Dynamic Rate Card Matrix Table */}
-        <div className="space-y-3">
-          <div className="text-[16px] font-sans font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-            <Sliders className="w-4 h-4 text-slate-400" />
-            <span>Rate Card Matrix (Product × Customer Tier)</span>
-          </div>
-
-          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 uppercase font-semibold text-[11px] tracking-wider border-b border-slate-200 dark:border-slate-800 font-sans">
-                <tr>
-                  <th className="px-4 py-3">Product</th>
-                  <th className="px-4 py-3">Customer Tier</th>
-                  <th className="px-4 py-3">Rate per Litre (₦/L)</th>
-                  <th className="px-4 py-3 text-right">Effective 30L Keg Price</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80 font-mono tabular-nums">
-                {products.map(p =>
-                  (['retail', 'agent', 'corporate'] as const).map(tier => {
-                    const key = `${p.id}_${tier}`;
-                    const currentRate = parseFloat(rateCardRates[key]) || 0;
-                    const effectiveKegPrice = currentRate * (parseFloat(litresPerKeg) || 30);
-
-                    return (
-                      <tr key={key} className="hover:bg-slate-50/80 dark:hover:bg-slate-900/50">
-                        <td className="px-4 py-3 font-sans font-semibold text-slate-800 dark:text-slate-200 text-[14px]">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className="w-2.5 h-2.5 rounded-full"
-                              style={{ backgroundColor: p.id === 'veg' ? '#F59E0B' : '#EF4444' }}
-                            />
-                            <span className="font-heading">{p.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-0.5 rounded text-[11px] font-sans font-bold uppercase ${
-                            tier === 'corporate'
-                              ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800'
-                              : tier === 'agent'
-                              ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
-                          }`}>
-                            {tier}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="relative w-36">
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-[14px]">₦</span>
-                            <input
-                              type="number"
-                              step="50"
-                              min="100"
-                              value={rateCardRates[key] || ''}
-                              onChange={e =>
-                                setRateCardRates({ ...rateCardRates, [key]: e.target.value })
-                              }
-                              className="w-full pl-6 pr-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
-                              required
-                            />
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400 text-[14px]">
-                          {formatNaira(effectiveKegPrice)}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="flex justify-end pt-1">
-          <button
-            type="submit"
-            className="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
-          >
-            <Save className="w-[18px] h-[18px]" />
-            <span>Save Products & Rate Cards</span>
-          </button>
-        </div>
-      </form>
-
-      {/* 4. ALERT THRESHOLDS */}
-      <form
-        onSubmit={handleSaveAlertThresholds}
-        className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm"
-      >
-        <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
-          <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-amber-500 dark:text-amber-400" />
-            <span>4. Operational Alert & Variance Thresholds</span>
-          </h3>
-          <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-            Set real-time triggers for depot oil shrinkage, truck offload shortages, and pump meter audit alerts.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-              Low Depot Tank Stock Alert
-            </label>
-            <div className="relative">
-              <input
-                type="number"
-                step="50"
-                min="0"
-                value={lowStockThreshold}
-                onChange={e => setLowStockThreshold(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
-                required
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Litres</span>
-            </div>
-            <p className="text-[11px] font-sans text-slate-500">Flags low storage warning when remaining tank stock drops below this.</p>
-          </div>
-
-          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-              Truck Intake Shortfall Flag
-            </label>
-            <div className="relative">
-              <input
-                type="number"
-                step="5"
-                min="0"
-                value={truckShortfallThreshold}
-                onChange={e => setTruckShortfallThreshold(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
-                required
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Litres</span>
-            </div>
-            <p className="text-[11px] font-sans text-slate-500">Flags red warning if delivery offload shortfall exceeds this limit.</p>
-          </div>
-
-          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-              Pump Meter Variance Flag
-            </label>
-            <div className="relative">
-              <input
-                type="number"
-                step="5"
-                min="0"
-                value={pumpVarianceThreshold}
-                onChange={e => setPumpVarianceThreshold(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
-                required
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Litres</span>
-            </div>
-            <p className="text-[11px] font-sans text-slate-500">Flags 4th Dashboard alert if unlogged pump sales discrepancy exceeds this.</p>
-          </div>
-        </div>
-
-        <div className="flex justify-end pt-1">
-          <button
-            type="submit"
-            className="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
-          >
-            <Save className="w-[18px] h-[18px]" />
-            <span>Save Alert Thresholds</span>
-          </button>
-        </div>
-      </form>
-
-      {/* 5. DAILY OPERATIONS & SYSTEM TOOLS */}
-      <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
-        <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
-          <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-            <Shield className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-            <span>5. Daily Operations, Role Simulation & System Tools</span>
-          </h3>
-          <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-            Default daily cash float, operational role tiers, and database utilities.
-          </p>
-        </div>
-
-        {/* Default Daily Float Form */}
-        <form onSubmit={handleSaveDailyFloat} className="space-y-3">
-          <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-            Default Opening Daily Petty Cash Float (₦)
-          </label>
-          <div className="flex items-center gap-3">
-            <div className="relative w-full max-w-xs">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₦</span>
-              <input
-                type="number"
-                step="1000"
-                min="0"
-                value={defaultDailyFloat}
-                onChange={e => setDefaultDailyFloat(e.target.value)}
-                className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
-                required
-              />
-            </div>
-            <button
-              type="submit"
-              className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-sm transition-all active:scale-95"
-            >
-              Save Default Float
-            </button>
-          </div>
-          <p className="text-[11px] font-sans text-slate-500">
-            Automatically pre-fills the counter's opening petty cash float every morning on the Expenses screen.
-          </p>
-        </form>
-
-        {/* Operational Role Simulation */}
-        <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
-          <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-            Simulate Active Operational Role
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {[
-              { id: 'owner', label: 'Owner (Full Access)', desc: 'Managing Director, price overrides, credit authorizations.' },
-              { id: 'staff', label: 'Counter Staff', desc: 'Day-to-day dispensing, receiving payments, customer lookup.' },
-              { id: 'driver', label: 'Driver / Logistics', desc: 'Intake logging and transport delivery audits.' }
-            ].map(r => (
+            return (
               <button
-                key={r.id}
+                key={item.id}
                 type="button"
-                onClick={() => setUserRole(r.id as UserRole)}
-                className={`p-4 rounded-xl border text-left transition-all ${
-                  userRole === r.id
-                    ? 'bg-brand-50 dark:bg-brand-500/15 border-brand-500 text-brand-900 dark:text-brand-300 shadow-sm'
-                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900'
+                onClick={() => setActiveDesktopTab(item.id)}
+                className={`w-full p-3 rounded-xl flex items-center gap-3 text-left transition-all border ${
+                  isActive
+                    ? 'bg-brand-50/80 dark:bg-brand-950/40 border-brand-500 text-slate-900 dark:text-white shadow-sm font-semibold'
+                    : 'border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                <div className="font-heading font-semibold text-[14px] text-slate-900 dark:text-white capitalize">{r.label}</div>
-                <div className="text-[11px] font-sans text-slate-500 dark:text-slate-400 mt-1">{r.desc}</div>
+                <div className={`w-9 h-9 rounded-lg ${item.bg} flex items-center justify-center flex-shrink-0`}>
+                  <Icon className={`w-4 h-4 ${item.color}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-heading font-semibold text-[13px] truncate">
+                    {item.title}
+                  </div>
+                  <div className="text-[11px] font-sans opacity-70 truncate">
+                    {item.subtitle}
+                  </div>
+                </div>
+                <ChevronRight
+                  className={`w-4 h-4 transition-transform ${
+                    isActive ? 'text-brand-600 dark:text-brand-400 translate-x-0.5' : 'text-slate-400 opacity-50'
+                  }`}
+                />
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
 
-        {/* Factory Reset Seed Data */}
-        <div className="p-4 rounded-xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h4 className="text-[14px] font-sans font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
-              <RotateCcw className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-              <span>Factory Reset Demo Seed Data</span>
-            </h4>
-            <p className="text-[11px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-              Restores initial seed customers (Mr Samson, Arena, Iya Aige, Lekki Agent), tanks, pumps, and sample invoices.
-            </p>
-          </div>
+        {/* Right Content Pane (split:col-span-8) */}
+        <div className="split:col-span-8 min-w-0">
+          {activeDesktopTab === 'company' && (
+            /* 1. COMPANY PROFILE */
+            <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm">
+              <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
+                <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Building className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+                  <span>1. Company Profile & Official Branding</span>
+                </h3>
+                <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+                  Official logo and contact details appearing on app navigation and printed Official Receipts.
+                </p>
+              </div>
 
-          <button
-            type="button"
-            onClick={handleResetData}
-            className="px-4 py-2 rounded-xl bg-rose-100 dark:bg-rose-950/40 hover:bg-rose-200 dark:hover:bg-rose-900 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800/80 text-[13px] font-sans font-bold transition-all active:scale-95 flex-shrink-0"
-          >
-            Reset Database
-          </button>
+              {/* Logo Upload Box */}
+              <div className="flex flex-col sm:flex-row items-center gap-6 p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+                <div className="w-28 h-28 rounded-2xl bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center p-2 overflow-hidden flex-shrink-0 shadow-sm">
+                  {settings.company_logo_url ? (
+                    <img
+                      src={settings.company_logo_url}
+                      alt="Depot Logo"
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <div className="text-center text-slate-400">
+                      <ImageIcon className="w-7 h-7 mx-auto mb-1 opacity-50" />
+                      <span className="text-[11px] font-sans block">No logo</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2.5 w-full">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] flex items-center gap-2 transition-all shadow-sm active:scale-95">
+                      <Upload className="w-4 h-4" />
+                      <span>{isUploading ? 'Uploading to Storage...' : 'Upload Official Logo'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        disabled={isUploading}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {settings.company_logo_url && (
+                      <button
+                        onClick={handleRemoveLogo}
+                        className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-rose-100 dark:hover:bg-rose-950/60 hover:text-rose-700 dark:hover:text-rose-300 text-slate-700 dark:text-slate-300 text-[13px] font-sans font-semibold border border-slate-200 dark:border-slate-700 flex items-center gap-2 transition-all active:scale-95"
+                      >
+                        <Trash2 className="w-4 h-4 text-rose-500 dark:text-rose-400" />
+                        <span>Remove Logo</span>
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] font-sans text-slate-500 dark:text-slate-400">
+                    Directly synced with Supabase Storage bucket (<code className="font-mono text-brand-600 dark:text-brand-400">depot_assets</code>). Supports PNG, JPG, SVG.
+                  </p>
+                </div>
+              </div>
+
+              {/* Contact Fields */}
+              <form onSubmit={handleSaveCompanyInfo} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                    Registered Business Name
+                  </label>
+                  <input
+                    type="text"
+                    value={companyName}
+                    onChange={e => setCompanyName(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-sans font-medium text-[14px] focus:outline-none focus:border-brand-500"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                      Depot Telephone
+                    </label>
+                    <input
+                      type="text"
+                      value={companyPhone}
+                      onChange={e => setCompanyPhone(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums text-[14px] focus:outline-none focus:border-brand-500"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                      Physical Depot Address
+                    </label>
+                    <input
+                      type="text"
+                      value={companyAddress}
+                      onChange={e => setCompanyAddress(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-sans font-medium focus:outline-none focus:border-brand-500"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
+                  >
+                    <Save className="w-[18px] h-[18px]" />
+                    <span>Save Company Profile</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {activeDesktopTab === 'kegs' && (
+            /* 2. KEG CONFIGURATION */
+            <form
+              onSubmit={handleSaveKegConfig}
+              className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm"
+            >
+              <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
+                <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Package className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+                  <span>2. Keg Configuration & Fleet Standards</span>
+                </h3>
+                <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+                  Single source of truth for container volume conversions, physical fleet size, and depot minimum safety reserve.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                  <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                    Litres per Standard Keg
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      value={litresPerKeg}
+                      onChange={e => setLitresPerKeg(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
+                      required
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">L/keg</span>
+                  </div>
+                  <p className="text-[11px] font-sans text-slate-500">Standard Lagos depot 30-litre yellow jerrycan volume conversion.</p>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                  <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                    Total Company Fleet Owned
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      value={totalCompanyKegs}
+                      onChange={e => setTotalCompanyKegs(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
+                      required
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Kegs</span>
+                  </div>
+                  <p className="text-[11px] font-sans text-slate-500">Total physical fleet asset cap (read-only on Kegs screen).</p>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                  <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                    Depot Low Stock Alert Threshold
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      value={kegsAtDepotLowThreshold}
+                      onChange={e => setKegsAtDepotLowThreshold(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
+                      required
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Kegs</span>
+                  </div>
+                  <p className="text-[11px] font-sans text-slate-500">Flags critical warning when depot yard stock drops below this.</p>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-1">
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
+                >
+                  <Save className="w-[18px] h-[18px]" />
+                  <span>Save Keg Parameters</span>
+                </button>
+              </div>
+            </form>
+          )}
+
+          {activeDesktopTab === 'pricing' && (
+            /* 3. PRODUCTS & PRICING (DYNAMIC RATE CARD GRID) */
+            <form
+              onSubmit={handleSaveProductsAndPricing}
+              className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm"
+            >
+              <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+                    <span>3. Products & Dynamic Rate Card Grid</span>
+                  </h3>
+                  <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+                    Live owner pricing management: adjust conversion tonnages and per-litre rate cards across customer tiers.
+                  </p>
+                </div>
+                <span className="text-[11px] font-mono tabular-nums px-2.5 py-1 rounded-full bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/30 text-brand-700 dark:text-brand-300 font-bold self-start sm:self-auto">
+                  Live Counter Pricing
+                </span>
+              </div>
+
+              {/* Product Conversion Tonnages */}
+              <div className="space-y-3">
+                <div className="text-[16px] font-sans font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-slate-400" />
+                  <span>Product Density Conversion (Litres per Metric Ton)</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {products.map(p => (
+                    <div
+                      key={p.id}
+                      className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4"
+                    >
+                      <div>
+                        <div className="font-heading font-semibold text-[14px] text-slate-900 dark:text-white">{p.name}</div>
+                        <div className="text-[11px] font-sans text-slate-500">Truck Intake density multiplier</div>
+                      </div>
+
+                      <div className="relative w-36">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="100"
+                          value={productTonnages[p.id] || ''}
+                          onChange={e =>
+                            setProductTonnages({ ...productTonnages, [p.id]: e.target.value })
+                          }
+                          className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
+                          required
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">L/Ton</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Dynamic Rate Card Matrix Table */}
+              <div className="space-y-3">
+                <div className="text-[16px] font-sans font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <Sliders className="w-4 h-4 text-slate-400" />
+                  <span>Rate Card Matrix (Product × Customer Tier)</span>
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 uppercase font-semibold text-[11px] tracking-wider border-b border-slate-200 dark:border-slate-800 font-sans">
+                      <tr>
+                        <th className="px-4 py-3">Product</th>
+                        <th className="px-4 py-3">Customer Tier</th>
+                        <th className="px-4 py-3">Rate per Litre (₦/L)</th>
+                        <th className="px-4 py-3 text-right">Effective 30L Keg Price</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80 font-mono tabular-nums">
+                      {products.map(p =>
+                        (['retail', 'agent', 'corporate'] as const).map(tier => {
+                          const key = `${p.id}_${tier}`;
+                          const currentRate = parseFloat(rateCardRates[key]) || 0;
+                          const effectiveKegPrice = currentRate * (parseFloat(litresPerKeg) || 30);
+
+                          return (
+                            <tr key={key} className="hover:bg-slate-50/80 dark:hover:bg-slate-900/50">
+                              <td className="px-4 py-3 font-sans font-semibold text-slate-800 dark:text-slate-200 text-[14px]">
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className="w-2.5 h-2.5 rounded-full"
+                                    style={{ backgroundColor: p.id === 'veg' ? '#F59E0B' : '#EF4444' }}
+                                  />
+                                  <span className="font-heading">{p.name}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`px-2 py-0.5 rounded text-[11px] font-sans font-bold uppercase ${
+                                  tier === 'corporate'
+                                    ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800'
+                                    : tier === 'agent'
+                                    ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                                }`}>
+                                  {tier}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="relative w-36">
+                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-[14px]">₦</span>
+                                  <input
+                                    type="number"
+                                    step="50"
+                                    min="100"
+                                    value={rateCardRates[key] || ''}
+                                    onChange={e =>
+                                      setRateCardRates({ ...rateCardRates, [key]: e.target.value })
+                                    }
+                                    className="w-full pl-6 pr-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
+                                    required
+                                  />
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400 text-[14px]">
+                                {formatNaira(effectiveKegPrice)}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-1">
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
+                >
+                  <Save className="w-[18px] h-[18px]" />
+                  <span>Save Products & Rate Cards</span>
+                </button>
+              </div>
+            </form>
+          )}
+
+          {activeDesktopTab === 'thresholds' && (
+            /* 4. ALERT THRESHOLDS */
+            <form
+              onSubmit={handleSaveAlertThresholds}
+              className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm"
+            >
+              <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
+                <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-500 dark:text-amber-400" />
+                  <span>4. Operational Alert & Variance Thresholds</span>
+                </h3>
+                <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+                  Set real-time triggers for depot oil shrinkage, truck offload shortages, and pump meter audit alerts.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                  <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                    Low Depot Tank Stock Alert
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="50"
+                      min="0"
+                      value={lowStockThreshold}
+                      onChange={e => setLowStockThreshold(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
+                      required
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Litres</span>
+                  </div>
+                  <p className="text-[11px] font-sans text-slate-500">Flags low storage warning when remaining tank stock drops below this.</p>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                  <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                    Truck Intake Shortfall Flag
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="5"
+                      min="0"
+                      value={truckShortfallThreshold}
+                      onChange={e => setTruckShortfallThreshold(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
+                      required
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Litres</span>
+                  </div>
+                  <p className="text-[11px] font-sans text-slate-500">Flags red warning if delivery offload shortfall exceeds this limit.</p>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                  <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                    Pump Meter Variance Flag
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="5"
+                      min="0"
+                      value={pumpVarianceThreshold}
+                      onChange={e => setPumpVarianceThreshold(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
+                      required
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Litres</span>
+                  </div>
+                  <p className="text-[11px] font-sans text-slate-500">Flags 4th Dashboard alert if unlogged pump sales discrepancy exceeds this.</p>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-1">
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
+                >
+                  <Save className="w-[18px] h-[18px]" />
+                  <span>Save Alert Thresholds</span>
+                </button>
+              </div>
+            </form>
+          )}
+
+          {activeDesktopTab === 'system' && (
+            /* 5. DAILY OPERATIONS & SYSTEM TOOLS */
+            <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
+              <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
+                <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+                  <span>5. Daily Operations, Role Simulation & System Tools</span>
+                </h3>
+                <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+                  Default daily cash float, operational role tiers, and database utilities.
+                </p>
+              </div>
+
+              {/* Default Daily Float Form */}
+              <form onSubmit={handleSaveDailyFloat} className="space-y-3">
+                <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                  Default Opening Daily Petty Cash Float (₦)
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="relative w-full max-w-xs">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₦</span>
+                    <input
+                      type="number"
+                      step="1000"
+                      min="0"
+                      value={defaultDailyFloat}
+                      onChange={e => setDefaultDailyFloat(e.target.value)}
+                      className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
+                      required
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-sm transition-all active:scale-95"
+                  >
+                    Save Default Float
+                  </button>
+                </div>
+                <p className="text-[11px] font-sans text-slate-500">
+                  Automatically pre-fills the counter's opening petty cash float every morning on the Expenses screen.
+                </p>
+              </form>
+
+              {/* Operational Role Simulation */}
+              <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                  Simulate Active Operational Role
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[
+                    { id: 'owner', label: 'Owner (Full Access)', desc: 'Managing Director, price overrides, credit authorizations.' },
+                    { id: 'staff', label: 'Counter Staff', desc: 'Day-to-day dispensing, receiving payments, customer lookup.' },
+                    { id: 'driver', label: 'Driver / Logistics', desc: 'Intake logging and transport delivery audits.' }
+                  ].map(r => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setUserRole(r.id as UserRole)}
+                      className={`p-4 rounded-xl border text-left transition-all ${
+                        userRole === r.id
+                          ? 'bg-brand-50 dark:bg-brand-500/15 border-brand-500 text-brand-900 dark:text-brand-300 shadow-sm'
+                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900'
+                      }`}
+                    >
+                      <div className="font-heading font-semibold text-[14px] text-slate-900 dark:text-white capitalize">{r.label}</div>
+                      <div className="text-[11px] font-sans text-slate-500 dark:text-slate-400 mt-1">{r.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Factory Reset Seed Data */}
+              <div className="p-4 rounded-xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h4 className="text-[14px] font-sans font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <RotateCcw className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                    <span>Factory Reset Demo Seed Data</span>
+                  </h4>
+                  <p className="text-[11px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+                    Restores initial seed customers (Mr Samson, Arena, Iya Aige, Lekki Agent), tanks, pumps, and sample invoices.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleResetData}
+                  className="px-4 py-2 rounded-xl bg-rose-100 dark:bg-rose-950/40 hover:bg-rose-200 dark:hover:bg-rose-900 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800/80 text-[13px] font-sans font-bold transition-all active:scale-95 flex-shrink-0"
+                >
+                  Reset Database
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-      </div>
       </div>
 
       {/* MOBILE BOTTOM SHEETS */}

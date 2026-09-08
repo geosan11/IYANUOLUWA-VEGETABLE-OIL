@@ -48,16 +48,16 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:items-center sm:justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex flex-col justify-end p-0 split:p-4 split:items-center split:justify-center bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
       {/* Backdrop tap to close */}
       <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
 
       {/* Sheet / Modal Container */}
       <div
-        className={`relative z-10 w-full sm:max-w-xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-200 ${maxHeight} ${className}`}
+        className={`relative z-10 w-full split:max-w-xl bg-white dark:bg-slate-900 border-t split:border border-slate-200 dark:border-slate-800 rounded-t-3xl split:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-6 split:zoom-in-95 duration-200 ${maxHeight} ${className}`}
       >
         {/* Mobile Drag Indicator Handle */}
-        <div className="w-full flex justify-center pt-3 pb-1 sm:hidden">
+        <div className="w-full flex justify-center pt-3 pb-1 split:hidden">
           <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700" />
         </div>
 
