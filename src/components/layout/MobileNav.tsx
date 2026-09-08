@@ -1,0 +1,171 @@
+import React from 'react';
+import { useStore } from '../../services/store';
+import {
+  LayoutDashboard,
+  Truck,
+  PlusCircle,
+  Users,
+  Package,
+  ReceiptText,
+  Settings,
+  X
+} from 'lucide-react';
+
+interface MobileNavProps {
+  currentTab: string;
+  onTabChange: (tab: string) => void;
+  isMenuOpen: boolean;
+  onCloseMenu: () => void;
+}
+
+export const MobileNav: React.FC<MobileNavProps> = ({
+  currentTab,
+  onTabChange,
+  isMenuOpen,
+  onCloseMenu
+}) => {
+  const { activeAlerts, userRole, setUserRole } = useStore();
+
+  const primaryNavItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'intake', label: 'Intake', icon: Truck },
+    { id: 'order', label: 'Dispense', icon: PlusCircle, isMain: true },
+    { id: 'customers', label: 'Customers', icon: Users, badge: activeAlerts.overdueCredit.length },
+    { id: 'kegs', label: 'Kegs', icon: Package }
+  ];
+
+  const allNavItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'intake', label: 'Truck Intake', icon: Truck },
+    { id: 'order', label: 'New Order / Dispense', icon: PlusCircle },
+    { id: 'customers', label: 'Customers & Credit', icon: Users, badge: activeAlerts.overdueCredit.length },
+    { id: 'kegs', label: 'Kegs Ledger', icon: Package },
+    { id: 'expenses', label: 'Expenses & Float', icon: ReceiptText },
+    { id: 'settings', label: 'Settings & Branding', icon: Settings },
+  ];
+
+  return (
+    <>
+      {/* Mobile Drawer (When hamburger is clicked) */}
+      {isMenuOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex">
+          <div
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm"
+            onClick={onCloseMenu}
+          />
+          <div className="relative w-4/5 max-w-xs bg-slate-950 border-r border-slate-800 p-5 flex flex-col h-full z-10 animate-in slide-in-from-left duration-200">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <span className="font-extrabold text-sm text-white uppercase">
+                Menu & Modules
+              </span>
+              <button
+                onClick={onCloseMenu}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 py-4 space-y-1.5 overflow-y-auto">
+              {allNavItems.map(item => {
+                const Icon = item.icon;
+                const isActive = currentTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      onTabChange(item.id);
+                      onCloseMenu();
+                    }}
+                    className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl font-medium text-xs ${
+                      isActive
+                        ? 'bg-brand-500/15 text-brand-300 font-bold border border-brand-500/30'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className={`w-4 h-4 ${isActive ? 'text-brand-400' : 'text-slate-400'}`} />
+                      <span>{item.label}</span>
+                    </div>
+                    {item.badge ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Role switch in mobile drawer */}
+            <div className="pt-3 border-t border-slate-800">
+              <div className="text-[10px] uppercase font-bold text-slate-400 mb-2">
+                Active User Role: <span className="text-brand-400 capitalize">{userRole}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-1 text-[10px]">
+                {(['owner', 'staff', 'driver'] as const).map(role => (
+                  <button
+                    key={role}
+                    onClick={() => setUserRole(role)}
+                    className={`py-1 rounded capitalize font-medium ${
+                      userRole === role
+                        ? 'bg-brand-500 text-slate-950 font-bold'
+                        : 'bg-slate-900 text-slate-400'
+                    }`}
+                  >
+                    {role}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Bottom Navigation Bar */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800/80 px-2 flex items-center justify-around z-30 select-none">
+        {primaryNavItems.map(item => {
+          const Icon = item.icon;
+          const isActive = currentTab === item.id;
+
+          if (item.isMain) {
+            return (
+              <button
+                key={item.id}
+                onClick={() => onTabChange(item.id)}
+                className="flex flex-col items-center justify-center -mt-5"
+              >
+                <div className="w-12 h-12 rounded-full bg-brand-500 text-slate-950 flex items-center justify-center shadow-lg shadow-brand-500/30 border-2 border-slate-950 active:scale-95 transition-transform">
+                  <Icon className="w-6 h-6 stroke-[2.5]" />
+                </div>
+                <span className="text-[10px] font-bold text-brand-400 mt-0.5">Dispense</span>
+              </button>
+            );
+          }
+
+          return (
+            <button
+              key={item.id}
+              onClick={() => onTabChange(item.id)}
+              className={`flex flex-col items-center justify-center flex-1 py-1 relative ${
+                isActive ? 'text-brand-400' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <div className="relative">
+                <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5]' : 'stroke-2'}`} />
+                {item.badge ? (
+                  <span className="absolute -top-1 -right-2 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center">
+                    {item.badge}
+                  </span>
+                ) : null}
+              </div>
+              <span className={`text-[10px] mt-1 ${isActive ? 'font-bold' : 'font-medium'}`}>
+                {item.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+};

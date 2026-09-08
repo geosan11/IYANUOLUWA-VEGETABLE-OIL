@@ -1,0 +1,150 @@
+import React, { useState, useEffect } from 'react';
+import { useStore } from '../../services/store';
+import { PlusCircle, Droplets, Package, Menu } from 'lucide-react';
+
+interface TopHeaderProps {
+  currentTab: string;
+  onTabChange: (tab: string) => void;
+  onMobileMenuOpen?: () => void;
+}
+
+export const TopHeader: React.FC<TopHeaderProps> = ({
+  currentTab,
+  onTabChange,
+  onMobileMenuOpen
+}) => {
+  const { tanks, kegInventory, settings } = useStore();
+  const [currentDateTime, setCurrentDateTime] = useState('');
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setCurrentDateTime(
+        now.toLocaleDateString('en-GB', {
+          weekday: 'short',
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      );
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const totalDepotLitres = tanks.reduce((sum, t) => sum + t.remaining_litres, 0);
+
+  const getPageTitle = () => {
+    switch (currentTab) {
+      case 'dashboard':
+        return 'Depot Overview & Live Dashboard';
+      case 'intake':
+        return 'Truck Intake & Tank Logging';
+      case 'order':
+        return 'Counter Dispense & New Order';
+      case 'customers':
+        return 'Customer Ledger & Credit Aging';
+      case 'kegs':
+        return 'Keg Inventory & Depot Gate Audit';
+      case 'expenses':
+        return 'Petty Cash Float & Expenses';
+      case 'settings':
+        return 'System Configuration & Logo';
+      default:
+        return 'Operations Portal';
+    }
+  };
+
+  return (
+    <header className="h-16 border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md px-4 lg:px-8 flex items-center justify-between z-20 flex-shrink-0 select-none">
+      {/* Left: Mobile menu trigger / Desktop Breadcrumbs */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onMobileMenuOpen}
+          className="lg:hidden p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-900 border border-slate-800"
+          aria-label="Open menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        {/* Mobile Logo Brand */}
+        <div className="lg:hidden flex items-center gap-2">
+          {settings.company_logo_url ? (
+            <img
+              src={settings.company_logo_url}
+              alt="Logo"
+              className="w-8 h-8 object-contain rounded-lg bg-slate-900 border border-slate-700/80 p-0.5"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center text-slate-950 font-black text-xs">
+              IO
+            </div>
+          )}
+          <span className="font-extrabold text-xs text-white uppercase tracking-tight">
+            Iyanuoluwa
+          </span>
+        </div>
+
+        {/* Desktop Breadcrumbs & Title */}
+        <div className="hidden lg:flex flex-col">
+          <div className="flex items-center gap-2 text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+            <span>Depot Counter</span>
+            <span>/</span>
+            <span className="text-brand-400 font-semibold capitalize">{currentTab}</span>
+          </div>
+          <h1 className="text-base font-bold text-slate-100 tracking-tight">
+            {getPageTitle()}
+          </h1>
+        </div>
+      </div>
+
+      {/* Right: Quick Stats, Live Clock, and "+ Quick Dispense" Shortcut */}
+      <div className="flex items-center gap-3 lg:gap-5">
+        {/* Depot Oil Volume Pill (Desktop) */}
+        <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs font-mono">
+          <Droplets className="w-3.5 h-3.5 text-amber-400" />
+          <span className="text-slate-400">Total Stock:</span>
+          <span className="font-bold text-slate-200">
+            {totalDepotLitres.toLocaleString('en-US', { maximumFractionDigits: 0 })} L
+          </span>
+        </div>
+
+        {/* Depot Kegs Pill */}
+        <div
+          className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-mono ${
+            kegInventory.isDepotStockCritical
+              ? 'bg-rose-950/40 border-rose-800/80 text-rose-400 animate-pulse'
+              : 'bg-slate-900/90 border-slate-800 text-slate-300'
+          }`}
+        >
+          <Package className="w-3.5 h-3.5 text-brand-400" />
+          <span className="text-slate-400">Depot Kegs:</span>
+          <span className={`font-bold ${kegInventory.isDepotStockCritical ? 'text-rose-400' : 'text-slate-100'}`}>
+            {kegInventory.kegsAtDepot}
+          </span>
+        </div>
+
+        {/* Live Date / Time Clock */}
+        <div className="hidden sm:block text-right">
+          <div className="text-xs font-mono text-slate-400">{currentDateTime}</div>
+          <div className="text-[10px] text-emerald-400 font-semibold flex items-center justify-end gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Lagos Depot Online
+          </div>
+        </div>
+
+        {/* High-visibility "+ Quick Dispense" Button */}
+        <button
+          onClick={() => onTabChange('order')}
+          className="flex items-center gap-2 px-3.5 lg:px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-400 active:scale-95 text-slate-950 font-bold text-xs shadow-lg shadow-brand-500/20 transition-all"
+        >
+          <PlusCircle className="w-4 h-4 text-slate-950" />
+          <span className="whitespace-nowrap">Quick Dispense</span>
+        </button>
+      </div>
+    </header>
+  );
+};
