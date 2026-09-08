@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
 import { TankGauge } from '../components/common/TankGauge';
+import { TruckTankIllustration } from '../components/common/TruckTankIllustration';
 import { calculateIntakeMetrics, formatDepotDate } from '../services/businessLogic';
 import {
   Truck,
@@ -14,13 +15,15 @@ import {
 } from 'lucide-react';
 
 export const TruckIntakeScreen: React.FC = () => {
-  const { products, tanks, kegInventory, settings, logTruckIntake } = useStore();
+  const { products, tanks, kegInventory, settings, pumps, logTruckIntake } = useStore();
 
   const [productId, setProductId] = useState<string>('veg');
-  const [truckLabel, setTruckLabel] = useState<string>('');
+  const [truckLabel, setTruckLabel] = useState<string>('Truck 3 · KJA-492-XA');
+  const [driverName, setDriverName] = useState<string>('Alhaji Musa');
   const [tons, setTons] = useState<string>('10');
   const [actualKegs, setActualKegs] = useState<string>('360');
   const [leftoverLitres, setLeftoverLitres] = useState<string>('20');
+  const [newlyAddedTankId, setNewlyAddedTankId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const selectedProduct = products.find(p => p.id === productId) || products[0];
@@ -43,18 +46,24 @@ export const TruckIntakeScreen: React.FC = () => {
     e.preventDefault();
     if (!tons || parseFloat(tons) <= 0) return;
 
+    const fullTruckLabel = driverName.trim()
+      ? `${truckLabel.trim() || `TRK-${selectedProduct.name.split(' ')[0].toUpperCase()}-${Date.now().toString().slice(-4)}`} (${driverName.trim()})`
+      : truckLabel.trim() || `TRK-${selectedProduct.name.split(' ')[0].toUpperCase()}-${Date.now().toString().slice(-4)}`;
+
     const result = logTruckIntake({
       productId,
-      truckLabel: truckLabel.trim() || `TRK-${selectedProduct.name.split(' ')[0].toUpperCase()}-${Date.now().toString().slice(-4)}`,
+      truckLabel: fullTruckLabel,
       tons: parseFloat(tons) || 0,
       actualKegs: parseFloat(actualKegs) || 0,
       leftoverLitres: parseFloat(leftoverLitres) || 0
     });
 
-    if (result.success) {
-      setSuccessMessage(`Tank ${result.tank?.truck_label} logged successfully with ${result.tank?.received_litres.toLocaleString()}L!`);
+    if (result.success && result.tank) {
+      setNewlyAddedTankId(result.tank.id);
+      setSuccessMessage(`Truck ${result.tank.truck_label} offload recorded! Received ${result.tank.received_litres.toLocaleString()}L.`);
       // Reset form
-      setTruckLabel('');
+      setTruckLabel('Truck 4 · BDG-102-LK');
+      setDriverName('Emeka Obi');
       setTons('10');
       setActualKegs('360');
       setLeftoverLitres('0');
@@ -141,18 +150,34 @@ export const TruckIntakeScreen: React.FC = () => {
             </div>
           </div>
 
-          {/* Truck Label Identifier */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
-              Truck Identification / Driver Name
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. TRK-VEG-909 (Mallam Aliyu)"
-              value={truckLabel}
-              onChange={e => setTruckLabel(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 text-xs focus:outline-none focus:border-brand-500"
-            />
+          {/* Truck Plate and Driver Name 2-Column */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                Truck License / Plate No.
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Truck 3 · KJA-492-XA"
+                value={truckLabel}
+                onChange={e => setTruckLabel(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 text-xs focus:outline-none focus:border-brand-500 font-mono font-bold"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                Driver Name (Leader Line Connected)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Alhaji Musa"
+                value={driverName}
+                onChange={e => setDriverName(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 text-xs focus:outline-none focus:border-brand-500"
+              />
+            </div>
           </div>
 
           {/* Scale Weight in Tons */}
@@ -240,11 +265,11 @@ export const TruckIntakeScreen: React.FC = () => {
             className="w-full py-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2 active:scale-98"
           >
             <ArrowDownToLine className="w-4 h-4 text-slate-950" />
-            <span>Complete Offload & Create Active Depot Tank</span>
+            <span>Complete Offload & Animate Tank Fill</span>
           </button>
         </form>
 
-        {/* Right Column: Live Reconciliation Preview & Shortfall Gauge (lg:col-span-5) */}
+        {/* Right Column: Live Reconciliation Preview & Simulation (lg:col-span-5) */}
         <div className="lg:col-span-5 space-y-6">
           {/* Live Mathematical Conversion Card */}
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
@@ -300,130 +325,69 @@ export const TruckIntakeScreen: React.FC = () => {
             </div>
           </div>
 
-          {/* New Tank Visual Preview */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm flex flex-col items-center">
-            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider self-start">
-              Offload Tank Level Simulation
-            </span>
-            <TankGauge
-              productId={productId}
-              productName={`Simulated ${selectedProduct.name} Offload`}
-              remainingLitres={metrics.recoveredLitres}
-              totalCapacityLitres={Math.max(15000, metrics.expectedLitres * 1.2)}
-              truckLabel={truckLabel || 'New Incoming Delivery'}
-              shortfall={metrics.shortfall}
-              size="md"
+          {/* Live Tanker Truck Simulation Preview */}
+          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                Live Offload Tanker Simulation
+              </span>
+              <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                Previewing Live Form
+              </span>
+            </div>
+            <TruckTankIllustration
+              tank={{
+                id: 'sim-preview',
+                product_id: productId,
+                truck_label: driverName.trim()
+                  ? `${truckLabel.trim() || 'TRK-VEG'} (${driverName.trim()})`
+                  : truckLabel.trim() || 'TRK-VEG',
+                tons: parseFloat(tons) || 10,
+                received_litres: metrics.recoveredLitres || 1,
+                remaining_litres: metrics.recoveredLitres || 1,
+                shortfall: metrics.shortfall,
+                date: new Date().toISOString()
+              }}
+              product={selectedProduct}
+              connectedPumpLabel={pumps.find(p => p.product_id === productId)?.label}
+              animateOnMount={false}
             />
           </div>
         </div>
       </div>
 
-      {/* Historical Offload Variance Table & Mobile Cards */}
-      <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-          <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-            <History className="w-4 h-4 text-brand-600 dark:text-brand-400" />
-            <span>Depot Storage Tanks & Offload Variance Log</span>
-          </h3>
-          <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
-            {tanks.length} Total Tanks Logged
+      {/* Historical Offload Variance Log: Rendered as Visual Tanker Fleet Cards */}
+      <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-4">
+          <div>
+            <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+              <History className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+              <span>Depot Storage Tanks & Tanker Offload Fleet</span>
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Simplified tanker-truck anatomy with horizontal liquid fill gauges, driver leader lines, and delivery variance tracking.
+            </p>
+          </div>
+          <span className="text-xs font-mono font-bold px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 self-start sm:self-auto">
+            {tanks.length} Active Storage Tanks
           </span>
         </div>
 
-        {/* Desktop Dense Table */}
-        <div className="hidden sm:block overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-          <table className="w-full text-xs text-left">
-            <thead className="bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800">
-              <tr>
-                <th className="px-4 py-3">Tank Identifier</th>
-                <th className="px-4 py-3">Product</th>
-                <th className="px-4 py-3">Intake Date</th>
-                <th className="px-4 py-3 text-right">Tonnage</th>
-                <th className="px-4 py-3 text-right">Received</th>
-                <th className="px-4 py-3 text-right">Remaining</th>
-                <th className="px-4 py-3 text-right">Shortfall</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80 font-mono">
-              {tanks.map(t => (
-                <tr key={t.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-900/50">
-                  <td className="px-4 py-3 font-bold text-slate-900 dark:text-slate-200 font-sans">
-                    {t.truck_label}
-                  </td>
-                  <td className="px-4 py-3 uppercase font-sans">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      t.product_id === 'veg' ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300' : 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300'
-                    }`}>
-                      {t.product_id === 'veg' ? 'Golden Oil' : 'Palm Oil'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
-                    {formatDepotDate(t.date)}
-                  </td>
-                  <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">
-                    {t.tons} T
-                  </td>
-                  <td className="px-4 py-3 text-right font-bold text-slate-800 dark:text-slate-200">
-                    {t.received_litres.toLocaleString()} L
-                  </td>
-                  <td className="px-4 py-3 text-right font-bold text-brand-600 dark:text-brand-400">
-                    {t.remaining_litres.toLocaleString()} L
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      t.shortfall > settings.truck_shortfall_threshold
-                        ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 font-extrabold'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                    }`}>
-                      {t.shortfall > 0 ? `-${t.shortfall}L` : '0L'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile View: Touch Cards */}
-        <div className="sm:hidden space-y-3">
-          {tanks.map(t => (
-            <div
-              key={t.id}
-              className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2 text-xs font-mono"
-            >
-              <div className="flex items-center justify-between font-sans">
-                <span className="font-bold text-slate-900 dark:text-white">{t.truck_label}</span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                  t.product_id === 'veg' ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300' : 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300'
-                }`}>
-                  {t.product_id === 'veg' ? 'Golden Oil' : 'Palm Oil'}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-slate-200 dark:border-slate-800">
-                <div>
-                  <span className="text-slate-500 block">Date</span>
-                  <span className="text-slate-800 dark:text-slate-200">{formatDepotDate(t.date)}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Tonnage</span>
-                  <span className="text-slate-800 dark:text-slate-200">{t.tons} Tons</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Remaining / Received</span>
-                  <span className="font-bold text-brand-600 dark:text-brand-400">
-                    {t.remaining_litres.toLocaleString()} / {t.received_litres.toLocaleString()} L
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Shortfall</span>
-                  <span className={`font-bold ${t.shortfall > settings.truck_shortfall_threshold ? 'text-rose-600' : 'text-slate-600'}`}>
-                    {t.shortfall > 0 ? `-${t.shortfall} L` : '0 L'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))}
+        {/* Visual Tanker Fleet Grid (Desktop 2-Col, Mobile 1-Col) */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          {tanks.map(t => {
+            const prod = products.find(p => p.id === t.product_id);
+            const connectedPump = pumps.find(p => p.product_id === t.product_id);
+            return (
+              <TruckTankIllustration
+                key={t.id}
+                tank={t}
+                product={prod}
+                connectedPumpLabel={connectedPump ? connectedPump.label : undefined}
+                animateOnMount={t.id === newlyAddedTankId}
+              />
+            );
+          })}
         </div>
       </div>
     </div>
