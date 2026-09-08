@@ -65,6 +65,9 @@ export const NewOrderScreen: React.FC = () => {
   // Overrides for soft warnings
   const [overrideKegShortage, setOverrideKegShortage] = useState<boolean>(false);
   const [overrideCreditLimit, setOverrideCreditLimit] = useState<boolean>(false);
+  const [isCreditOverrideModalOpen, setIsCreditOverrideModalOpen] = useState<boolean>(false);
+  const [isKegShortageModalOpen, setIsKegShortageModalOpen] = useState<boolean>(false);
+  const [isPricingDetailsOpen, setIsPricingDetailsOpen] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const selectedCustomer = customers.find(c => c.id === customerId) || customers[0];
@@ -178,10 +181,8 @@ export const NewOrderScreen: React.FC = () => {
 
   const selectedReadingPump = pumps.find(p => p.id === readingPumpId) || pumps[0];
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitOrder = (allowKegOverride: boolean, allowCreditOverride: boolean) => {
     setErrorMessage(null);
-
     const numericQty = parseFloat(qty) || 0;
     if (numericQty <= 0) {
       setErrorMessage('Quantity must be greater than zero.');
@@ -195,13 +196,13 @@ export const NewOrderScreen: React.FC = () => {
       return;
     }
 
-    if (isKegShortage && !overrideKegShortage) {
-      setErrorMessage('Depot company keg shortage! Please check the explicit override box to proceed.');
+    if (isKegShortage && !allowKegOverride) {
+      setIsKegShortageModalOpen(true);
       return;
     }
 
-    if (isCreditExceeded && !overrideCreditLimit) {
-      setErrorMessage('Customer credit limit breach! Please check the explicit override box to proceed.');
+    if (isCreditExceeded && !allowCreditOverride) {
+      setIsCreditOverrideModalOpen(true);
       return;
     }
 
@@ -228,7 +229,14 @@ export const NewOrderScreen: React.FC = () => {
       setNote('');
       setOverrideKegShortage(false);
       setOverrideCreditLimit(false);
+      setIsCreditOverrideModalOpen(false);
+      setIsKegShortageModalOpen(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    submitOrder(overrideKegShortage, overrideCreditLimit);
   };
 
   return (
@@ -701,47 +709,77 @@ export const NewOrderScreen: React.FC = () => {
             </div>
           </div>
 
-          {/* 7. Soft Warnings & Overrides */}
+          {/* 7. Soft Warnings & Overrides (Interactive Decision Prompts) */}
           {isKegShortage && (
             <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 text-[12px] font-sans text-amber-900 dark:text-amber-300 space-y-2">
-              <div className="flex items-center gap-2 font-bold">
-                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                <span>Depot Keg Shortage Warning</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 font-bold">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                  <span>Depot Keg Shortage Warning</span>
+                </div>
+                {overrideKegShortage && (
+                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300">
+                    Override Authorized
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-amber-800 dark:text-amber-200">
-                You requested {qty} kegs, but depot only has {kegInventory.kegsAtDepot} available.
+                You requested {qty} company kegs, but depot yard only has {kegInventory.kegsAtDepot} available (threshold: {settings.kegs_at_depot_low_threshold}).
               </p>
-              <label className="flex items-center gap-2 cursor-pointer pt-1 font-semibold">
-                <input
-                  type="checkbox"
-                  checked={overrideKegShortage}
-                  onChange={e => setOverrideKegShortage(e.target.checked)}
-                  className="rounded border-amber-400 text-amber-600 focus:ring-amber-500"
-                />
-                <span>Authorize Keg Dispatch Override</span>
-              </label>
+              {!overrideKegShortage ? (
+                <button
+                  type="button"
+                  onClick={() => setIsKegShortageModalOpen(true)}
+                  className="px-3 py-1.5 rounded-lg bg-amber-200/80 dark:bg-amber-900/60 hover:bg-amber-300 dark:hover:bg-amber-800 text-amber-950 dark:text-amber-100 font-semibold text-[11px] transition-colors"
+                >
+                  Review & Authorize Keg Override →
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setOverrideKegShortage(false)}
+                  className="text-[11px] text-slate-500 hover:underline block"
+                >
+                  Revoke authorization
+                </button>
+              )}
             </div>
           )}
 
           {isCreditExceeded && (
             <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/80 text-[12px] font-sans text-rose-900 dark:text-rose-300 space-y-2">
-              <div className="flex items-center gap-2 font-bold">
-                <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />
-                <span>Credit Limit Breach Warning</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 font-bold">
+                  <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />
+                  <span>Credit Limit Breach Warning</span>
+                </div>
+                {overrideCreditLimit && (
+                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300">
+                    Override Authorized
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-rose-800 dark:text-rose-200 font-mono tabular-nums">
                 Projected balance ({formatNaira(customerStats ? customerStats.currentBalance + pricing.amount : 0)})
-                exceeds credit limit ({formatNaira(selectedCustomer.credit_limit)}).
+                exceeds approved limit ({formatNaira(selectedCustomer.credit_limit)}) by +{formatNaira(Math.max(0, (customerStats ? customerStats.currentBalance + pricing.amount : 0) - selectedCustomer.credit_limit))}.
               </p>
-              <label className="flex items-center gap-2 cursor-pointer pt-1 font-semibold">
-                <input
-                  type="checkbox"
-                  checked={overrideCreditLimit}
-                  onChange={e => setOverrideCreditLimit(e.target.checked)}
-                  className="rounded border-rose-400 text-rose-600 focus:ring-rose-500"
-                />
-                <span>Authorize Credit Limit Override</span>
-              </label>
+              {!overrideCreditLimit ? (
+                <button
+                  type="button"
+                  onClick={() => setIsCreditOverrideModalOpen(true)}
+                  className="px-3 py-1.5 rounded-lg bg-rose-200/80 dark:bg-rose-900/60 hover:bg-rose-300 dark:hover:bg-rose-800 text-rose-950 dark:text-rose-100 font-semibold text-[11px] transition-colors"
+                >
+                  Review & Authorize Credit Override →
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setOverrideCreditLimit(false)}
+                  className="text-[11px] text-slate-500 hover:underline block"
+                >
+                  Revoke authorization
+                </button>
+              )}
             </div>
           )}
 
@@ -768,17 +806,39 @@ export const NewOrderScreen: React.FC = () => {
         </form>
 
         {/* RIGHT COLUMN: REAL-TIME CONTEXTUAL PREVIEW (5 COLS) */}
-        <div className="lg:col-span-5 space-y-5">
-          {/* Order Financial Calculation Card */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <span className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Order Billing Summary
-              </span>
-              <span className="text-[12px] font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100">
-                ₦{ratePerLitre.toLocaleString()}/L
-              </span>
+        <div className="lg:col-span-5 space-y-4">
+          {/* Mobile Accordion Toggle Strip */}
+          <div className="lg:hidden p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+            <div>
+              <div className="text-[11px] font-sans text-slate-500 uppercase tracking-wider font-semibold">
+                Total Order Value
+              </div>
+              <div className="text-[24px] font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400">
+                {formatNaira(pricing.amount)}
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setIsPricingDetailsOpen(!isPricingDetailsOpen)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[12px] font-sans font-bold border border-slate-200 dark:border-slate-700 active:scale-95 transition-all"
+            >
+              <span>{isPricingDetailsOpen ? 'Hide pricing & tank info' : 'View pricing & tank info'}</span>
+              {isPricingDetailsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+          </div>
+
+          {/* Collapsible Cards container: always visible on lg, toggled on mobile */}
+          <div className={`${isPricingDetailsOpen ? 'space-y-5' : 'hidden lg:block lg:space-y-5'}`}>
+            {/* Order Financial Calculation Card */}
+            <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+                <span className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Order Billing Summary
+                </span>
+                <span className="text-[12px] font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100">
+                  ₦{ratePerLitre.toLocaleString()}/L
+                </span>
+              </div>
 
             <div className="space-y-2 text-[12px] font-mono tabular-nums">
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
@@ -871,8 +931,173 @@ export const NewOrderScreen: React.FC = () => {
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
+
+      {/* MODAL 1: BLOCKING KEG SHORTAGE DECISION MODAL */}
+      {isKegShortageModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-amber-200 dark:border-amber-900/60 flex items-center justify-between bg-amber-50/60 dark:bg-amber-950/40">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading font-bold text-[16px] text-slate-900 dark:text-white">
+                    Authorize Keg Shortage Dispatch
+                  </h3>
+                  <p className="text-[12px] font-sans text-amber-800 dark:text-amber-300">
+                    Yard inventory below safety threshold
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsKegShortageModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-[13px] font-sans">
+              <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 space-y-2">
+                <div className="flex justify-between font-mono tabular-nums">
+                  <span className="font-sans text-slate-600 dark:text-slate-400">Requested Company Kegs:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{qty} kegs</span>
+                </div>
+                <div className="flex justify-between font-mono tabular-nums">
+                  <span className="font-sans text-slate-600 dark:text-slate-400">Available at Depot Yard:</span>
+                  <span className="font-bold text-amber-700 dark:text-amber-400">{kegInventory.kegsAtDepot} kegs</span>
+                </div>
+                <div className="flex justify-between font-mono tabular-nums border-t border-amber-200 dark:border-amber-900/60 pt-1.5">
+                  <span className="font-sans text-slate-600 dark:text-slate-400">Depot Safety Threshold:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{settings.kegs_at_depot_low_threshold} kegs</span>
+                </div>
+              </div>
+
+              <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-[12px]">
+                Discharging this order will exhaust yard safety reserves. Are you authorized by management to release these returnable containers?
+              </p>
+
+              <div className="pt-2 flex flex-col sm:flex-row gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsKegShortageModalOpen(false)}
+                  className="w-full sm:w-1/2 py-2.5 px-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-sans font-medium text-[13px] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Cancel / Adjust Qty
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOverrideKegShortage(true);
+                    setIsKegShortageModalOpen(false);
+                    submitOrder(true, overrideCreditLimit);
+                  }}
+                  className="w-full sm:w-1/2 py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-sans font-bold text-[13px] shadow-sm transition-all"
+                >
+                  Authorize & Dispense
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: BLOCKING CREDIT LIMIT OVERRIDE DECISION MODAL */}
+      {isCreditOverrideModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-rose-300 dark:border-rose-700 shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-rose-200 dark:border-rose-900/60 flex items-center justify-between bg-rose-50/60 dark:bg-rose-950/40">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-700">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading font-bold text-[16px] text-slate-900 dark:text-white">
+                    Authorize Credit Cap Breach
+                  </h3>
+                  <p className="text-[12px] font-sans text-rose-800 dark:text-rose-300">
+                    Customer exceeds authorized ceiling
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCreditOverrideModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-[13px] font-sans">
+              <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 space-y-2">
+                <div className="flex justify-between font-mono tabular-nums">
+                  <span className="font-sans text-slate-600 dark:text-slate-400">Customer:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{selectedCustomer.name}</span>
+                </div>
+                <div className="flex justify-between font-mono tabular-nums">
+                  <span className="font-sans text-slate-600 dark:text-slate-400">Current Outstanding:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    {formatNaira(customerStats?.currentBalance || 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between font-mono tabular-nums">
+                  <span className="font-sans text-slate-600 dark:text-slate-400">This Order Value:</span>
+                  <span className="font-bold text-rose-600 dark:text-rose-400">+{formatNaira(pricing.amount)}</span>
+                </div>
+                <div className="flex justify-between font-mono tabular-nums border-t border-rose-200 dark:border-rose-900/60 pt-1.5">
+                  <span className="font-sans text-slate-600 dark:text-slate-400">Projected Balance:</span>
+                  <span className="font-bold text-rose-700 dark:text-rose-400">
+                    {formatNaira((customerStats?.currentBalance || 0) + pricing.amount)}
+                  </span>
+                </div>
+                <div className="flex justify-between font-mono tabular-nums">
+                  <span className="font-sans text-slate-600 dark:text-slate-400">Approved Credit Limit:</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-300">
+                    {formatNaira(selectedCustomer.credit_limit)}
+                  </span>
+                </div>
+                <div className="flex justify-between font-mono tabular-nums text-rose-700 dark:text-rose-400 font-bold border-t border-rose-200 dark:border-rose-900/60 pt-1.5">
+                  <span className="font-sans">Excess Over Limit:</span>
+                  <span>
+                    +{formatNaira(Math.max(0, (customerStats?.currentBalance || 0) + pricing.amount - selectedCustomer.credit_limit))}
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-[12px]">
+                Dispensing this credit sale requires management authorization. Authorize override and register invoice to accounts receivable?
+              </p>
+
+              <div className="pt-2 flex flex-col sm:flex-row gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCreditOverrideModalOpen(false)}
+                  className="w-full sm:w-1/2 py-2.5 px-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-sans font-medium text-[13px] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Switch to Cash / Transfer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOverrideCreditLimit(true);
+                    setIsCreditOverrideModalOpen(false);
+                    submitOrder(overrideKegShortage, true);
+                  }}
+                  className="w-full sm:w-1/2 py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-sans font-bold text-[13px] shadow-sm transition-all"
+                >
+                  Authorize Manager Override
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

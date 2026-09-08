@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
 import { TankGauge } from '../components/common/TankGauge';
+import { BottomSheet } from '../components/common/BottomSheet';
 import { formatNaira, formatDepotDate, formatDepotTime } from '../services/businessLogic';
 import {
   DollarSign,
@@ -20,7 +21,11 @@ import {
   Banknote,
   Ruler,
   ShieldCheck,
-  UserCheck
+  UserCheck,
+  ChevronRight,
+  Phone,
+  MessageSquare,
+  ChevronDown
 } from 'lucide-react';
 
 interface DashboardScreenProps {
@@ -42,13 +47,32 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     shifts,
     activeShift,
     startShift,
-    closeShift
+    closeShift,
+    customers,
+    customerStatsMap,
+    products
   } = useStore();
 
   const vegStock = tankStockByProduct['veg']?.totalLitres || 0;
   const redStock = tankStockByProduct['red']?.totalLitres || 0;
 
   const todayStr = new Date().toISOString().slice(0, 10);
+
+  // Mobile Bottom Sheet States
+  const [activeStatSheet, setActiveStatSheet] = useState<
+    'cash' | 'credit' | 'kegs_out' | 'depot_kegs' | 'customer_kegs' | 'expenses' | null
+  >(null);
+  const [selectedAlert, setSelectedAlert] = useState<{
+    id: string;
+    type: string;
+    title: string;
+    subtitle: string;
+    details?: string;
+    severity: 'red' | 'amber';
+    actionLabel: string;
+    action: () => void;
+  } | null>(null);
+  const [isAllAlertsOpen, setIsAllAlertsOpen] = useState(false);
 
   // Shift Management State
   const [isStartShiftModalOpen, setIsStartShiftModalOpen] = useState(false);
@@ -133,6 +157,106 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       setTimeout(() => setShiftFeedback(null), 4000);
     }
   };
+
+  // Flatten and prioritize all active operational alerts for mobile condensed view
+  const allAlertsList = useMemo(() => {
+    const list: Array<{
+      id: string;
+      type: string;
+      title: string;
+      subtitle: string;
+      details?: string;
+      severity: 'red' | 'amber';
+      actionLabel: string;
+      action: () => void;
+    }> = [];
+
+    // 1. Overdue credit invoices (Critical Red)
+    activeAlerts.overdueCredit.forEach(a => {
+      list.push({
+        id: `overdue-${a.customer.id}`,
+        type: 'Overdue Credit Invoice',
+        title: `${a.customer.name} (Overdue ${a.overdueDays}d)`,
+        subtitle: `Balance: ${formatNaira(a.amount)} · Terms: ${a.customer.credit_term_days}d`,
+        details: `Customer has exceeded their agreed ${a.customer.credit_term_days}-day credit terms by ${a.overdueDays} days. Credit sales should be paused until this invoice is settled.`,
+        severity: 'red',
+        actionLabel: 'Open Customer Ledger',
+        action: () => onNavigate('customers')
+      });
+    });
+
+    // 2. Credit limit breaches (Critical Red)
+    activeAlerts.overLimit.forEach(a => {
+      list.push({
+        id: `limit-${a.customer.id}`,
+        type: 'Credit Limit Breach',
+        title: `${a.customer.name} (Limit Exceeded)`,
+        subtitle: `Balance: ${formatNaira(a.balance)} | Limit: ${formatNaira(a.limit)} (+${formatNaira(a.excess)} over)`,
+        details: `Customer open balance of ${formatNaira(a.balance)} exceeds authorized ceiling of ${formatNaira(a.limit)} by ${formatNaira(a.excess)}.`,
+        severity: 'red',
+        actionLabel: 'Review Customer Account',
+        action: () => onNavigate('customers')
+      });
+    });
+
+    // 3. Shift cash discrepancies (Critical Red)
+    activeAlerts.shiftDiscrepancy.forEach(s => {
+      list.push({
+        id: `shift-${s.id}`,
+        type: 'Shift Cash Discrepancy',
+        title: `Shift Cashier: ${s.cashier_name || 'Counter Staff'}`,
+        subtitle: `Discrepancy: ${s.cash_variance! > 0 ? '+' : ''}${formatNaira(s.cash_variance!)} · Counted: ${formatNaira(s.cash_counted || 0)}`,
+        details: `Physical till count (${formatNaira(s.cash_counted || 0)}) did not match ledger expected balance (${formatNaira(s.expected_cash || 0)}). Cash variance recorded: ${formatNaira(s.cash_variance!)}.`,
+        severity: 'red',
+        actionLabel: 'Review Shift Ledger',
+        action: () => {}
+      });
+    });
+
+    // 4. Pump meter variance (Amber)
+    activeAlerts.pumpVariance.forEach((p, idx) => {
+      list.push({
+        id: `pump-${idx}`,
+        type: 'Pump Meter Variance',
+        title: `${p.pumpLabel} (${p.variance > 0 ? '+' : ''}${p.variance}L Variance)`,
+        subtitle: `Meter delta: +${p.meterDelta}L vs logged orders: ${p.expectedLitres}L`,
+        details: `Mechanical pump odometer advanced by ${p.meterDelta}L, while logged dispense orders total ${p.expectedLitres}L. Difference of ${p.variance}L exceeds threshold.`,
+        severity: 'amber',
+        actionLabel: 'Audit Dispense Orders',
+        action: () => onNavigate('order')
+      });
+    });
+
+    // 5. Truck delivery shortfalls (Amber)
+    activeAlerts.deliveryShortfall.forEach((d, idx) => {
+      list.push({
+        id: `shortfall-${idx}`,
+        type: 'Truck Intake Shortfall',
+        title: `${d.tank.truck_label} (-${d.shortfallLitres}L Shortfall)`,
+        subtitle: `Received: ${d.tank.received_litres.toLocaleString()}L on ${formatDepotDate(d.tank.date)}`,
+        details: `Offload shortfall of ${d.shortfallLitres}L exceeds ${settings.truck_shortfall_threshold}L threshold. Driver/supplier delivery variance flagged.`,
+        severity: 'amber',
+        actionLabel: 'Inspect Truck Intake',
+        action: () => onNavigate('intake')
+      });
+    });
+
+    // 6. Tank dipstick variances (Amber)
+    activeAlerts.dipstickVariance.forEach((d, idx) => {
+      list.push({
+        id: `dip-${idx}`,
+        type: 'Tank Dipstick Variance',
+        title: `${d.tank.truck_label} (${d.variance > 0 ? '+' : ''}${d.variance}L Stick Variance)`,
+        subtitle: `Physical reading: ${d.reading.reading_litres.toLocaleString()}L on ${formatDepotDate(d.reading.recorded_at)}`,
+        details: `Physical stick gauge (${d.reading.reading_litres.toLocaleString()}L) deviates from cumulative storage ledger (${d.tank.remaining_litres.toLocaleString()}L) by ${d.variance}L.`,
+        severity: 'amber',
+        actionLabel: 'Verify Tank Dipstick',
+        action: () => onNavigate('intake')
+      });
+    });
+
+    return list;
+  }, [activeAlerts, settings.truck_shortfall_threshold, onNavigate]);
 
   return (
     <div className="space-y-6 pb-20">
@@ -290,45 +414,70 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       {/* KPI Stat Grid (6 Metric Cards - Mobile 2-col, Tablet 3-col, Desktop 6-col) */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3.5">
         {/* 1. Cash / Transfer Sales Today */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm">
+        <div
+          onClick={() => setActiveStatSheet('cash')}
+          className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm cursor-pointer active:scale-98 group"
+        >
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
             <span className="text-[12px] font-sans font-medium uppercase tracking-wider">Cash & Transfer</span>
-            <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
           </div>
           <div className="text-[32px] font-mono font-bold leading-tight text-emerald-600 dark:text-emerald-400">
             {formatNaira(todayStats.cashTransferSales)}
           </div>
-          <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-1">Collected today</div>
+          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+            <span className="hidden sm:inline">Collected today</span>
+            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden">
+              Breakdown <ChevronRight className="w-3 h-3" />
+            </span>
+          </div>
         </div>
 
         {/* 2. Credit Outstanding (Highlighted in Red) */}
-        <div className="p-4 rounded-2xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-800 transition-all shadow-sm">
+        <div
+          onClick={() => setActiveStatSheet('credit')}
+          className="p-4 rounded-2xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-800 transition-all shadow-sm cursor-pointer active:scale-98 group"
+        >
           <div className="flex items-center justify-between text-rose-700 dark:text-rose-400 mb-2">
             <span className="text-[12px] font-sans font-semibold uppercase tracking-wider">Credit Ledger</span>
-            <CreditCard className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+            <CreditCard className="w-4 h-4 text-rose-600 dark:text-rose-400 group-hover:scale-110 transition-transform" />
           </div>
           <div className="text-[32px] font-mono font-bold leading-tight text-rose-600 dark:text-rose-400">
             {formatNaira(todayStats.creditOutstanding)}
           </div>
-          <div className="text-[12px] font-sans text-rose-600/80 dark:text-rose-400/80 mt-1">Total open balance</div>
+          <div className="flex items-center justify-between text-[11px] text-rose-600/80 dark:text-rose-400/80 mt-1">
+            <span className="hidden sm:inline">Total open balance</span>
+            <span className="inline-flex items-center gap-0.5 text-rose-700 dark:text-rose-300 font-bold sm:hidden">
+              Ledger <ChevronRight className="w-3 h-3" />
+            </span>
+          </div>
         </div>
 
         {/* 3. Company Kegs Out */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm">
+        <div
+          onClick={() => setActiveStatSheet('kegs_out')}
+          className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm cursor-pointer active:scale-98 group"
+        >
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
             <span className="text-[12px] font-sans font-medium uppercase tracking-wider">Company Kegs Out</span>
-            <Package className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+            <Package className="w-4 h-4 text-slate-500 dark:text-slate-400 group-hover:scale-110 transition-transform" />
           </div>
           <div className="text-[32px] font-mono font-bold leading-tight text-slate-900 dark:text-slate-100">
             {todayStats.companyKegsOut}{' '}
             <span className="text-[14px] font-sans font-normal text-slate-500 dark:text-slate-400">kegs</span>
           </div>
-          <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-1">In customer custody</div>
+          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+            <span className="hidden sm:inline">In customer custody</span>
+            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden">
+              Custody <ChevronRight className="w-3 h-3" />
+            </span>
+          </div>
         </div>
 
         {/* 4. Kegs at Depot (Red ONLY if < settings.kegs_at_depot_low_threshold) */}
         <div
-          className={`p-4 rounded-2xl border transition-all shadow-sm ${
+          onClick={() => setActiveStatSheet('depot_kegs')}
+          className={`p-4 rounded-2xl border transition-all shadow-sm cursor-pointer active:scale-98 group ${
             kegInventory.isDepotStockCritical
               ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-600/60 shadow-rose-500/10 animate-pulse'
               : 'bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
@@ -345,7 +494,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             <Boxes
               className={`w-4 h-4 ${
                 kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'
-              }`}
+              } group-hover:scale-110 transition-transform`}
             />
           </div>
           <div
@@ -356,39 +505,54 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             {todayStats.kegsAtDepot}{' '}
             <span className="text-[14px] font-sans font-normal text-slate-500 dark:text-slate-400">kegs</span>
           </div>
-          <div
-            className={`text-[12px] font-sans mt-1 ${
-              kegInventory.isDepotStockCritical ? 'text-rose-700 dark:text-rose-300 font-bold' : 'text-slate-500 dark:text-slate-400'
-            }`}
-          >
-            {kegInventory.isDepotStockCritical ? `CRITICAL: Stock < ${settings.kegs_at_depot_low_threshold}` : 'Physical yard inventory'}
+          <div className="flex items-center justify-between text-[11px] mt-1">
+            <span className="hidden sm:inline text-slate-500 dark:text-slate-400">
+              {kegInventory.isDepotStockCritical ? `CRITICAL < ${settings.kegs_at_depot_low_threshold}` : 'Physical yard inventory'}
+            </span>
+            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden">
+              Stock <ChevronRight className="w-3 h-3" />
+            </span>
           </div>
         </div>
 
         {/* 5. Customer-Owned Kegs Filled Today */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm">
+        <div
+          onClick={() => setActiveStatSheet('customer_kegs')}
+          className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm cursor-pointer active:scale-98 group"
+        >
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
             <span className="text-[12px] font-sans font-medium uppercase tracking-wider">Customer Kegs</span>
-            <Droplet className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+            <Droplet className="w-4 h-4 text-slate-500 dark:text-slate-400 group-hover:scale-110 transition-transform" />
           </div>
           <div className="text-[32px] font-mono font-bold leading-tight text-slate-900 dark:text-slate-100">
             {todayStats.customerKegsFilledToday}{' '}
             <span className="text-[14px] font-sans font-normal text-slate-500 dark:text-slate-400">filled</span>
           </div>
-          <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-1">Own containers today</div>
+          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+            <span className="hidden sm:inline">Own containers today</span>
+            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden">
+              Orders <ChevronRight className="w-3 h-3" />
+            </span>
+          </div>
         </div>
 
         {/* 6. Spent Today / Expenses (Highlighted in Red) */}
-        <div className="p-4 rounded-2xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-800 transition-all shadow-sm">
+        <div
+          onClick={() => setActiveStatSheet('expenses')}
+          className="p-4 rounded-2xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-800 transition-all shadow-sm cursor-pointer active:scale-98 group"
+        >
           <div className="flex items-center justify-between text-rose-700 dark:text-rose-400 mb-2">
             <span className="text-[12px] font-sans font-semibold uppercase tracking-wider">Expenses Today</span>
-            <Package className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+            <Package className="w-4 h-4 text-rose-600 dark:text-rose-400 group-hover:scale-110 transition-transform" />
           </div>
           <div className="text-[32px] font-mono font-bold leading-tight text-rose-600 dark:text-rose-400">
             {formatNaira(todayStats.expensesToday)}
           </div>
-          <div className="text-[12px] font-mono text-rose-600/80 dark:text-rose-400/80 mt-1">
-            Float: {formatNaira(todayStats.dailyFloatRemaining)}
+          <div className="flex items-center justify-between text-[11px] text-rose-600/80 dark:text-rose-400/80 mt-1">
+            <span className="hidden sm:inline">Float: {formatNaira(todayStats.dailyFloatRemaining)}</span>
+            <span className="inline-flex items-center gap-0.5 text-rose-700 dark:text-rose-300 font-bold sm:hidden">
+              Expenses <ChevronRight className="w-3 h-3" />
+            </span>
           </div>
         </div>
       </div>
@@ -647,7 +811,58 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {/* MOBILE CONDENSED ALERTS VIEW (<= 3 items + View All N button) */}
+        <div className="sm:hidden space-y-2.5">
+          {allAlertsList.length === 0 ? (
+            <div className="p-4 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 text-center text-[12px] font-sans text-slate-500 dark:text-slate-400">
+              All systems operating within normal thresholds.
+            </div>
+          ) : (
+            <>
+              {allAlertsList.slice(0, 3).map(alert => (
+                <div
+                  key={alert.id}
+                  onClick={() => setSelectedAlert(alert)}
+                  className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 active:scale-98 transition-all cursor-pointer ${
+                    alert.severity === 'red'
+                      ? 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60'
+                      : 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span
+                      className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                        alert.severity === 'red' ? 'bg-rose-600 animate-pulse' : 'bg-amber-500'
+                      }`}
+                    />
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-sans font-bold text-slate-900 dark:text-white truncate">
+                        {alert.title}
+                      </div>
+                      <div className="text-[11px] font-sans text-slate-500 dark:text-slate-400 truncate">
+                        {alert.subtitle}
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                </div>
+              ))}
+              {allAlertsList.length > 3 && (
+                <button
+                  type="button"
+                  onClick={() => setIsAllAlertsOpen(true)}
+                  className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[12px] font-sans font-semibold flex items-center justify-center gap-1.5 transition-colors border border-slate-200 dark:border-slate-700 active:scale-98"
+                >
+                  <span>View all {allAlertsList.length} operational alerts</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* DESKTOP ALERT GRID */}
+        <div className="hidden sm:grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {/* Alert Stream 1: Overdue Credit Invoices */}
           <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
             <div>
@@ -1196,6 +1411,504 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           </div>
         </div>
       )}
+      {/* STAT BREAKDOWN BOTTOM SHEET */}
+      <BottomSheet
+        isOpen={!!activeStatSheet}
+        onClose={() => setActiveStatSheet(null)}
+        title={
+          activeStatSheet === 'cash'
+            ? 'Cash & Transfer Sales Today'
+            : activeStatSheet === 'credit'
+            ? 'Credit Ledger Outstanding'
+            : activeStatSheet === 'kegs_out'
+            ? 'Company Keg Custody'
+            : activeStatSheet === 'depot_kegs'
+            ? 'Depot Yard Keg Inventory'
+            : activeStatSheet === 'customer_kegs'
+            ? 'Customer-Owned Kegs Dispensed'
+            : activeStatSheet === 'expenses'
+            ? "Today's Operating Expenses"
+            : ''
+        }
+        subtitle={
+          activeStatSheet === 'cash'
+            ? `${formatNaira(todayStats.cashTransferSales)} collected today`
+            : activeStatSheet === 'credit'
+            ? `${formatNaira(todayStats.creditOutstanding)} total open balance`
+            : activeStatSheet === 'kegs_out'
+            ? `${todayStats.companyKegsOut} kegs in customer custody`
+            : activeStatSheet === 'depot_kegs'
+            ? `${todayStats.kegsAtDepot} kegs available on yard`
+            : activeStatSheet === 'customer_kegs'
+            ? `${todayStats.customerKegsFilledToday} containers filled today`
+            : activeStatSheet === 'expenses'
+            ? `${formatNaira(todayStats.expensesToday)} total spent today`
+            : ''
+        }
+      >
+        <div className="space-y-4">
+          {/* 1. Cash & Transfer Breakdown */}
+          {activeStatSheet === 'cash' && (
+            <div className="space-y-3">
+              <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 flex items-center justify-between">
+                <span className="text-[13px] font-sans font-semibold text-emerald-800 dark:text-emerald-300">
+                  Total Collected Today
+                </span>
+                <span className="text-[18px] font-mono tabular-nums font-bold text-emerald-700 dark:text-emerald-400">
+                  {formatNaira(todayStats.cashTransferSales)}
+                </span>
+              </div>
+
+              <div className="text-[12px] font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Today's Paid Transactions
+              </div>
+
+              {orders
+                .filter(o => {
+                  const d = o.date ? o.date.slice(0, 10) : '';
+                  return d === todayStr && (o.payment_method === 'cash' || o.payment_method === 'transfer');
+                })
+                .map(order => {
+                  const cust = customers.find(c => c.id === order.customer_id);
+                  const isCash = order.payment_method === 'cash';
+                  return (
+                    <div
+                      key={order.id}
+                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-[13px]"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="font-sans font-bold text-slate-900 dark:text-white">
+                          {cust?.name || 'Counter Sale'}
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px] font-sans text-slate-500 dark:text-slate-400">
+                          <span className="inline-flex items-center gap-1 font-medium">
+                            <span
+                              className={`w-2 h-2 rounded-full ${isCash ? 'bg-emerald-500' : 'bg-sky-500'}`}
+                            />
+                            {isCash ? 'Cash' : 'Bank Transfer'}
+                          </span>
+                          <span>·</span>
+                          <span className="font-mono">{order.litres}L</span>
+                          <span>·</span>
+                          <span>{formatDepotTime(order.date)}</span>
+                        </div>
+                      </div>
+                      <div className="text-right font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400">
+                        {formatNaira(order.paid_amount || order.amount)}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+
+          {/* 2. Credit Breakdown */}
+          {activeStatSheet === 'credit' && (
+            <div className="space-y-3">
+              <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 flex items-center justify-between">
+                <span className="text-[13px] font-sans font-semibold text-rose-800 dark:text-rose-300">
+                  Total Outstanding Credit
+                </span>
+                <span className="text-[18px] font-mono tabular-nums font-bold text-rose-700 dark:text-rose-400">
+                  {formatNaira(todayStats.creditOutstanding)}
+                </span>
+              </div>
+
+              <div className="text-[12px] font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Accounts with Open Balances
+              </div>
+
+              {customers
+                .filter(c => (customerStatsMap[c.id]?.currentBalance || 0) > 0)
+                .sort(
+                  (a, b) =>
+                    (customerStatsMap[b.id]?.currentBalance || 0) -
+                    (customerStatsMap[a.id]?.currentBalance || 0)
+                )
+                .map(cust => {
+                  const balance = customerStatsMap[cust.id]?.currentBalance || 0;
+                  const isOver = balance > (cust.credit_limit || 0);
+                  return (
+                    <div
+                      key={cust.id}
+                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-[13px]"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="font-sans font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <span>{cust.name}</span>
+                          {isOver && (
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-sans font-bold">
+                              Over Limit
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] font-sans text-slate-500 dark:text-slate-400">
+                          Limit: {formatNaira(cust.credit_limit)} · Terms: {cust.credit_term_days}d
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono tabular-nums font-bold text-rose-600 dark:text-rose-400">
+                          {formatNaira(balance)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveStatSheet(null);
+                  onNavigate('customers');
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-[13px] font-sans font-bold flex items-center justify-center gap-2 shadow-sm"
+              >
+                <span>Open Customers & Ledger</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* 3. Company Kegs Out Breakdown */}
+          {activeStatSheet === 'kegs_out' && (
+            <div className="space-y-3">
+              <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <span className="text-[13px] font-sans font-semibold text-slate-700 dark:text-slate-300">
+                  Total in Customer Hands
+                </span>
+                <span className="text-[18px] font-mono tabular-nums font-bold text-slate-900 dark:text-white">
+                  {todayStats.companyKegsOut} kegs
+                </span>
+              </div>
+
+              <div className="text-[12px] font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Custody by Customer
+              </div>
+
+              {customers
+                .filter(c => (customerStatsMap[c.id]?.totalCompanyKegsOut || 0) > 0)
+                .sort(
+                  (a, b) =>
+                    (customerStatsMap[b.id]?.totalCompanyKegsOut || 0) -
+                    (customerStatsMap[a.id]?.totalCompanyKegsOut || 0)
+                )
+                .map(cust => {
+                  const count = customerStatsMap[cust.id]?.totalCompanyKegsOut || 0;
+                  return (
+                    <div
+                      key={cust.id}
+                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-[13px]"
+                    >
+                      <div className="font-sans font-bold text-slate-900 dark:text-white">
+                        {cust.name}
+                      </div>
+                      <div className="font-mono tabular-nums font-bold text-slate-900 dark:text-white">
+                        {count} kegs
+                      </div>
+                    </div>
+                  );
+                })}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveStatSheet(null);
+                  onNavigate('kegs');
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-[13px] font-sans font-bold flex items-center justify-center gap-2 shadow-sm"
+              >
+                <span>Open Kegs Tracking</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* 4. Depot Yard Kegs Breakdown */}
+          {activeStatSheet === 'depot_kegs' && (
+            <div className="space-y-4">
+              <div
+                className={`p-4 rounded-xl border space-y-2 ${
+                  kegInventory.isDepotStockCritical
+                    ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800'
+                    : 'bg-slate-50 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px] font-sans font-medium text-slate-600 dark:text-slate-300">
+                    Physical Kegs in Yard:
+                  </span>
+                  <span className="text-[20px] font-mono tabular-nums font-bold text-slate-900 dark:text-white">
+                    {todayStats.kegsAtDepot} kegs
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[12px] font-sans text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-700 pt-2">
+                  <span>Minimum Threshold:</span>
+                  <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
+                    {settings.kegs_at_depot_low_threshold} kegs
+                  </span>
+                </div>
+                {kegInventory.isDepotStockCritical && (
+                  <div className="text-[11px] font-sans font-semibold text-rose-700 dark:text-rose-300 flex items-center gap-1.5 pt-1">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <span>Depot inventory is below safety threshold! Recall customer kegs.</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2 text-[12px] font-sans">
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                  <span>Total Registered Fleet:</span>
+                  <span className="font-mono tabular-nums font-bold text-slate-900 dark:text-white">
+                    {settings.total_company_kegs} kegs
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                  <span>Out with Customers:</span>
+                  <span className="font-mono tabular-nums font-bold text-slate-900 dark:text-white">
+                    -{todayStats.companyKegsOut} kegs
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-800 dark:text-slate-200 font-bold border-t border-slate-200 dark:border-slate-700 pt-1.5">
+                  <span>Available at Depot:</span>
+                  <span className="font-mono tabular-nums text-slate-900 dark:text-white">
+                    {todayStats.kegsAtDepot} kegs
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveStatSheet(null);
+                  onNavigate('kegs');
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-[13px] font-sans font-bold flex items-center justify-center gap-2 shadow-sm"
+              >
+                <span>Record Keg Returns</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* 5. Customer Kegs Dispensed Breakdown */}
+          {activeStatSheet === 'customer_kegs' && (
+            <div className="space-y-3">
+              <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <span className="text-[13px] font-sans font-semibold text-slate-700 dark:text-slate-300">
+                  Total Customer Containers Filled
+                </span>
+                <span className="text-[18px] font-mono tabular-nums font-bold text-slate-900 dark:text-white">
+                  {todayStats.customerKegsFilledToday} kegs
+                </span>
+              </div>
+
+              <div className="text-[12px] font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Today's Customer-Keg Dispenses
+              </div>
+
+              {orders
+                .filter(o => {
+                  const d = o.date ? o.date.slice(0, 10) : '';
+                  return d === todayStr && o.keg_source === 'own';
+                })
+                .map(order => {
+                  const cust = customers.find(c => c.id === order.customer_id);
+                  const isVeg = order.product_id === 'veg';
+                  return (
+                    <div
+                      key={order.id}
+                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-[13px]"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="font-sans font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <span
+                            className="w-2 h-2 rounded-full"
+                            style={{ backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }}
+                          />
+                          <span>{cust?.name || 'Walk-in'}</span>
+                        </div>
+                        <div className="text-[11px] font-sans text-slate-500 dark:text-slate-400">
+                          {isVeg ? 'Veg Oil' : 'Palm Oil'} · {order.litres}L · {formatDepotTime(order.date)}
+                        </div>
+                      </div>
+                      <div className="text-right font-mono tabular-nums font-bold text-slate-900 dark:text-white">
+                        {order.qty} filled
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+
+          {/* 6. Expenses Breakdown */}
+          {activeStatSheet === 'expenses' && (
+            <div className="space-y-4">
+              <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 flex items-center justify-between">
+                <span className="text-[13px] font-sans font-semibold text-rose-800 dark:text-rose-300">
+                  Total Spent Today
+                </span>
+                <span className="text-[18px] font-mono tabular-nums font-bold text-rose-700 dark:text-rose-400">
+                  {formatNaira(todayStats.expensesToday)}
+                </span>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2 text-[12px] font-sans">
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                  <span>Daily Opening Float:</span>
+                  <span className="font-mono tabular-nums font-bold text-slate-900 dark:text-white">
+                    {formatNaira(activeShift?.opening_float || settings.default_daily_float || 50000)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                  <span>Spent Out of Float:</span>
+                  <span className="font-mono tabular-nums font-bold text-rose-600 dark:text-rose-400">
+                    -{formatNaira(todayStats.expensesToday)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-800 dark:text-slate-200 font-bold border-t border-slate-200 dark:border-slate-700 pt-1.5">
+                  <span>Float Remaining:</span>
+                  <span className="font-mono tabular-nums text-slate-900 dark:text-white">
+                    {formatNaira(todayStats.dailyFloatRemaining)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="text-[12px] font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Today's Expense Items
+              </div>
+
+              {expenses
+                .filter(e => {
+                  const d = e.date ? e.date.slice(0, 10) : '';
+                  return d === todayStr;
+                })
+                .map(exp => (
+                  <div
+                    key={exp.id}
+                    className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-[13px]"
+                  >
+                    <div className="space-y-0.5">
+                      <div className="font-sans font-bold text-slate-900 dark:text-white">
+                        {exp.note || exp.category}
+                      </div>
+                      <div className="text-[11px] font-sans text-slate-500 dark:text-slate-400">
+                        {exp.category} · {formatDepotTime(exp.date)}
+                      </div>
+                    </div>
+                    <div className="text-right font-mono tabular-nums font-bold text-rose-600 dark:text-rose-400">
+                      {formatNaira(exp.amount)}
+                    </div>
+                  </div>
+                ))}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveStatSheet(null);
+                  onNavigate('expenses');
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-[13px] font-sans font-bold flex items-center justify-center gap-2 shadow-sm"
+              >
+                <span>Manage Expenses & Float</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+      </BottomSheet>
+
+      {/* SELECTED ALERT DETAIL BOTTOM SHEET */}
+      <BottomSheet
+        isOpen={!!selectedAlert}
+        onClose={() => setSelectedAlert(null)}
+        title={selectedAlert?.type || 'Operational Alert'}
+        subtitle={selectedAlert?.title || ''}
+      >
+        {selectedAlert && (
+          <div className="space-y-4">
+            <div
+              className={`p-4 rounded-xl border flex items-start gap-3 ${
+                selectedAlert.severity === 'red'
+                  ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900/60 text-rose-900 dark:text-rose-200'
+                  : 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-900/60 text-amber-900 dark:text-amber-200'
+              }`}
+            >
+              <AlertTriangle
+                className={`w-5 h-5 shrink-0 mt-0.5 ${
+                  selectedAlert.severity === 'red' ? 'text-rose-600' : 'text-amber-600'
+                }`}
+              />
+              <div className="space-y-1">
+                <div className="text-[14px] font-sans font-bold">{selectedAlert.title}</div>
+                <div className="text-[12px] font-mono tabular-nums font-medium opacity-90">
+                  {selectedAlert.subtitle}
+                </div>
+              </div>
+            </div>
+
+            {selectedAlert.details && (
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 text-[13px] font-sans text-slate-700 dark:text-slate-300 leading-relaxed">
+                {selectedAlert.details}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                const act = selectedAlert.action;
+                setSelectedAlert(null);
+                act();
+              }}
+              className="w-full py-3 px-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-[14px] font-sans font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
+            >
+              <span>{selectedAlert.actionLabel}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </BottomSheet>
+
+      {/* ALL OPERATIONAL ALERTS BOTTOM SHEET */}
+      <BottomSheet
+        isOpen={isAllAlertsOpen}
+        onClose={() => setIsAllAlertsOpen(false)}
+        title="All Operational Alerts"
+        subtitle={`${allAlertsList.length} active risk signals`}
+      >
+        <div className="space-y-2.5">
+          {allAlertsList.map(alert => (
+            <div
+              key={alert.id}
+              onClick={() => {
+                setIsAllAlertsOpen(false);
+                setSelectedAlert(alert);
+              }}
+              className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 active:scale-98 transition-all cursor-pointer ${
+                alert.severity === 'red'
+                  ? 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60'
+                  : 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span
+                  className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                    alert.severity === 'red' ? 'bg-rose-600 animate-pulse' : 'bg-amber-500'
+                  }`}
+                />
+                <div className="min-w-0">
+                  <div className="text-[13px] font-sans font-bold text-slate-900 dark:text-white truncate">
+                    {alert.title}
+                  </div>
+                  <div className="text-[11px] font-sans text-slate-500 dark:text-slate-400 truncate">
+                    {alert.subtitle}
+                  </div>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+            </div>
+          ))}
+        </div>
+      </BottomSheet>
     </div>
   );
 };

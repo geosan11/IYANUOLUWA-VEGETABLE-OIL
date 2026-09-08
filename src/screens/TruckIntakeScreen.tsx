@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
 import { TankGauge } from '../components/common/TankGauge';
 import { TruckTankIllustration } from '../components/common/TruckTankIllustration';
+import { BottomSheet } from '../components/common/BottomSheet';
 import { calculateIntakeMetrics, calculateDipstickVariance, formatDepotDate } from '../services/businessLogic';
 import {
   Truck,
@@ -13,7 +14,8 @@ import {
   AlertTriangle,
   History,
   Ruler,
-  AlertCircle
+  AlertCircle,
+  ChevronRight
 } from 'lucide-react';
 
 export const TruckIntakeScreen: React.FC = () => {
@@ -37,6 +39,9 @@ export const TruckIntakeScreen: React.FC = () => {
   const [leftoverLitres, setLeftoverLitres] = useState<string>('20');
   const [newlyAddedTankId, setNewlyAddedTankId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Mobile Sheet State for Tank Detail
+  const [selectedTankForMobileSheet, setSelectedTankForMobileSheet] = useState<string | null>(null);
 
   // Tank Dipstick Verification Modal State
   const [dipstickTankId, setDipstickTankId] = useState<string | null>(null);
@@ -436,8 +441,69 @@ export const TruckIntakeScreen: React.FC = () => {
           </span>
         </div>
 
-        {/* Visual Tanker Fleet Grid (Desktop 2-Col, Mobile 1-Col) */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        {/* Mobile Compact Tank Rows */}
+        <div className="sm:hidden space-y-2.5">
+          {tanks.map(t => {
+            const prod = products.find(p => p.id === t.product_id);
+            const pct = Math.min(100, (t.remaining_litres / (t.received_litres || 1)) * 100);
+            const tankReadings = dipstickReadings
+              .filter(d => d.tank_id === t.id)
+              .sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime());
+            const latestReading = tankReadings[0];
+            const isVeg = t.product_id === 'veg';
+
+            return (
+              <div
+                key={t.id}
+                onClick={() => setSelectedTankForMobileSheet(t.id)}
+                className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 active:scale-98 transition-all cursor-pointer flex flex-col gap-2.5 shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }}
+                    />
+                    <span className="font-sans font-bold text-[14px] text-slate-900 dark:text-white">
+                      {t.truck_label}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {latestReading ? (
+                      latestReading.is_flagged ? (
+                        <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" title="Variance Alert" />
+                      ) : (
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" title="Verified" />
+                      )
+                    ) : (
+                      <span className="w-2 h-2 rounded-full bg-slate-400" title="Awaiting Stick" />
+                    )}
+                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[12px] font-mono tabular-nums text-slate-600 dark:text-slate-400">
+                  <span>{t.tons}T · {t.remaining_litres.toLocaleString()}L / {t.received_litres.toLocaleString()}L</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-200">{pct.toFixed(0)}% full</span>
+                </div>
+
+                {/* Horizontal Mini Gauge */}
+                <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${pct}%`,
+                      backgroundColor: isVeg ? '#F59E0B' : '#EF4444'
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Visual Tanker Fleet Grid (Desktop 2-Col) */}
+        <div className="hidden sm:grid grid-cols-1 xl:grid-cols-2 gap-5">
           {tanks.map(t => {
             const prod = products.find(p => p.id === t.product_id);
             const connectedPump = pumps.find(p => p.product_id === t.product_id);
@@ -666,6 +732,97 @@ export const TruckIntakeScreen: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Mobile Tank Inspection Bottom Sheet */}
+      {(() => {
+        const selectedMobileTank = tanks.find(t => t.id === selectedTankForMobileSheet);
+        const selectedMobileProduct = products.find(p => p.id === selectedMobileTank?.product_id);
+        const selectedMobilePump = pumps.find(p => p.product_id === selectedMobileTank?.product_id);
+        const mobileTankReadings = selectedMobileTank
+          ? dipstickReadings
+              .filter(d => d.tank_id === selectedMobileTank.id)
+              .sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime())
+          : [];
+        const latestMobileReading = mobileTankReadings[0];
+
+        return (
+          <BottomSheet
+            isOpen={!!selectedTankForMobileSheet}
+            onClose={() => setSelectedTankForMobileSheet(null)}
+            title={selectedMobileTank?.truck_label || 'Tank Details'}
+            subtitle={
+              selectedMobileProduct
+                ? `${selectedMobileProduct.name} · ${selectedMobileTank?.tons} Tons Intake`
+                : ''
+            }
+          >
+            {selectedMobileTank && selectedMobileProduct && (
+              <div className="space-y-4">
+                <TruckTankIllustration
+                  tank={selectedMobileTank}
+                  product={selectedMobileProduct}
+                  connectedPumpLabel={selectedMobilePump?.label}
+                  animateOnMount={false}
+                />
+
+                {/* Dipstick Verification Strip & Action */}
+                <div className="bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] font-sans font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Ruler className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                      <span>Physical Dipstick Status</span>
+                    </span>
+                    {latestMobileReading ? (
+                      latestMobileReading.is_flagged ? (
+                        <span className="text-[10px] font-mono tabular-nums font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-300 dark:border-rose-800">
+                          VARIANCE {(latestMobileReading.variance ?? 0) > 0 ? `+${latestMobileReading.variance}` : (latestMobileReading.variance ?? 0)}L
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-mono tabular-nums font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
+                          VERIFIED ({(latestMobileReading.variance ?? 0) > 0 ? `+${latestMobileReading.variance}` : (latestMobileReading.variance ?? 0)}L)
+                        </span>
+                      )
+                    ) : (
+                      <span className="text-[10px] font-sans text-slate-500 dark:text-slate-400 bg-slate-200/70 dark:bg-slate-800 px-2 py-0.5 rounded">
+                        Awaiting First Stick
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-[12px] font-mono tabular-nums text-slate-600 dark:text-slate-400 space-y-1">
+                    <div className="flex justify-between">
+                      <span>Current Ledger Volume:</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">
+                        {selectedMobileTank.remaining_litres.toLocaleString()} L
+                      </span>
+                    </div>
+                    {latestMobileReading && (
+                      <div className="flex justify-between">
+                        <span>Last Physical Stick:</span>
+                        <span className="font-bold text-slate-900 dark:text-slate-100">
+                          {latestMobileReading.reading_litres.toLocaleString()} L ({formatDepotDate(latestMobileReading.recorded_at)})
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const id = selectedMobileTank.id;
+                      setSelectedTankForMobileSheet(null);
+                      handleOpenDipstick(id);
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-[13px] font-sans font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
+                  >
+                    <Ruler className="w-4 h-4" />
+                    <span>Record Physical Dipstick</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </BottomSheet>
+        );
+      })()}
     </div>
   );
 };
