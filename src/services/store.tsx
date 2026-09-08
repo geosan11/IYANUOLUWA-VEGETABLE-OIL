@@ -49,6 +49,9 @@ interface StoreContextType {
   settings: AppSettings;
   userRole: UserRole;
   setUserRole: (role: UserRole) => void;
+  theme: 'light' | 'dark';
+  setTheme: (theme: 'light' | 'dark') => void;
+  toggleTheme: () => void;
   
   // Computed values
   customerStatsMap: Record<string, CustomerCalculatedStats>;
@@ -129,10 +132,35 @@ const STORAGE_KEYS = {
   KEG_RETURNS: 'iyanu_keg_returns_v1',
   EXPENSES: 'iyanu_expenses_v1',
   SETTINGS: 'iyanu_settings_v1',
-  USER_ROLE: 'iyanu_user_role_v1'
+  USER_ROLE: 'iyanu_user_role_v1',
+  THEME: 'iyanu_theme_v1'
 };
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Theme state: defaults to 'light'
+  const [theme, setThemeState] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.THEME);
+    if (saved === 'dark' || saved === 'light') return saved;
+    return 'light';
+  });
+
+  const setTheme = (newTheme: 'light' | 'dark') => {
+    setThemeState(newTheme);
+    localStorage.setItem(STORAGE_KEYS.THEME, newTheme);
+  };
+
+  const toggleTheme = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  };
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
   // Load state from LocalStorage or seed defaults
   const [products] = useState<Product[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
@@ -570,6 +598,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         settings,
         userRole,
         setUserRole,
+        theme,
+        setTheme,
+        toggleTheme,
         customerStatsMap,
         kegInventory,
         tankStockByProduct,

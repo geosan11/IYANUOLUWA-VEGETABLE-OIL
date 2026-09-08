@@ -141,28 +141,28 @@ export const NewOrderScreen: React.FC = () => {
   return (
     <div className="space-y-6 pb-12">
       {/* Page Title & Context Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-slate-900/90 border border-slate-800">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div>
-          <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
-            <ShoppingCart className="w-5 h-5 text-brand-400" />
+          <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <ShoppingCart className="w-5 h-5 text-brand-600 dark:text-brand-400" />
             <span>Counter Dispense & New Order</span>
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             Automated FIFO tank draw, customer credit validation, and instant receipt generation.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-300">
+          <div className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono text-slate-700 dark:text-slate-300">
             <span>Available {selectedProduct.name}:</span>{' '}
-            <span className="font-bold text-amber-400">{productStock.toLocaleString()} L</span>
+            <span className="font-bold text-amber-600 dark:text-amber-400">{productStock.toLocaleString()} L</span>
           </div>
         </div>
       </div>
 
       {errorMessage && (
-        <div className="p-4 rounded-xl bg-rose-950/70 border border-rose-500/50 text-rose-300 text-xs flex items-center gap-3 animate-in fade-in">
-          <AlertCircle className="w-5 h-5 text-rose-400 flex-shrink-0" />
+        <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/70 border border-rose-300 dark:border-rose-500/50 text-rose-800 dark:text-rose-300 text-xs flex items-center gap-3 animate-in fade-in">
+          <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 flex-shrink-0" />
           <div className="font-semibold">{errorMessage}</div>
         </div>
       )}
@@ -172,17 +172,17 @@ export const NewOrderScreen: React.FC = () => {
         {/* Left Column: Order Input Parameters (lg:col-span-7) */}
         <form
           onSubmit={handleSubmit}
-          className="lg:col-span-7 p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-5"
+          className="lg:col-span-7 p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5"
         >
           {/* Customer Selection with Inline Credit & Aging Info */}
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
               <span className="flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-brand-400" />
+                <User className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
                 <span>Select Customer Account</span>
               </span>
-              <span className="text-[10px] text-slate-400">
-                Tier: <strong className="capitalize text-brand-400">{selectedCustomer?.type}</strong>
+              <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                Tier: <strong className="capitalize text-brand-600 dark:text-brand-400">{selectedCustomer?.type}</strong>
               </span>
             </label>
 
@@ -192,7 +192,7 @@ export const NewOrderScreen: React.FC = () => {
                 setCustomerId(e.target.value);
                 setOverrideCreditLimit(false);
               }}
-              className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-sm font-semibold focus:outline-none focus:border-brand-500"
+              className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:border-brand-500"
             >
               {customers.map(c => {
                 const stats = customerStatsMap[c.id];
@@ -207,27 +207,27 @@ export const NewOrderScreen: React.FC = () => {
 
             {/* Inline Customer Account Overview Card */}
             {selectedCustomer && customerStats && (
-              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 text-xs grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono">
                 <div>
-                  <span className="text-slate-400 block text-[10px] uppercase">Current Balance:</span>
-                  <span className={`font-bold ${customerStats.currentBalance > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase">Current Balance:</span>
+                  <span className={`font-bold ${customerStats.currentBalance > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                     {formatNaira(customerStats.currentBalance)}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[10px] uppercase">Credit Limit:</span>
-                  <span className="font-bold text-slate-200">
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase">Credit Limit:</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">
                     {formatNaira(selectedCustomer.credit_limit)}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[10px] uppercase">Credit Terms:</span>
-                  <span className="font-bold text-slate-200">
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase">Credit Terms:</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">
                     {selectedCustomer.credit_term_days} Days
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[10px] uppercase">Aging Status:</span>
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase">Aging Status:</span>
                   <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${customerStats.agingBadge.colorClass}`}>
                     {customerStats.agingBadge.label}
                   </span>
@@ -238,7 +238,7 @@ export const NewOrderScreen: React.FC = () => {
 
           {/* Product Selection */}
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-300 block">Select Product</label>
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">Select Product</label>
             <div className="grid grid-cols-2 gap-3">
               {products.map(p => {
                 const isSelected = p.id === productId;
@@ -251,14 +251,14 @@ export const NewOrderScreen: React.FC = () => {
                     className={`p-3 rounded-xl border text-left flex items-center justify-between transition-all ${
                       isSelected
                         ? p.id === 'veg'
-                          ? 'bg-amber-500/15 border-amber-500/60 text-amber-300 shadow-sm'
-                          : 'bg-rose-500/15 border-rose-500/60 text-rose-300 shadow-sm'
-                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                          ? 'bg-amber-50 dark:bg-amber-500/15 border-amber-400 dark:border-amber-500/60 text-amber-900 dark:text-amber-300 shadow-sm'
+                          : 'bg-rose-50 dark:bg-rose-500/15 border-rose-400 dark:border-rose-500/60 text-rose-900 dark:text-rose-300 shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                     }`}
                   >
                     <div>
-                      <div className="font-bold text-xs text-slate-100">{p.name}</div>
-                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                      <div className="font-bold text-xs text-slate-900 dark:text-slate-100">{p.name}</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
                         Stock: {stock.toLocaleString()} L
                       </div>
                     </div>
@@ -276,15 +276,15 @@ export const NewOrderScreen: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Unit Toggle (Keg vs Litre) */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300 block">Unit Type</label>
-              <div className="grid grid-cols-2 gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">Unit Type</label>
+              <div className="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setUnit('keg')}
                   className={`py-2 rounded-lg text-xs font-bold transition-all ${
                     unit === 'keg'
                       ? 'bg-brand-500 text-slate-950 shadow-sm'
-                      : 'text-slate-400 hover:text-white'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   Keg (30L)
@@ -295,7 +295,7 @@ export const NewOrderScreen: React.FC = () => {
                   className={`py-2 rounded-lg text-xs font-bold transition-all ${
                     unit === 'litre'
                       ? 'bg-brand-500 text-slate-950 shadow-sm'
-                      : 'text-slate-400 hover:text-white'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   Litre (Bulk)
@@ -305,9 +305,9 @@ export const NewOrderScreen: React.FC = () => {
 
             {/* Quantity Input */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
                 <span>Dispense Quantity</span>
-                <span className="text-[10px] text-brand-400 font-mono">
+                <span className="text-[10px] text-brand-600 dark:text-brand-400 font-mono">
                   = {pricing.litres.toLocaleString()} Litres
                 </span>
               </label>
@@ -318,11 +318,11 @@ export const NewOrderScreen: React.FC = () => {
                   min="0.1"
                   value={qty}
                   onChange={e => setQty(e.target.value)}
-                  className="w-full pl-4 pr-16 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-sm font-mono font-bold focus:outline-none focus:border-brand-500"
+                  className="w-full pl-4 pr-16 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-mono font-bold focus:outline-none focus:border-brand-500"
                   placeholder="10"
                   required
                 />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400 uppercase">
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-500 dark:text-slate-400 uppercase">
                   {unit}S
                 </span>
               </div>
@@ -331,14 +331,14 @@ export const NewOrderScreen: React.FC = () => {
 
           {/* Keg Source Toggle (Only shown when unit is 'keg') */}
           {unit === 'keg' && (
-            <div className="space-y-2 p-4 rounded-xl bg-slate-950/60 border border-slate-800">
+            <div className="space-y-2 p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <Package className="w-3.5 h-3.5 text-brand-400" />
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Package className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
                   <span>Keg Container Source</span>
                 </label>
-                <span className="text-[10px] text-slate-400 font-mono">
-                  Depot Available: <strong className="text-brand-400">{kegInventory.kegsAtDepot}</strong>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                  Depot Available: <strong className="text-brand-600 dark:text-brand-400">{kegInventory.kegsAtDepot}</strong>
                 </span>
               </div>
 
@@ -348,12 +348,12 @@ export const NewOrderScreen: React.FC = () => {
                   onClick={() => setKegSource('company')}
                   className={`p-3 rounded-xl border text-left transition-all ${
                     kegSource === 'company'
-                      ? 'bg-brand-500/15 border-brand-500/60 text-brand-300'
-                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                      ? 'bg-brand-50 dark:bg-brand-500/15 border-brand-400 dark:border-brand-500/60 text-brand-900 dark:text-brand-300 shadow-sm'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                   }`}
                 >
-                  <div className="text-xs font-bold text-slate-100">Company Kegs</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">
+                  <div className="text-xs font-bold text-slate-900 dark:text-slate-100">Company Kegs</div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
                     Return obligation added to customer ledger
                   </div>
                 </button>
@@ -363,12 +363,12 @@ export const NewOrderScreen: React.FC = () => {
                   onClick={() => setKegSource('own')}
                   className={`p-3 rounded-xl border text-left transition-all ${
                     kegSource === 'own'
-                      ? 'bg-purple-500/15 border-purple-500/60 text-purple-300'
-                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                      ? 'bg-purple-50 dark:bg-purple-500/15 border-purple-400 dark:border-purple-500/60 text-purple-900 dark:text-purple-300 shadow-sm'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                   }`}
                 >
-                  <div className="text-xs font-bold text-slate-100">Customer's Own Kegs</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">
+                  <div className="text-xs font-bold text-slate-900 dark:text-slate-100">Customer's Own Kegs</div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
                     Bypasses keg ledger (oil volume only)
                   </div>
                 </button>
@@ -378,8 +378,8 @@ export const NewOrderScreen: React.FC = () => {
 
           {/* Payment Method Selection */}
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-              <CreditCard className="w-3.5 h-3.5 text-brand-400" />
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <CreditCard className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
               <span>Payment Terms / Settlement Method</span>
             </label>
             <div className="grid grid-cols-3 gap-3">
@@ -396,9 +396,9 @@ export const NewOrderScreen: React.FC = () => {
                     className={`py-3 px-2 rounded-xl border text-center capitalize text-xs font-bold transition-all ${
                       isSelected
                         ? method === 'credit'
-                          ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-sm'
-                          : 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-sm'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                          ? 'bg-amber-100 dark:bg-amber-500/20 border-amber-400 dark:border-amber-500 text-amber-900 dark:text-amber-300 shadow-sm'
+                          : 'bg-emerald-100 dark:bg-emerald-500/20 border-emerald-400 dark:border-emerald-500 text-emerald-900 dark:text-emerald-300 shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                     }`}
                   >
                     {method}
@@ -409,12 +409,12 @@ export const NewOrderScreen: React.FC = () => {
 
             {/* Credit Due Date Live Preview */}
             {paymentMethod === 'credit' && creditDueDate && (
-              <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-500/30 text-xs flex items-center justify-between font-mono">
-                <div className="flex items-center gap-2 text-amber-300">
-                  <Calendar className="w-4 h-4 text-amber-400" />
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-500/30 text-xs flex items-center justify-between font-mono">
+                <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
+                  <Calendar className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                   <span>Invoice Due Date ({selectedCustomer.credit_term_days} Days):</span>
                 </div>
-                <span className="font-bold text-amber-200">
+                <span className="font-bold text-amber-900 dark:text-amber-200">
                   {formatDepotDate(creditDueDate)}
                 </span>
               </div>
@@ -423,20 +423,20 @@ export const NewOrderScreen: React.FC = () => {
 
           {/* Soft Warning Banner: Keg Shortage Override */}
           {isKegShortage && (
-            <div className="p-4 rounded-xl bg-amber-950/40 border border-amber-500/50 space-y-2">
-              <div className="flex items-start gap-2.5 text-xs text-amber-300">
-                <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-500/50 space-y-2">
+              <div className="flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-300">
+                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold block">Company Keg Shortage Warning:</span>
                   Order requires {qty} kegs, but depot currently has only {kegInventory.kegsAtDepot} empty company kegs.
                 </div>
               </div>
-              <label className="flex items-center gap-2 pt-1 cursor-pointer select-none text-xs font-semibold text-amber-200">
+              <label className="flex items-center gap-2 pt-1 cursor-pointer select-none text-xs font-semibold text-amber-900 dark:text-amber-200">
                 <input
                   type="checkbox"
                   checked={overrideKegShortage}
                   onChange={e => setOverrideKegShortage(e.target.checked)}
-                  className="w-4 h-4 rounded text-brand-500 focus:ring-brand-400 bg-slate-900 border-amber-500"
+                  className="w-4 h-4 rounded text-brand-500 focus:ring-brand-400 bg-white dark:bg-slate-900 border-amber-400"
                 />
                 <span>Owner Override: Authorize dispensation despite keg deficit</span>
               </label>
@@ -445,20 +445,20 @@ export const NewOrderScreen: React.FC = () => {
 
           {/* Soft Warning Banner: Credit Limit Breach Override */}
           {isCreditExceeded && (
-            <div className="p-4 rounded-xl bg-rose-950/40 border border-rose-500/50 space-y-2">
-              <div className="flex items-start gap-2.5 text-xs text-rose-300">
-                <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
+            <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-500/50 space-y-2">
+              <div className="flex items-start gap-2.5 text-xs text-rose-900 dark:text-rose-300">
+                <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold block">Credit Limit Breach Warning:</span>
                   This order of {formatNaira(pricing.amount)} will push {selectedCustomer.name}'s balance to {formatNaira((customerStats?.currentBalance || 0) + pricing.amount)}, exceeding their {formatNaira(selectedCustomer.credit_limit)} limit by {formatNaira((customerStats?.currentBalance || 0) + pricing.amount - selectedCustomer.credit_limit)}.
                 </div>
               </div>
-              <label className="flex items-center gap-2 pt-1 cursor-pointer select-none text-xs font-semibold text-rose-200">
+              <label className="flex items-center gap-2 pt-1 cursor-pointer select-none text-xs font-semibold text-rose-900 dark:text-rose-200">
                 <input
                   type="checkbox"
                   checked={overrideCreditLimit}
                   onChange={e => setOverrideCreditLimit(e.target.checked)}
-                  className="w-4 h-4 rounded text-brand-500 focus:ring-brand-400 bg-slate-900 border-rose-500"
+                  className="w-4 h-4 rounded text-brand-500 focus:ring-brand-400 bg-white dark:bg-slate-900 border-rose-400"
                 />
                 <span>Owner Override: Authorize credit extension beyond approved limit</span>
               </label>
@@ -467,13 +467,13 @@ export const NewOrderScreen: React.FC = () => {
 
           {/* Optional Order Note */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300">Order Note / Reference</label>
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Order Note / Reference</label>
             <input
               type="text"
               value={note}
               onChange={e => setNote(e.target.value)}
               placeholder="e.g. Counter pickup, payment promised Friday"
-              className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-400 text-xs focus:outline-none focus:border-brand-500"
+              className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 text-xs focus:outline-none focus:border-brand-500"
             />
           </div>
 
@@ -483,7 +483,7 @@ export const NewOrderScreen: React.FC = () => {
             disabled={isStockInsufficient}
             className={`w-full py-4 rounded-xl text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all ${
               isStockInsufficient
-                ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed'
                 : 'bg-brand-500 hover:bg-brand-400 active:scale-[0.99] shadow-brand-500/25'
             }`}
           >
@@ -499,18 +499,18 @@ export const NewOrderScreen: React.FC = () => {
         {/* Right Column: Real-time FIFO Tank Draw Visualizer & Invoice Summary (lg:col-span-5) */}
         <div className="lg:col-span-5 space-y-4">
           {/* Active FIFO Tank Gauge Card */}
-          <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between">
+          <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
             <div>
-              <div className="border-b border-slate-800 pb-3 mb-4">
+              <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                  <h3 className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">
                     FIFO Tank Draw Target
                   </h3>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-400 font-bold border border-emerald-300 dark:border-emerald-500/30">
                     Oldest Tank First
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                   {activeFifoTank
                     ? `Drawing first from: ${activeFifoTank.truck_label} (${activeFifoTank.remaining_litres.toLocaleString()}L available)`
                     : 'No active stock available for this product.'}
@@ -529,24 +529,24 @@ export const NewOrderScreen: React.FC = () => {
               </div>
 
               {/* Price Breakdown Summary */}
-              <div className="mt-4 pt-4 border-t border-slate-800 space-y-2 text-xs font-mono">
-                <div className="flex justify-between text-slate-400">
+              <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800 space-y-2 text-xs font-mono">
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
                   <span>Unit Rate ({selectedCustomer.type}):</span>
-                  <span className="font-bold text-slate-200">
+                  <span className="font-bold text-slate-800 dark:text-slate-200">
                     ₦{ratePerLitre.toLocaleString()}/L (₦{pricing.ratePerKeg.toLocaleString()}/keg)
                   </span>
                 </div>
-                <div className="flex justify-between text-slate-400">
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
                   <span>Total Volume:</span>
-                  <span className="font-bold text-slate-200">{pricing.litres.toLocaleString()} L</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{pricing.litres.toLocaleString()} L</span>
                 </div>
-                <div className="flex justify-between text-slate-400">
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
                   <span>Payment Terms:</span>
-                  <span className="uppercase font-bold text-slate-200">{paymentMethod}</span>
+                  <span className="uppercase font-bold text-slate-800 dark:text-slate-200">{paymentMethod}</span>
                 </div>
-                <div className="flex justify-between text-base font-bold text-white pt-2 border-t border-slate-800">
+                <div className="flex justify-between text-base font-bold text-slate-900 dark:text-white pt-2 border-t border-slate-200 dark:border-slate-800">
                   <span>Order Total:</span>
-                  <span className="text-brand-400 font-black text-lg">
+                  <span className="text-brand-600 dark:text-brand-400 font-black text-lg">
                     {formatNaira(pricing.amount)}
                   </span>
                 </div>

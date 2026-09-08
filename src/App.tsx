@@ -40,7 +40,7 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen w-full bg-slate-950 text-slate-100 overflow-hidden font-sans">
+    <div className="flex h-screen w-full bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 overflow-hidden font-sans transition-colors duration-200">
       {/* Desktop Sidebar (Permanent Desktop Navigation) */}
       <Sidebar currentTab={currentTab} onTabChange={setCurrentTab} />
 
@@ -54,7 +54,7 @@ const MainLayout: React.FC = () => {
         />
 
         {/* Scrollable Screen Content Container */}
-        <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-8">
+        <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-8 bg-slate-50/50 dark:bg-slate-950">
           <div className="max-w-7xl mx-auto">
             {renderActiveScreen()}
           </div>
