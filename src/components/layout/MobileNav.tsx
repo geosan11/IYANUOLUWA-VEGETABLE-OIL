@@ -31,7 +31,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   const primaryNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'intake', label: 'Intake', icon: Truck },
-    { id: 'order', label: 'Dispense', icon: PlusCircle, isMain: true },
+    { id: 'order', label: 'New Sale', icon: PlusCircle, isMain: true },
     { id: 'customers', label: 'Customers', icon: Users, badge: activeAlerts.overdueCredit.length },
     { id: 'kegs', label: 'Kegs', icon: Package }
   ];
@@ -39,7 +39,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   const allNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'intake', label: 'Truck Intake', icon: Truck },
-    { id: 'order', label: 'New Order / Dispense', icon: PlusCircle },
+    { id: 'order', label: 'New Sale', icon: PlusCircle },
     { id: 'customers', label: 'Customers & Credit', icon: Users, badge: activeAlerts.overdueCredit.length },
     { id: 'kegs', label: 'Kegs Ledger', icon: Package },
     { id: 'expenses', label: 'Expenses & Float', icon: ReceiptText },

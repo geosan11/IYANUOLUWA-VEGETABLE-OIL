@@ -220,7 +220,7 @@ export const NewOrderScreen: React.FC = () => {
     });
 
     if (!result.success) {
-      setErrorMessage(result.error || 'Failed to process order.');
+      setErrorMessage(result.error || 'Failed to process sale.');
     } else {
       // Reset form fields
       setQty(unit === 'ton' ? '5' : '10');
@@ -241,146 +241,12 @@ export const NewOrderScreen: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Page Title & Context Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div>
-          <h2 className="text-[24px] font-heading font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            <ShoppingCart className="w-5 h-5 text-slate-600 dark:text-slate-300" />
-            <span>Counter Dispense & New Order</span>
-          </h2>
-          <p className="text-[14px] font-sans text-slate-500 dark:text-slate-400 mt-1">
-            Automated FIFO tank draw, per-order pump meter tracking, customer credit validation, and instant receipt generation.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[12px] font-mono tabular-nums text-slate-700 dark:text-slate-300">
-            <span className="font-sans">Available {selectedProduct.name}:</span>{' '}
-            <span className="font-bold text-slate-900 dark:text-slate-100">{productStock.toLocaleString()} L</span>
-          </div>
-
-          <div className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[12px] font-mono tabular-nums text-slate-700 dark:text-slate-300">
-            <span className="font-sans">Depot Kegs:</span>{' '}
-            <span className={`font-bold ${kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-slate-100'}`}>
-              {kegInventory.kegsAtDepot}
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setIsPumpReadingOpen(!isPumpReadingOpen)}
-            className="px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800/80 text-[12px] font-sans font-bold flex items-center gap-1.5 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-all active:scale-95"
-          >
-            <Gauge className="w-4 h-4" />
-            <span>{isPumpReadingOpen ? 'Hide Pump Logger' : 'Record Pump Reading'}</span>
-            {isPumpReadingOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
-        </div>
-      </div>
-
-      {/* LIGHTWEIGHT PUMP READING RECORDER (COLLAPSIBLE ACTION SECTION) */}
-      {isPumpReadingOpen && (
-        <div className="p-5 rounded-2xl bg-gradient-to-r from-purple-50/80 via-white to-purple-50/50 dark:from-slate-900 dark:via-purple-950/20 dark:to-slate-900 border-2 border-purple-300 dark:border-purple-800/80 shadow-md animate-in slide-in-from-top-3 duration-200">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-purple-200 dark:border-purple-900/60 pb-3 mb-4">
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-xl bg-purple-600 text-white shadow-sm">
-                <Gauge className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-[18px] font-heading font-semibold text-purple-950 dark:text-purple-200">
-                  Periodic Pump Meter Audit Entry
-                </h3>
-                <p className="text-[12px] font-sans text-purple-700/80 dark:text-purple-300/70">
-                  Record cumulative pump odometer reading to audit against logged dispense orders.
-                </p>
-              </div>
-            </div>
-            <span className="text-[11px] font-mono tabular-nums px-2 py-0.5 rounded bg-purple-200 dark:bg-purple-900/60 text-purple-900 dark:text-purple-200 font-bold self-start sm:self-auto">
-              Variance Threshold: {settings.pump_variance_threshold}L
-            </span>
-          </div>
-
-          {pumpReadingStatus && (
-            <div className={`p-3 rounded-xl mb-4 text-[12px] font-sans font-medium flex items-center gap-2 ${
-              pumpReadingStatus.success
-                ? 'bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/40 text-emerald-900 dark:text-emerald-300'
-                : 'bg-rose-100 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-500/40 text-rose-900 dark:text-rose-300'
-            }`}>
-              {pumpReadingStatus.success ? <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />}
-              <span>{pumpReadingStatus.msg}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleRecordReadingSubmit} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 text-[12px]">
-            {/* Select Pump */}
-            <div className="lg:col-span-4 space-y-1">
-              <label className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Select Depot Pump</label>
-              <select
-                value={readingPumpId}
-                onChange={e => setReadingPumpId(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-sans font-semibold text-[14px] focus:outline-none focus:border-purple-500"
-              >
-                {pumps.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.label} (Current: {p.last_meter_reading.toLocaleString()}L)
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* New Meter Reading Input */}
-            <div className="lg:col-span-3 space-y-1">
-              <div className="flex justify-between">
-                <label className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Cumulative Reading (L)</label>
-                <span className="text-[11px] text-slate-500 font-mono tabular-nums">Min: {selectedReadingPump?.last_meter_reading.toLocaleString()}L</span>
-              </div>
-              <div className="relative">
-                <input
-                  type="number"
-                  step="1"
-                  min={selectedReadingPump?.last_meter_reading || 0}
-                  value={newMeterReading}
-                  onChange={e => setNewMeterReading(e.target.value)}
-                  placeholder={selectedReadingPump ? selectedReadingPump.last_meter_reading.toString() : '10000'}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums text-[14px] font-bold focus:outline-none focus:border-purple-500"
-                  required
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-[11px]">Litres</span>
-              </div>
-            </div>
-
-            {/* Note */}
-            <div className="lg:col-span-3 space-y-1">
-              <label className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Audit Note (Optional)</label>
-              <input
-                type="text"
-                value={readingNote}
-                onChange={e => setReadingNote(e.target.value)}
-                placeholder="e.g. End of morning shift audit"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-sans text-[14px] focus:outline-none focus:border-purple-500"
-              />
-            </div>
-
-            {/* Submit Action */}
-            <div className="lg:col-span-2 flex items-end">
-              <button
-                type="submit"
-                className="w-full py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-sans font-bold text-[14px] shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5"
-              >
-                <Save className="w-4 h-4" />
-                <span>Log Reading</span>
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Main Grid: Form Left (7 cols) & Contextual Preview Right (5 cols) at ≥900px */}
-      <div className="grid grid-cols-1 split:grid-cols-12 gap-6">
-        {/* LEFT COLUMN: ORDER ENTRY FORM (7 COLS) */}
+      {/* 2-COLUMN SALE WORKSPACE (60% / 40% Split at ≥900px) */}
+      <div className="grid grid-cols-1 split:grid-cols-5 gap-6 items-start">
+        {/* LEFT COLUMN: SALE ENTRY FORM (60% - 3 cols) */}
         <form
           onSubmit={handleSubmit}
-          className="split:col-span-7 p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm"
+          className="split:col-span-3 p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm"
         >
           {errorMessage && (
             <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-300 text-xs flex items-center gap-2 animate-in fade-in">
@@ -445,10 +311,85 @@ export const NewOrderScreen: React.FC = () => {
                 <Fuel className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                 <span>Dispense Pump Meter Line</span>
               </label>
-              <span className="text-[11px] font-mono tabular-nums text-slate-500">
-                Threshold: ±{settings.pump_variance_threshold}L
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] font-mono tabular-nums text-slate-500">
+                  Threshold: ±{settings.pump_variance_threshold}L
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsPumpReadingOpen(!isPumpReadingOpen)}
+                  className="text-[11px] font-sans font-bold text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 flex items-center gap-1 transition-colors"
+                >
+                  <Gauge className="w-3.5 h-3.5" />
+                  <span>{isPumpReadingOpen ? 'Close Logger' : 'Log Pump Meter'}</span>
+                </button>
+              </div>
             </div>
+
+            {/* Inline Cumulative Pump Meter Logger */}
+            {isPumpReadingOpen && (
+              <div className="p-3.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/40 border border-purple-300 dark:border-purple-800/80 space-y-3 animate-in fade-in">
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] font-sans font-bold text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
+                    <Gauge className="w-4 h-4" /> Record Cumulative Pump Reading
+                  </span>
+                  <span className="text-[11px] font-sans text-purple-700 dark:text-purple-300">
+                    Depot Routine Calibration
+                  </span>
+                </div>
+
+                {pumpReadingStatus && (
+                  <div className={`p-2 rounded-lg text-[12px] font-sans ${pumpReadingStatus.success ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300' : 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300'}`}>
+                    {pumpReadingStatus.msg}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[10px] font-sans uppercase font-bold text-slate-500 block mb-1">Select Pump</label>
+                    <select
+                      value={readingPumpId}
+                      onChange={e => setReadingPumpId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-slate-100"
+                    >
+                      {pumps.map(p => (
+                        <option key={p.id} value={p.id}>{p.label} ({p.last_meter_reading}L)</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-sans uppercase font-bold text-slate-500 block mb-1">New Meter (Litres)</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={newMeterReading}
+                      onChange={e => setNewMeterReading(e.target.value)}
+                      placeholder={`> ${selectedReadingPump?.last_meter_reading}`}
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold text-slate-900 dark:text-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-sans uppercase font-bold text-slate-500 block mb-1">Note (Optional)</label>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={readingNote}
+                        onChange={e => setReadingNote(e.target.value)}
+                        placeholder="Shift check"
+                        className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-100"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleRecordReadingSubmit}
+                        className="px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex-shrink-0"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {pumps.map(pump => {
@@ -481,7 +422,7 @@ export const NewOrderScreen: React.FC = () => {
                     Pump Dispense Meter Reading
                   </span>
                   <span className="text-[11px] font-mono tabular-nums text-purple-700 dark:text-purple-300">
-                    Prior Order Reading: <span className="font-bold">{priorPumpReading.toLocaleString()} L</span>
+                    Prior Dispense Reading: <span className="font-bold">{priorPumpReading.toLocaleString()} L</span>
                   </span>
                 </div>
 
@@ -785,7 +726,7 @@ export const NewOrderScreen: React.FC = () => {
 
           {/* 8. Optional Note */}
           <div className="space-y-1">
-            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Order Note / Reference (Optional)</label>
+            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Sale Note / Reference (Optional)</label>
             <input
               type="text"
               value={note}
@@ -801,17 +742,17 @@ export const NewOrderScreen: React.FC = () => {
             className="w-full py-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[14px] uppercase tracking-wider shadow-lg shadow-brand-500/25 transition-all flex items-center justify-center gap-2 active:scale-98"
           >
             <Receipt className="w-[18px] h-[18px] text-slate-950" />
-            <span>Record Dispense & Issue Official Receipt</span>
+            <span>Complete Sale & Issue Official Receipt</span>
           </button>
         </form>
 
-        {/* RIGHT COLUMN: REAL-TIME CONTEXTUAL PREVIEW (5 COLS AT ≥900px) */}
-        <div className="split:col-span-5 space-y-4">
-          {/* Mobile Accordion Toggle Strip (<900px only) */}
+        {/* RIGHT COLUMN: FIXED CUSTOMER SALE CONTAINER (40% - 2 COLS AT ≥900px) */}
+        <div className="split:col-span-2 split:sticky split:top-4 split:self-start space-y-4">
+          {/* Mobile Accordion Toggle (<900px only) */}
           <div className="split:hidden p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
             <div>
               <div className="text-[11px] font-sans text-slate-500 uppercase tracking-wider font-semibold">
-                Total Order Value
+                Customer Sale Total
               </div>
               <div className="text-[24px] font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400">
                 {formatNaira(pricing.amount)}
@@ -822,115 +763,191 @@ export const NewOrderScreen: React.FC = () => {
               onClick={() => setIsPricingDetailsOpen(!isPricingDetailsOpen)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[12px] font-sans font-bold border border-slate-200 dark:border-slate-700 active:scale-95 transition-all"
             >
-              <span>{isPricingDetailsOpen ? 'Hide pricing & tank info' : 'View pricing & tank info'}</span>
+              <span>{isPricingDetailsOpen ? 'Hide Sale Details' : 'View Sale Details'}</span>
               {isPricingDetailsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
           </div>
 
-          {/* Cards container: always visible on desktop/tablet ≥900px, toggled on mobile <900px */}
-          <div className={`${isPricingDetailsOpen ? 'space-y-5' : 'hidden split:block split:space-y-5'}`}>
-            {/* Order Financial Calculation Card */}
-            <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-                <span className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                  Order Billing Summary
-                </span>
-                <span className="text-[12px] font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100">
-                  ₦{ratePerLitre.toLocaleString()}/L
+          {/* Fixed Sale Container on Desktop, toggled on mobile */}
+          <div className={`${isPricingDetailsOpen ? 'space-y-4' : 'hidden split:block split:space-y-4'} split:max-h-[calc(100vh-5rem)] split:overflow-y-auto split:pr-1`}>
+            {/* Customer Sale Ticket Card */}
+            <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+              
+              {/* Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800 flex items-center justify-center text-brand-600 dark:text-brand-400">
+                    <Receipt className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-heading font-bold text-[15px] text-slate-900 dark:text-white leading-tight">
+                      Customer Sale
+                    </h3>
+                    <p className="text-[11px] font-sans text-slate-500">Live Dispense & Sale Invoice</p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-full text-[11px] font-sans font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                  {selectedCustomer.type}
                 </span>
               </div>
 
-            <div className="space-y-2 text-[12px] font-mono tabular-nums">
-              <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span className="font-sans">Customer Tier:</span>
-                <span className="font-bold text-slate-900 dark:text-slate-200 capitalize">{selectedCustomer.type}</span>
-              </div>
-              <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span className="font-sans">Dispensed Volume:</span>
-                <span className="font-bold text-slate-900 dark:text-slate-200">{pricing.litres.toLocaleString()} L</span>
-              </div>
-              <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span className="font-sans">Price per {settings.litres_per_keg}L Keg:</span>
-                <span className="font-bold text-slate-900 dark:text-slate-200">{formatNaira(pricing.ratePerKeg)}</span>
+              {/* Customer Info Row */}
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-sans text-slate-500 uppercase tracking-wider">Customer</div>
+                  <div className="text-[14px] font-sans font-bold text-slate-900 dark:text-white truncate">
+                    {selectedCustomer.name}
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0 pl-2">
+                  <div className="text-[11px] font-sans text-slate-500 uppercase tracking-wider">Payment</div>
+                  <div className="text-[12px] font-sans font-bold text-slate-800 dark:text-slate-200 capitalize">
+                    {paymentMethod === 'credit' ? `Credit (${selectedCustomer.credit_term_days}d)` : paymentMethod}
+                  </div>
+                </div>
               </div>
 
-              {creditDueDate && (
-                <div className="flex justify-between text-amber-700 dark:text-amber-400 pt-1 border-t border-slate-100 dark:border-slate-800">
-                  <span className="flex items-center gap-1 font-sans">
-                    <Calendar className="w-3.5 h-3.5" /> Due Date ({selectedCustomer.credit_term_days}d):
+              {/* Sale Line Breakdown */}
+              <div className="space-y-2 text-[12px] font-mono tabular-nums">
+                <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+                  <span className="font-sans">Product</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-200">
+                    {selectedProduct.name}
                   </span>
-                  <span className="font-bold">{formatDepotDate(creditDueDate)}</span>
                 </div>
-              )}
-
-              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-between items-baseline font-sans">
-                <span className="text-[14px] font-bold text-slate-900 dark:text-white">Total Order Value:</span>
-                <span className="text-[32px] font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400">
-                  {formatNaira(pricing.amount)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Customer Credit Position Card */}
-          {customerStats && (
-            <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm">
-              <div className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Customer Ledger Position
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-[12px]">
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-                  <div className="text-[11px] font-sans text-slate-500">Current Balance</div>
-                  <div className="text-[16px] font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100 mt-0.5">
-                    {formatNaira(customerStats.currentBalance)}
-                  </div>
+                <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+                  <span className="font-sans">Volume Dispensed</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-200">
+                    {pricing.litres.toLocaleString()} L <span className="font-normal text-slate-500">({qty} {unit}{parseFloat(qty) !== 1 ? 's' : ''})</span>
+                  </span>
                 </div>
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-                  <div className="text-[11px] font-sans text-slate-500">Credit Limit</div>
-                  <div className="text-[16px] font-mono tabular-nums font-bold text-slate-700 dark:text-slate-300 mt-0.5">
-                    {formatNaira(selectedCustomer.credit_limit)}
-                  </div>
+                <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+                  <span className="font-sans">Price per Litre</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-200">
+                    ₦{ratePerLitre.toLocaleString()}/L
+                  </span>
                 </div>
-              </div>
-            </div>
-          )}
+                <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+                  <span className="font-sans">Rate per {settings.litres_per_keg}L Keg</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-200">
+                    {formatNaira(pricing.ratePerKeg)}
+                  </span>
+                </div>
 
-          {/* Active FIFO Tank Depletion Preview */}
-          {activeFifoTank && (
-            <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                  Target Tank (FIFO Sequence)
-                </span>
-                <span className="text-[11px] font-mono tabular-nums px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold">
-                  Oldest Active
-                </span>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <TankGauge
-                  productId={productId}
-                  remainingLitres={activeFifoTank.remaining_litres}
-                  totalCapacityLitres={15000}
-                  size="sm"
-                  showLabels={false}
-                />
-                <div className="space-y-1 text-[12px] font-sans">
-                  <div className="font-bold text-slate-900 dark:text-white truncate max-w-[180px]">
-                    {activeFifoTank.truck_label}
-                  </div>
-                  <div className="text-slate-500 text-[11px]">
-                    Stock in Tank: <span className="font-mono tabular-nums font-bold text-slate-800 dark:text-slate-200">{activeFifoTank.remaining_litres.toLocaleString()}L</span>
-                  </div>
-                  <div className="text-slate-500 text-[11px]">
-                    After Draw: <span className="font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100">
-                      {Math.max(0, activeFifoTank.remaining_litres - pricing.litres).toLocaleString()}L
+                {unit === 'keg' && (
+                  <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+                    <span className="font-sans">Keg Packaging</span>
+                    <span className="font-bold text-slate-900 dark:text-slate-200">
+                      {kegSource === 'company' ? 'Depot Yellow Kegs' : 'Customer Kegs'}
                     </span>
                   </div>
+                )}
+
+                {selectedPumpId && (
+                  <div className="flex justify-between items-center text-purple-700 dark:text-purple-400 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <span className="font-sans flex items-center gap-1">
+                      <Fuel className="w-3.5 h-3.5" /> Pump Line
+                    </span>
+                    <span className="font-bold">
+                      {pumps.find(p => p.id === selectedPumpId)?.label || 'Selected'}
+                    </span>
+                  </div>
+                )}
+
+                {creditDueDate && (
+                  <div className="flex justify-between items-center text-amber-700 dark:text-amber-400 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <span className="font-sans flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" /> Due Date ({selectedCustomer.credit_term_days}d):
+                    </span>
+                    <span className="font-bold">{formatDepotDate(creditDueDate)}</span>
+                  </div>
+                )}
+
+                {/* Prominent Total Sale Value Callout */}
+                <div className="pt-3 pb-1 border-t-2 border-dashed border-slate-200 dark:border-slate-800">
+                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                    <div>
+                      <div className="text-[11px] font-sans font-bold text-slate-500 uppercase tracking-wider">
+                        Total Sale Value
+                      </div>
+                      <div className="text-[28px] font-mono tabular-nums font-black text-emerald-600 dark:text-emerald-400 leading-tight mt-0.5">
+                        {formatNaira(pricing.amount)}
+                      </div>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Primary Action Button inside the Fixed Right Panel */}
+                <button
+                  type="button"
+                  onClick={() => submitOrder(overrideKegShortage, overrideCreditLimit)}
+                  className="w-full py-3.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] uppercase tracking-wider shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2 active:scale-98"
+                >
+                  <Receipt className="w-4 h-4 text-slate-950" />
+                  <span>Complete Sale & Issue Receipt</span>
+                </button>
               </div>
             </div>
-          )}
+
+            {/* Customer Ledger Position Card */}
+            {customerStats && (
+              <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 space-y-2.5 shadow-sm">
+                <div className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Customer Ledger Position
+                </div>
+                <div className="grid grid-cols-2 gap-2.5 text-[12px]">
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                    <div className="text-[11px] font-sans text-slate-500">Current Balance</div>
+                    <div className="text-[15px] font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100 mt-0.5">
+                      {formatNaira(customerStats.currentBalance)}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                    <div className="text-[11px] font-sans text-slate-500">Credit Limit</div>
+                    <div className="text-[15px] font-mono tabular-nums font-bold text-slate-700 dark:text-slate-300 mt-0.5">
+                      {formatNaira(selectedCustomer.credit_limit)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Active FIFO Tank Depletion Preview */}
+            {activeFifoTank && (
+              <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 space-y-2.5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Target Tank (FIFO Sequence)
+                  </span>
+                  <span className="text-[10px] font-mono tabular-nums px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold">
+                    Oldest Active
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <TankGauge
+                    productId={productId}
+                    remainingLitres={activeFifoTank.remaining_litres}
+                    totalCapacityLitres={15000}
+                    size="sm"
+                    showLabels={false}
+                  />
+                  <div className="space-y-0.5 text-[12px] font-sans">
+                    <div className="font-bold text-slate-900 dark:text-white truncate max-w-[180px]">
+                      {activeFifoTank.truck_label}
+                    </div>
+                    <div className="text-slate-500 text-[11px]">
+                      Stock in Tank: <span className="font-mono tabular-nums font-bold text-slate-800 dark:text-slate-200">{activeFifoTank.remaining_litres.toLocaleString()}L</span>
+                    </div>
+                    <div className="text-slate-500 text-[11px]">
+                      After Draw: <span className="font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100">
+                        {Math.max(0, activeFifoTank.remaining_litres - pricing.litres).toLocaleString()}L
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -979,7 +996,7 @@ export const NewOrderScreen: React.FC = () => {
               </div>
 
               <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-[12px]">
-                Discharging this order will exhaust yard safety reserves. Are you authorized by management to release these returnable containers?
+                Discharging this sale will exhaust yard safety reserves. Are you authorized by management to release these returnable containers?
               </p>
 
               <div className="pt-2 flex flex-col sm:flex-row gap-2">
@@ -1047,7 +1064,7 @@ export const NewOrderScreen: React.FC = () => {
                   </span>
                 </div>
                 <div className="flex justify-between font-mono tabular-nums">
-                  <span className="font-sans text-slate-600 dark:text-slate-400">This Order Value:</span>
+                  <span className="font-sans text-slate-600 dark:text-slate-400">This Sale Value:</span>
                   <span className="font-bold text-rose-600 dark:text-rose-400">+{formatNaira(pricing.amount)}</span>
                 </div>
                 <div className="flex justify-between font-mono tabular-nums border-t border-rose-200 dark:border-rose-900/60 pt-1.5">

@@ -44,7 +44,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       case 'intake':
         return 'Truck Intake & Tank Logging';
       case 'order':
-        return 'Counter Dispense & New Order';
+        return 'Counter Dispense & New Sale';
       case 'customers':
         return 'Customer Ledger & Credit Aging';
       case 'kegs':
