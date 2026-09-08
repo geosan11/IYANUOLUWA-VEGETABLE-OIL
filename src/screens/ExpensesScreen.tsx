@@ -20,8 +20,9 @@ export const ExpensesScreen: React.FC = () => {
   const [customCategory, setCustomCategory] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
   const [note, setNote] = useState<string>('');
+  const currentFloat = settings.default_daily_float ?? settings.daily_float ?? 150000;
   const [isEditingFloat, setIsEditingFloat] = useState(false);
-  const [editableFloat, setEditableFloat] = useState(settings.daily_float.toString());
+  const [editableFloat, setEditableFloat] = useState(currentFloat.toString());
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -36,7 +37,7 @@ export const ExpensesScreen: React.FC = () => {
 
   const handleSaveFloat = () => {
     const val = parseFloat(editableFloat) || 150000;
-    updateSettings({ daily_float: val });
+    updateSettings({ daily_float: val, default_daily_float: val });
     setIsEditingFloat(false);
   };
 

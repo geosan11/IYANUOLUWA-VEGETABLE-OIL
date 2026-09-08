@@ -1,7 +1,7 @@
 import React from 'react';
 import { useStore } from '../services/store';
 import { TankGauge } from '../components/common/TankGauge';
-import { formatNaira, formatDepotDate } from '../services/businessLogic';
+import { formatNaira, formatDepotDate, formatDepotTime } from '../services/businessLogic';
 import {
   DollarSign,
   CreditCard,
@@ -13,8 +13,10 @@ import {
   Clock,
   ShieldAlert,
   ArrowRight,
-  TrendingDown,
-  Droplet
+  Droplet,
+  Fuel,
+  Gauge,
+  CheckCircle2
 } from 'lucide-react';
 
 interface DashboardScreenProps {
@@ -27,14 +29,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     tankStockByProduct,
     activeAlerts,
     kegInventory,
-    tanks
+    tanks,
+    pumps,
+    pumpVarianceAudits,
+    orders,
+    settings
   } = useStore();
 
   const vegStock = tankStockByProduct['veg']?.totalLitres || 0;
   const redStock = tankStockByProduct['red']?.totalLitres || 0;
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-6 pb-20">
       {/* Top Welcome / Action Banner (Desktop & Mobile) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-white via-slate-50 to-brand-50/50 dark:from-slate-900 dark:via-slate-900/90 dark:to-brand-950/40 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div>
@@ -45,7 +53,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             </span>
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Volumetric tank inventory, credit aging ledger, and container tracking for Lagos operations.
+            Volumetric tank inventory, credit aging ledger, pump meter audit, and container tracking for Lagos operations.
           </p>
         </div>
 
@@ -68,7 +76,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         </div>
       </div>
 
-      {/* KPI Stat Grid (6 Metric Cards) */}
+      {/* KPI Stat Grid (6 Metric Cards - Mobile 2-col, Tablet 3-col, Desktop 6-col) */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3.5">
         {/* 1. Cash / Transfer Sales Today */}
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm">
@@ -107,12 +115,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           <div className="text-[10px] text-slate-400 mt-1">In customer custody</div>
         </div>
 
-        {/* 4. Kegs at Depot (Red if < 20) */}
+        {/* 4. Kegs at Depot (Red if < settings.kegs_at_depot_low_threshold) */}
         <div
           className={`p-4 rounded-2xl border transition-all shadow-sm ${
             kegInventory.isDepotStockCritical
               ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-600/60 shadow-rose-500/10 animate-pulse'
-              : 'bg-white dark:bg-slate-900/80 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+              : 'bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
@@ -142,7 +150,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
               kegInventory.isDepotStockCritical ? 'text-rose-700 dark:text-rose-300 font-bold' : 'text-slate-400'
             }`}
           >
-            {kegInventory.isDepotStockCritical ? 'CRITICAL: Stock < 20' : 'Physical yard inventory'}
+            {kegInventory.isDepotStockCritical ? `CRITICAL: Stock < ${settings.kegs_at_depot_low_threshold}` : 'Physical yard inventory'}
           </div>
         </div>
 
@@ -159,24 +167,113 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           <div className="text-[10px] text-slate-400 mt-1">Own containers today</div>
         </div>
 
-        {/* 6. Expenses Today */}
+        {/* 6. Spent Today / Float Status */}
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
             <span className="text-[11px] font-semibold uppercase tracking-wider">Expenses Today</span>
-            <TrendingDown className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+            <span className="w-2 h-2 rounded-full bg-rose-500" />
           </div>
           <div className="text-lg lg:text-xl font-mono font-black text-rose-600 dark:text-rose-400">
             {formatNaira(todayStats.expensesToday)}
           </div>
           <div className="text-[10px] text-slate-400 mt-1">
-            Float left: {formatNaira(todayStats.dailyFloatRemaining)}
+            Float: {formatNaira(todayStats.dailyFloatRemaining)}
           </div>
         </div>
       </div>
 
-      {/* Main Section: Product Tank Gauges (2-column on desktop) */}
+      {/* DEPOT PUMPS LIVE METER STATUS SECTION */}
+      <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-400">
+              <Fuel className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                Depot Dispense Pumps & Meter Audit Status
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Continuous odometer tracking to catch unlogged counter sales at the pump.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => onNavigate('order')}
+            className="text-xs font-bold text-purple-700 dark:text-purple-400 hover:underline flex items-center gap-1 self-start sm:self-auto"
+          >
+            <span>Record Pump Reading</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {pumps.map(pump => {
+            const isVeg = pump.product_id === 'veg';
+            
+            // Calculate total litres dispensed today on this pump
+            const todayPumpLitres = orders
+              .filter(o => {
+                const orderDateStr = o.date ? o.date.slice(0, 10) : '';
+                return orderDateStr === todayStr && o.pump_id === pump.id;
+              })
+              .reduce((sum, o) => sum + Number(o.litres || 0), 0);
+
+            // Check if there is any active variance alert on this pump
+            const pumpAudits = pumpVarianceAudits.filter(a => a.pumpId === pump.id);
+            const latestAudit = pumpAudits[pumpAudits.length - 1];
+            const hasAlert = latestAudit && latestAudit.isOverThreshold;
+
+            return (
+              <div
+                key={pump.id}
+                className={`p-4 rounded-xl border transition-all ${
+                  hasAlert
+                    ? 'bg-purple-50/50 dark:bg-purple-950/20 border-purple-400 dark:border-purple-800'
+                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800/80'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <span
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }}
+                    />
+                    <span>{pump.label}</span>
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    hasAlert
+                      ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-300'
+                      : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300'
+                  }`}>
+                    {hasAlert ? `Variance Alert (${latestAudit.variance > 0 ? '+' : ''}${latestAudit.variance}L)` : 'Meter Normal'}
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 text-xs font-mono">
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>Cumulative Meter:</span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100">
+                      {pump.last_meter_reading.toLocaleString()} L
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>Dispensed Today:</span>
+                    <span className="font-bold text-purple-700 dark:text-purple-400">
+                      {todayPumpLitres.toLocaleString()} L
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Volumetric Tanks Level Overview Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Vegetable Oil Active Tanks Overview */}
+        {/* Golden Vegetable Oil Active Tanks Overview */}
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 mb-4">
             <div className="flex items-center gap-3">
@@ -195,7 +292,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 {vegStock.toLocaleString()} L
               </span>
               <span className="text-[10px] text-slate-400 block">
-                ≈ {(vegStock / 30).toFixed(0)} Kegs
+                ≈ {(vegStock / settings.litres_per_keg).toFixed(0)} Kegs
               </span>
             </div>
           </div>
@@ -269,7 +366,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 {redStock.toLocaleString()} L
               </span>
               <span className="text-[10px] text-slate-400 block">
-                ≈ {(redStock / 30).toFixed(0)} Kegs
+                ≈ {(redStock / settings.litres_per_keg).toFixed(0)} Kegs
               </span>
             </div>
           </div>
@@ -325,7 +422,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         </div>
       </div>
 
-      {/* Split Alert Stream: THREE DISTINCT ALERT TYPES */}
+      {/* Split Alert Stream: FOUR DISTINCT ALERT TYPES (Desktop 4-col, Tablet 2-col, Mobile 1-col) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
@@ -339,14 +436,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           {/* Alert Stream 1: Overdue Credit Invoices */}
           <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5 mb-3">
                 <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-xs uppercase tracking-wider">
                   <Clock className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-                  <span>1. Overdue Credit Invoices</span>
+                  <span>1. Overdue Invoices</span>
                 </div>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30">
                   {activeAlerts.overdueCredit.length}
@@ -392,7 +489,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5 mb-3">
                 <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-bold text-xs uppercase tracking-wider">
                   <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                  <span>2. Credit Limit Breaches</span>
+                  <span>2. Credit Cap Breaches</span>
                 </div>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30">
                   {activeAlerts.overLimit.length}
@@ -432,13 +529,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             </div>
           </div>
 
-          {/* Alert Stream 3: Delivery Shortfall Flags (> 50L) */}
+          {/* Alert Stream 3: Delivery Shortfall Flags (> settings.truck_shortfall_threshold) */}
           <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5 mb-3">
                 <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-xs uppercase tracking-wider">
                   <Truck className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-                  <span>3. Delivery Shortfall (&gt; 50L)</span>
+                  <span>3. Truck Shortfall (&gt; {settings.truck_shortfall_threshold}L)</span>
                 </div>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30">
                   {activeAlerts.deliveryShortfall.length}
@@ -451,25 +548,71 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {activeAlerts.deliveryShortfall.map(alert => (
+                  {activeAlerts.deliveryShortfall.map((alert, idx) => (
                     <div
-                      key={alert.tank.id}
+                      key={idx}
                       onClick={() => onNavigate('intake')}
-                      className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-xs font-mono"
+                      className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-xs"
                     >
                       <div>
                         <div className="font-bold text-slate-900 dark:text-slate-200">{alert.tank.truck_label}</div>
-                        <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                        <div className="text-[10px] text-slate-500 font-mono">
                           {formatDepotDate(alert.tank.date)}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-bold text-rose-600 dark:text-rose-400">
-                          -{alert.shortfallLitres.toFixed(1)} L
+                        <div className="font-mono font-bold text-rose-600 dark:text-rose-400">
+                          -{alert.shortfallLitres} L
                         </div>
-                        <div className="text-[10px] text-rose-700 dark:text-rose-300 font-semibold">
-                          Loss / Shrinkage
+                        <span className="text-[10px] text-slate-500 flex items-center justify-end gap-0.5">
+                          Audit <ArrowRight className="w-2.5 h-2.5" />
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Alert Stream 4: Pump Meter Variance Audits (> settings.pump_variance_threshold) */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-purple-200 dark:border-purple-900/80 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between border-b border-purple-200 dark:border-purple-900/60 pb-2.5 mb-3">
+                <div className="flex items-center gap-2 text-purple-700 dark:text-purple-400 font-bold text-xs uppercase tracking-wider">
+                  <Gauge className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  <span>4. Pump Meter Variance</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-purple-100 dark:bg-purple-500/20 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-500/30">
+                  {activeAlerts.pumpVariance.length}
+                </span>
+              </div>
+
+              {activeAlerts.pumpVariance.length === 0 ? (
+                <p className="text-xs text-slate-400 py-3 text-center">
+                  All pump meter deltas align with logged orders.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {activeAlerts.pumpVariance.map((audit, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => onNavigate('order')}
+                      className="cursor-pointer p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900/50 hover:bg-purple-100 dark:hover:bg-purple-950/50 transition-colors flex items-center justify-between text-xs"
+                    >
+                      <div>
+                        <div className="font-bold text-purple-950 dark:text-purple-200">{audit.pumpLabel}</div>
+                        <div className="text-[10px] text-purple-700 dark:text-purple-400 font-mono">
+                          Meter: +{audit.meterDelta}L | Logged: {audit.expectedLitres}L
                         </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono font-bold text-purple-700 dark:text-purple-300">
+                          {audit.variance > 0 ? `+${audit.variance}` : audit.variance} L
+                        </div>
+                        <span className="text-[10px] text-slate-500 flex items-center justify-end gap-0.5">
+                          Audit <ArrowRight className="w-2.5 h-2.5" />
+                        </span>
                       </div>
                     </div>
                   ))}

@@ -359,6 +359,102 @@ export function applyFifoPayment(
 }
 
 /**
+ * 9. PUMP METER VARIANCE RECONCILIATION
+ * Each pump's meter only counts up (like an odometer, never resets).
+ * Between any two consecutive readings for the same pump (sorted by recorded_at ascending):
+ *   meter_delta = reading_2 - reading_1
+ *   expected_litres = sum of litres from all orders on that pump_id between the two recorded_at timestamps
+ *   variance = meter_delta - expected_litres
+ * Flag a variance alert when |variance| > thresholdLitres (default 20L).
+ */
+export function calculatePumpMeterVariance(
+  pump: { id: string; label: string; last_meter_reading: number },
+  readings: { id: string; pump_id: string; reading: number; recorded_at: string; note?: string }[],
+  orders: Order[],
+  thresholdLitres = 20
+): {
+  pumpId: string;
+  pumpLabel: string;
+  startReading: number;
+  endReading: number;
+  meterDelta: number;
+  expectedLitres: number;
+  variance: number;
+  isOverThreshold: boolean;
+  startDate: string;
+  endDate: string;
+  note?: string;
+}[] {
+  const pumpReadings = readings
+    .filter(r => r.pump_id === pump.id)
+    .sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime());
+
+  if (pumpReadings.length < 2) {
+    return [];
+  }
+
+  const audits = [];
+
+  for (let i = 0; i < pumpReadings.length - 1; i++) {
+    const r1 = pumpReadings[i];
+    const r2 = pumpReadings[i + 1];
+
+    const time1 = new Date(r1.recorded_at).getTime();
+    const time2 = new Date(r2.recorded_at).getTime();
+
+    const meterDelta = Number((r2.reading - r1.reading).toFixed(2));
+
+    // Sum litres from orders on this pump within the reading interval
+    const matchingOrders = orders.filter(o => {
+      if (o.pump_id !== pump.id) return false;
+      const orderTime = new Date(o.date).getTime();
+      return orderTime >= time1 && orderTime <= time2;
+    });
+
+    const expectedLitres = Number(
+      matchingOrders.reduce((sum, o) => sum + Number(o.litres || 0), 0).toFixed(2)
+    );
+
+    const variance = Number((meterDelta - expectedLitres).toFixed(2));
+    const isOverThreshold = Math.abs(variance) > thresholdLitres;
+
+    audits.push({
+      pumpId: pump.id,
+      pumpLabel: pump.label,
+      startReading: r1.reading,
+      endReading: r2.reading,
+      meterDelta,
+      expectedLitres,
+      variance,
+      isOverThreshold,
+      startDate: r1.recorded_at,
+      endDate: r2.recorded_at,
+      note: r2.note
+    });
+  }
+
+  return audits;
+}
+
+export function validateNewPumpReading(
+  newReading: number,
+  lastReading: number
+): { isValid: boolean; error?: string } {
+  const numNew = Number(newReading);
+  const numLast = Number(lastReading) || 0;
+  if (isNaN(numNew) || numNew <= 0) {
+    return { isValid: false, error: 'Please enter a valid positive meter reading' };
+  }
+  if (numNew < numLast) {
+    return {
+      isValid: false,
+      error: `Meter reading (${numNew}L) cannot be less than previous reading (${numLast}L). Pumps only count up.`
+    };
+  }
+  return { isValid: true };
+}
+
+/**
  * Format currency in Nigerian Naira (₦)
  */
 export function formatNaira(amount: number): string {
@@ -398,3 +494,4 @@ export function formatDepotTime(dateStr: string | null | undefined): string {
     return '';
   }
 }
+

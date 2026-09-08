@@ -113,7 +113,8 @@ const sampleOrders: Order[] = [
     keg_source: 'company',
     date: '2026-08-01T00:00:00Z',
     due_date: '2026-08-15T00:00:00Z', // 24 days overdue relative to 2026-09-08
-    source_tank_id: 'tank-1'
+    source_tank_id: 'tank-1',
+    pump_id: 'pump-1'
   },
   {
     id: 'o-2',
@@ -129,7 +130,8 @@ const sampleOrders: Order[] = [
     keg_source: 'company',
     date: '2026-09-01T00:00:00Z',
     due_date: '2026-09-15T00:00:00Z', // Due in 7 days
-    source_tank_id: 'tank-1'
+    source_tank_id: 'tank-1',
+    pump_id: 'pump-1'
   }
 ];
 
@@ -170,6 +172,79 @@ assert(kegSummary.totalKegsOut === 12, 'Keg Inventory: total out = 12');
 assert(kegSummary.kegsAtDepot === 488, 'Keg Inventory: depot stock = 488');
 assert(kegSummary.isDepotStockCritical === false, 'Keg Inventory: not critical (>20)');
 
+// 7. PUMP METER VARIANCE RECONCILIATION
+import { calculatePumpMeterVariance, validateNewPumpReading } from './businessLogic';
+
+const mockPump = {
+  id: 'p-test',
+  label: 'Test Pump 1',
+  last_meter_reading: 10500
+};
+
+const mockReadings = [
+  { id: 'pr-1', pump_id: 'p-test', reading: 10000, recorded_at: '2026-09-08T06:00:00Z' },
+  { id: 'pr-2', pump_id: 'p-test', reading: 10500, recorded_at: '2026-09-08T18:00:00Z' }
+];
+
+// Case A: Exact Match (450L dispensed and logged in orders -> 500L meter delta - 450L orders = 50L variance > 20L alert)
+const pumpOrdersVariance: Order[] = [
+  {
+    id: 'po-1',
+    customer_id: 'c-test',
+    product_id: 'veg',
+    unit: 'keg',
+    qty: 15,
+    litres: 450,
+    rate: 4800,
+    amount: 72000,
+    paid_amount: 72000,
+    payment_method: 'transfer',
+    keg_source: 'own',
+    date: '2026-09-08T10:00:00Z',
+    due_date: null,
+    source_tank_id: 'tank-1',
+    pump_id: 'p-test'
+  }
+];
+
+const auditA = calculatePumpMeterVariance(mockPump, mockReadings, pumpOrdersVariance, 20);
+assert(auditA.length === 1, 'Pump Reconciliation: produced 1 audit interval');
+assert(auditA[0].meterDelta === 500, 'Pump Reconciliation: meter delta is 500L (10500 - 10000)');
+assert(auditA[0].expectedLitres === 450, 'Pump Reconciliation: expected litres from logged orders is 450L');
+assert(auditA[0].variance === 50, 'Pump Reconciliation: variance is +50L');
+assert(auditA[0].isOverThreshold === true, 'Pump Reconciliation: flagged alert for 50L variance > 20L threshold');
+
+// Case B: Accurate Match (500L meter delta with 500L in orders -> 0 variance)
+const pumpOrdersExact: Order[] = [
+  ...pumpOrdersVariance,
+  {
+    id: 'po-2',
+    customer_id: 'c-test',
+    product_id: 'veg',
+    unit: 'litre',
+    qty: 50,
+    litres: 50,
+    rate: 4800,
+    amount: 240000,
+    paid_amount: 240000,
+    payment_method: 'cash',
+    keg_source: null,
+    date: '2026-09-08T14:00:00Z',
+    due_date: null,
+    source_tank_id: 'tank-1',
+    pump_id: 'p-test'
+  }
+];
+
+const auditB = calculatePumpMeterVariance(mockPump, mockReadings, pumpOrdersExact, 20);
+assert(auditB[0].variance === 0, 'Pump Reconciliation: variance is exactly 0L');
+assert(auditB[0].isOverThreshold === false, 'Pump Reconciliation: no alert for 0L variance');
+
+// Monotonic validation
+assert(validateNewPumpReading(10600, 10500).isValid === true, 'Pump Validation: higher reading passes');
+assert(validateNewPumpReading(10400, 10500).isValid === false, 'Pump Validation: lower reading fails (meters only count up)');
+
 console.log('====================================================');
 console.log(`TEST SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);
 console.log('====================================================');
+

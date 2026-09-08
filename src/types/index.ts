@@ -39,6 +39,35 @@ export interface Tank {
   shortfall: number;
 }
 
+export interface Pump {
+  id: string;
+  label: string;
+  product_id?: string;
+  last_meter_reading: number;
+}
+
+export interface PumpReading {
+  id: string;
+  pump_id: string;
+  reading: number;
+  recorded_at: string;
+  note?: string;
+}
+
+export interface PumpVarianceAudit {
+  pumpId: string;
+  pumpLabel: string;
+  startReading: number;
+  endReading: number;
+  meterDelta: number;
+  expectedLitres: number;
+  variance: number;
+  isOverThreshold: boolean;
+  startDate: string;
+  endDate: string;
+  note?: string;
+}
+
 export interface Order {
   id: string;
   customer_id: string;
@@ -54,6 +83,7 @@ export interface Order {
   date: string;
   due_date: string | null;
   source_tank_id: string | null;
+  pump_id: string | null;
   note?: string;
 }
 
@@ -73,12 +103,18 @@ export interface Expense {
 }
 
 export interface AppSettings {
-  total_company_kegs: number;
-  daily_float: number;
-  company_logo_url: string | null;
   company_name: string;
   company_phone: string;
   company_address: string;
+  company_logo_url: string | null;
+  litres_per_keg: number;
+  total_company_kegs: number;
+  kegs_at_depot_low_threshold: number;
+  low_stock_litres_threshold: number;
+  truck_shortfall_threshold: number;
+  pump_variance_threshold: number;
+  default_daily_float: number;
+  daily_float: number;
 }
 
 export interface KegInventorySummary {
@@ -138,6 +174,7 @@ export interface ReceiptData {
   order?: Order;
   product?: Product;
   tankLabel?: string;
+  pumpLabel?: string;
   paymentAmount?: number;
   paymentMethod: PaymentMethod;
   previousBalance: number;

@@ -49,7 +49,26 @@ CREATE TABLE IF NOT EXISTS tanks (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 5. ORDERS TABLE
+-- 5. PUMPS TABLE
+CREATE TABLE IF NOT EXISTS pumps (
+    id VARCHAR(32) PRIMARY KEY,
+    label VARCHAR(255) NOT NULL,
+    product_id VARCHAR(32) REFERENCES products(id) ON DELETE SET NULL,
+    last_meter_reading NUMERIC(14, 2) NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 6. PUMP READINGS TABLE
+CREATE TABLE IF NOT EXISTS pump_readings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    pump_id VARCHAR(32) REFERENCES pumps(id) ON DELETE CASCADE,
+    reading NUMERIC(14, 2) NOT NULL,
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    note TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. ORDERS TABLE
 CREATE TABLE IF NOT EXISTS orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     customer_id UUID REFERENCES customers(id) ON DELETE RESTRICT,
@@ -65,11 +84,12 @@ CREATE TABLE IF NOT EXISTS orders (
     date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     due_date TIMESTAMPTZ,
     source_tank_id UUID REFERENCES tanks(id) ON DELETE SET NULL,
+    pump_id VARCHAR(32) REFERENCES pumps(id) ON DELETE SET NULL,
     note TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. KEG RETURNS TABLE (Audit Log)
+-- 8. KEG RETURNS TABLE (Audit Log)
 CREATE TABLE IF NOT EXISTS keg_returns (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     customer_id UUID REFERENCES customers(id) ON DELETE RESTRICT,
@@ -78,7 +98,7 @@ CREATE TABLE IF NOT EXISTS keg_returns (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 7. EXPENSES TABLE
+-- 9. EXPENSES TABLE
 CREATE TABLE IF NOT EXISTS expenses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -88,7 +108,7 @@ CREATE TABLE IF NOT EXISTS expenses (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 8. SETTINGS TABLE
+-- 10. SETTINGS TABLE (Consolidated Key/Value Store)
 CREATE TABLE IF NOT EXISTS settings (
     key VARCHAR(64) PRIMARY KEY,
     value JSONB NOT NULL,
@@ -127,7 +147,7 @@ ON CONFLICT (id) DO UPDATE SET
     color_light = EXCLUDED.color_light,
     color_dark = EXCLUDED.color_dark;
 
--- Rate Cards
+-- Rate Cards (Product × Tier → Rate Per Litre)
 INSERT INTO rate_cards (product_id, tier, rate_per_litre) VALUES
 ('veg', 'retail', 5200.00),
 ('veg', 'agent', 4800.00),
@@ -137,6 +157,22 @@ INSERT INTO rate_cards (product_id, tier, rate_per_litre) VALUES
 ('red', 'corporate', 4800.00)
 ON CONFLICT (product_id, tier) DO UPDATE SET rate_per_litre = EXCLUDED.rate_per_litre;
 
+-- Depot Pumps
+INSERT INTO pumps (id, label, product_id, last_meter_reading) VALUES
+('p-1', 'Pump 1 (Golden Oil Line)', 'veg', 12450.00),
+('p-2', 'Pump 2 (Golden Oil Line)', 'veg', 8920.00),
+('p-3', 'Pump 3 (Palm Oil Line)', 'red', 5340.00)
+ON CONFLICT (id) DO NOTHING;
+
+-- Initial Pump Readings
+INSERT INTO pump_readings (pump_id, reading, recorded_at, note) VALUES
+('p-1', 11160.00, '2026-08-01T06:00:00Z', 'Monthly baseline calibration'),
+('p-1', 12450.00, '2026-09-08T07:00:00Z', 'Morning shift meter verification'),
+('p-2', 8920.00, '2026-09-08T07:00:00Z', 'Morning shift meter verification'),
+('p-3', 5040.00, '2026-09-07T06:00:00Z', 'Baseline palm oil meter reading'),
+('p-3', 5340.00, '2026-09-07T18:00:00Z', 'End of day reading')
+ON CONFLICT DO NOTHING;
+
 -- Sample Customers
 INSERT INTO customers (id, name, type, credit_limit, credit_term_days, phone) VALUES
 ('c0000000-0000-0000-0000-000000000001', 'Mr Samson', 'corporate', 300000.00, 30, '+2348031234567'),
@@ -145,12 +181,18 @@ INSERT INTO customers (id, name, type, credit_limit, credit_term_days, phone) VA
 ('c0000000-0000-0000-0000-000000000004', 'Lekki Agent', 'agent', 100000.00, 14, '+2348094567890')
 ON CONFLICT (id) DO NOTHING;
 
--- Initial Settings
+-- Consolidated Settings (Single Source of Truth)
 INSERT INTO settings (key, value) VALUES
+('litres_per_keg', '30'::jsonb),
 ('total_company_kegs', '500'::jsonb),
-('daily_float', '150000'::jsonb),
+('kegs_at_depot_low_threshold', '20'::jsonb),
+('low_stock_litres_threshold', '500'::jsonb),
+('truck_shortfall_threshold', '50'::jsonb),
+('pump_variance_threshold', '20'::jsonb),
+('default_daily_float', '150000'::jsonb),
 ('company_name', '"Iyanuoluwa Vegetable & Palm Oil Depot"'::jsonb),
 ('company_phone', '"+234 802 000 1122"'::jsonb),
 ('company_address', '"Plot 14, Commercial Avenue, Alaba Depot, Lagos"'::jsonb),
 ('company_logo_url', 'null'::jsonb)
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+

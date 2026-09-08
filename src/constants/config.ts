@@ -1,4 +1,4 @@
-import { Product, RateCard, Customer, AppSettings, Tank, Order, KegReturn, Expense } from '../types';
+import { Product, RateCard, Customer, AppSettings, Tank, Order, KegReturn, Expense, Pump, PumpReading } from '../types';
 
 export const LITRES_PER_KEG = 30;
 
@@ -26,6 +26,65 @@ export const DEFAULT_RATE_CARDS: RateCard[] = [
   { product_id: 'red', tier: 'retail', rate_per_litre: 5600 },
   { product_id: 'red', tier: 'agent', rate_per_litre: 5100 },
   { product_id: 'red', tier: 'corporate', rate_per_litre: 4800 }
+];
+
+export const DEFAULT_PUMPS: Pump[] = [
+  {
+    id: 'p-1',
+    label: 'Pump 1 (Golden Oil Line)',
+    product_id: 'veg',
+    last_meter_reading: 12450
+  },
+  {
+    id: 'p-2',
+    label: 'Pump 2 (Golden Oil Line)',
+    product_id: 'veg',
+    last_meter_reading: 8920
+  },
+  {
+    id: 'p-3',
+    label: 'Pump 3 (Palm Oil Line)',
+    product_id: 'red',
+    last_meter_reading: 5340
+  }
+];
+
+export const SEED_PUMP_READINGS: PumpReading[] = [
+  {
+    id: 'pr-1',
+    pump_id: 'p-1',
+    reading: 11160,
+    recorded_at: '2026-08-01T06:00:00Z',
+    note: 'Monthly baseline calibration'
+  },
+  {
+    id: 'pr-2',
+    pump_id: 'p-1',
+    reading: 12450,
+    recorded_at: '2026-09-08T07:00:00Z',
+    note: 'Morning shift meter verification'
+  },
+  {
+    id: 'pr-3',
+    pump_id: 'p-2',
+    reading: 8920,
+    recorded_at: '2026-09-08T07:00:00Z',
+    note: 'Morning shift meter verification'
+  },
+  {
+    id: 'pr-4',
+    pump_id: 'p-3',
+    reading: 5040,
+    recorded_at: '2026-09-07T06:00:00Z',
+    note: 'Baseline palm oil meter reading'
+  },
+  {
+    id: 'pr-5',
+    pump_id: 'p-3',
+    reading: 5340,
+    recorded_at: '2026-09-07T18:00:00Z',
+    note: 'End of day reading'
+  }
 ];
 
 export const DEFAULT_CUSTOMERS: Customer[] = [
@@ -64,12 +123,18 @@ export const DEFAULT_CUSTOMERS: Customer[] = [
 ];
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  total_company_kegs: 500,
-  daily_float: 150000,
-  company_logo_url: null,
   company_name: 'Iyanuoluwa Vegetable & Palm Oil Depot',
   company_phone: '+234 802 000 1122',
-  company_address: 'Plot 14, Commercial Avenue, Alaba Depot, Lagos'
+  company_address: 'Plot 14, Commercial Avenue, Alaba Depot, Lagos',
+  company_logo_url: null,
+  litres_per_keg: 30,
+  total_company_kegs: 500,
+  kegs_at_depot_low_threshold: 20,
+  low_stock_litres_threshold: 500,
+  truck_shortfall_threshold: 50,
+  pump_variance_threshold: 20,
+  default_daily_float: 150000,
+  daily_float: 150000
 };
 
 // Seed initial tanks to show working depot operation
@@ -123,6 +188,7 @@ export const SEED_ORDERS: Order[] = [
     date: '2026-08-01T10:00:00Z',
     due_date: '2026-08-31T10:00:00Z', // Overdue
     source_tank_id: 'tank-v1',
+    pump_id: 'p-1',
     note: 'Initial month batch'
   },
   {
@@ -140,6 +206,7 @@ export const SEED_ORDERS: Order[] = [
     date: '2026-08-28T14:30:00Z',
     due_date: '2026-09-11T14:30:00Z', // Due in 3 days
     source_tank_id: 'tank-v1',
+    pump_id: 'p-1',
     note: 'Depot dispatch'
   },
   {
@@ -157,6 +224,7 @@ export const SEED_ORDERS: Order[] = [
     date: '2026-09-07T09:15:00Z',
     due_date: null,
     source_tank_id: 'tank-r1',
+    pump_id: 'p-3',
     note: 'Customer brought own yellow jerrycans'
   },
   {
@@ -174,6 +242,7 @@ export const SEED_ORDERS: Order[] = [
     date: '2026-09-04T12:00:00Z',
     due_date: '2026-09-18T12:00:00Z', // Current
     source_tank_id: 'tank-v1',
+    pump_id: 'p-1',
     note: 'Fast agent restock'
   }
 ];

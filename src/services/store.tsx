@@ -14,18 +14,22 @@ import {
   ReceiptData,
   UnitType,
   PaymentMethod,
-  KegSource
+  KegSource,
+  Pump,
+  PumpReading,
+  PumpVarianceAudit
 } from '../types';
 import {
   DEFAULT_PRODUCTS,
   DEFAULT_RATE_CARDS,
   DEFAULT_CUSTOMERS,
   DEFAULT_SETTINGS,
+  DEFAULT_PUMPS,
+  SEED_PUMP_READINGS,
   SEED_TANKS,
   SEED_ORDERS,
   SEED_KEG_RETURNS,
-  SEED_EXPENSES,
-  LITRES_PER_KEG
+  SEED_EXPENSES
 } from '../constants/config';
 import {
   calculateCustomerStats,
@@ -35,7 +39,8 @@ import {
   lookupRatePerLitre,
   calculateOrderPricing,
   calculateIntakeMetrics,
-  calculateLitres
+  calculatePumpMeterVariance,
+  validateNewPumpReading
 } from './businessLogic';
 
 interface StoreContextType {
@@ -47,6 +52,8 @@ interface StoreContextType {
   kegReturns: KegReturn[];
   expenses: Expense[];
   settings: AppSettings;
+  pumps: Pump[];
+  pumpReadings: PumpReading[];
   userRole: UserRole;
   setUserRole: (role: UserRole) => void;
   theme: 'light' | 'dark';
@@ -57,10 +64,12 @@ interface StoreContextType {
   customerStatsMap: Record<string, CustomerCalculatedStats>;
   kegInventory: KegInventorySummary;
   tankStockByProduct: Record<string, { totalLitres: number; tanks: Tank[] }>;
+  pumpVarianceAudits: PumpVarianceAudit[];
   activeAlerts: {
     overdueCredit: { customer: Customer; overdueDays: number; amount: number }[];
     overLimit: { customer: Customer; balance: number; limit: number; excess: number }[];
     deliveryShortfall: { tank: Tank; shortfallLitres: number }[];
+    pumpVariance: PumpVarianceAudit[];
     totalAlertCount: number;
   };
   todayStats: {
@@ -89,6 +98,7 @@ interface StoreContextType {
     qty: number;
     paymentMethod: PaymentMethod;
     kegSource: KegSource;
+    pumpId?: string | null;
     note?: string;
   }) => { success: boolean; order?: Order; receipt?: ReceiptData; error?: string };
 
@@ -103,12 +113,20 @@ interface StoreContextType {
     qty: number
   ) => { success: boolean; kegReturn?: KegReturn; error?: string };
 
+  recordPumpReading: (
+    pumpId: string,
+    reading: number,
+    note?: string
+  ) => { success: boolean; pumpReading?: PumpReading; error?: string };
+
   addExpense: (
     category: string,
     amount: number,
     note?: string
   ) => { success: boolean; expense?: Expense; error?: string };
 
+  updateProduct: (productId: string, updates: Partial<Product>) => void;
+  updateRateCard: (productId: string, tier: string, ratePerLitre: number) => void;
   updateSettings: (newSettings: Partial<AppSettings>) => void;
   addCustomer: (customerData: Omit<Customer, 'id'>) => Customer;
   updateCustomer: (id: string, customerData: Partial<Customer>) => void;
@@ -124,16 +142,18 @@ interface StoreContextType {
 const StoreContext = createContext<StoreContextType | null>(null);
 
 const STORAGE_KEYS = {
-  PRODUCTS: 'iyanu_products_v1',
-  RATE_CARDS: 'iyanu_rate_cards_v1',
-  CUSTOMERS: 'iyanu_customers_v1',
-  TANKS: 'iyanu_tanks_v1',
-  ORDERS: 'iyanu_orders_v1',
-  KEG_RETURNS: 'iyanu_keg_returns_v1',
-  EXPENSES: 'iyanu_expenses_v1',
-  SETTINGS: 'iyanu_settings_v1',
-  USER_ROLE: 'iyanu_user_role_v1',
-  THEME: 'iyanu_theme_v1'
+  PRODUCTS: 'iyanu_products_v2',
+  RATE_CARDS: 'iyanu_rate_cards_v2',
+  CUSTOMERS: 'iyanu_customers_v2',
+  TANKS: 'iyanu_tanks_v2',
+  ORDERS: 'iyanu_orders_v2',
+  KEG_RETURNS: 'iyanu_keg_returns_v2',
+  EXPENSES: 'iyanu_expenses_v2',
+  SETTINGS: 'iyanu_settings_v2',
+  PUMPS: 'iyanu_pumps_v2',
+  PUMP_READINGS: 'iyanu_pump_readings_v2',
+  USER_ROLE: 'iyanu_user_role_v2',
+  THEME: 'iyanu_theme_v2'
 };
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -162,12 +182,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [theme]);
 
   // Load state from LocalStorage or seed defaults
-  const [products] = useState<Product[]>(() => {
+  const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
     return saved ? JSON.parse(saved) : DEFAULT_PRODUCTS;
   });
 
-  const [rateCards] = useState<RateCard[]>(() => {
+  const [rateCards, setRateCards] = useState<RateCard[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.RATE_CARDS);
     return saved ? JSON.parse(saved) : DEFAULT_RATE_CARDS;
   });
@@ -199,7 +219,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-    return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+    return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
+  });
+
+  const [pumps, setPumps] = useState<Pump[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.PUMPS);
+    return saved ? JSON.parse(saved) : DEFAULT_PUMPS;
+  });
+
+  const [pumpReadings, setPumpReadings] = useState<PumpReading[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.PUMP_READINGS);
+    return saved ? JSON.parse(saved) : SEED_PUMP_READINGS;
   });
 
   const [userRole, setUserRole] = useState<UserRole>(() => {
@@ -210,6 +240,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [activeReceipt, setActiveReceipt] = useState<ReceiptData | null>(null);
 
   // Sync to LocalStorage on change
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+  }, [products]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.RATE_CARDS, JSON.stringify(rateCards));
+  }, [rateCards]);
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
   }, [customers]);
@@ -235,23 +273,38 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [settings]);
 
   useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.PUMPS, JSON.stringify(pumps));
+  }, [pumps]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.PUMP_READINGS, JSON.stringify(pumpReadings));
+  }, [pumpReadings]);
+
+  useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.USER_ROLE, userRole);
   }, [userRole]);
 
-  // 1. Calculate per-customer statistics (dynamic balance, aging, kegs out)
+  // ==========================================
+  // COMPUTED BUSINESS LOGIC DERIVATIONS
+  // ==========================================
+
+  // 1. Customer stats map (aging badges, balances, kegs out)
   const customerStatsMap = useMemo(() => {
     const map: Record<string, CustomerCalculatedStats> = {};
-    const now = new Date();
-    customers.forEach(cust => {
-      map[cust.id] = calculateCustomerStats(cust, orders, kegReturns, now);
+    customers.forEach(c => {
+      map[c.id] = calculateCustomerStats(c, orders, kegReturns, new Date());
     });
     return map;
   }, [customers, orders, kegReturns]);
 
   // 2. Keg inventory summary (total company kegs, out, at depot)
   const kegInventory = useMemo(() => {
-    return calculateKegInventory(settings.total_company_kegs, orders, kegReturns);
-  }, [settings.total_company_kegs, orders, kegReturns]);
+    const summary = calculateKegInventory(settings.total_company_kegs, orders, kegReturns);
+    return {
+      ...summary,
+      isDepotStockCritical: summary.kegsAtDepot < settings.kegs_at_depot_low_threshold
+    };
+  }, [settings.total_company_kegs, settings.kegs_at_depot_low_threshold, orders, kegReturns]);
 
   // 3. Tank stock by product
   const tankStockByProduct = useMemo(() => {
@@ -267,11 +320,27 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return result;
   }, [products, tanks]);
 
-  // 4. Split 3-stream alerts
+  // 4. Pump variance audits
+  const pumpVarianceAudits = useMemo(() => {
+    const allAudits: PumpVarianceAudit[] = [];
+    pumps.forEach(pump => {
+      const audits = calculatePumpMeterVariance(
+        pump,
+        pumpReadings,
+        orders,
+        settings.pump_variance_threshold
+      );
+      allAudits.push(...audits);
+    });
+    return allAudits;
+  }, [pumps, pumpReadings, orders, settings.pump_variance_threshold]);
+
+  // 5. Split 4-stream alerts (Overdue Credit, Over Limit, Delivery Shortfall, Pump Variance)
   const activeAlerts = useMemo(() => {
     const overdueCredit: { customer: Customer; overdueDays: number; amount: number }[] = [];
     const overLimit: { customer: Customer; balance: number; limit: number; excess: number }[] = [];
     const deliveryShortfall: { tank: Tank; shortfallLitres: number }[] = [];
+    const pumpVariance = pumpVarianceAudits.filter(a => a.isOverThreshold);
 
     // Check customer credit alerts
     Object.values(customerStatsMap).forEach(stats => {
@@ -294,9 +363,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     });
 
-    // Check delivery shortfall alerts (> 50L) on recent tanks
+    // Check delivery shortfall alerts using settings threshold
     tanks.forEach(t => {
-      if (t.shortfall > 50) {
+      if (t.shortfall > settings.truck_shortfall_threshold) {
         deliveryShortfall.push({
           tank: t,
           shortfallLitres: t.shortfall
@@ -304,17 +373,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     });
 
-    const totalAlertCount = overdueCredit.length + overLimit.length + deliveryShortfall.length;
+    const totalAlertCount =
+      overdueCredit.length +
+      overLimit.length +
+      deliveryShortfall.length +
+      pumpVariance.length;
 
     return {
       overdueCredit,
       overLimit,
       deliveryShortfall,
+      pumpVariance,
       totalAlertCount
     };
-  }, [customerStatsMap, tanks]);
+  }, [customerStatsMap, tanks, settings.truck_shortfall_threshold, pumpVarianceAudits]);
 
-  // 5. Today's operational stats
+  // 6. Today's operational stats
   const todayStats = useMemo(() => {
     const todayStr = new Date().toISOString().slice(0, 10);
 
@@ -379,7 +453,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       data.actualKegs,
       data.leftoverLitres,
       kegInventory.kegsAtDepot,
-      LITRES_PER_KEG
+      settings.litres_per_keg
     );
 
     const newTank: Tank = {
@@ -397,7 +471,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true, tank: newTank };
   };
 
-  // 2. Create New Order with FIFO Tank Draw
+  // 2. Create New Order with FIFO Tank Draw & Pump assignment
   const createNewOrder = (data: {
     customerId: string;
     productId: string;
@@ -405,6 +479,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     qty: number;
     paymentMethod: PaymentMethod;
     kegSource: KegSource;
+    pumpId?: string | null;
     note?: string;
   }) => {
     const customer = customers.find(c => c.id === data.customerId);
@@ -414,7 +489,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!product) return { success: false, error: 'Product not found' };
 
     const ratePerLitre = lookupRatePerLitre(rateCards, data.productId, customer.type);
-    const pricing = calculateOrderPricing(data.unit, data.qty, ratePerLitre, LITRES_PER_KEG);
+    const pricing = calculateOrderPricing(data.unit, data.qty, ratePerLitre, settings.litres_per_keg);
 
     // 1. Execute FIFO Tank Draw
     const drawResult = executeFifoTankDraw(tanks, data.productId, pricing.litres);
@@ -436,6 +511,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       paidAmount = pricing.amount; // Cash / Transfer paid immediately
     }
 
+    const assignedPump = data.pumpId ? pumps.find(p => p.id === data.pumpId) : null;
+
     const newOrder: Order = {
       id: `ord-${Date.now()}`,
       customer_id: data.customerId,
@@ -451,32 +528,32 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       date: orderDate.toISOString(),
       due_date: dueDate,
       source_tank_id: drawResult.primaryTankId,
-      note: data.note
+      pump_id: data.pumpId || null,
+      note: data.note?.trim() || undefined
     };
 
-    // Apply updated tanks
+    // 3. Commit state updates
     setTanks(drawResult.updatedTanks);
-
-    // Append order
     setOrders(prev => [newOrder, ...prev]);
 
-    // Prepare Receipt Data
+    // 4. Generate Official Receipt
     const prevStats = customerStatsMap[customer.id];
     const previousBalance = prevStats ? prevStats.currentBalance : 0;
     const newBalance = data.paymentMethod === 'credit'
       ? previousBalance + pricing.amount
       : previousBalance;
 
-    const sourceTank = tanks.find(t => t.id === drawResult.primaryTankId);
+    const primaryAlloc = drawResult.allocations[0];
 
     const receipt: ReceiptData = {
       receiptNumber: `REC-${Date.now().toString().slice(-6)}`,
       type: 'order',
-      date: newOrder.date,
+      date: orderDate.toISOString(),
       customer,
       order: newOrder,
       product,
-      tankLabel: sourceTank?.truck_label || 'Depot Tanks (FIFO Draw)',
+      tankLabel: primaryAlloc ? primaryAlloc.truckLabel : undefined,
+      pumpLabel: assignedPump ? assignedPump.label : undefined,
       paymentMethod: data.paymentMethod,
       previousBalance,
       newBalance,
@@ -485,10 +562,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setActiveReceipt(receipt);
 
-    return { success: true, order: newOrder, receipt };
+    return {
+      success: true,
+      order: newOrder,
+      receipt
+    };
   };
 
-  // 3. Record Customer Payment with FIFO application
+  // 3. Record Customer Credit Payment (FIFO allocation)
   const recordCustomerPayment = (
     customerId: string,
     amount: number,
@@ -540,7 +621,32 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true, kegReturn: newReturn };
   };
 
-  // 5. Add Expense
+  // 5. Record Pump Reading (Audit Log)
+  const recordPumpReading = (pumpId: string, reading: number, note?: string) => {
+    const pump = pumps.find(p => p.id === pumpId);
+    if (!pump) return { success: false, error: 'Pump not found' };
+
+    const validation = validateNewPumpReading(reading, pump.last_meter_reading);
+    if (!validation.isValid) {
+      return { success: false, error: validation.error };
+    }
+
+    const newReading: PumpReading = {
+      id: `pr-${Date.now()}`,
+      pump_id: pumpId,
+      reading: Number(reading),
+      recorded_at: new Date().toISOString(),
+      note: note?.trim() || undefined
+    };
+
+    // Update pump's last_meter_reading
+    setPumps(prev => prev.map(p => (p.id === pumpId ? { ...p, last_meter_reading: Number(reading) } : p)));
+    setPumpReadings(prev => [...prev, newReading]);
+
+    return { success: true, pumpReading: newReading };
+  };
+
+  // 6. Add Expense
   const addExpense = (category: string, amount: number, note?: string) => {
     const newExpense: Expense = {
       id: `exp-${Date.now()}`,
@@ -554,12 +660,29 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true, expense: newExpense };
   };
 
-  // 6. Update Settings
+  // 7. Update Product (e.g. litres_per_ton)
+  const updateProduct = (productId: string, updates: Partial<Product>) => {
+    setProducts(prev => prev.map(p => (p.id === productId ? { ...p, ...updates } : p)));
+  };
+
+  // 8. Update Rate Card
+  const updateRateCard = (productId: string, tier: string, ratePerLitre: number) => {
+    setRateCards(prev => {
+      const exists = prev.some(r => r.product_id === productId && r.tier === tier);
+      if (exists) {
+        return prev.map(r => (r.product_id === productId && r.tier === tier ? { ...r, rate_per_litre: Number(ratePerLitre) } : r));
+      } else {
+        return [...prev, { product_id: productId, tier: tier as any, rate_per_litre: Number(ratePerLitre) }];
+      }
+    });
+  };
+
+  // 9. Update Settings
   const updateSettings = (newSettings: Partial<AppSettings>) => {
     setSettings(prev => ({ ...prev, ...newSettings }));
   };
 
-  // 7. Add Customer
+  // 10. Add Customer
   const addCustomer = (customerData: Omit<Customer, 'id'>) => {
     const newCust: Customer = {
       ...customerData,
@@ -569,19 +692,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return newCust;
   };
 
-  // 8. Update Customer
+  // 11. Update Customer
   const updateCustomer = (id: string, customerData: Partial<Customer>) => {
     setCustomers(prev => prev.map(c => (c.id === id ? { ...c, ...customerData } : c)));
   };
 
-  // 9. Reset to default demo seed data
+  // 12. Reset to default demo seed data
   const resetToSeedData = () => {
+    setProducts(DEFAULT_PRODUCTS);
+    setRateCards(DEFAULT_RATE_CARDS);
     setCustomers(DEFAULT_CUSTOMERS);
     setTanks(SEED_TANKS);
     setOrders(SEED_ORDERS);
     setKegReturns(SEED_KEG_RETURNS);
     setExpenses(SEED_EXPENSES);
     setSettings(DEFAULT_SETTINGS);
+    setPumps(DEFAULT_PUMPS);
+    setPumpReadings(SEED_PUMP_READINGS);
     localStorage.clear();
   };
 
@@ -596,6 +723,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         kegReturns,
         expenses,
         settings,
+        pumps,
+        pumpReadings,
         userRole,
         setUserRole,
         theme,
@@ -604,13 +733,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         customerStatsMap,
         kegInventory,
         tankStockByProduct,
+        pumpVarianceAudits,
         activeAlerts,
         todayStats,
         logTruckIntake,
         createNewOrder,
         recordCustomerPayment,
         logKegReturn,
+        recordPumpReading,
         addExpense,
+        updateProduct,
+        updateRateCard,
         updateSettings,
         addCustomer,
         updateCustomer,
