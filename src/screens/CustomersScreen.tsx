@@ -30,6 +30,7 @@ export const CustomersScreen: React.FC = () => {
     customerStatsMap,
     transfers,
     recordCustomerPayment,
+    redeemCustomerCredit,
     logTransfer,
     addCustomer
   } = useStore();
@@ -67,7 +68,6 @@ export const CustomersScreen: React.FC = () => {
   // Inter-Customer Transfer State
   const [transferFromCustomerId, setTransferFromCustomerId] = useState<string | null>(null);
   const [transferToCustomerId, setTransferToCustomerId] = useState<string>('');
-  const [transferItemType, setTransferItemType] = useState<'keg' | 'bulk_litres'>('keg');
   const [transferQty, setTransferQty] = useState<string>('5');
   const [transferNotes, setTransferNotes] = useState<string>('');
   const [transferError, setTransferError] = useState<string | null>(null);
@@ -76,7 +76,6 @@ export const CustomersScreen: React.FC = () => {
     setTransferFromCustomerId(fromCustomer.id);
     const other = customers.find(c => c.id !== fromCustomer.id);
     setTransferToCustomerId(other ? other.id : '');
-    setTransferItemType('keg');
     setTransferQty('5');
     setTransferNotes('');
     setTransferError(null);
@@ -94,7 +93,7 @@ export const CustomersScreen: React.FC = () => {
     const res = logTransfer({
       fromCustomerId: transferFromCustomerId,
       toCustomerId: transferToCustomerId,
-      itemType: transferItemType,
+      itemType: 'keg',
       qty: numQty,
       notes: transferNotes.trim() || undefined
     });
@@ -538,6 +537,39 @@ export const CustomersScreen: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Store credit banner (money the depot owes this customer from overpayments) */}
+                {(activeStats?.creditBalance || 0) > 0 && (
+                  <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                        Store credit
+                      </div>
+                      <div className="text-[16px] font-mono tabular-nums font-bold text-emerald-700 dark:text-emerald-300">
+                        {formatNaira(activeStats?.creditBalance || 0)} in credit
+                      </div>
+                    </div>
+                    {(activeStats?.currentBalance || 0) > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const apply = Math.min(activeStats!.creditBalance, activeStats!.currentBalance);
+                          const res = redeemCustomerCredit(activeCustomer.id, apply);
+                          if (res.success) {
+                            setInlineFeedback(`${formatNaira(apply)} store credit applied to ${activeCustomer.name}'s invoices.`);
+                            setInlineError(null);
+                            setTimeout(() => setInlineFeedback(null), 4000);
+                          } else {
+                            setInlineError(res.error || 'Could not apply store credit.');
+                          }
+                        }}
+                        className="shrink-0 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[12px] font-sans font-bold shadow-sm transition-all active:scale-95"
+                      >
+                        Apply to invoices
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {/* Quick In-Panel Payment Form */}
                 <div className="p-4 rounded-xl bg-brand-50/30 dark:bg-brand-950/20 border border-brand-200/80 dark:border-brand-900/40 space-y-3">
                   <div className="flex items-center justify-between">
@@ -711,7 +743,7 @@ export const CustomersScreen: React.FC = () => {
                               {isSender ? `Sent to ${counterparty}` : `Received from ${counterparty}`}
                             </div>
                             <div className="text-[11px] text-slate-500 font-mono">
-                              {formatDepotDate(tr.date)} · {tr.item_type === 'keg' ? 'Company Kegs' : 'Bulk Litres'}
+                              {formatDepotDate(tr.date)} · Company Kegs
                             </div>
                           </div>
                           <span className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold ${
@@ -719,7 +751,7 @@ export const CustomersScreen: React.FC = () => {
                               ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'
                               : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
                           }`}>
-                            {isSender ? '-' : '+'}{tr.qty} {tr.item_type === 'keg' ? 'kegs' : 'L'}
+                            {isSender ? '-' : '+'}{tr.qty} kegs
                           </span>
                         </div>
                       );
@@ -1033,43 +1065,14 @@ export const CustomersScreen: React.FC = () => {
                   </select>
                 </div>
 
-                {/* Item Type Toggle */}
-                <div className="space-y-1">
-                  <label className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Item Type</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setTransferItemType('keg')}
-                      className={`py-2 rounded-xl border text-[12px] font-sans font-bold transition-all ${
-                        transferItemType === 'keg'
-                          ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
-                          : 'bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                      }`}
-                    >
-                      Company Kegs
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTransferItemType('bulk_litres')}
-                      className={`py-2 rounded-xl border text-[12px] font-sans font-bold transition-all ${
-                        transferItemType === 'bulk_litres'
-                          ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
-                          : 'bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                      }`}
-                    >
-                      Bulk Litres
-                    </button>
-                  </div>
-                </div>
-
                 {/* Quantity */}
                 <div className="space-y-1">
                   <label className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    Quantity ({transferItemType === 'keg' ? 'Kegs' : 'Litres'})
+                    Quantity (Company Kegs)
                   </label>
                   <input
                     type="number"
-                    step={transferItemType === 'keg' ? '1' : '10'}
+                    step="1"
                     min="1"
                     value={transferQty}
                     onChange={e => setTransferQty(e.target.value)}
@@ -1152,6 +1155,28 @@ export const CustomersScreen: React.FC = () => {
                   </span>
                 </div>
               </div>
+
+              {/* Store credit (from overpayments) */}
+              {(stats?.creditBalance || 0) > 0 && (
+                <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800 flex items-center justify-between gap-3 text-[12px]">
+                  <span className="font-sans font-semibold text-emerald-700 dark:text-emerald-300">
+                    {formatNaira(stats?.creditBalance || 0)} in store credit
+                  </span>
+                  {currentBal > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const apply = Math.min(stats!.creditBalance, currentBal);
+                        redeemCustomerCredit(selectedCustomerForSheet.id, apply);
+                        setSelectedCustomerForSheet(null);
+                      }}
+                      className="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-sans font-bold active:scale-95"
+                    >
+                      Apply to invoices
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Action Buttons Strip */}
               <div className="grid grid-cols-2 gap-2 text-[13px] font-sans font-bold">

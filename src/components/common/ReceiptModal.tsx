@@ -161,8 +161,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
               </div>
               
               {receipt.unappliedLeftover && receipt.unappliedLeftover > 0 ? (
-                <div className="text-[12px] font-mono tabular-nums text-amber-800 bg-amber-50 p-2 rounded border border-amber-200 mt-2">
-                  <span className="font-bold font-sans">Note:</span> ₦{receipt.unappliedLeftover.toLocaleString()} was not applied as all open credit invoices are fully settled.
+                <div className="text-[12px] font-mono tabular-nums text-emerald-800 bg-emerald-50 p-2 rounded border border-emerald-200 mt-2">
+                  <span className="font-bold font-sans">Note:</span> {formatNaira(receipt.unappliedLeftover)} added to this customer's store credit (all open invoices are fully settled).
                 </div>
               ) : null}
             </div>

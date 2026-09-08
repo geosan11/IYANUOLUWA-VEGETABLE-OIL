@@ -268,7 +268,7 @@ export const NewOrderScreen: React.FC = () => {
         {/* LEFT COLUMN: SALE ENTRY FORM (60% - 3 cols) */}
         <form
           onSubmit={handleSubmit}
-          className="split:col-span-3 p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm"
+          className="split:col-span-3 p-6 rounded-2xl bg-rough-paper border border-stone-300/90 dark:border-slate-800 space-y-5 shadow-md"
         >
           {errorMessage && (
             <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-300 text-xs flex items-center gap-2 animate-in fade-in">
@@ -286,7 +286,7 @@ export const NewOrderScreen: React.FC = () => {
             <select
               value={customerId}
               onChange={e => setCustomerId(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-sans font-semibold text-[14px] focus:outline-none focus:border-brand-500"
+              className="w-full px-4 py-3 rounded-xl bg-white/95 dark:bg-slate-950 border border-stone-300/90 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-sans font-semibold text-[14px] focus:outline-none focus:border-brand-500 shadow-xs"
             >
               {customers.map(c => (
                 <option key={c.id} value={c.id}>
@@ -804,7 +804,7 @@ export const NewOrderScreen: React.FC = () => {
         {/* RIGHT COLUMN: FIXED CUSTOMER SALE CONTAINER (40% - 2 COLS AT ≥900px) */}
         <div className="split:col-span-2 split:sticky split:top-4 split:self-start space-y-4">
           {/* Mobile Accordion Toggle (<900px only) */}
-          <div className="split:hidden p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+          <div className="split:hidden p-4 rounded-2xl bg-rough-paper border border-stone-300/90 dark:border-slate-800 shadow-md flex items-center justify-between">
             <div>
               <div className="text-[11px] font-sans text-slate-500 uppercase tracking-wider font-semibold">
                 Customer Sale Total
@@ -816,7 +816,7 @@ export const NewOrderScreen: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsPricingDetailsOpen(!isPricingDetailsOpen)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[12px] font-sans font-bold border border-slate-200 dark:border-slate-700 active:scale-95 transition-all"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/90 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[12px] font-sans font-bold border border-stone-300 dark:border-slate-700 active:scale-95 transition-all shadow-xs"
             >
               <span>{isPricingDetailsOpen ? 'Hide Sale Details' : 'View Sale Details'}</span>
               {isPricingDetailsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -826,10 +826,10 @@ export const NewOrderScreen: React.FC = () => {
           {/* Fixed Sale Container on Desktop, toggled on mobile */}
           <div className={`${isPricingDetailsOpen ? 'space-y-4' : 'hidden split:block split:space-y-4'} split:max-h-[calc(100vh-5rem)] split:overflow-y-auto split:pr-1`}>
             {/* Customer Sale Ticket Card */}
-            <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+            <div className="p-5 rounded-2xl bg-rough-paper border border-stone-300/90 dark:border-slate-800 shadow-md space-y-4">
               
               {/* Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-300/70 dark:border-slate-800">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800 flex items-center justify-center text-brand-600 dark:text-brand-400">
                     <Receipt className="w-4 h-4" />
@@ -841,13 +841,13 @@ export const NewOrderScreen: React.FC = () => {
                     <p className="text-[11px] font-sans text-slate-500">Live Dispense & Sale Invoice</p>
                   </div>
                 </div>
-                <span className="px-2.5 py-1 rounded-full text-[11px] font-sans font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                <span className="px-2.5 py-1 rounded-full text-[11px] font-sans font-bold uppercase tracking-wider bg-white/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-stone-300 dark:border-slate-700">
                   {selectedCustomer.type}
                 </span>
               </div>
 
               {/* Customer Info Row */}
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-950 border border-stone-200/90 dark:border-slate-800 flex items-center justify-between shadow-xs">
                 <div className="min-w-0 flex-1">
                   <div className="text-[11px] font-sans text-slate-500 uppercase tracking-wider">Customer</div>
                   <div className="text-[14px] font-sans font-bold text-slate-900 dark:text-white truncate">
@@ -919,8 +919,8 @@ export const NewOrderScreen: React.FC = () => {
                 )}
 
                 {/* Prominent Total Sale Value Callout */}
-                <div className="pt-3 pb-1 border-t-2 border-dashed border-slate-200 dark:border-slate-800">
-                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div className="pt-3 pb-1 border-t-2 border-dashed border-stone-300/80 dark:border-slate-800">
+                  <div className="p-3.5 rounded-xl bg-white/95 dark:bg-slate-950 border border-stone-200/90 dark:border-slate-800 flex items-center justify-between shadow-xs">
                     <div>
                       <div className="text-[11px] font-sans font-bold text-slate-500 uppercase tracking-wider">
                         Total Sale Value
@@ -946,18 +946,18 @@ export const NewOrderScreen: React.FC = () => {
 
             {/* Customer Ledger Position Card */}
             {customerStats && (
-              <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 space-y-2.5 shadow-sm">
+              <div className="p-4 rounded-2xl bg-rough-paper border border-stone-300/90 dark:border-slate-800 space-y-2.5 shadow-md">
                 <div className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
                   Customer Ledger Position
                 </div>
                 <div className="grid grid-cols-2 gap-2.5 text-[12px]">
-                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                  <div className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-950 border border-stone-200/90 dark:border-slate-800 shadow-xs">
                     <div className="text-[11px] font-sans text-slate-500">Current Balance</div>
                     <div className="text-[15px] font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100 mt-0.5">
                       {formatNaira(customerStats.currentBalance)}
                     </div>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                  <div className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-950 border border-stone-200/90 dark:border-slate-800 shadow-xs">
                     <div className="text-[11px] font-sans text-slate-500">Credit Limit</div>
                     <div className="text-[15px] font-mono tabular-nums font-bold text-slate-700 dark:text-slate-300 mt-0.5">
                       {formatNaira(selectedCustomer.credit_limit)}
@@ -969,17 +969,17 @@ export const NewOrderScreen: React.FC = () => {
 
             {/* Active FIFO Tank Depletion Preview */}
             {activeFifoTank && (
-              <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 space-y-2.5 shadow-sm">
+              <div className="p-4 rounded-2xl bg-rough-paper border border-stone-300/90 dark:border-slate-800 space-y-2.5 shadow-md">
                 <div className="flex items-center justify-between">
                   <span className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
                     Target Tank (FIFO Sequence)
                   </span>
-                  <span className="text-[10px] font-mono tabular-nums px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold">
+                  <span className="text-[10px] font-mono tabular-nums px-2 py-0.5 rounded bg-white/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold border border-stone-200 dark:border-slate-700">
                     Oldest Active
                   </span>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 p-2.5 rounded-xl bg-white/80 dark:bg-slate-950/60 border border-stone-200/80 dark:border-slate-800/80">
                   <TankGauge
                     productId={productId}
                     remainingLitres={activeFifoTank.remaining_litres}

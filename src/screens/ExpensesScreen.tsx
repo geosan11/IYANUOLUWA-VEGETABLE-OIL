@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
-import { formatNaira, formatDepotTime, formatDepotDate } from '../services/businessLogic';
+import { formatNaira, formatDepotTime, formatDepotDate, getDepotToday, depotDateKey } from '../services/businessLogic';
 import { EXPENSE_CATEGORIES } from '../constants/config';
 import {
   ReceiptText,
@@ -24,10 +24,11 @@ export const ExpensesScreen: React.FC = () => {
   const [isEditingFloat, setIsEditingFloat] = useState(false);
   const [editableFloat, setEditableFloat] = useState(currentFloat.toString());
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getDepotToday();
   const todayExpenses = useMemo(() => {
-    return expenses.filter(e => (e.date ? e.date.slice(0, 10) : '') === todayStr);
+    return expenses.filter(e => depotDateKey(e.date) === todayStr);
   }, [expenses, todayStr]);
 
   const handleQuickAddAmount = (addValue: number) => {
@@ -43,8 +44,12 @@ export const ExpensesScreen: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null);
     const numAmount = parseFloat(amount) || 0;
-    if (numAmount <= 0) return;
+    if (numAmount <= 0) {
+      setErrorMsg('Enter an amount greater than zero.');
+      return;
+    }
 
     const finalCategory = customCategory.trim() ? customCategory.trim() : category;
 
@@ -55,6 +60,8 @@ export const ExpensesScreen: React.FC = () => {
       setNote('');
       setCustomCategory('');
       setTimeout(() => setSuccessMsg(null), 4000);
+    } else {
+      setErrorMsg(result.error || 'Could not log the expense.');
     }
   };
 
@@ -77,6 +84,13 @@ export const ExpensesScreen: React.FC = () => {
         <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300 text-[12px] font-sans font-semibold flex items-center gap-2 animate-in fade-in">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
           <span>{successMsg}</span>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-300 text-[12px] font-sans font-semibold flex items-center gap-2 animate-in fade-in">
+          <TrendingDown className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />
+          <span>{errorMsg}</span>
         </div>
       )}
 

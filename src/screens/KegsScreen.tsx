@@ -52,6 +52,7 @@ export const KegsScreen: React.FC = () => {
   const [isAllGateHistoryOpen, setIsAllGateHistoryOpen] = useState(false);
   const [returnCustomerInputs, setReturnCustomerInputs] = useState<Record<string, string>>({});
   const [logSuccessMsg, setLogSuccessMsg] = useState<string | null>(null);
+  const [logErrorMsg, setLogErrorMsg] = useState<string | null>(null);
 
   // Helper to compute stats for any customer
   const getCustStats = (custId: string) => {
@@ -168,12 +169,15 @@ export const KegsScreen: React.FC = () => {
     const qty = parseInt(qtyStr, 10) || 0;
     if (qty <= 0) return;
 
+    setLogErrorMsg(null);
     const result = logKegReturn(customerId, qty);
     if (result.success) {
       setReturnCustomerInputs(prev => ({ ...prev, [customerId]: '' }));
       const cust = customers.find(c => c.id === customerId);
       setLogSuccessMsg(`Successfully logged ${qty} keg returns from ${cust?.name}!`);
       setTimeout(() => setLogSuccessMsg(null), 4000);
+    } else {
+      setLogErrorMsg(result.error || 'Could not log the keg return.');
     }
   };
 
@@ -183,12 +187,15 @@ export const KegsScreen: React.FC = () => {
     const qty = parseInt(detailReturnQty, 10) || 0;
     if (qty <= 0) return;
 
+    setLogErrorMsg(null);
     const result = logKegReturn(activeCustomer.id, qty);
     if (result.success) {
       setDetailReturnFeedback(`Logged ${qty} keg returns from ${activeCustomer.name}`);
       setTimeout(() => setDetailReturnFeedback(null), 4000);
       setDetailReturnQty('1');
       setDetailReturnNotes('');
+    } else {
+      setLogErrorMsg(result.error || 'Could not log the keg return.');
     }
   };
 
@@ -267,6 +274,13 @@ export const KegsScreen: React.FC = () => {
         <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300 text-[12px] font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
           <span>{logSuccessMsg}</span>
+        </div>
+      )}
+
+      {logErrorMsg && (
+        <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-300 text-[12px] font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
+          <span>{logErrorMsg}</span>
+          <button type="button" onClick={() => setLogErrorMsg(null)} className="ml-auto text-rose-500 hover:text-rose-700 dark:hover:text-rose-200">✕</button>
         </div>
       )}
 

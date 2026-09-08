@@ -54,7 +54,7 @@ const MainLayout: React.FC = () => {
         />
 
         {/* Scrollable Screen Content Container */}
-        <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-8 bg-slate-50/50 dark:bg-slate-950">
+        <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-8 bg-slate-100/80 dark:bg-slate-950">
           <div className="max-w-7xl mx-auto">
             {renderActiveScreen()}
           </div>

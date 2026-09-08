@@ -105,12 +105,21 @@ export interface Transfer {
   id: string;
   from_customer_id: string;
   to_customer_id: string;
-  item_type: 'keg' | 'litres' | 'bulk_litres';
+  item_type: 'keg';
   qty: number;
   product_id?: string | null;
   date: string;
   note?: string;
   notes?: string;
+}
+
+export interface CustomerCredit {
+  id: string;
+  customer_id: string;
+  amount: number; // positive = credit added (overpayment), negative = credit redeemed
+  source_payment_id?: string | null;
+  created_at: string;
+  note?: string;
 }
 
 export interface TankDipstickReading {
@@ -177,6 +186,7 @@ export interface KegInventorySummary {
 export interface CustomerCalculatedStats {
   customer: Customer;
   currentBalance: number;
+  creditBalance: number; // store credit the depot owes this customer (from overpayments)
   totalCompanyKegsOut: number;
   agingBadge: {
     status: 'overdue' | 'due_soon' | 'current';

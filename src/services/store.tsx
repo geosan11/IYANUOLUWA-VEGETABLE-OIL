@@ -19,6 +19,7 @@ import {
   PumpReading,
   PumpVarianceAudit,
   Transfer,
+  CustomerCredit,
   TankDipstickReading,
   Shift
 } from '../types';
@@ -49,7 +50,10 @@ import {
   validateNewPumpReading,
   calculatePerOrderMeterVariance,
   calculateDipstickVariance,
-  calculateShiftSummary
+  calculateShiftSummary,
+  computeShiftCash,
+  getDepotToday,
+  depotDateKey
 } from './businessLogic';
 
 interface StoreContextType {
@@ -64,6 +68,7 @@ interface StoreContextType {
   pumps: Pump[];
   pumpReadings: PumpReading[];
   transfers: Transfer[];
+  customerCredits: CustomerCredit[];
   dipstickReadings: TankDipstickReading[];
   shifts: Shift[];
   activeShift: Shift | null;
@@ -125,6 +130,11 @@ interface StoreContextType {
     paymentMethod: PaymentMethod
   ) => { success: boolean; receipt?: ReceiptData; error?: string };
 
+  redeemCustomerCredit: (
+    customerId: string,
+    amount: number
+  ) => { success: boolean; receipt?: ReceiptData; error?: string };
+
   logKegReturn: (
     customerId: string,
     qty: number
@@ -133,7 +143,7 @@ interface StoreContextType {
   logTransfer: (data: {
     fromCustomerId: string;
     toCustomerId: string;
-    itemType: 'keg' | 'bulk_litres';
+    itemType: 'keg';
     qty: number;
     notes?: string;
   }) => { success: boolean; transfer?: Transfer; error?: string };
@@ -196,6 +206,7 @@ const STORAGE_KEYS = {
   PUMPS: 'iyanu_pumps_v2',
   PUMP_READINGS: 'iyanu_pump_readings_v2',
   TRANSFERS: 'iyanu_transfers_v2',
+  CUSTOMER_CREDITS: 'iyanu_customer_credits_v2',
   DIPSTICK_READINGS: 'iyanu_dipstick_readings_v2',
   SHIFTS: 'iyanu_shifts_v2',
   USER_ROLE: 'iyanu_user_role_v2',
@@ -283,6 +294,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return saved ? JSON.parse(saved) : SEED_TRANSFERS;
   });
 
+  const [customerCredits, setCustomerCredits] = useState<CustomerCredit[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMER_CREDITS);
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [dipstickReadings, setDipstickReadings] = useState<TankDipstickReading[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.DIPSTICK_READINGS);
     return saved ? JSON.parse(saved) : SEED_DIPSTICK_READINGS;
@@ -346,6 +362,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [transfers]);
 
   useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.CUSTOMER_CREDITS, JSON.stringify(customerCredits));
+  }, [customerCredits]);
+
+  useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.DIPSTICK_READINGS, JSON.stringify(dipstickReadings));
   }, [dipstickReadings]);
 
@@ -365,10 +385,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const customerStatsMap = useMemo(() => {
     const map: Record<string, CustomerCalculatedStats> = {};
     customers.forEach(c => {
-      map[c.id] = calculateCustomerStats(c, orders, kegReturns, transfers, new Date());
+      map[c.id] = calculateCustomerStats(c, orders, kegReturns, transfers, new Date(), customerCredits);
     });
     return map;
-  }, [customers, orders, kegReturns, transfers]);
+  }, [customers, orders, kegReturns, transfers, customerCredits]);
 
   // Active shift
   const activeShift = useMemo(() => {
@@ -493,13 +513,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // 6. Today's operational stats
   const todayStats = useMemo(() => {
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = getDepotToday();
 
     // Cash/Transfer sales today
     const cashTransferSales = orders
       .filter(o => {
-        const orderDateStr = o.date ? o.date.slice(0, 10) : '';
-        return orderDateStr === todayStr && (o.payment_method === 'cash' || o.payment_method === 'transfer');
+        return depotDateKey(o.date) === todayStr && (o.payment_method === 'cash' || o.payment_method === 'transfer');
       })
       .reduce((sum, o) => sum + (o.paid_amount || 0), 0);
 
@@ -512,14 +531,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Customer-owned kegs filled today
     const customerKegsFilledToday = orders
       .filter(o => {
-        const orderDateStr = o.date ? o.date.slice(0, 10) : '';
-        return orderDateStr === todayStr && o.unit === 'keg' && o.keg_source === 'own';
+        return depotDateKey(o.date) === todayStr && o.unit === 'keg' && o.keg_source === 'own';
       })
       .reduce((sum, o) => sum + Number(o.qty || 0), 0);
 
     // Expenses today
     const expensesToday = expenses
-      .filter(e => (e.date ? e.date.slice(0, 10) : '') === todayStr)
+      .filter(e => depotDateKey(e.date) === todayStr)
       .reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
     const dailyFloatRemaining = Math.max(0, settings.daily_float - expensesToday);
@@ -636,6 +654,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         assignedPump?.last_meter_reading || 0,
         settings.pump_variance_threshold
       );
+
+      // Guard: a pump meter only ever counts up. Reject a reading below the
+      // last recorded reading for this pump so a typo can't corrupt future variance.
+      const guard = validateNewPumpReading(Number(data.meterReading), meterAudit.previousReading);
+      if (!guard.isValid) {
+        return { success: false, error: guard.error };
+      }
+
       meterDelta = meterAudit.meterDelta;
       meterVariance = meterAudit.variance;
 
@@ -721,21 +747,43 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const customer = customers.find(c => c.id === customerId);
     if (!customer) return { success: false, error: 'Customer not found' };
 
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      return { success: false, error: 'Payment amount must be greater than zero' };
+    }
+
     const prevStats = customerStatsMap[customer.id];
     const previousBalance = prevStats ? prevStats.currentBalance : 0;
 
-    const paymentResult = applyFifoPayment(orders, customerId, amount);
+    const paymentResult = applyFifoPayment(orders, customerId, numericAmount);
 
     setOrders(paymentResult.updatedOrders);
 
     const newBalance = Math.max(0, previousBalance - paymentResult.totalApplied);
+    const receiptNumber = `PAY-${Date.now().toString().slice(-6)}`;
+
+    // Any amount beyond what the open invoices needed becomes store credit,
+    // recorded on the customer's credit ledger instead of being discarded.
+    if (paymentResult.unappliedLeftover > 0.01) {
+      setCustomerCredits(prev => [
+        {
+          id: `cc-${Date.now()}`,
+          customer_id: customerId,
+          amount: Number(paymentResult.unappliedLeftover.toFixed(2)),
+          source_payment_id: receiptNumber,
+          created_at: new Date().toISOString(),
+          note: 'Overpayment added to store credit'
+        },
+        ...prev
+      ]);
+    }
 
     const receipt: ReceiptData = {
-      receiptNumber: `PAY-${Date.now().toString().slice(-6)}`,
+      receiptNumber,
       type: 'payment',
       date: new Date().toISOString(),
       customer,
-      paymentAmount: Number(amount),
+      paymentAmount: numericAmount,
       paymentMethod,
       previousBalance,
       newBalance,
@@ -748,15 +796,81 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true, receipt };
   };
 
+  // 3b. Redeem a customer's store credit against their open invoices (FIFO).
+  const redeemCustomerCredit = (customerId: string, amount: number) => {
+    const customer = customers.find(c => c.id === customerId);
+    if (!customer) return { success: false, error: 'Customer not found' };
+
+    const stats = customerStatsMap[customer.id];
+    const available = stats ? stats.creditBalance : 0;
+    const numericAmount = Number(amount);
+
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      return { success: false, error: 'Redeem amount must be greater than zero' };
+    }
+    if (numericAmount > available + 0.01) {
+      return { success: false, error: `Only ${available.toFixed(2)} of store credit is available` };
+    }
+    const previousBalance = stats ? stats.currentBalance : 0;
+    if (previousBalance <= 0.01) {
+      return { success: false, error: 'This customer has no open balance to apply credit to' };
+    }
+
+    const paymentResult = applyFifoPayment(orders, customerId, numericAmount);
+    setOrders(paymentResult.updatedOrders);
+
+    // Draw the redeemed amount down on the credit ledger (negative entry).
+    const redeemed = paymentResult.totalApplied;
+    const receiptNumber = `CRD-${Date.now().toString().slice(-6)}`;
+    if (redeemed > 0.01) {
+      setCustomerCredits(prev => [
+        {
+          id: `cc-${Date.now()}`,
+          customer_id: customerId,
+          amount: -Number(redeemed.toFixed(2)),
+          source_payment_id: receiptNumber,
+          created_at: new Date().toISOString(),
+          note: 'Store credit applied to invoices'
+        },
+        ...prev
+      ]);
+    }
+
+    const receipt: ReceiptData = {
+      receiptNumber,
+      type: 'payment',
+      date: new Date().toISOString(),
+      customer,
+      paymentAmount: redeemed,
+      paymentMethod: 'credit',
+      previousBalance,
+      newBalance: Math.max(0, previousBalance - redeemed),
+      unappliedLeftover: paymentResult.unappliedLeftover,
+      cashierName: userRole === 'owner' ? 'Managing Director' : 'Depot Cashier'
+    };
+    setActiveReceipt(receipt);
+
+    return { success: true, receipt };
+  };
+
   // 4. Log Keg Return (Audit Log)
   const logKegReturn = (customerId: string, qty: number) => {
     const customer = customers.find(c => c.id === customerId);
     if (!customer) return { success: false, error: 'Customer not found' };
 
+    const numericQty = Number(qty);
+    if (!Number.isFinite(numericQty) || numericQty <= 0) {
+      return { success: false, error: 'Keg return quantity must be greater than zero' };
+    }
+    const kegsOut = customerStatsMap[customerId]?.totalCompanyKegsOut ?? 0;
+    if (numericQty > kegsOut) {
+      return { success: false, error: `${customer.name} only has ${kegsOut} company keg(s) out` };
+    }
+
     const newReturn: KegReturn = {
       id: `ret-${Date.now()}`,
       customer_id: customerId,
-      qty: Number(qty),
+      qty: numericQty,
       date: new Date().toISOString()
     };
 
@@ -764,11 +878,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true, kegReturn: newReturn };
   };
 
-  // 5. Inter-Customer / Inter-Agent Transfer
+  // 5. Inter-Customer / Inter-Agent Transfer (company kegs only)
   const logTransfer = (data: {
     fromCustomerId: string;
     toCustomerId: string;
-    itemType: 'keg' | 'bulk_litres';
+    itemType: 'keg';
     qty: number;
     notes?: string;
   }) => {
@@ -778,12 +892,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (Number(data.qty) <= 0) {
       return { success: false, error: 'Transfer quantity must be greater than 0' };
     }
+    const senderKegs = customerStatsMap[data.fromCustomerId]?.totalCompanyKegsOut ?? 0;
+    if (Number(data.qty) > senderKegs) {
+      return { success: false, error: `Sender only has ${senderKegs} company keg(s) to transfer` };
+    }
 
     const newTransfer: Transfer = {
       id: `tr-${Date.now()}`,
       from_customer_id: data.fromCustomerId,
       to_customer_id: data.toCustomerId,
-      item_type: data.itemType,
+      item_type: 'keg',
       qty: Number(data.qty),
       date: new Date().toISOString(),
       notes: data.notes?.trim() || undefined
@@ -801,7 +919,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }) => {
     const tank = tanks.find(t => t.id === data.tankId);
     if (!tank) return { success: false, error: 'Tank not found' };
-    if (Number(data.readingLitres) <= 0) {
+    if (!Number.isFinite(Number(data.readingLitres)) || Number(data.readingLitres) <= 0) {
       return { success: false, error: 'Dipstick reading must be greater than 0' };
     }
 
@@ -833,6 +951,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     openingFloat: number;
     notes?: string;
   }) => {
+    if (shifts.some(s => s.status === 'open')) {
+      return { success: false, error: 'A shift is already open. Close it before starting a new one.' };
+    }
+    if (!Number.isFinite(Number(data.openingFloat)) || Number(data.openingFloat) < 0) {
+      return { success: false, error: 'Opening float cannot be negative' };
+    }
     const newShift: Shift = {
       id: `shift-${Date.now()}`,
       cashier_name: data.cashierName,
@@ -855,22 +979,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const shift = shifts.find(s => s.id === data.shiftId);
     if (!shift) return { success: false, error: 'Shift not found' };
 
-    const shiftStart = new Date(shift.start_time).getTime();
-    const shiftEnd = Date.now();
-
-    const cashSales = orders
-      .filter(o => {
-        const t = new Date(o.date).getTime();
-        return t >= shiftStart && t <= shiftEnd && o.payment_method === 'cash';
-      })
-      .reduce((sum, o) => sum + (o.paid_amount || 0), 0);
-
-    const cashExpenses = expenses
-      .filter(e => {
-        const t = new Date(e.date).getTime();
-        return t >= shiftStart && t <= shiftEnd;
-      })
-      .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    const shiftEndDate = new Date();
+    const { cashSales, cashExpenses } = computeShiftCash(shift, orders, expenses, shiftEndDate);
 
     const summary = calculateShiftSummary(
       shift.opening_float,
@@ -881,7 +991,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const updatedShift: Shift = {
       ...shift,
-      end_time: new Date(shiftEnd).toISOString(),
+      end_time: shiftEndDate.toISOString(),
       cash_sales: summary.cashSales,
       cash_expenses: summary.cashExpenses,
       expected_cash: summary.expectedCash,
@@ -922,11 +1032,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // 10. Add Expense
   const addExpense = (category: string, amount: number, note?: string) => {
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      return { success: false, error: 'Expense amount must be greater than zero' };
+    }
+    if (!category.trim()) {
+      return { success: false, error: 'Expense category is required' };
+    }
     const newExpense: Expense = {
       id: `exp-${Date.now()}`,
       date: new Date().toISOString(),
-      category,
-      amount: Number(amount),
+      category: category.trim(),
+      amount: numericAmount,
       note
     };
 
@@ -984,6 +1101,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setPumps(DEFAULT_PUMPS);
     setPumpReadings(SEED_PUMP_READINGS);
     setTransfers(SEED_TRANSFERS);
+    setCustomerCredits([]);
     setDipstickReadings(SEED_DIPSTICK_READINGS);
     setShifts(SEED_SHIFTS);
     localStorage.clear();
@@ -1003,6 +1121,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         pumps,
         pumpReadings,
         transfers,
+        customerCredits,
         dipstickReadings,
         shifts,
         activeShift,
@@ -1020,6 +1139,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         logTruckIntake,
         createNewOrder,
         recordCustomerPayment,
+        redeemCustomerCredit,
         logKegReturn,
         logTransfer,
         recordDipstickReading,

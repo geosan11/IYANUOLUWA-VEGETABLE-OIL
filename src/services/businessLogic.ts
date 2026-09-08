@@ -3,6 +3,7 @@ import {
   Order,
   KegReturn,
   Transfer,
+  CustomerCredit,
   Tank,
   RateCard,
   CustomerType,
@@ -127,7 +128,8 @@ export function calculateCustomerStats(
   orders: Order[],
   kegReturns: KegReturn[],
   transfersOrRefDate: Transfer[] | Date = [],
-  referenceDate: Date = new Date()
+  referenceDate: Date = new Date(),
+  credits: CustomerCredit[] = []
 ): CustomerCalculatedStats {
   let transfers: Transfer[] = [];
   let refDate = referenceDate;
@@ -140,6 +142,14 @@ export function calculateCustomerStats(
   }
 
   const customerOrders = orders.filter(o => o.customer_id === customer.id);
+
+  // Store credit the depot owes this customer (overpayments, minus what has been redeemed).
+  const creditBalance = Math.max(
+    0,
+    credits
+      .filter(c => c.customer_id === customer.id)
+      .reduce((sum, c) => sum + Number(c.amount || 0), 0)
+  );
 
   
   // Open credit orders where amount > paid_amount and payment_method === 'credit'
@@ -220,6 +230,7 @@ export function calculateCustomerStats(
   return {
     customer,
     currentBalance: Number(currentBalance.toFixed(2)),
+    creditBalance: Number(creditBalance.toFixed(2)),
     totalCompanyKegsOut,
     agingBadge: {
       status,
@@ -487,6 +498,32 @@ export function validateNewPumpReading(
 }
 
 /**
+ * The depot operates on Lagos time. All "which day did this happen" and
+ * "today's totals" logic must use this timezone, not the browser's or UTC.
+ */
+export const DEPOT_TZ = 'Africa/Lagos';
+
+/**
+ * Returns the depot-local calendar day for an ISO timestamp, as 'YYYY-MM-DD'.
+ * Use this instead of `date.slice(0, 10)` (which is UTC) anywhere a day bucket matters.
+ */
+export function depotDateKey(dateStr: string | Date | null | undefined): string {
+  if (!dateStr) return '';
+  try {
+    const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
+    // en-CA gives ISO-style YYYY-MM-DD
+    return d.toLocaleDateString('en-CA', { timeZone: DEPOT_TZ });
+  } catch {
+    return '';
+  }
+}
+
+/** Today's depot-local calendar day as 'YYYY-MM-DD'. */
+export function getDepotToday(): string {
+  return depotDateKey(new Date());
+}
+
+/**
  * Format currency in Nigerian Naira (₦)
  */
 export function formatNaira(amount: number): string {
@@ -498,13 +535,14 @@ export function formatNaira(amount: number): string {
 }
 
 /**
- * Format date for depot displays
+ * Format date for depot displays (pinned to Lagos time)
  */
 export function formatDepotDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
   try {
     const d = new Date(dateStr);
     return d.toLocaleDateString('en-GB', {
+      timeZone: DEPOT_TZ,
       day: '2-digit',
       month: 'short',
       year: 'numeric'
@@ -519,6 +557,7 @@ export function formatDepotTime(dateStr: string | null | undefined): string {
   try {
     const d = new Date(dateStr);
     return d.toLocaleTimeString('en-GB', {
+      timeZone: DEPOT_TZ,
       hour: '2-digit',
       minute: '2-digit'
     });
@@ -638,6 +677,42 @@ export function calculateShiftSummary(
     cashCounted: counted,
     cashVariance,
     hasVariance: Math.abs(cashVariance) > 0.01
+  };
+}
+
+/**
+ * Single source of truth for a shift's cash position. Used by the live shift
+ * banner, today's stats, and shift close so all three agree exactly.
+ * Window: shift start_time .. (end_time or `now`).
+ */
+export function computeShiftCash(
+  shift: { start_time: string; end_time?: string | null; opening_float: number },
+  orders: Order[],
+  expenses: { date: string; amount: number }[],
+  now: Date = new Date()
+): { cashSales: number; cashExpenses: number; expectedCash: number } {
+  const startMs = new Date(shift.start_time).getTime();
+  const endMs = shift.end_time ? new Date(shift.end_time).getTime() : now.getTime();
+
+  const cashSales = orders
+    .filter(o => {
+      const t = new Date(o.date).getTime();
+      return t >= startMs && t <= endMs && o.payment_method === 'cash';
+    })
+    .reduce((sum, o) => sum + (o.paid_amount || 0), 0);
+
+  const cashExpenses = expenses
+    .filter(e => {
+      const t = new Date(e.date).getTime();
+      return t >= startMs && t <= endMs;
+    })
+    .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+
+  const expectedCash = Number((shift.opening_float + cashSales - cashExpenses).toFixed(2));
+  return {
+    cashSales: Number(cashSales.toFixed(2)),
+    cashExpenses: Number(cashExpenses.toFixed(2)),
+    expectedCash
   };
 }
 

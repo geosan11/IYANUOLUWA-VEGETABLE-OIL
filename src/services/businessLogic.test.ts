@@ -11,7 +11,10 @@ import {
   validateNewPumpReading,
   calculatePerOrderMeterVariance,
   calculateDipstickVariance,
-  calculateShiftSummary
+  calculateShiftSummary,
+  computeShiftCash,
+  depotDateKey,
+  getDepotToday
 } from './businessLogic';
 import {
   Customer,
@@ -394,6 +397,35 @@ const shiftDiscrepancy = calculateShiftSummary(20000, 180000, 30000, 165000);
 assert(shiftDiscrepancy.cashCounted === 165000, 'Shift summary: cash counted is ₦165,000');
 assert(shiftDiscrepancy.cashVariance === -5000, 'Shift summary: cash variance is -₦5,000 (shortfall)');
 assert(shiftDiscrepancy.hasVariance === true, 'Shift summary: hasVariance is true for ₦5,000 discrepancy');
+
+// 15. DEPOT TIMEZONE DAY BUCKETS (Africa/Lagos, UTC+1)
+// 2026-09-08T23:30:00Z is 2026-09-09 00:30 in Lagos -> should bucket to the 9th.
+assert(depotDateKey('2026-09-08T23:30:00Z') === '2026-09-09', 'Depot day: late-UTC evening rolls into next Lagos day');
+assert(depotDateKey('2026-09-08T10:00:00Z') === '2026-09-08', 'Depot day: daytime stays on same Lagos day');
+assert(/^\d{4}-\d{2}-\d{2}$/.test(getDepotToday()), 'Depot day: getDepotToday returns YYYY-MM-DD');
+
+// 16. SHIFT CASH — single source of truth
+const scShift = { start_time: '2026-09-08T07:00:00Z', end_time: null, opening_float: 20000 };
+const scOrders: Order[] = [
+  { id: 'sc-1', customer_id: 'c-test', product_id: 'veg', unit: 'litre', qty: 100, litres: 100, rate: 4800, amount: 480000, paid_amount: 480000, payment_method: 'cash', keg_source: null, date: '2026-09-08T09:00:00Z', due_date: null, source_tank_id: null, pump_id: null },
+  { id: 'sc-2', customer_id: 'c-test', product_id: 'veg', unit: 'litre', qty: 50, litres: 50, rate: 4800, amount: 240000, paid_amount: 240000, payment_method: 'transfer', keg_source: null, date: '2026-09-08T10:00:00Z', due_date: null, source_tank_id: null, pump_id: null },
+  { id: 'sc-3', customer_id: 'c-test', product_id: 'veg', unit: 'litre', qty: 10, litres: 10, rate: 4800, amount: 48000, paid_amount: 48000, payment_method: 'cash', keg_source: null, date: '2026-09-08T06:00:00Z', due_date: null, source_tank_id: null, pump_id: null }
+];
+const scExpenses = [{ date: '2026-09-08T08:00:00Z', amount: 5000 }, { date: '2026-09-08T06:00:00Z', amount: 9999 }];
+const sc = computeShiftCash(scShift, scOrders, scExpenses, new Date('2026-09-08T18:00:00Z'));
+assert(sc.cashSales === 480000, 'Shift cash: only in-window cash orders counted (transfer & pre-shift excluded)');
+assert(sc.cashExpenses === 5000, 'Shift cash: only in-window expenses counted');
+assert(sc.expectedCash === 495000, 'Shift cash: expected = 20000 + 480000 - 5000');
+
+// 17. CUSTOMER STORE CREDIT (overpayment ledger)
+const creditCustomer: Customer = { id: 'c-credit', name: 'Credit Cust', type: 'agent', credit_limit: 100000, credit_term_days: 14, phone: '0800' };
+const creditEntries = [
+  { id: 'cc-1', customer_id: 'c-credit', amount: 28000, created_at: '2026-09-08T10:00:00Z' },
+  { id: 'cc-2', customer_id: 'c-credit', amount: -10000, created_at: '2026-09-09T10:00:00Z' },
+  { id: 'cc-3', customer_id: 'c-other', amount: 5000, created_at: '2026-09-09T10:00:00Z' }
+];
+const creditStats = calculateCustomerStats(creditCustomer, [], [], [], new Date('2026-09-10T00:00:00Z'), creditEntries);
+assert(creditStats.creditBalance === 18000, 'Store credit: 28000 added - 10000 redeemed = 18000 for this customer only');
 
 console.log('====================================================');
 console.log(`TEST SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);

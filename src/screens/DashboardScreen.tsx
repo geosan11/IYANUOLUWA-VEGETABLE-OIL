@@ -4,7 +4,7 @@ import { TankGauge } from '../components/common/TankGauge';
 import { BottomSheet } from '../components/common/BottomSheet';
 import { SlideOverDrawer } from '../components/common/SlideOverDrawer';
 import { useIsDesktopSplit } from '../hooks/useBreakpoint';
-import { formatNaira, formatDepotDate, formatDepotTime } from '../services/businessLogic';
+import { formatNaira, formatDepotDate, formatDepotTime, computeShiftCash, getDepotToday, depotDateKey } from '../services/businessLogic';
 import {
   DollarSign,
   CreditCard,
@@ -58,7 +58,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   const vegStock = tankStockByProduct['veg']?.totalLitres || 0;
   const redStock = tankStockByProduct['red']?.totalLitres || 0;
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getDepotToday();
   const isDesktop = useIsDesktopSplit();
   const DisclosureContainer = isDesktop ? SlideOverDrawer : BottomSheet;
 
@@ -88,34 +88,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   const [cashCountedInput, setCashCountedInput] = useState('');
   const [closeNotesInput, setCloseNotesInput] = useState('');
   const [shiftFeedback, setShiftFeedback] = useState<string | null>(null);
+  const [shiftError, setShiftError] = useState<string | null>(null);
 
-  // Live Shift Metrics for active shift
+  // Live Shift Metrics for active shift (same function used by shift close & today's stats)
   const shiftMetrics = useMemo(() => {
     if (!activeShift) return null;
-    const shiftStart = new Date(activeShift.start_time).getTime();
-    const now = Date.now();
-
-    const cashSales = orders
-      .filter(o => {
-        const t = new Date(o.date).getTime();
-        return t >= shiftStart && t <= now && o.payment_method === 'cash';
-      })
-      .reduce((sum, o) => sum + (o.paid_amount || 0), 0);
-
-    const cashExpenses = expenses
-      .filter(e => {
-        const t = new Date(e.date).getTime();
-        return t >= shiftStart && t <= now;
-      })
-      .reduce((sum, e) => sum + Number(e.amount || 0), 0);
-
-    const expectedCash = activeShift.opening_float + cashSales - cashExpenses;
-
-    return {
-      cashSales,
-      cashExpenses,
-      expectedCash
-    };
+    return computeShiftCash(activeShift, orders, expenses, new Date());
   }, [activeShift, orders, expenses]);
 
   const liveCloseVariance = useMemo(() => {
@@ -127,6 +105,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
   const handleStartShiftSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setShiftError(null);
     const floatNum = parseFloat(openingFloatInput) || 0;
     const res = startShift({
       cashierName: cashierInput.trim() || 'Counter Staff',
@@ -138,11 +117,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       setStartNotesInput('');
       setShiftFeedback('New shift opened successfully.');
       setTimeout(() => setShiftFeedback(null), 4000);
+    } else {
+      setShiftError(res.error || 'Could not start the shift.');
     }
   };
 
   const handleCloseShiftSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setShiftError(null);
     if (!activeShift) return;
     const counted = parseFloat(cashCountedInput);
     if (isNaN(counted) || counted < 0) return;
@@ -159,6 +141,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       setCloseNotesInput('');
       setShiftFeedback('Shift reconciled and closed successfully.');
       setTimeout(() => setShiftFeedback(null), 4000);
+    } else {
+      setShiftError(res.error || 'Could not close the shift.');
     }
   };
 
@@ -303,6 +287,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           <div className="mb-3 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[12px] font-sans text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{shiftFeedback}</span>
+          </div>
+        )}
+
+        {shiftError && (
+          <div className="mb-3 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-[12px] font-sans text-rose-800 dark:text-rose-300 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{shiftError}</span>
+            <button type="button" onClick={() => setShiftError(null)} className="ml-auto text-rose-500 hover:text-rose-700 dark:hover:text-rose-200">✕</button>
           </div>
         )}
 
@@ -594,8 +586,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             // Calculate total litres dispensed today on this pump
             const todayPumpLitres = orders
               .filter(o => {
-                const orderDateStr = o.date ? o.date.slice(0, 10) : '';
-                return orderDateStr === todayStr && o.pump_id === pump.id;
+                return depotDateKey(o.date) === todayStr && o.pump_id === pump.id;
               })
               .reduce((sum, o) => sum + Number(o.litres || 0), 0);
 
@@ -1469,8 +1460,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
               {orders
                 .filter(o => {
-                  const d = o.date ? o.date.slice(0, 10) : '';
-                  return d === todayStr && (o.payment_method === 'cash' || o.payment_method === 'transfer');
+                  return depotDateKey(o.date) === todayStr && (o.payment_method === 'cash' || o.payment_method === 'transfer');
                 })
                 .map(order => {
                   const cust = customers.find(c => c.id === order.customer_id);
@@ -1712,8 +1702,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
               {orders
                 .filter(o => {
-                  const d = o.date ? o.date.slice(0, 10) : '';
-                  return d === todayStr && o.keg_source === 'own';
+                  return depotDateKey(o.date) === todayStr && o.keg_source === 'own';
                 })
                 .map(order => {
                   const cust = customers.find(c => c.id === order.customer_id);
@@ -1783,8 +1772,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
               {expenses
                 .filter(e => {
-                  const d = e.date ? e.date.slice(0, 10) : '';
-                  return d === todayStr;
+                  return depotDateKey(e.date) === todayStr;
                 })
                 .map(exp => (
                   <div
