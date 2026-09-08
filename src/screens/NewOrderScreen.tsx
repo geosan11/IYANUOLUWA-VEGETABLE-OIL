@@ -23,7 +23,8 @@ import {
   ChevronDown,
   ChevronUp,
   Gauge,
-  Save
+  Save,
+  Lock
 } from 'lucide-react';
 
 export const NewOrderScreen: React.FC = () => {
@@ -50,10 +51,23 @@ export const NewOrderScreen: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('credit');
   const [note, setNote] = useState<string>('');
 
-  // Pump Assignment & Per-Order Meter Reading
-  const [selectedPumpId, setSelectedPumpId] = useState<string>('');
+  // Pump Assignment & Per-Order Meter Reading (strictly constrained to selected product)
+  const [selectedPumpId, setSelectedPumpId] = useState<string>(() => {
+    const initial = pumps.find(p => p.product_id === 'veg') || pumps[0];
+    return initial?.id || '';
+  });
   const [orderMeterReading, setOrderMeterReading] = useState<string>('');
   const [deliveredTons, setDeliveredTons] = useState<string>('');
+
+  // Automatically ensure selected pump belongs to selected product type
+  useEffect(() => {
+    const currentPump = pumps.find(p => p.id === selectedPumpId);
+    if (!currentPump || (currentPump.product_id && currentPump.product_id !== productId)) {
+      const compatiblePump = pumps.find(p => p.product_id === productId);
+      setSelectedPumpId(compatiblePump ? compatiblePump.id : '');
+      setOrderMeterReading('');
+    }
+  }, [productId, pumps, selectedPumpId]);
 
   // Lightweight "Record Pump Reading" Action state
   const [isPumpReadingOpen, setIsPumpReadingOpen] = useState(false);
@@ -196,6 +210,14 @@ export const NewOrderScreen: React.FC = () => {
       return;
     }
 
+    const selectedPump = pumps.find(p => p.id === selectedPumpId);
+    if (selectedPump && selectedPump.product_id && selectedPump.product_id !== selectedProduct.id) {
+      setErrorMessage(
+        `Selected pump (${selectedPump.label}) is not configured for ${selectedProduct.name}. Please select a compatible pump line.`
+      );
+      return;
+    }
+
     if (isKegShortage && !allowKegOverride) {
       setIsKegShortageModalOpen(true);
       return;
@@ -285,7 +307,14 @@ export const NewOrderScreen: React.FC = () => {
                   <button
                     type="button"
                     key={p.id}
-                    onClick={() => setProductId(p.id)}
+                    onClick={() => {
+                      setProductId(p.id);
+                      const compatible = pumps.find(pump => pump.product_id === p.id);
+                      if (compatible) {
+                        setSelectedPumpId(compatible.id);
+                        setOrderMeterReading('');
+                      }
+                    }}
                     className={`p-3.5 rounded-xl border text-left transition-all min-h-[52px] ${
                       isSelected
                         ? isVeg
@@ -394,20 +423,46 @@ export const NewOrderScreen: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {pumps.map(pump => {
                 const isSelected = selectedPumpId === pump.id;
+                const isCompatible = !pump.product_id || pump.product_id === productId;
                 return (
                   <button
                     type="button"
                     key={pump.id}
-                    onClick={() => setSelectedPumpId(pump.id)}
-                    className={`p-2.5 rounded-xl border text-left text-[12px] transition-all ${
-                      isSelected
-                        ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-500 text-purple-900 dark:text-purple-300 font-bold shadow-sm'
-                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    disabled={!isCompatible}
+                    onClick={() => {
+                      if (isCompatible) {
+                        setSelectedPumpId(pump.id);
+                      }
+                    }}
+                    title={
+                      !isCompatible
+                        ? `Locked: Configured for ${pump.product_id === 'veg' ? 'Golden Vegetable Oil' : 'Palm Oil'} line only.`
+                        : undefined
+                    }
+                    className={`p-2.5 rounded-xl border text-left text-[12px] transition-all relative ${
+                      !isCompatible
+                        ? 'opacity-40 bg-slate-100/90 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed select-none'
+                        : isSelected
+                        ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-500 text-purple-900 dark:text-purple-300 font-bold shadow-sm cursor-pointer'
+                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 cursor-pointer'
                     }`}
                   >
-                    <div className="font-sans font-bold truncate">{pump.label}</div>
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="font-sans font-bold truncate">{pump.label}</div>
+                      {!isCompatible && (
+                        <span className="text-[9px] font-sans font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center gap-0.5 flex-shrink-0">
+                          <Lock className="w-2.5 h-2.5" /> Locked
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[11px] font-mono tabular-nums text-slate-500 mt-0.5">
-                      Meter: {pump.last_meter_reading.toLocaleString()}L
+                      {isCompatible ? (
+                        `Meter: ${pump.last_meter_reading.toLocaleString()}L`
+                      ) : (
+                        <span className="text-amber-700/90 dark:text-amber-400/90 font-sans font-semibold">
+                          {pump.product_id === 'veg' ? 'Golden Oil Only' : 'Palm Oil Only'}
+                        </span>
+                      )}
                     </div>
                   </button>
                 );
