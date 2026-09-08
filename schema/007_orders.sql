@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE RESTRICT,
     product_id VARCHAR(32) NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
-    unit VARCHAR(16) NOT NULL CHECK (unit IN ('litre', 'keg')),
+    unit VARCHAR(16) NOT NULL CHECK (unit IN ('litre', 'keg', 'ton')),
     qty NUMERIC(12, 2) NOT NULL,
     litres NUMERIC(12, 2) NOT NULL,
     rate NUMERIC(12, 2) NOT NULL,
@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS orders (
     due_date TIMESTAMPTZ,
     source_tank_id UUID REFERENCES tanks(id) ON DELETE SET NULL,
     pump_id VARCHAR(32) REFERENCES pumps(id) ON DELETE SET NULL,
+    meter_reading NUMERIC(12, 2),
+    delivered_qty NUMERIC(10, 3),
+    shortfall NUMERIC(10, 3),
     note TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -25,3 +28,4 @@ CREATE INDEX IF NOT EXISTS idx_orders_customer_date ON orders(customer_id, date)
 CREATE INDEX IF NOT EXISTS idx_orders_pump_date ON orders(pump_id, date);
 CREATE INDEX IF NOT EXISTS idx_orders_payment_method ON orders(payment_method);
 CREATE INDEX IF NOT EXISTS idx_orders_due_date ON orders(due_date);
+

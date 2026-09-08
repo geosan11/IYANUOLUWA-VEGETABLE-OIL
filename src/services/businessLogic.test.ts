@@ -6,15 +6,22 @@ import {
   executeFifoTankDraw,
   applyFifoPayment,
   lookupRatePerLitre,
-  calculateOrderPricing
+  calculateOrderPricing,
+  calculatePumpMeterVariance,
+  validateNewPumpReading,
+  calculatePerOrderMeterVariance,
+  calculateDipstickVariance,
+  calculateShiftSummary
 } from './businessLogic';
 import {
   Customer,
   Order,
   KegReturn,
   Tank,
-  RateCard
+  RateCard,
+  Transfer
 } from '../types';
+
 import { LITRES_PER_KEG } from '../constants/config';
 
 console.log('====================================================');
@@ -173,8 +180,6 @@ assert(kegSummary.kegsAtDepot === 488, 'Keg Inventory: depot stock = 488');
 assert(kegSummary.isDepotStockCritical === false, 'Keg Inventory: not critical (>20)');
 
 // 7. PUMP METER VARIANCE RECONCILIATION
-import { calculatePumpMeterVariance, validateNewPumpReading } from './businessLogic';
-
 const mockPump = {
   id: 'p-test',
   label: 'Test Pump 1',
@@ -244,7 +249,154 @@ assert(auditB[0].isOverThreshold === false, 'Pump Reconciliation: no alert for 0
 assert(validateNewPumpReading(10600, 10500).isValid === true, 'Pump Validation: higher reading passes');
 assert(validateNewPumpReading(10400, 10500).isValid === false, 'Pump Validation: lower reading fails (meters only count up)');
 
+// 10. TONNAGE WHOLESALE UNIT CONVERSION & PRICING
+const tonLitres = calculateLitres('ton', 5, 30, 1090);
+assert(tonLitres === 5450, 'Unit conversion: 5 tons = 5,450L (5 * 1090)');
+const tonPricing = calculateOrderPricing('ton', 2, 4800, 30, 1090);
+// 2 tons = 2180L * 4800 = 10,464,000
+assert(tonPricing.litres === 2180, 'Tonnage pricing: 2 tons = 2,180L');
+assert(tonPricing.amount === 10464000, 'Tonnage pricing: 2 tons at ₦4,800/L = ₦10,464,000');
+
+// 11. INTER-CUSTOMER / INTER-AGENT TRANSFERS
+const transferSender: Customer = {
+  id: 'c-sender',
+  name: 'Sender Agent',
+  type: 'agent',
+  credit_limit: 500000,
+  credit_term_days: 14,
+  phone: '08011111111'
+};
+const transferReceiver: Customer = {
+  id: 'c-receiver',
+  name: 'Receiver Agent',
+  type: 'agent',
+  credit_limit: 500000,
+  credit_term_days: 14,
+  phone: '08022222222'
+};
+
+const senderOrders: Order[] = [
+  {
+    id: 'ord-s1',
+    customer_id: 'c-sender',
+    product_id: 'veg',
+    unit: 'keg',
+    qty: 20,
+    litres: 600,
+    rate: 4800,
+    amount: 96000,
+    paid_amount: 96000,
+    payment_method: 'cash',
+    keg_source: 'company',
+    date: '2026-09-01T10:00:00Z',
+    due_date: null,
+    source_tank_id: 'tank-1',
+    pump_id: null
+  }
+];
+
+const mockTransfers: Transfer[] = [
+  {
+    id: 'tr-1',
+    from_customer_id: 'c-sender',
+    to_customer_id: 'c-receiver',
+    item_type: 'keg',
+    qty: 6,
+    date: '2026-09-05T12:00:00Z',
+    notes: 'Yard transfer from Sender to Receiver'
+  }
+];
+
+const senderStats = calculateCustomerStats(transferSender, senderOrders, [], mockTransfers);
+// Sender started with 20 company kegs, transferred 6 to receiver -> 14 remaining out
+assert(senderStats.totalCompanyKegsOut === 14, 'Customer Transfers: Sender kegs out reduced by 6 (20 - 6 = 14)');
+
+const receiverStats = calculateCustomerStats(transferReceiver, [], [], mockTransfers);
+// Receiver started with 0 company kegs, received 6 from sender -> 6 out
+assert(receiverStats.totalCompanyKegsOut === 6, 'Customer Transfers: Receiver kegs out increased by 6 (0 + 6 = 6)');
+
+// 12. PER-ORDER PUMP METER RECONCILIATION
+const sampleOrdersForPump: Order[] = [
+  {
+    id: 'ord-p1',
+    customer_id: 'c-sender',
+    product_id: 'veg',
+    unit: 'litre',
+    qty: 300,
+    litres: 300,
+    rate: 4800,
+    amount: 1440000,
+    paid_amount: 1440000,
+    payment_method: 'cash',
+    keg_source: null,
+    date: '2026-09-08T09:00:00Z',
+    due_date: null,
+    source_tank_id: 'tank-1',
+    pump_id: 'pump-1',
+    meter_reading: 10300
+  }
+];
+
+// Order 1 was at 10300 on pump-1 (started at 10000)
+// Now order 2 is dispensed: 200L, meter reads 10500
+const perOrderAudit1 = calculatePerOrderMeterVariance('pump-1', 10500, 200, sampleOrdersForPump, 10000, 20);
+assert(perOrderAudit1.previousReading === 10300, 'Per-order meter: detects previous reading 10300 from prior order');
+assert(perOrderAudit1.meterDelta === 200, 'Per-order meter: delta is 200L (10500 - 10300)');
+assert(perOrderAudit1.variance === 0, 'Per-order meter: variance is 0L (200 - 200)');
+assert(perOrderAudit1.isOverThreshold === false, 'Per-order meter: no alert for 0L variance');
+
+// Order 3 is dispensed: 100L, but meter reads 10650 (+150L delta -> +50L variance > 20L threshold!)
+const ordersWithP2: Order[] = [
+  ...sampleOrdersForPump,
+  {
+    id: 'ord-p2',
+    customer_id: 'c-receiver',
+    product_id: 'veg',
+    unit: 'litre',
+    qty: 200,
+    litres: 200,
+    rate: 4800,
+    amount: 960000,
+    paid_amount: 960000,
+    payment_method: 'cash',
+    keg_source: null,
+    date: '2026-09-08T11:00:00Z',
+    due_date: null,
+    source_tank_id: 'tank-1',
+    pump_id: 'pump-1',
+    meter_reading: 10500
+  }
+];
+const perOrderAudit2 = calculatePerOrderMeterVariance('pump-1', 10650, 100, ordersWithP2, 10000, 20);
+assert(perOrderAudit2.previousReading === 10500, 'Per-order meter: detects latest prior order reading 10500');
+assert(perOrderAudit2.meterDelta === 150, 'Per-order meter: delta is 150L (10650 - 10500)');
+assert(perOrderAudit2.variance === 50, 'Per-order meter: variance is +50L (150 - 100)');
+assert(perOrderAudit2.isOverThreshold === true, 'Per-order meter: correctly flags variance > 20L');
+
+// 13. TANK DIPSTICK PHYSICAL VERIFICATION
+const dipstickValid = calculateDipstickVariance(5015, 5000, 30);
+assert(dipstickValid.variance === 15, 'Dipstick verification: variance is +15L');
+assert(dipstickValid.isOverThreshold === false, 'Dipstick verification: 15L is within 30L threshold');
+
+const dipstickHigh = calculateDipstickVariance(4940, 5000, 30);
+assert(dipstickHigh.variance === -60, 'Dipstick verification: variance is -60L');
+assert(dipstickHigh.isOverThreshold === true, 'Dipstick verification: -60L exceeds 30L threshold');
+
+// 14. SHIFT RECONCILIATION & CLOSEOUT
+// Opening float: ₦20,000, Cash sales: ₦180,000, Cash expenses: ₦30,000
+// Expected cash = 20,000 + 180,000 - 30,000 = ₦170,000
+const shiftBalanced = calculateShiftSummary(20000, 180000, 30000, 170000);
+assert(shiftBalanced.expectedCash === 170000, 'Shift summary: expected cash is ₦170,000');
+assert(shiftBalanced.cashVariance === 0, 'Shift summary: balanced cash variance is 0');
+assert(shiftBalanced.hasVariance === false, 'Shift summary: hasVariance is false');
+
+const shiftDiscrepancy = calculateShiftSummary(20000, 180000, 30000, 165000);
+assert(shiftDiscrepancy.cashCounted === 165000, 'Shift summary: cash counted is ₦165,000');
+assert(shiftDiscrepancy.cashVariance === -5000, 'Shift summary: cash variance is -₦5,000 (shortfall)');
+assert(shiftDiscrepancy.hasVariance === true, 'Shift summary: hasVariance is true for ₦5,000 discrepancy');
+
 console.log('====================================================');
 console.log(`TEST SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);
 console.log('====================================================');
+
 

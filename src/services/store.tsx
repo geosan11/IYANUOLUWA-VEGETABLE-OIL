@@ -17,7 +17,10 @@ import {
   KegSource,
   Pump,
   PumpReading,
-  PumpVarianceAudit
+  PumpVarianceAudit,
+  Transfer,
+  TankDipstickReading,
+  Shift
 } from '../types';
 import {
   DEFAULT_PRODUCTS,
@@ -29,7 +32,10 @@ import {
   SEED_TANKS,
   SEED_ORDERS,
   SEED_KEG_RETURNS,
-  SEED_EXPENSES
+  SEED_EXPENSES,
+  SEED_TRANSFERS,
+  SEED_DIPSTICK_READINGS,
+  SEED_SHIFTS
 } from '../constants/config';
 import {
   calculateCustomerStats,
@@ -40,7 +46,10 @@ import {
   calculateOrderPricing,
   calculateIntakeMetrics,
   calculatePumpMeterVariance,
-  validateNewPumpReading
+  validateNewPumpReading,
+  calculatePerOrderMeterVariance,
+  calculateDipstickVariance,
+  calculateShiftSummary
 } from './businessLogic';
 
 interface StoreContextType {
@@ -54,6 +63,10 @@ interface StoreContextType {
   settings: AppSettings;
   pumps: Pump[];
   pumpReadings: PumpReading[];
+  transfers: Transfer[];
+  dipstickReadings: TankDipstickReading[];
+  shifts: Shift[];
+  activeShift: Shift | null;
   userRole: UserRole;
   setUserRole: (role: UserRole) => void;
   theme: 'light' | 'dark';
@@ -70,6 +83,8 @@ interface StoreContextType {
     overLimit: { customer: Customer; balance: number; limit: number; excess: number }[];
     deliveryShortfall: { tank: Tank; shortfallLitres: number }[];
     pumpVariance: PumpVarianceAudit[];
+    dipstickVariance: { reading: TankDipstickReading; tank: Tank; variance: number }[];
+    shiftDiscrepancy: Shift[];
     totalAlertCount: number;
   };
   todayStats: {
@@ -99,6 +114,8 @@ interface StoreContextType {
     paymentMethod: PaymentMethod;
     kegSource: KegSource;
     pumpId?: string | null;
+    meterReading?: number | null;
+    deliveredQty?: number | null;
     note?: string;
   }) => { success: boolean; order?: Order; receipt?: ReceiptData; error?: string };
 
@@ -112,6 +129,32 @@ interface StoreContextType {
     customerId: string,
     qty: number
   ) => { success: boolean; kegReturn?: KegReturn; error?: string };
+
+  logTransfer: (data: {
+    fromCustomerId: string;
+    toCustomerId: string;
+    itemType: 'keg' | 'bulk_litres';
+    qty: number;
+    notes?: string;
+  }) => { success: boolean; transfer?: Transfer; error?: string };
+
+  recordDipstickReading: (data: {
+    tankId: string;
+    readingLitres: number;
+    notes?: string;
+  }) => { success: boolean; reading?: TankDipstickReading; error?: string };
+
+  startShift: (data: {
+    cashierName: string;
+    openingFloat: number;
+    notes?: string;
+  }) => { success: boolean; shift?: Shift; error?: string };
+
+  closeShift: (data: {
+    shiftId: string;
+    cashCounted: number;
+    notes?: string;
+  }) => { success: boolean; shift?: Shift; error?: string };
 
   recordPumpReading: (
     pumpId: string,
@@ -152,6 +195,9 @@ const STORAGE_KEYS = {
   SETTINGS: 'iyanu_settings_v2',
   PUMPS: 'iyanu_pumps_v2',
   PUMP_READINGS: 'iyanu_pump_readings_v2',
+  TRANSFERS: 'iyanu_transfers_v2',
+  DIPSTICK_READINGS: 'iyanu_dipstick_readings_v2',
+  SHIFTS: 'iyanu_shifts_v2',
   USER_ROLE: 'iyanu_user_role_v2',
   THEME: 'iyanu_theme_v2'
 };
@@ -232,6 +278,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return saved ? JSON.parse(saved) : SEED_PUMP_READINGS;
   });
 
+  const [transfers, setTransfers] = useState<Transfer[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.TRANSFERS);
+    return saved ? JSON.parse(saved) : SEED_TRANSFERS;
+  });
+
+  const [dipstickReadings, setDipstickReadings] = useState<TankDipstickReading[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.DIPSTICK_READINGS);
+    return saved ? JSON.parse(saved) : SEED_DIPSTICK_READINGS;
+  });
+
+  const [shifts, setShifts] = useState<Shift[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.SHIFTS);
+    return saved ? JSON.parse(saved) : SEED_SHIFTS;
+  });
+
   const [userRole, setUserRole] = useState<UserRole>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.USER_ROLE);
     return (saved as UserRole) || 'owner';
@@ -281,6 +342,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [pumpReadings]);
 
   useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.TRANSFERS, JSON.stringify(transfers));
+  }, [transfers]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.DIPSTICK_READINGS, JSON.stringify(dipstickReadings));
+  }, [dipstickReadings]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.SHIFTS, JSON.stringify(shifts));
+  }, [shifts]);
+
+  useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.USER_ROLE, userRole);
   }, [userRole]);
 
@@ -292,10 +365,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const customerStatsMap = useMemo(() => {
     const map: Record<string, CustomerCalculatedStats> = {};
     customers.forEach(c => {
-      map[c.id] = calculateCustomerStats(c, orders, kegReturns, new Date());
+      map[c.id] = calculateCustomerStats(c, orders, kegReturns, transfers, new Date());
     });
     return map;
-  }, [customers, orders, kegReturns]);
+  }, [customers, orders, kegReturns, transfers]);
+
+  // Active shift
+  const activeShift = useMemo(() => {
+    return shifts.find(s => s.status === 'open') || null;
+  }, [shifts]);
 
   // 2. Keg inventory summary (total company kegs, out, at depot)
   const kegInventory = useMemo(() => {
@@ -335,12 +413,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return allAudits;
   }, [pumps, pumpReadings, orders, settings.pump_variance_threshold]);
 
-  // 5. Split 4-stream alerts (Overdue Credit, Over Limit, Delivery Shortfall, Pump Variance)
+  // 5. Split alerts (Overdue Credit, Over Limit, Delivery Shortfall, Pump Variance, Dipstick, Shifts)
   const activeAlerts = useMemo(() => {
     const overdueCredit: { customer: Customer; overdueDays: number; amount: number }[] = [];
     const overLimit: { customer: Customer; balance: number; limit: number; excess: number }[] = [];
     const deliveryShortfall: { tank: Tank; shortfallLitres: number }[] = [];
     const pumpVariance = pumpVarianceAudits.filter(a => a.isOverThreshold);
+    const dipstickVariance: { reading: TankDipstickReading; tank: Tank; variance: number }[] = [];
 
     // Check customer credit alerts
     Object.values(customerStatsMap).forEach(stats => {
@@ -373,20 +452,44 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     });
 
+    // Check dipstick alerts
+    dipstickReadings.forEach(d => {
+      if (d.variance !== undefined && Math.abs(d.variance) > settings.dipstick_variance_threshold) {
+        const tank = tanks.find(t => t.id === d.tank_id);
+        if (tank) {
+          dipstickVariance.push({
+            reading: d,
+            tank,
+            variance: d.variance
+          });
+        }
+      }
+    });
+
+    // Check shift cash discrepancies
+    const shiftDiscrepancy = shifts.filter(
+      s => s.status === 'closed' && s.cash_variance !== undefined && s.cash_variance !== null && Math.abs(s.cash_variance) > 0.01
+    );
+
     const totalAlertCount =
       overdueCredit.length +
       overLimit.length +
       deliveryShortfall.length +
-      pumpVariance.length;
+      pumpVariance.length +
+      dipstickVariance.length +
+      shiftDiscrepancy.length;
 
     return {
       overdueCredit,
       overLimit,
       deliveryShortfall,
       pumpVariance,
+      dipstickVariance,
+      shiftDiscrepancy,
       totalAlertCount
     };
-  }, [customerStatsMap, tanks, settings.truck_shortfall_threshold, pumpVarianceAudits]);
+  }, [customerStatsMap, tanks, settings.truck_shortfall_threshold, settings.dipstick_variance_threshold, pumpVarianceAudits, dipstickReadings, shifts]);
+
 
   // 6. Today's operational stats
   const todayStats = useMemo(() => {
@@ -471,7 +574,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true, tank: newTank };
   };
 
-  // 2. Create New Order with FIFO Tank Draw & Pump assignment
+  // 2. Create New Order with FIFO Tank Draw, Per-Order Pump Meter & Outbound Shortfall
   const createNewOrder = (data: {
     customerId: string;
     productId: string;
@@ -480,6 +583,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     paymentMethod: PaymentMethod;
     kegSource: KegSource;
     pumpId?: string | null;
+    meterReading?: number | null;
+    deliveredQty?: number | null;
     note?: string;
   }) => {
     const customer = customers.find(c => c.id === data.customerId);
@@ -489,7 +594,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!product) return { success: false, error: 'Product not found' };
 
     const ratePerLitre = lookupRatePerLitre(rateCards, data.productId, customer.type);
-    const pricing = calculateOrderPricing(data.unit, data.qty, ratePerLitre, settings.litres_per_keg);
+    const pricing = calculateOrderPricing(
+      data.unit,
+      data.qty,
+      ratePerLitre,
+      settings.litres_per_keg,
+      product.litres_per_ton
+    );
 
     // 1. Execute FIFO Tank Draw
     const drawResult = executeFifoTankDraw(tanks, data.productId, pricing.litres);
@@ -513,6 +624,33 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const assignedPump = data.pumpId ? pumps.find(p => p.id === data.pumpId) : null;
 
+    // Handle per-order meter reading
+    let meterDelta: number | undefined;
+    let meterVariance: number | undefined;
+    if (data.pumpId && data.meterReading !== undefined && data.meterReading !== null) {
+      const meterAudit = calculatePerOrderMeterVariance(
+        data.pumpId,
+        Number(data.meterReading),
+        pricing.litres,
+        orders,
+        assignedPump?.last_meter_reading || 0,
+        settings.pump_variance_threshold
+      );
+      meterDelta = meterAudit.meterDelta;
+      meterVariance = meterAudit.variance;
+
+      // Update pump last_meter_reading
+      setPumps(prev => prev.map(p => p.id === data.pumpId ? { ...p, last_meter_reading: Number(data.meterReading) } : p));
+    }
+
+    // Handle outbound delivery shortfall for bulk tonnage / wholesale
+    let deliveredQty: number | undefined;
+    let shortfall: number | undefined;
+    if (data.deliveredQty !== undefined && data.deliveredQty !== null) {
+      deliveredQty = Number(data.deliveredQty);
+      shortfall = Number(data.qty) - deliveredQty;
+    }
+
     const newOrder: Order = {
       id: `ord-${Date.now()}`,
       customer_id: data.customerId,
@@ -529,6 +667,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       due_date: dueDate,
       source_tank_id: drawResult.primaryTankId,
       pump_id: data.pumpId || null,
+      meter_reading: data.meterReading !== undefined && data.meterReading !== null ? Number(data.meterReading) : undefined,
+      meter_delta: meterDelta,
+      meter_variance: meterVariance,
+      delivered_qty: deliveredQty,
+      shortfall: shortfall,
       note: data.note?.trim() || undefined
     };
 
@@ -621,7 +764,138 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true, kegReturn: newReturn };
   };
 
-  // 5. Record Pump Reading (Audit Log)
+  // 5. Inter-Customer / Inter-Agent Transfer
+  const logTransfer = (data: {
+    fromCustomerId: string;
+    toCustomerId: string;
+    itemType: 'keg' | 'bulk_litres';
+    qty: number;
+    notes?: string;
+  }) => {
+    if (data.fromCustomerId === data.toCustomerId) {
+      return { success: false, error: 'Sender and receiver must be different customers' };
+    }
+    if (Number(data.qty) <= 0) {
+      return { success: false, error: 'Transfer quantity must be greater than 0' };
+    }
+
+    const newTransfer: Transfer = {
+      id: `tr-${Date.now()}`,
+      from_customer_id: data.fromCustomerId,
+      to_customer_id: data.toCustomerId,
+      item_type: data.itemType,
+      qty: Number(data.qty),
+      date: new Date().toISOString(),
+      notes: data.notes?.trim() || undefined
+    };
+
+    setTransfers(prev => [newTransfer, ...prev]);
+    return { success: true, transfer: newTransfer };
+  };
+
+  // 6. Tank Dipstick Verification Reading
+  const recordDipstickReading = (data: {
+    tankId: string;
+    readingLitres: number;
+    notes?: string;
+  }) => {
+    const tank = tanks.find(t => t.id === data.tankId);
+    if (!tank) return { success: false, error: 'Tank not found' };
+    if (Number(data.readingLitres) <= 0) {
+      return { success: false, error: 'Dipstick reading must be greater than 0' };
+    }
+
+    const varianceAudit = calculateDipstickVariance(
+      Number(data.readingLitres),
+      tank.remaining_litres,
+      settings.dipstick_variance_threshold
+    );
+
+    const newReading: TankDipstickReading = {
+      id: `dip-${Date.now()}`,
+      tank_id: data.tankId,
+      reading_litres: Number(data.readingLitres),
+      system_litres: tank.remaining_litres,
+      recorded_at: new Date().toISOString(),
+      variance: varianceAudit.variance,
+      is_flagged: varianceAudit.isOverThreshold,
+      isOverThreshold: varianceAudit.isOverThreshold,
+      notes: data.notes?.trim() || undefined
+    };
+
+    setDipstickReadings(prev => [newReading, ...prev]);
+    return { success: true, reading: newReading };
+  };
+
+  // 7. Shift Management: Start Shift
+  const startShift = (data: {
+    cashierName: string;
+    openingFloat: number;
+    notes?: string;
+  }) => {
+    const newShift: Shift = {
+      id: `shift-${Date.now()}`,
+      cashier_name: data.cashierName,
+      start_time: new Date().toISOString(),
+      opening_float: Number(data.openingFloat),
+      status: 'open',
+      notes: data.notes?.trim() || undefined
+    };
+
+    setShifts(prev => [newShift, ...prev]);
+    return { success: true, shift: newShift };
+  };
+
+  // 8. Shift Management: Close Shift
+  const closeShift = (data: {
+    shiftId: string;
+    cashCounted: number;
+    notes?: string;
+  }) => {
+    const shift = shifts.find(s => s.id === data.shiftId);
+    if (!shift) return { success: false, error: 'Shift not found' };
+
+    const shiftStart = new Date(shift.start_time).getTime();
+    const shiftEnd = Date.now();
+
+    const cashSales = orders
+      .filter(o => {
+        const t = new Date(o.date).getTime();
+        return t >= shiftStart && t <= shiftEnd && o.payment_method === 'cash';
+      })
+      .reduce((sum, o) => sum + (o.paid_amount || 0), 0);
+
+    const cashExpenses = expenses
+      .filter(e => {
+        const t = new Date(e.date).getTime();
+        return t >= shiftStart && t <= shiftEnd;
+      })
+      .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+
+    const summary = calculateShiftSummary(
+      shift.opening_float,
+      cashSales,
+      cashExpenses,
+      data.cashCounted
+    );
+
+    const updatedShift: Shift = {
+      ...shift,
+      end_time: new Date(shiftEnd).toISOString(),
+      cash_sales: summary.cashSales,
+      cash_expenses: summary.cashExpenses,
+      expected_cash: summary.expectedCash,
+      cash_counted: summary.cashCounted,
+      cash_variance: summary.cashVariance,
+      status: 'closed',
+      notes: data.notes ? (shift.notes ? `${shift.notes} | ${data.notes}` : data.notes) : shift.notes
+    };
+
+    setShifts(prev => prev.map(s => s.id === data.shiftId ? updatedShift : s));
+    return { success: true, shift: updatedShift };
+  };
+
+  // 9. Record Pump Reading (Audit Log)
   const recordPumpReading = (pumpId: string, reading: number, note?: string) => {
     const pump = pumps.find(p => p.id === pumpId);
     if (!pump) return { success: false, error: 'Pump not found' };
@@ -646,7 +920,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true, pumpReading: newReading };
   };
 
-  // 6. Add Expense
+  // 10. Add Expense
   const addExpense = (category: string, amount: number, note?: string) => {
     const newExpense: Expense = {
       id: `exp-${Date.now()}`,
@@ -660,12 +934,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true, expense: newExpense };
   };
 
-  // 7. Update Product (e.g. litres_per_ton)
+  // 11. Update Product (e.g. litres_per_ton)
   const updateProduct = (productId: string, updates: Partial<Product>) => {
     setProducts(prev => prev.map(p => (p.id === productId ? { ...p, ...updates } : p)));
   };
 
-  // 8. Update Rate Card
+  // 12. Update Rate Card
   const updateRateCard = (productId: string, tier: string, ratePerLitre: number) => {
     setRateCards(prev => {
       const exists = prev.some(r => r.product_id === productId && r.tier === tier);
@@ -677,12 +951,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  // 9. Update Settings
+  // 13. Update Settings
   const updateSettings = (newSettings: Partial<AppSettings>) => {
     setSettings(prev => ({ ...prev, ...newSettings }));
   };
 
-  // 10. Add Customer
+  // 14. Add Customer
   const addCustomer = (customerData: Omit<Customer, 'id'>) => {
     const newCust: Customer = {
       ...customerData,
@@ -692,12 +966,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return newCust;
   };
 
-  // 11. Update Customer
+  // 15. Update Customer
   const updateCustomer = (id: string, customerData: Partial<Customer>) => {
     setCustomers(prev => prev.map(c => (c.id === id ? { ...c, ...customerData } : c)));
   };
 
-  // 12. Reset to default demo seed data
+  // 16. Reset to default demo seed data
   const resetToSeedData = () => {
     setProducts(DEFAULT_PRODUCTS);
     setRateCards(DEFAULT_RATE_CARDS);
@@ -709,6 +983,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setSettings(DEFAULT_SETTINGS);
     setPumps(DEFAULT_PUMPS);
     setPumpReadings(SEED_PUMP_READINGS);
+    setTransfers(SEED_TRANSFERS);
+    setDipstickReadings(SEED_DIPSTICK_READINGS);
+    setShifts(SEED_SHIFTS);
     localStorage.clear();
   };
 
@@ -725,6 +1002,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         settings,
         pumps,
         pumpReadings,
+        transfers,
+        dipstickReadings,
+        shifts,
+        activeShift,
         userRole,
         setUserRole,
         theme,
@@ -740,6 +1021,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         createNewOrder,
         recordCustomerPayment,
         logKegReturn,
+        logTransfer,
+        recordDipstickReading,
+        startShift,
+        closeShift,
         recordPumpReading,
         addExpense,
         updateProduct,
@@ -764,3 +1049,4 @@ export const useStore = () => {
   }
   return context;
 };
+

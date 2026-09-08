@@ -1,5 +1,5 @@
 export type CustomerType = 'retail' | 'agent' | 'corporate';
-export type UnitType = 'litre' | 'keg';
+export type UnitType = 'litre' | 'keg' | 'ton';
 export type PaymentMethod = 'cash' | 'transfer' | 'credit';
 export type KegSource = 'company' | 'own' | null;
 export type UserRole = 'owner' | 'staff' | 'driver';
@@ -37,6 +37,8 @@ export interface Tank {
   remaining_litres: number;
   date: string;
   shortfall: number;
+  last_dipstick_reading?: number;
+  last_dipstick_variance?: number;
 }
 
 export interface Pump {
@@ -84,6 +86,11 @@ export interface Order {
   due_date: string | null;
   source_tank_id: string | null;
   pump_id: string | null;
+  meter_reading?: number | null;
+  meter_delta?: number | null;
+  meter_variance?: number | null;
+  delivered_qty?: number | null;
+  shortfall?: number | null;
   note?: string;
 }
 
@@ -92,6 +99,48 @@ export interface KegReturn {
   customer_id: string;
   qty: number;
   date: string;
+}
+
+export interface Transfer {
+  id: string;
+  from_customer_id: string;
+  to_customer_id: string;
+  item_type: 'keg' | 'litres' | 'bulk_litres';
+  qty: number;
+  product_id?: string | null;
+  date: string;
+  note?: string;
+  notes?: string;
+}
+
+export interface TankDipstickReading {
+  id: string;
+  tank_id: string;
+  reading_litres: number;
+  system_litres?: number;
+  recorded_at: string;
+  note?: string;
+  notes?: string;
+  variance?: number;
+  is_flagged?: boolean;
+  isOverThreshold?: boolean;
+}
+
+export interface Shift {
+  id: string;
+  supervisor_name?: string;
+  cashier_name?: string;
+  start_time: string;
+  end_time?: string | null;
+  opening_float: number;
+  cash_sales?: number;
+  cash_expenses?: number;
+  expected_cash?: number;
+  cash_counted?: number | null;
+  cash_variance?: number | null;
+  note?: string;
+  notes?: string;
+  status: 'open' | 'closed';
 }
 
 export interface Expense {
@@ -113,6 +162,7 @@ export interface AppSettings {
   low_stock_litres_threshold: number;
   truck_shortfall_threshold: number;
   pump_variance_threshold: number;
+  dipstick_variance_threshold: number;
   default_daily_float: number;
   daily_float: number;
 }

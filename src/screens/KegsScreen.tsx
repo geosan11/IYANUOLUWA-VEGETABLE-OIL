@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
 import { formatDepotDate, formatDepotTime } from '../services/businessLogic';
 import {
@@ -8,7 +8,8 @@ import {
   RotateCcw,
   CheckCircle2,
   History,
-  Plus
+  Plus,
+  ArrowRightLeft
 } from 'lucide-react';
 
 export const KegsScreen: React.FC = () => {
@@ -16,6 +17,7 @@ export const KegsScreen: React.FC = () => {
     customers,
     orders,
     kegReturns,
+    transfers,
     settings,
     kegInventory,
     logKegReturn
@@ -24,6 +26,33 @@ export const KegsScreen: React.FC = () => {
   // Quick log return per customer state
   const [returnCustomerInputs, setReturnCustomerInputs] = useState<Record<string, string>>({});
   const [logSuccessMsg, setLogSuccessMsg] = useState<string | null>(null);
+
+  // Combined gate history: physical depot returns + inter-customer transfers
+  const gateHistoryEvents = useMemo(() => {
+    const returnEvents = kegReturns.map(r => ({
+      id: r.id,
+      type: 'return' as const,
+      date: r.date,
+      qty: r.qty,
+      customerName: customers.find(c => c.id === r.customer_id)?.name || 'Customer'
+    }));
+
+    const transferEvents = transfers
+      .filter(t => t.item_type === 'keg')
+      .map(t => ({
+        id: t.id,
+        type: 'transfer' as const,
+        date: t.date,
+        qty: t.qty,
+        fromName: customers.find(c => c.id === t.from_customer_id)?.name || 'Sender',
+        toName: customers.find(c => c.id === t.to_customer_id)?.name || 'Receiver',
+        notes: t.note || t.notes
+      }));
+
+    return [...returnEvents, ...transferEvents].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+  }, [kegReturns, transfers, customers]);
 
   const handleQuickReturn = (customerId: string) => {
     const qtyStr = returnCustomerInputs[customerId];
@@ -300,42 +329,75 @@ export const KegsScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* Right: Gate Returns Audit Log (lg:col-span-5) */}
+        {/* Right: Gate Returns & Transfer Movements Audit Log (lg:col-span-5) */}
         <div className="lg:col-span-5 p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
           <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
             <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
               <History className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              <span>Depot Gate Return Audit History</span>
+              <span>Gate Returns & Fleet Movement Audit</span>
             </h3>
             <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-              Verified timestamped physical drop-offs at the depot gate.
+              Physical depot returns & inter-customer yard transfers.
             </p>
           </div>
 
-          {kegReturns.length === 0 ? (
+          {gateHistoryEvents.length === 0 ? (
             <p className="text-[12px] font-sans text-slate-400 py-8 text-center">
-              No keg returns logged yet.
+              No keg movements logged yet.
             </p>
           ) : (
-            <div className="space-y-2.5 max-h-[440px] overflow-y-auto pr-1">
-              {kegReturns.map(item => {
-                const cust = customers.find(c => c.id === item.customer_id);
+            <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
+              {gateHistoryEvents.map(item => {
+                if (item.type === 'return') {
+                  return (
+                    <div
+                      key={item.id}
+                      className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="font-heading font-semibold text-[14px] text-slate-900 dark:text-slate-200">
+                          {item.customerName}
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono tabular-nums">
+                          {formatDepotDate(item.date)} · {formatDepotTime(item.date)}
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="inline-flex items-center gap-1 font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 text-[12px]">
+                          <ArrowDownLeft className="w-3.5 h-3.5" />
+                          <span>+{item.qty} Return</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Transfer event
                 return (
                   <div
                     key={item.id}
-                    className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs"
+                    className="p-3.5 rounded-xl bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/50 flex items-center justify-between text-xs"
                   >
                     <div className="space-y-0.5">
-                      <div className="font-heading font-semibold text-[14px] text-slate-900 dark:text-slate-200">{cust?.name || 'Customer'}</div>
+                      <div className="font-heading font-semibold text-[13px] text-slate-900 dark:text-slate-200 flex items-center gap-1.5">
+                        <span>{item.fromName}</span>
+                        <span className="text-purple-600 dark:text-purple-400 font-bold">➔</span>
+                        <span>{item.toName}</span>
+                      </div>
                       <div className="text-[11px] text-slate-500 font-mono tabular-nums">
                         {formatDepotDate(item.date)} · {formatDepotTime(item.date)}
+                        {item.notes && <span className="text-slate-400 font-sans italic ml-1">({item.notes})</span>}
+                      </div>
+                      <div className="text-[10px] text-purple-700 dark:text-purple-300/80 font-sans">
+                        Inter-customer transfer · Depot stock unchanged
                       </div>
                     </div>
 
                     <div className="text-right">
-                      <div className="inline-flex items-center gap-1 font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 text-[12px]">
-                        <ArrowDownLeft className="w-3.5 h-3.5" />
-                        <span>+{item.qty} Kegs</span>
+                      <div className="inline-flex items-center gap-1 font-mono tabular-nums font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/60 px-2.5 py-1 rounded-lg border border-purple-300 dark:border-purple-800 text-[12px]">
+                        <ArrowRightLeft className="w-3.5 h-3.5" />
+                        <span>{item.qty} Transfer</span>
                       </div>
                     </div>
                   </div>

@@ -2,6 +2,7 @@ import {
   Customer,
   Order,
   KegReturn,
+  Transfer,
   Tank,
   RateCard,
   CustomerType,
@@ -14,11 +15,18 @@ import { LITRES_PER_KEG } from '../constants/config';
 
 /**
  * 1. UNIT CONVERSION
- * litres = unit === 'keg' ? qty * LITRES_PER_KEG : qty
+ * litres = unit === 'ton' ? qty * litresPerTon : unit === 'keg' ? qty * LITRES_PER_KEG : qty
  */
-export function calculateLitres(unit: UnitType, qty: number, litresPerKeg = LITRES_PER_KEG): number {
+export function calculateLitres(
+  unit: UnitType,
+  qty: number,
+  litresPerKeg = LITRES_PER_KEG,
+  litresPerTon = 1090
+): number {
   const numericQty = Number(qty) || 0;
-  return unit === 'keg' ? numericQty * litresPerKeg : numericQty;
+  if (unit === 'ton') return numericQty * (litresPerTon || 1090);
+  if (unit === 'keg') return numericQty * litresPerKeg;
+  return numericQty;
 }
 
 /**
@@ -93,9 +101,10 @@ export function calculateOrderPricing(
   unit: UnitType,
   qty: number,
   ratePerLitre: number,
-  litresPerKeg = LITRES_PER_KEG
+  litresPerKeg = LITRES_PER_KEG,
+  litresPerTon = 1090
 ): { litres: number; amount: number; ratePerKeg: number } {
-  const litres = calculateLitres(unit, qty, litresPerKeg);
+  const litres = calculateLitres(unit, qty, litresPerKeg, litresPerTon);
   const ratePerKeg = ratePerLitre * litresPerKeg;
   const amount = litres * ratePerLitre;
   return {
@@ -117,9 +126,21 @@ export function calculateCustomerStats(
   customer: Customer,
   orders: Order[],
   kegReturns: KegReturn[],
+  transfersOrRefDate: Transfer[] | Date = [],
   referenceDate: Date = new Date()
 ): CustomerCalculatedStats {
+  let transfers: Transfer[] = [];
+  let refDate = referenceDate;
+
+  if (transfersOrRefDate instanceof Date) {
+    refDate = transfersOrRefDate;
+    transfers = [];
+  } else if (Array.isArray(transfersOrRefDate)) {
+    transfers = transfersOrRefDate;
+  }
+
   const customerOrders = orders.filter(o => o.customer_id === customer.id);
+
   
   // Open credit orders where amount > paid_amount and payment_method === 'credit'
   const openOrders = customerOrders.filter(
@@ -131,7 +152,7 @@ export function calculateCustomerStats(
     0
   );
 
-  // Kegs out = sum(orders where keg_source='company', qty) - sum(keg_returns.qty)
+  // Kegs out = sum(orders where keg_source='company', qty) - sum(keg_returns.qty) - transfers_out + transfers_in
   const totalCompanyKegsSupplied = customerOrders
     .filter(o => o.keg_source === 'company' && o.unit === 'keg')
     .reduce((sum, o) => sum + Number(o.qty || 0), 0);
@@ -140,7 +161,18 @@ export function calculateCustomerStats(
     .filter(r => r.customer_id === customer.id)
     .reduce((sum, r) => sum + Number(r.qty || 0), 0);
 
-  const totalCompanyKegsOut = Math.max(0, totalCompanyKegsSupplied - customerReturns);
+  const kegsTransferredOut = transfers
+    .filter(t => t.from_customer_id === customer.id && t.item_type === 'keg')
+    .reduce((sum, t) => sum + Number(t.qty || 0), 0);
+
+  const kegsTransferredIn = transfers
+    .filter(t => t.to_customer_id === customer.id && t.item_type === 'keg')
+    .reduce((sum, t) => sum + Number(t.qty || 0), 0);
+
+  const totalCompanyKegsOut = Math.max(
+    0,
+    totalCompanyKegsSupplied - customerReturns - kegsTransferredOut + kegsTransferredIn
+  );
 
   // Compute Aging
   let worstOverdueDays = -Infinity; // Days past due (positive = overdue, negative = days remaining)
@@ -152,7 +184,7 @@ export function calculateCustomerStats(
       if (!ord.due_date) continue;
       const dueDate = new Date(ord.due_date);
       // diff in days = (today - dueDate)
-      const diffMs = referenceDate.getTime() - dueDate.getTime();
+      const diffMs = refDate.getTime() - dueDate.getTime();
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
       if (diffDays > worstOverdueDays) {
         worstOverdueDays = diffDays;
@@ -494,4 +526,119 @@ export function formatDepotTime(dateStr: string | null | undefined): string {
     return '';
   }
 }
+
+/**
+ * 10. PER-ORDER PUMP METER VARIANCE
+ * On submit, if pump_id and meter_reading are provided:
+ * previous_reading = last recorded meter_reading on that pump (from prior order with meter_reading, or pump.last_meter_reading)
+ * delta = meter_reading - previous_reading
+ * expected = order's litres
+ * variance = delta - expected
+ * flag if |variance| > thresholdLitres (default 20L)
+ */
+export function calculatePerOrderMeterVariance(
+  pumpId: string,
+  currentReading: number,
+  orderLitres: number,
+  allOrders: Order[],
+  pumpLastReading = 0,
+  thresholdLitres = 20
+): {
+  previousReading: number;
+  meterDelta: number;
+  expectedLitres: number;
+  variance: number;
+  isOverThreshold: boolean;
+} {
+  const current = Number(currentReading) || 0;
+  const expected = Number(orderLitres) || 0;
+
+  // Find prior orders on this pump that have a valid meter_reading, sorted descending by date
+  const priorOrdersWithMeter = allOrders
+    .filter(o => o.pump_id === pumpId && o.meter_reading !== undefined && o.meter_reading !== null)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const previousReading = priorOrdersWithMeter.length > 0
+    ? Number(priorOrdersWithMeter[0].meter_reading)
+    : Number(pumpLastReading) || 0;
+
+  const meterDelta = Number((current - previousReading).toFixed(2));
+  const variance = Number((meterDelta - expected).toFixed(2));
+  const isOverThreshold = Math.abs(variance) > thresholdLitres;
+
+  return {
+    previousReading,
+    meterDelta,
+    expectedLitres: expected,
+    variance,
+    isOverThreshold
+  };
+}
+
+/**
+ * 11. TANK DIPSTICK VERIFICATION
+ * Physical stick measurement for depot bulk storage tanks.
+ * variance = reading_litres - tank.remaining_litres
+ * flag if |variance| > thresholdLitres (default 30L)
+ */
+export function calculateDipstickVariance(
+  readingLitres: number,
+  tankRemainingLitres: number,
+  thresholdLitres = 30
+): {
+  readingLitres: number;
+  tankLitres: number;
+  variance: number;
+  isOverThreshold: boolean;
+} {
+  const reading = Number(readingLitres) || 0;
+  const tankLitres = Number(tankRemainingLitres) || 0;
+  const variance = Number((reading - tankLitres).toFixed(2));
+  const isOverThreshold = Math.abs(variance) > thresholdLitres;
+
+  return {
+    readingLitres: reading,
+    tankLitres,
+    variance,
+    isOverThreshold
+  };
+}
+
+/**
+ * 12. SHIFT RECONCILIATION
+ * expected_cash = opening_float + cash_sales - cash_expenses
+ * cash_variance = cash_counted - expected_cash
+ */
+export function calculateShiftSummary(
+  openingFloat: number,
+  cashSales: number,
+  cashExpenses: number,
+  cashCounted?: number
+): {
+  openingFloat: number;
+  cashSales: number;
+  cashExpenses: number;
+  expectedCash: number;
+  cashCounted: number;
+  cashVariance: number;
+  hasVariance: boolean;
+} {
+  const op = Number(openingFloat) || 0;
+  const sales = Number(cashSales) || 0;
+  const exp = Number(cashExpenses) || 0;
+  const expectedCash = Number((op + sales - exp).toFixed(2));
+  const counted = cashCounted !== undefined ? Number(cashCounted) || 0 : expectedCash;
+  const cashVariance = Number((counted - expectedCash).toFixed(2));
+
+  return {
+    openingFloat: op,
+    cashSales: sales,
+    cashExpenses: exp,
+    expectedCash,
+    cashCounted: counted,
+    cashVariance,
+    hasVariance: Math.abs(cashVariance) > 0.01
+  };
+}
+
 

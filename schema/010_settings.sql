@@ -15,9 +15,11 @@ INSERT INTO settings (key, value) VALUES
 ('low_stock_litres_threshold', '500'::jsonb),
 ('truck_shortfall_threshold', '50'::jsonb),
 ('pump_variance_threshold', '20'::jsonb),
+('dipstick_variance_threshold', '30'::jsonb),
 ('default_daily_float', '150000'::jsonb),
 ('company_name', '"Iyanuoluwa Vegetable & Palm Oil Depot"'::jsonb),
 ('company_phone', '"+234 802 000 1122"'::jsonb),
 ('company_address', '"Plot 14, Commercial Avenue, Alaba Depot, Lagos"'::jsonb),
 ('company_logo_url', 'null'::jsonb)
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+

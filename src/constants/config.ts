@@ -1,4 +1,4 @@
-import { Product, RateCard, Customer, AppSettings, Tank, Order, KegReturn, Expense, Pump, PumpReading } from '../types';
+import { Product, RateCard, Customer, AppSettings, Tank, Order, KegReturn, Expense, Pump, PumpReading, Transfer, TankDipstickReading, Shift } from '../types';
 
 export const LITRES_PER_KEG = 30;
 
@@ -133,6 +133,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   low_stock_litres_threshold: 500,
   truck_shortfall_threshold: 50,
   pump_variance_threshold: 20,
+  dipstick_variance_threshold: 30,
   default_daily_float: 150000,
   daily_float: 150000
 };
@@ -142,32 +143,38 @@ export const SEED_TANKS: Tank[] = [
   {
     id: 'tank-v1',
     product_id: 'veg',
-    truck_label: 'TRK-VEG-902 (Aliyu)',
-    tons: 10,
-    received_litres: 10900,
-    remaining_litres: 6420,
-    date: '2026-09-01T08:30:00Z',
-    shortfall: 20
+    truck_label: 'Truck 1 · AAA-123-XB (Alhaji Musa)',
+    tons: 15,
+    received_litres: 16350,
+    remaining_litres: 15660,
+    date: '2026-09-01T08:00:00Z',
+    shortfall: 0,
+    last_dipstick_reading: 15660,
+    last_dipstick_variance: 0
   },
   {
     id: 'tank-v2',
     product_id: 'veg',
-    truck_label: 'TRK-VEG-908 (Ibrahim)',
-    tons: 15,
-    received_litres: 16350,
-    remaining_litres: 16350,
-    date: '2026-09-06T11:15:00Z',
-    shortfall: 45
+    truck_label: 'Truck 2 · KJA-492-XA (Emeka Obi)',
+    tons: 10,
+    received_litres: 10900,
+    remaining_litres: 10900,
+    date: '2026-09-06T10:30:00Z',
+    shortfall: 20,
+    last_dipstick_reading: 10890,
+    last_dipstick_variance: -10
   },
   {
     id: 'tank-r1',
     product_id: 'red',
-    truck_label: 'TRK-RED-404 (Emeka)',
-    tons: 8,
-    received_litres: 8680,
-    remaining_litres: 4150,
-    date: '2026-09-03T09:40:00Z',
-    shortfall: 35
+    truck_label: 'Truck Red · OGL-881-ZZ (Babatunde)',
+    tons: 12,
+    received_litres: 13020,
+    remaining_litres: 12720,
+    date: '2026-09-03T11:00:00Z',
+    shortfall: 0,
+    last_dipstick_reading: 12720,
+    last_dipstick_variance: 0
   }
 ];
 
@@ -178,18 +185,19 @@ export const SEED_ORDERS: Order[] = [
     customer_id: 'cust-1', // Mr Samson (Corporate, 30 days)
     product_id: 'veg',
     unit: 'keg',
-    qty: 20,
-    litres: 600,
+    qty: 15,
+    litres: 450,
     rate: 4500,
-    amount: 90000,
+    amount: 67500,
     paid_amount: 0,
     payment_method: 'credit',
     keg_source: 'company',
-    date: '2026-08-01T10:00:00Z',
-    due_date: '2026-08-31T10:00:00Z', // Overdue
+    date: '2026-08-05T10:00:00Z',
+    due_date: '2026-09-04T10:00:00Z', // Overdue
     source_tank_id: 'tank-v1',
     pump_id: 'p-1',
-    note: 'Initial month batch'
+    meter_reading: 11610,
+    note: 'Initial supply'
   },
   {
     id: 'ord-102',
@@ -207,6 +215,7 @@ export const SEED_ORDERS: Order[] = [
     due_date: '2026-09-11T14:30:00Z', // Due in 3 days
     source_tank_id: 'tank-v1',
     pump_id: 'p-1',
+    meter_reading: 12060,
     note: 'Depot dispatch'
   },
   {
@@ -225,6 +234,7 @@ export const SEED_ORDERS: Order[] = [
     due_date: null,
     source_tank_id: 'tank-r1',
     pump_id: 'p-3',
+    meter_reading: 5340,
     note: 'Customer brought own yellow jerrycans'
   },
   {
@@ -243,6 +253,7 @@ export const SEED_ORDERS: Order[] = [
     due_date: '2026-09-18T12:00:00Z', // Current
     source_tank_id: 'tank-v1',
     pump_id: 'p-1',
+    meter_reading: 12300,
     note: 'Fast agent restock'
   }
 ];
@@ -259,6 +270,47 @@ export const SEED_KEG_RETURNS: KegReturn[] = [
     customer_id: 'cust-2',
     qty: 3,
     date: '2026-09-02T11:00:00Z'
+  }
+];
+
+export const SEED_TRANSFERS: Transfer[] = [
+  {
+    id: 'trf-1',
+    from_customer_id: 'cust-1', // Mr Samson
+    to_customer_id: 'cust-2',   // Arena
+    item_type: 'keg',
+    qty: 2,
+    date: '2026-09-03T14:00:00Z',
+    note: 'Direct market transfer from Samson to Arena'
+  }
+];
+
+export const SEED_DIPSTICK_READINGS: TankDipstickReading[] = [
+  {
+    id: 'ds-1',
+    tank_id: 'tank-v1',
+    reading_litres: 15660,
+    recorded_at: '2026-09-08T07:30:00Z',
+    variance: 0,
+    isOverThreshold: false,
+    note: 'Morning yard calibration'
+  }
+];
+
+export const SEED_SHIFTS: Shift[] = [
+  {
+    id: 'shift-1',
+    supervisor_name: 'Alhaja Sikirat (Owner)',
+    start_time: '2026-09-08T07:00:00Z',
+    end_time: null,
+    opening_float: 150000,
+    cash_sales: 0,
+    cash_expenses: 37000,
+    expected_cash: 113000,
+    cash_counted: null,
+    cash_variance: null,
+    status: 'open',
+    notes: 'Morning shift operational run'
   }
 ];
 

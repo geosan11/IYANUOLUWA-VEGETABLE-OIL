@@ -36,6 +36,7 @@ export const NewOrderScreen: React.FC = () => {
     tankStockByProduct,
     pumps,
     pumpReadings,
+    orders,
     settings,
     createNewOrder,
     recordPumpReading
@@ -49,16 +50,10 @@ export const NewOrderScreen: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('credit');
   const [note, setNote] = useState<string>('');
 
-  // Pump Assignment for order
+  // Pump Assignment & Per-Order Meter Reading
   const [selectedPumpId, setSelectedPumpId] = useState<string>('');
-
-  // Auto-select pump matching product when product changes
-  useEffect(() => {
-    const matchingPump = pumps.find(p => p.product_id === productId) || pumps[0];
-    if (matchingPump) {
-      setSelectedPumpId(matchingPump.id);
-    }
-  }, [productId, pumps]);
+  const [orderMeterReading, setOrderMeterReading] = useState<string>('');
+  const [deliveredTons, setDeliveredTons] = useState<string>('');
 
   // Lightweight "Record Pump Reading" Action state
   const [isPumpReadingOpen, setIsPumpReadingOpen] = useState(false);
@@ -76,6 +71,19 @@ export const NewOrderScreen: React.FC = () => {
   const selectedProduct = products.find(p => p.id === productId) || products[0];
   const customerStats = selectedCustomer ? customerStatsMap[selectedCustomer.id] : null;
 
+  // Derive previous meter reading for selected pump
+  const priorPumpReading = useMemo(() => {
+    if (!selectedPumpId) return 0;
+    const priorOrdersWithMeter = (orders || [])
+      .filter(o => o.pump_id === selectedPumpId && o.meter_reading !== undefined && o.meter_reading !== null)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    if (priorOrdersWithMeter.length > 0) {
+      return Number(priorOrdersWithMeter[0].meter_reading);
+    }
+    const currentPump = pumps.find(p => p.id === selectedPumpId);
+    return Number(currentPump?.last_meter_reading) || 0;
+  }, [orders, pumps, selectedPumpId]);
+
   // Rate & Pricing Calculations
   const ratePerLitre = useMemo(() => {
     if (!selectedCustomer || !selectedProduct) return 5000;
@@ -87,9 +95,30 @@ export const NewOrderScreen: React.FC = () => {
       unit,
       parseFloat(qty) || 0,
       ratePerLitre,
-      settings.litres_per_keg
+      settings.litres_per_keg,
+      selectedProduct.litres_per_ton
     );
-  }, [unit, qty, ratePerLitre, settings.litres_per_keg]);
+  }, [unit, qty, ratePerLitre, settings.litres_per_keg, selectedProduct.litres_per_ton]);
+
+  // Live per-order meter analysis
+  const meterAnalysis = useMemo(() => {
+    if (!orderMeterReading || !selectedPumpId) return null;
+    const current = parseFloat(orderMeterReading);
+    if (isNaN(current)) return null;
+    const delta = current - priorPumpReading;
+    const expected = pricing.litres;
+    const variance = delta - expected;
+    const isOverThreshold = Math.abs(variance) > settings.pump_variance_threshold;
+    return {
+      current,
+      prior: priorPumpReading,
+      delta: Number(delta.toFixed(2)),
+      expected: Number(expected.toFixed(2)),
+      variance: Number(variance.toFixed(2)),
+      isOverThreshold
+    };
+  }, [orderMeterReading, selectedPumpId, priorPumpReading, pricing.litres, settings.pump_variance_threshold]);
+
 
   // Combined stock and active FIFO tank
   const productStock = tankStockByProduct[productId]?.totalLitres || 0;
@@ -184,6 +213,8 @@ export const NewOrderScreen: React.FC = () => {
       paymentMethod,
       kegSource: unit === 'keg' ? kegSource : null,
       pumpId: selectedPumpId || null,
+      meterReading: orderMeterReading ? parseFloat(orderMeterReading) : null,
+      deliveredQty: deliveredTons ? parseFloat(deliveredTons) : null,
       note: note.trim() || undefined
     });
 
@@ -191,7 +222,9 @@ export const NewOrderScreen: React.FC = () => {
       setErrorMessage(result.error || 'Failed to process order.');
     } else {
       // Reset form fields
-      setQty('10');
+      setQty(unit === 'ton' ? '5' : '10');
+      setOrderMeterReading('');
+      setDeliveredTons('');
       setNote('');
       setOverrideKegShortage(false);
       setOverrideCreditLimit(false);
@@ -208,7 +241,7 @@ export const NewOrderScreen: React.FC = () => {
             <span>Counter Dispense & New Order</span>
           </h2>
           <p className="text-[14px] font-sans text-slate-500 dark:text-slate-400 mt-1">
-            Automated FIFO tank draw, pump meter tracking, customer credit validation, and instant receipt generation.
+            Automated FIFO tank draw, per-order pump meter tracking, customer credit validation, and instant receipt generation.
           </p>
         </div>
 
@@ -300,23 +333,23 @@ export const NewOrderScreen: React.FC = () => {
                   min={selectedReadingPump?.last_meter_reading || 0}
                   value={newMeterReading}
                   onChange={e => setNewMeterReading(e.target.value)}
-                  placeholder={(selectedReadingPump ? selectedReadingPump.last_meter_reading + 50 : 1000).toString()}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-purple-500"
+                  placeholder={selectedReadingPump ? selectedReadingPump.last_meter_reading.toString() : '10000'}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums text-[14px] font-bold focus:outline-none focus:border-purple-500"
                   required
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-[11px]">Litres</span>
               </div>
             </div>
 
-            {/* Note / Shift */}
+            {/* Note */}
             <div className="lg:col-span-3 space-y-1">
-              <label className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Audit Note / Shift</label>
+              <label className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Audit Note (Optional)</label>
               <input
                 type="text"
                 value={readingNote}
                 onChange={e => setReadingNote(e.target.value)}
-                placeholder="e.g. Afternoon shift audit"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 text-[14px] font-sans focus:outline-none focus:border-purple-500"
+                placeholder="e.g. End of morning shift audit"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-sans text-[14px] focus:outline-none focus:border-purple-500"
               />
             </div>
 
@@ -397,12 +430,18 @@ export const NewOrderScreen: React.FC = () => {
             </div>
           </div>
 
-          {/* 3. Dispensing Pump Selection */}
-          <div className="space-y-1.5">
-            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <Fuel className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-              <span>Dispense Pump Meter Line</span>
-            </label>
+          {/* 3. Dispensing Pump Selection & Live Per-Order Meter Input */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Fuel className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <span>Dispense Pump Meter Line</span>
+              </label>
+              <span className="text-[11px] font-mono tabular-nums text-slate-500">
+                Threshold: ±{settings.pump_variance_threshold}L
+              </span>
+            </div>
+            
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {pumps.map(pump => {
                 const isSelected = selectedPumpId === pump.id;
@@ -425,9 +464,67 @@ export const NewOrderScreen: React.FC = () => {
                 );
               })}
             </div>
+
+            {/* Per-Order Pump Meter Input with Live Delta & Variance */}
+            {selectedPumpId && (
+              <div className="p-3.5 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/50 space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span className="text-[12px] font-sans font-semibold text-purple-950 dark:text-purple-200">
+                    Pump Dispense Meter Reading
+                  </span>
+                  <span className="text-[11px] font-mono tabular-nums text-purple-700 dark:text-purple-300">
+                    Prior Order Reading: <span className="font-bold">{priorPumpReading.toLocaleString()} L</span>
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
+                  <div className="sm:col-span-8">
+                    <input
+                      type="number"
+                      step="0.5"
+                      min={priorPumpReading}
+                      value={orderMeterReading}
+                      onChange={e => setOrderMeterReading(e.target.value)}
+                      placeholder={`Current meter (e.g. ${(priorPumpReading + pricing.litres).toFixed(0)})`}
+                      className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-slate-950 border border-purple-300 dark:border-purple-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                  <div className="sm:col-span-4">
+                    <button
+                      type="button"
+                      onClick={() => setOrderMeterReading((priorPumpReading + pricing.litres).toString())}
+                      className="w-full py-2 px-3 rounded-xl bg-purple-100 dark:bg-purple-900/40 hover:bg-purple-200 dark:hover:bg-purple-900/60 text-purple-800 dark:text-purple-200 text-[11px] font-sans font-bold border border-purple-300 dark:border-purple-800 transition-colors"
+                    >
+                      Fill Expected (+{pricing.litres}L)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Live Variance Feedback */}
+                {meterAnalysis && (
+                  <div className={`p-2.5 rounded-lg text-[12px] flex items-center gap-2 ${
+                    meterAnalysis.isOverThreshold
+                      ? 'bg-amber-100/90 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200'
+                      : 'bg-emerald-100/90 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200'
+                  }`}>
+                    {meterAnalysis.isOverThreshold ? (
+                      <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    )}
+                    <span className="font-mono tabular-nums text-[12px]">
+                      Delta: <strong>{meterAnalysis.delta}L</strong> (Expected: {meterAnalysis.expected}L)
+                      {' | '}
+                      Variance: <strong>{meterAnalysis.variance > 0 ? `+${meterAnalysis.variance}` : meterAnalysis.variance}L</strong>
+                      {meterAnalysis.isOverThreshold && ` (Flagged > ±${settings.pump_variance_threshold}L threshold)`}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* 4. Unit & Quantity */}
+          {/* 4. Unit & Quantity (Keg, Litre, Ton) */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Volume & Unit</label>
@@ -437,23 +534,23 @@ export const NewOrderScreen: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-              {/* Unit Toggle */}
-              <div className="sm:col-span-5 grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+              {/* 3-Way Unit Toggle */}
+              <div className="sm:col-span-6 grid grid-cols-3 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setUnit('keg')}
-                  className={`py-2 rounded-lg text-[12px] font-sans font-bold transition-all ${
+                  onClick={() => { setUnit('keg'); if (parseFloat(qty) > 100) setQty('10'); }}
+                  className={`py-2 rounded-lg text-[11px] font-sans font-bold transition-all ${
                     unit === 'keg'
                       ? 'bg-brand-500 text-slate-950 shadow-sm'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
                   }`}
                 >
-                  Kegs ({settings.litres_per_keg}L)
+                  Keg ({settings.litres_per_keg}L)
                 </button>
                 <button
                   type="button"
                   onClick={() => setUnit('litre')}
-                  className={`py-2 rounded-lg text-[12px] font-sans font-bold transition-all ${
+                  className={`py-2 rounded-lg text-[11px] font-sans font-bold transition-all ${
                     unit === 'litre'
                       ? 'bg-brand-500 text-slate-950 shadow-sm'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
@@ -461,17 +558,28 @@ export const NewOrderScreen: React.FC = () => {
                 >
                   Litres
                 </button>
+                <button
+                  type="button"
+                  onClick={() => { setUnit('ton'); setQty('5'); }}
+                  className={`py-2 rounded-lg text-[11px] font-sans font-bold transition-all ${
+                    unit === 'ton'
+                      ? 'bg-brand-500 text-slate-950 shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
+                  }`}
+                >
+                  Tons
+                </button>
               </div>
 
               {/* Quantity Input */}
-              <div className="sm:col-span-7">
+              <div className="sm:col-span-6">
                 <input
                   type="number"
-                  step={unit === 'keg' ? '1' : '0.5'}
+                  step={unit === 'keg' ? '1' : unit === 'ton' ? '0.1' : '0.5'}
                   min="0.1"
                   value={qty}
                   onChange={e => setQty(e.target.value)}
-                  placeholder="10"
+                  placeholder={unit === 'ton' ? '5' : '10'}
                   inputMode="decimal"
                   className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[16px] font-mono tabular-nums font-bold focus:outline-none focus:border-brand-500 text-right"
                   required
@@ -479,10 +587,47 @@ export const NewOrderScreen: React.FC = () => {
               </div>
             </div>
 
+            {/* Wholesale Tonnage Outbound Shortfall Card */}
+            {unit === 'ton' && (
+              <div className="p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 text-[12px] space-y-2">
+                <div className="flex items-center justify-between text-blue-950 dark:text-blue-200 font-semibold">
+                  <span>Wholesale Bulk Tonnage Sale</span>
+                  <span className="font-mono tabular-nums font-bold">1 Ton = {selectedProduct.litres_per_ton}L</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="text-[11px] font-sans text-slate-600 dark:text-slate-400 block mb-1">
+                      Delivered Tons (Optional Outbound Check)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={deliveredTons}
+                      onChange={e => setDeliveredTons(e.target.value)}
+                      placeholder={`e.g. ${qty}`}
+                      className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[13px] font-mono tabular-nums focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    {deliveredTons && parseFloat(deliveredTons) < (parseFloat(qty) || 0) ? (
+                      <div className="text-[11px] font-mono tabular-nums text-amber-700 dark:text-amber-400 font-bold p-1">
+                        Shortfall: {((parseFloat(qty) || 0) - parseFloat(deliveredTons)).toFixed(2)} Tons (
+                        {(((parseFloat(qty) || 0) - parseFloat(deliveredTons)) * selectedProduct.litres_per_ton).toFixed(1)}L)
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 italic">
+                        Direct wholesale discharge — container allocation bypassed.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Quick Increment Chips */}
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <span className="text-[11px] font-sans font-semibold text-slate-500 uppercase">Quick Add:</span>
-              {[1, 5, 10, 20, 50].map(val => (
+              {(unit === 'ton' ? [1, 2, 5, 10] : [1, 5, 10, 20, 50]).map(val => (
                 <button
                   type="button"
                   key={val}
