@@ -236,10 +236,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 </span>
               </div>
               <div>
-                <span className="text-[10px] font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                <span className="text-[10px] font-sans uppercase tracking-wider text-rose-700 dark:text-rose-400 block">
                   Cash Expenses
                 </span>
-                <span className="font-mono tabular-nums font-bold text-slate-700 dark:text-slate-300">
+                <span className="font-mono tabular-nums font-bold text-rose-600 dark:text-rose-400">
                   -{formatNaira(shiftMetrics.cashExpenses)}
                 </span>
               </div>
@@ -301,16 +301,16 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-1">Collected today</div>
         </div>
 
-        {/* 2. Credit Outstanding */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-[12px] font-sans font-medium uppercase tracking-wider">Credit Ledger</span>
-            <CreditCard className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+        {/* 2. Credit Outstanding (Highlighted in Red) */}
+        <div className="p-4 rounded-2xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-800 transition-all shadow-sm">
+          <div className="flex items-center justify-between text-rose-700 dark:text-rose-400 mb-2">
+            <span className="text-[12px] font-sans font-semibold uppercase tracking-wider">Credit Ledger</span>
+            <CreditCard className="w-4 h-4 text-rose-600 dark:text-rose-400" />
           </div>
-          <div className="text-[32px] font-mono font-bold leading-tight text-slate-900 dark:text-slate-100">
+          <div className="text-[32px] font-mono font-bold leading-tight text-rose-600 dark:text-rose-400">
             {formatNaira(todayStats.creditOutstanding)}
           </div>
-          <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-1">Total open balance</div>
+          <div className="text-[12px] font-sans text-rose-600/80 dark:text-rose-400/80 mt-1">Total open balance</div>
         </div>
 
         {/* 3. Company Kegs Out */}
@@ -378,16 +378,16 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-1">Own containers today</div>
         </div>
 
-        {/* 6. Spent Today / Float Status (Neutral unless overdraft) */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-[12px] font-sans font-medium uppercase tracking-wider">Expenses Today</span>
-            <Package className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+        {/* 6. Spent Today / Expenses (Highlighted in Red) */}
+        <div className="p-4 rounded-2xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-800 transition-all shadow-sm">
+          <div className="flex items-center justify-between text-rose-700 dark:text-rose-400 mb-2">
+            <span className="text-[12px] font-sans font-semibold uppercase tracking-wider">Expenses Today</span>
+            <Package className="w-4 h-4 text-rose-600 dark:text-rose-400" />
           </div>
-          <div className={`text-[32px] font-mono font-bold leading-tight ${todayStats.dailyFloatRemaining < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-slate-100'}`}>
+          <div className="text-[32px] font-mono font-bold leading-tight text-rose-600 dark:text-rose-400">
             {formatNaira(todayStats.expensesToday)}
           </div>
-          <div className="text-[12px] font-mono text-slate-500 dark:text-slate-400 mt-1">
+          <div className="text-[12px] font-mono text-rose-600/80 dark:text-rose-400/80 mt-1">
             Float: {formatNaira(todayStats.dailyFloatRemaining)}
           </div>
         </div>
