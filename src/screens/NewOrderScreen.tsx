@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useStore } from '../services/store';
 import {
   lookupRatePerLitre,
@@ -29,7 +29,9 @@ import {
   Banknote,
   Smartphone,
   Landmark,
-  ClipboardList
+  ClipboardList,
+  Search,
+  X
 } from 'lucide-react';
 
 const TANK_CAP_FALLBACK: Record<string, number> = { veg: 30000, red: 15000 };
@@ -74,6 +76,11 @@ export const NewOrderScreen: React.FC = () => {
   // Pricing tier override (defaults to the customer's registered tier)
   const [tierOverride, setTierOverride] = useState<CustomerType | null>(null);
 
+  // Searchable Customer Combobox state
+  const [customerSearch, setCustomerSearch] = useState<string>('');
+  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState<boolean>(false);
+  const customerComboboxRef = useRef<HTMLDivElement>(null);
+
   // Manual / discounted rate
   const [isCustomRateEnabled, setIsCustomRateEnabled] = useState(false);
   const [customRateInput, setCustomRateInput] = useState('');
@@ -114,6 +121,41 @@ export const NewOrderScreen: React.FC = () => {
   const isPreKegged = selectedProduct?.supply_model === 'pre_kegged' || productId === 'red';
   const customerStats = selectedCustomer ? customerStatsMap[selectedCustomer.id] : null;
   const varieties = selectedProduct?.varieties || [];
+
+  // Sync customerSearch when selectedCustomer changes if search is empty
+  useEffect(() => {
+    if (selectedCustomer && !customerSearch) {
+      setCustomerSearch(selectedCustomer.name);
+    }
+  }, [selectedCustomer]);
+
+  // Click outside to close customer dropdown
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (customerComboboxRef.current && !customerComboboxRef.current.contains(e.target as Node)) {
+        setIsCustomerDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filtered customer list for combobox
+  const filteredCustomers = useMemo(() => {
+    const q = customerSearch.trim().toLowerCase();
+    // If empty or matches currently selected customer name exactly, show all clients with corporate/agents prioritized
+    if (!q || (selectedCustomer && q === selectedCustomer.name.toLowerCase())) {
+      return [...customers].sort((a, b) => {
+        const priority: Record<CustomerType, number> = { corporate: 0, agent: 1, retail: 2 };
+        return (priority[a.type] ?? 3) - (priority[b.type] ?? 3);
+      });
+    }
+    return customers.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      c.type.toLowerCase().includes(q) ||
+      (c.phone && c.phone.includes(q))
+    );
+  }, [customers, customerSearch, selectedCustomer]);
 
   // Oil spec / variety is required and starts empty until staff selects an option
   useEffect(() => {
@@ -379,6 +421,9 @@ export const NewOrderScreen: React.FC = () => {
     setOverrideCreditLimit(false);
     setKegShortageModal(false);
     setCreditModal(false);
+    setCustomerId(customers[0]?.id || '');
+    setCustomerSearch(customers[0]?.name || '');
+    setIsCustomerDropdownOpen(false);
     setMobileSlipOpen(false);
     setTimeout(() => setIsDispensing(false), 700);
   };
@@ -812,19 +857,143 @@ export const NewOrderScreen: React.FC = () => {
           <section className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm">
             <StepHeader n={3} title="Buyer & payment" sub="Tier is auto-detected — override only when needed" />
 
-            <label htmlFor="cust" className="text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-brand-600" /> Customer account <span className="text-rose-600">*</span>
+            <label htmlFor="cust-search" className="text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-brand-600" /> Customer account <span className="text-rose-600">*</span>
+              </span>
+              {selectedCustomer && (
+                <span className="text-[11px] font-sans font-medium text-slate-500">
+                  Tier: <span className="font-bold uppercase text-brand-600 dark:text-brand-400">{selectedCustomer.type}</span>
+                </span>
+              )}
             </label>
-            <select
-              id="cust"
-              value={customerId}
-              onChange={e => { setCustomerId(e.target.value); setTierOverride(null); }}
-              className="mt-1 w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-sans font-semibold text-[14px] focus:outline-none focus:border-brand-500"
-            >
-              {customers.map(c => (
-                <option key={c.id} value={c.id}>{c.name} ({c.type.toUpperCase()}) — limit {formatNaira(c.credit_limit)}</option>
-              ))}
-            </select>
+
+            {/* Searchable Customer Combobox */}
+            <div ref={customerComboboxRef} className="relative mt-1">
+              <div className="relative flex items-center">
+                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                  <Search className="w-4 h-4" />
+                </div>
+
+                <input
+                  id="cust-search"
+                  type="text"
+                  value={customerSearch}
+                  onClick={() => setIsCustomerDropdownOpen(true)}
+                  onFocus={() => setIsCustomerDropdownOpen(true)}
+                  onChange={e => {
+                    setCustomerSearch(e.target.value);
+                    setIsCustomerDropdownOpen(true);
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Escape') {
+                      setIsCustomerDropdownOpen(false);
+                    }
+                  }}
+                  placeholder="Type customer or corporate client name..."
+                  autoComplete="off"
+                  className="w-full pl-10 pr-20 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-sans font-semibold text-[14px] focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all shadow-sm"
+                />
+
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  {customerSearch && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomerSearch('');
+                        setIsCustomerDropdownOpen(true);
+                      }}
+                      className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                      title="Clear to view all clients"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomerDropdownOpen(prev => !prev)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                    title="Toggle customer list"
+                  >
+                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isCustomerDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Dropdown Menu */}
+              {isCustomerDropdownOpen && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 z-40 max-h-64 overflow-y-auto rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl divide-y divide-slate-100 dark:divide-slate-800 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="p-2 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px] font-sans font-bold uppercase tracking-wider text-slate-500">
+                    <span>Corporate & Account Clients</span>
+                    <span className="text-brand-600 dark:text-brand-400">{filteredCustomers.length} Available</span>
+                  </div>
+
+                  {filteredCustomers.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-slate-500 font-sans">
+                      No clients found matching "{customerSearch}".
+                    </div>
+                  ) : (
+                    filteredCustomers.map(c => {
+                      const isSelected = c.id === customerId;
+                      const stats = customerStatsMap[c.id];
+                      return (
+                        <button
+                          type="button"
+                          key={c.id}
+                          onClick={() => {
+                            setCustomerId(c.id);
+                            setTierOverride(null);
+                            setCustomerSearch(c.name);
+                            setIsCustomerDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between gap-3 transition-colors ${
+                            isSelected
+                              ? 'bg-brand-50/80 dark:bg-brand-950/40 border-l-4 border-brand-500'
+                              : 'hover:bg-slate-50 dark:hover:bg-slate-800/80'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-[13px] text-slate-900 dark:text-white truncate">
+                                {c.name}
+                              </span>
+                              <span className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded shrink-0 ${
+                                c.type === 'corporate'
+                                  ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'
+                                  : c.type === 'agent'
+                                  ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                              }`}>
+                                {c.type}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-sans mt-0.5">
+                              Limit: <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">{formatNaira(c.credit_limit)}</span>
+                              {c.phone ? ` · Tel: ${c.phone}` : ''}
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            {stats && stats.currentBalance > 0 ? (
+                              <span className="text-[11px] font-mono font-bold text-rose-600 dark:text-rose-400 block">
+                                Owes {formatNaira(stats.currentBalance)}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] font-sans font-medium text-emerald-600 dark:text-emerald-400 block">
+                                ✓ Clean ledger
+                              </span>
+                            )}
+                            <span className="text-[10px] text-slate-400 font-sans">
+                              {c.credit_term_days}d terms
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Tier + rate line */}
             <div className="mt-2 p-2.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">

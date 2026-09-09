@@ -223,28 +223,6 @@ export const TruckIntakeScreen: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Page Title & Context Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div>
-          <h2 className="text-[24px] font-heading font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            <Truck className="w-5 h-5 text-slate-600 dark:text-slate-300" />
-            <span>Receive oil deliveries</span>
-          </h2>
-          <p className="text-[14px] font-sans text-slate-500 dark:text-slate-400 mt-1">
-            Two ways oil arrives: by tanker (measured in tons, checked for shortfall) or already in kegs (counted exactly).
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[12px] font-mono tabular-nums text-slate-700 dark:text-slate-300">
-            <span className="text-slate-500 dark:text-slate-400 font-sans">Depot Kegs:</span>{' '}
-            <span className={`font-bold ${kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-slate-100'}`}>
-              {kegInventory.kegsAtDepot}
-            </span>
-          </div>
-        </div>
-      </div>
-
       {successMessage && (
         <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300 text-[13px] font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />

@@ -1454,9 +1454,9 @@ export const SettingsScreen: React.FC = () => {
 
       {/* PRODUCT ADD / EDIT MODAL */}
       {isProductModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col">
-            <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
+          <div className="w-full max-w-lg max-h-[90vh] rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col my-auto">
+            <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950 shrink-0">
               <div className="flex items-center gap-2">
                 <Tag className="w-5 h-5 text-brand-600 dark:text-brand-400" />
                 <h3 className="font-heading font-bold text-[16px] text-slate-900 dark:text-white">
@@ -1472,7 +1472,7 @@ export const SettingsScreen: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSaveProductModal} className="p-5 space-y-4">
+            <form onSubmit={handleSaveProductModal} className="flex-1 overflow-y-auto p-5 space-y-4 min-h-0">
               <div>
                 <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
                   Product Name *
@@ -1659,7 +1659,7 @@ export const SettingsScreen: React.FC = () => {
                 )}
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <div className="sticky bottom-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm pt-3 pb-1 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsProductModalOpen(false)}

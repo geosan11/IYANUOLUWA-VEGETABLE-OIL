@@ -11,7 +11,6 @@ import {
   Package,
   Boxes,
   Truck,
-  PlusCircle,
   AlertTriangle,
   Clock,
   ShieldAlert,
@@ -263,39 +262,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Top Welcome / Action Banner (Desktop & Mobile) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-white via-slate-50 to-brand-50/50 dark:from-slate-900 dark:via-slate-900/90 dark:to-brand-950/40 border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div>
-          <h2 className="text-[24px] font-heading font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            <span>Today at the depot</span>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-sans font-semibold bg-brand-100 dark:bg-brand-500/20 text-brand-700 dark:text-brand-300 border border-brand-300 dark:border-brand-500/30">
-              Live Real-Time
-            </span>
-          </h2>
-          <p className="text-[14px] font-sans text-slate-500 dark:text-slate-400 mt-1">
-            Oil in the tanks, who owes money, pump checks, and keg tracking — all in one place.
-          </p>
-        </div>
-
-        {/* Quick Action Buttons */}
-        <div className="flex items-center gap-2.5 flex-shrink-0">
-          <button
-            onClick={() => onNavigate('intake')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-[14px] font-sans font-semibold transition-all active:scale-95 shadow-sm"
-          >
-            <Truck className="w-[18px] h-[18px] text-slate-600 dark:text-slate-300" />
-            <span>Log Truck Intake</span>
-          </button>
-          <button
-            onClick={() => onNavigate('order')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-[14px] font-sans font-bold shadow-lg shadow-brand-500/20 transition-all active:scale-95"
-          >
-            <PlusCircle className="w-[18px] h-[18px] text-slate-950" />
-            <span>Quick Dispense</span>
-          </button>
-        </div>
-      </div>
-
       {/* EXECUTIVE AI INTELLIGENCE BANNER (OWNER ONLY) */}
       {userRole === 'owner' && (
         <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-brand-950 text-white border border-slate-800 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
