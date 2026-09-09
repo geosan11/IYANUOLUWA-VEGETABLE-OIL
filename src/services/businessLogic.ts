@@ -827,12 +827,18 @@ export function checkShiftOpeningMetersGate(
   pumps: Pump[],
   pumpReadings: PumpReading[] = []
 ): ShiftOpeningGateStatus {
+  // Only actual bulk liquid dispensing pumps require meter readings.
+  // Palm oil is supplied in pre-kegged containers and has no dispensing pumps.
+  const activeBulkPumps = pumps.filter(
+    p => p.product_id !== 'red' && p.product_id !== 'red_oil_25l' && !p.label.toLowerCase().includes('palm')
+  );
+
   const isShiftOpen = !!shift && (!shift.end_time || shift.status === 'open') && shift.status !== 'closed';
   if (!isShiftOpen) {
     return {
       isPassed: false,
       reason: 'no_shift',
-      missingPumps: pumps,
+      missingPumps: activeBulkPumps,
       loggedReadings: {}
     };
   }
@@ -841,7 +847,7 @@ export function checkShiftOpeningMetersGate(
   const loggedReadings: Record<string, number> = { ...(shift.opening_readings || {}) };
   const missingPumps: Pump[] = [];
 
-  for (const pump of pumps) {
+  for (const pump of activeBulkPumps) {
     if (loggedReadings[pump.id] !== undefined && loggedReadings[pump.id] !== null) {
       continue;
     }

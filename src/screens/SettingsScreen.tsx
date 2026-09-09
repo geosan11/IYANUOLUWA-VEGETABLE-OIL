@@ -66,6 +66,27 @@ export const SettingsScreen: React.FC = () => {
   const [totalCompanyKegs, setTotalCompanyKegs] = useState(settings.total_company_kegs.toString());
   const [kegsAtDepotLowThreshold, setKegsAtDepotLowThreshold] = useState(settings.kegs_at_depot_low_threshold.toString());
 
+  // Per-product Litres per Keg (Palm Oil 25L vs Vegetable Oil 30L customizable by admin)
+  const [productLitresPerKeg, setProductLitresPerKeg] = useState<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    products.forEach(p => {
+      map[p.id] = (p.litres_per_keg ?? (p.id === 'red' ? 25 : 30)).toString();
+    });
+    return map;
+  });
+
+  React.useEffect(() => {
+    setProductLitresPerKeg(prev => {
+      const next = { ...prev };
+      products.forEach(p => {
+        if (next[p.id] === undefined) {
+          next[p.id] = (p.litres_per_keg ?? (p.id === 'red' ? 25 : 30)).toString();
+        }
+      });
+      return next;
+    });
+  }, [products]);
+
   // 3. Products & Pricing Local State
   const [productTonnages, setProductTonnages] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
@@ -154,12 +175,22 @@ export const SettingsScreen: React.FC = () => {
   // 2. Save Keg Configuration
   const handleSaveKegConfig = (e: React.FormEvent) => {
     e.preventDefault();
+    const globalDefault = Math.max(1, parseFloat(litresPerKeg) || 30);
     updateSettings({
-      litres_per_keg: Math.max(1, parseFloat(litresPerKeg) || 30),
+      litres_per_keg: globalDefault,
       total_company_kegs: Math.max(0, parseInt(totalCompanyKegs, 10) || 500),
       kegs_at_depot_low_threshold: Math.max(0, parseInt(kegsAtDepotLowThreshold, 10) || 20)
     });
-    showNotification('Keg inventory parameters saved as global depot defaults!');
+
+    // Save customized litres per keg per product (e.g. Palm Oil 25L, Vegetable Oil 30L)
+    products.forEach(p => {
+      const val = parseFloat(productLitresPerKeg[p.id]);
+      if (!isNaN(val) && val > 0) {
+        updateProduct(p.id, { litres_per_keg: val });
+      }
+    });
+
+    showNotification('Keg container sizes and fleet parameters saved successfully!');
     setActiveMobileSheet(null);
   };
 
@@ -380,7 +411,7 @@ export const SettingsScreen: React.FC = () => {
                 Keg Fleet & Container Standards
               </div>
               <div className="text-[12px] font-mono tabular-nums text-slate-500 truncate mt-0.5">
-                {litresPerKeg}L/keg · {totalCompanyKegs} total kegs · {kegsAtDepotLowThreshold} min reserve
+                Palm: {productLitresPerKeg['red'] || '25'}L · Veg: {productLitresPerKeg['veg'] || '30'}L · {totalCompanyKegs} fleet
               </div>
             </div>
             <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" />
@@ -488,7 +519,7 @@ export const SettingsScreen: React.FC = () => {
             {
               id: 'kegs' as const,
               title: 'Keg Fleet Standards',
-              subtitle: `${litresPerKeg}L · ${totalCompanyKegs} fleet`,
+              subtitle: `Palm: ${productLitresPerKeg['red'] || '25'}L · Veg: ${productLitresPerKeg['veg'] || '30'}L`,
               icon: Package,
               color: 'text-amber-600 dark:text-amber-400',
               bg: 'bg-amber-50 dark:bg-amber-500/15'
@@ -683,7 +714,7 @@ export const SettingsScreen: React.FC = () => {
             /* 2. KEG CONFIGURATION */
             <form
               onSubmit={handleSaveKegConfig}
-              className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm"
+              className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm"
             >
               <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
                 <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
@@ -691,66 +722,155 @@ export const SettingsScreen: React.FC = () => {
                   <span>2. Keg Configuration & Fleet Standards</span>
                 </h3>
                 <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-                  Single source of truth for container volume conversions, physical fleet size, and depot minimum safety reserve.
+                  Single source of truth for container volume conversions per product, physical fleet size, and depot safety reserve.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                  <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                    Default Litres per Keg
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="1"
-                      min="1"
-                      value={litresPerKeg}
-                      onChange={e => setLitresPerKeg(e.target.value)}
-                      className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
-                      required
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">L/keg</span>
-                  </div>
-                  <p className="text-[11px] font-sans text-slate-500">Standard depot yellow jerrycan conversion.</p>
+              {/* SECTION A: PER-PRODUCT PHYSICAL KEG VOLUMES (ADMIN CUSTOMIZABLE) */}
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <h4 className="text-[14px] font-sans font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Package className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                    <span>Physical Keg Volumes by Product (Customizable by Admin)</span>
+                  </h4>
+                  <span className="text-[11px] font-sans text-slate-500">
+                    Controls litre and price calculation when selling in kegs or litres
+                  </span>
                 </div>
 
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                  <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                    Total Company Fleet Owned
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="1"
-                      min="0"
-                      value={totalCompanyKegs}
-                      onChange={e => setTotalCompanyKegs(e.target.value)}
-                      className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
-                      required
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Kegs</span>
-                  </div>
-                  <p className="text-[11px] font-sans text-slate-500">Total physical fleet asset cap (read-only on Kegs screen).</p>
-                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {products.map(p => {
+                    const isPalm = p.id === 'red' || p.supply_model === 'pre_kegged';
+                    const currentL = productLitresPerKeg[p.id] ?? (p.litres_per_keg?.toString() || (isPalm ? '25' : '30'));
+                    return (
+                      <div
+                        key={p.id}
+                        className={`p-4 rounded-xl border space-y-3 transition-all ${
+                          isPalm
+                            ? 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/50'
+                            : 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: isPalm ? '#EF4444' : '#F59E0B' }}
+                            />
+                            <span className="font-heading font-bold text-[14px] text-slate-900 dark:text-white">
+                              {p.name}
+                            </span>
+                          </div>
+                          <span
+                            className={`text-[10px] font-sans font-bold px-2.5 py-0.5 rounded-full uppercase ${
+                              isPalm
+                                ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300'
+                                : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                            }`}
+                          >
+                            {isPalm ? '📦 Pre-Kegged (No Pumps)' : '🚛 Bulk Truck (Pumps)'}
+                          </span>
+                        </div>
 
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                  <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                    Depot Low Stock Alert Threshold
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="1"
-                      min="0"
-                      value={kegsAtDepotLowThreshold}
-                      onChange={e => setKegsAtDepotLowThreshold(e.target.value)}
-                      className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
-                      required
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Kegs</span>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
+                            Capacity: Litres per Keg (L / keg)
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="1"
+                              value={currentL}
+                              onChange={e =>
+                                setProductLitresPerKeg(prev => ({
+                                  ...prev,
+                                  [p.id]: e.target.value
+                                }))
+                              }
+                              className="w-full px-3.5 py-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
+                              required
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">
+                              L / keg
+                            </span>
+                          </div>
+                          <p className="text-[11px] font-sans text-slate-500 leading-snug">
+                            {isPalm
+                              ? 'Factory-supplied sealed jerrycan capacity. Cashiers sell in kegs or in litres; automatically converts based on this value without needing a dispensing pump.'
+                              : 'Standard depot yellow jerrycan capacity filled at depot bulk dispensing pumps.'}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* SECTION B: GLOBAL DEPOT FLEET ASSET CONTROLS */}
+              <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                <h4 className="text-[14px] font-sans font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Sliders className="w-4 h-4 text-slate-500" />
+                  <span>Depot Fleet Asset &amp; Safety Controls</span>
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                    <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                      Default Fallback L/Keg
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="1"
+                        min="1"
+                        value={litresPerKeg}
+                        onChange={e => setLitresPerKeg(e.target.value)}
+                        className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
+                        required
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">L/keg</span>
+                    </div>
+                    <p className="text-[11px] font-sans text-slate-500">Global fallback when no product-specific size is configured.</p>
                   </div>
-                  <p className="text-[11px] font-sans text-slate-500">Flags critical warning when depot yard stock drops below this.</p>
+
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                    <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                      Total Company Fleet Owned
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="1"
+                        min="0"
+                        value={totalCompanyKegs}
+                        onChange={e => setTotalCompanyKegs(e.target.value)}
+                        className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
+                        required
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Kegs</span>
+                    </div>
+                    <p className="text-[11px] font-sans text-slate-500">Total physical fleet asset cap (read-only on Kegs screen).</p>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                    <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                      Depot Low Stock Alert Threshold
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="1"
+                        min="0"
+                        value={kegsAtDepotLowThreshold}
+                        onChange={e => setKegsAtDepotLowThreshold(e.target.value)}
+                        className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
+                        required
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Kegs</span>
+                    </div>
+                    <p className="text-[11px] font-sans text-slate-500">Flags critical warning when depot yard stock drops below this.</p>
+                  </div>
                 </div>
               </div>
 

@@ -468,14 +468,14 @@ const invWithPurchased = calculateKegInventory(500, purchasedOrders, []);
 assert(invWithPurchased.totalKegsOut === 0, 'Outright keg inventory: zero kegs out debt created');
 assert(invWithPurchased.kegsAtDepot === 485, 'Outright keg inventory: depot stock reduced by 15 (500 - 15 = 485)');
 
-// 20. SHIFT-START METER HARD GATE
+// 20. SHIFT-START METER HARD GATE (Bulk pumps only; pre-kegged palm never blocks the gate)
 const testPumps: Pump[] = [
-  { id: 'pump-1', label: 'Pump 1 (Veg)', last_meter_reading: 1000, product_id: 'veg' },
-  { id: 'pump-2', label: 'Pump 2 (Veg)', last_meter_reading: 2000, product_id: 'veg' },
-  { id: 'pump-3', label: 'Pump 3 (Palm)', last_meter_reading: 3000, product_id: 'red' }
+  { id: 'pump-1', label: 'Pump 1 (Veg Line 1)', last_meter_reading: 1000, product_id: 'veg' },
+  { id: 'pump-2', label: 'Pump 2 (Veg Line 2)', last_meter_reading: 2000, product_id: 'veg' },
+  { id: 'pump-3', label: 'Legacy Pump (Palm Line)', last_meter_reading: 3000, product_id: 'red' }
 ];
 
-// Incomplete: only pump-1 and pump-2 logged
+// Incomplete: only pump-1 logged (pump-2 bulk pump is missing)
 const shiftMissing: Shift = {
   id: 'shift-test-1',
   status: 'open',
@@ -483,19 +483,19 @@ const shiftMissing: Shift = {
   start_time: '2026-09-09T08:00:00Z',
   end_time: null,
   opening_float: 50000,
-  opening_readings: { 'pump-1': 1000, 'pump-2': 2000 }
+  opening_readings: { 'pump-1': 1000 }
 };
 const gateCheckFail = checkShiftOpeningMetersGate(shiftMissing, testPumps);
-assert(gateCheckFail.isPassed === false, 'Shift meter gate: blocked when pump-3 is missing');
-assert(gateCheckFail.missingPumps.length === 1 && gateCheckFail.missingPumps[0].id === 'pump-3', 'Shift meter gate: accurately identifies pump-3 as missing');
+assert(gateCheckFail.isPassed === false, 'Shift meter gate: blocked when bulk pump-2 is missing');
+assert(gateCheckFail.missingPumps.length === 1 && gateCheckFail.missingPumps[0].id === 'pump-2', 'Shift meter gate: accurately identifies pump-2 as missing (and ignores pre-kegged palm)');
 
-// Complete: all 3 pumps logged
+// Complete: both bulk pumps logged; palm pump-3 not logged but ignored
 const shiftComplete: Shift = {
   ...shiftMissing,
-  opening_readings: { 'pump-1': 1000, 'pump-2': 2000, 'pump-3': 3000 }
+  opening_readings: { 'pump-1': 1000, 'pump-2': 2000 }
 };
 const gateCheckPass = checkShiftOpeningMetersGate(shiftComplete, testPumps);
-assert(gateCheckPass.isPassed === true, 'Shift meter gate: unlocked when all 3 pumps are logged');
+assert(gateCheckPass.isPassed === true, 'Shift meter gate: unlocked when all bulk pumps logged without requiring palm oil');
 assert(gateCheckPass.missingPumps.length === 0, 'Shift meter gate: zero missing pumps on pass');
 
 // 21. PER-PRODUCT LITRES PER KEG (Veg 30L vs Palm 25L)

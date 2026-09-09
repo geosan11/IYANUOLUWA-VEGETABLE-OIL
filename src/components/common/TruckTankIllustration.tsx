@@ -385,7 +385,7 @@ export const TruckTankIllustration: React.FC<TruckTankIllustrationProps> = ({
                 fontWeight="bold"
                 fontFamily="sans-serif"
               >
-                ⛽ {connectedPumpLabel || (isVeg ? 'Line: Pump 1 / 2' : 'Line: Pump 3')}
+                {isVeg ? (connectedPumpLabel || '⛽ Line: Pump 1 / 2') : '📦 Pre-Kegged Delivery (Direct to Bay)'}
               </text>
             </g>
 

@@ -337,7 +337,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [pumps, setPumps] = useState<Pump[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.PUMPS);
-    return saved ? JSON.parse(saved) : DEFAULT_PUMPS;
+    const loaded: Pump[] = saved ? JSON.parse(saved) : DEFAULT_PUMPS;
+    // Palm oil is strictly pre-kegged, so exclude any palm pump from active pumps
+    return loaded.filter(p => p.product_id !== 'red' && p.product_id !== 'red_oil_25l' && !p.label.toLowerCase().includes('palm'));
   });
 
   const [pumpReadings, setPumpReadings] = useState<PumpReading[]>(() => {
@@ -734,20 +736,24 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     varietyId?: string | null;
     amountTendered?: number | null;
   }) => {
-    // 0. Hard Gate: Shift opening meter readings required
-    const gateCheck = checkShiftOpeningMetersGate(activeShift, pumps, pumpReadings);
-    if (!gateCheck.isPassed) {
-      return {
-        success: false,
-        error: 'Shift opening meter gate active: Please record opening meter readings for all pumps before recording any sales.'
-      };
-    }
-
     const customer = customers.find(c => c.id === data.customerId);
     if (!customer) return { success: false, error: 'Customer not found' };
 
     const product = products.find(p => p.id === data.productId);
     if (!product) return { success: false, error: 'Product not found' };
+
+    const isPreKegged = product.supply_model === 'pre_kegged' || product.id === 'red';
+
+    // 0. Hard Gate: Shift opening meter readings required ONLY for bulk dispensed products
+    if (!isPreKegged) {
+      const gateCheck = checkShiftOpeningMetersGate(activeShift, pumps, pumpReadings);
+      if (!gateCheck.isPassed) {
+        return {
+          success: false,
+          error: 'Shift opening meter gate active: Please record opening meter readings for all bulk dispensing pumps before recording vegetable oil sales.'
+        };
+      }
+    }
 
     // Pricing tier: defaults to the customer's own tier, but the counter can override it
     // (e.g. a walk-in agent buying at agent rate). The chosen tier is what "standard" means here.
@@ -799,12 +805,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       paidAmount = pricing.amount; // Cash / Transfer paid immediately
     }
 
-    const assignedPump = data.pumpId ? pumps.find(p => p.id === data.pumpId) : null;
+    const assignedPump = (!isPreKegged && data.pumpId) ? pumps.find(p => p.id === data.pumpId) : null;
 
-    // Handle per-order meter reading
+    // Handle per-order meter reading (only for bulk pump dispense)
     let meterDelta: number | undefined;
     let meterVariance: number | undefined;
-    if (data.pumpId && data.meterReading !== undefined && data.meterReading !== null) {
+    if (!isPreKegged && data.pumpId && data.meterReading !== undefined && data.meterReading !== null) {
       const meterAudit = calculatePerOrderMeterVariance(
         data.pumpId,
         Number(data.meterReading),
@@ -853,10 +859,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       date: orderDate.toISOString(),
       due_date: dueDate,
       source_tank_id: drawResult.primaryTankId,
-      pump_id: data.pumpId || null,
-      meter_reading: data.meterReading !== undefined && data.meterReading !== null ? Number(data.meterReading) : undefined,
-      meter_delta: meterDelta,
-      meter_variance: meterVariance,
+      pump_id: isPreKegged ? null : (data.pumpId || null),
+      meter_reading: isPreKegged ? null : (data.meterReading ?? null),
+      meter_delta: isPreKegged ? null : (meterDelta ?? null),
+      meter_variance: isPreKegged ? null : (meterVariance ?? null),
       delivered_qty: deliveredQty,
       shortfall: shortfall,
       note: data.note?.trim() || undefined

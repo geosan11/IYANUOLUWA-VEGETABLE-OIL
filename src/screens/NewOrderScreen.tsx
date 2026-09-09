@@ -111,6 +111,7 @@ export const NewOrderScreen: React.FC = () => {
 
   const selectedCustomer = customers.find(c => c.id === customerId) || customers[0];
   const selectedProduct = products.find(p => p.id === productId) || products[0];
+  const isPreKegged = selectedProduct?.supply_model === 'pre_kegged' || productId === 'red';
   const customerStats = selectedCustomer ? customerStatsMap[selectedCustomer.id] : null;
   const varieties = selectedProduct?.varieties || [];
 
@@ -123,15 +124,20 @@ export const NewOrderScreen: React.FC = () => {
     if (!varieties.some(v => v.id === varietyId)) setVarietyId(varieties[0].id);
   }, [productId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Keep the pump on a line that matches the product
+  // Keep the pump on a line that matches the product (bulk liquid products only)
   useEffect(() => {
+    if (isPreKegged) {
+      setSelectedPumpId('');
+      setOrderMeterReading('');
+      return;
+    }
     const current = pumps.find(p => p.id === selectedPumpId);
     if (!current || (current.product_id && current.product_id !== productId)) {
-      const compatible = pumps.find(p => p.product_id === productId);
+      const compatible = pumps.find(p => p.product_id === productId) || pumps[0];
       setSelectedPumpId(compatible ? compatible.id : '');
       setOrderMeterReading('');
     }
-  }, [productId, pumps, selectedPumpId]);
+  }, [productId, pumps, selectedPumpId, isPreKegged]);
 
   const selectedVariety = varieties.find(v => v.id === varietyId) || null;
   const varietyDelta = selectedVariety ? Number(selectedVariety.rate_delta_per_litre || 0) : 0;
@@ -289,8 +295,8 @@ export const NewOrderScreen: React.FC = () => {
   const runSale = (allowKeg: boolean, allowCredit: boolean) => {
     setErrorMessage(null);
 
-    if (!shiftGateStatus.isPassed) {
-      setErrorMessage('Sales are locked — record opening meter readings for every pump first.');
+    if (!shiftGateStatus.isPassed && !isPreKegged) {
+      setErrorMessage('Sales are locked — record opening meter readings for bulk dispensing pumps first.');
       return;
     }
     const numericQty = parseFloat(qty) || 0;
@@ -314,10 +320,12 @@ export const NewOrderScreen: React.FC = () => {
       setErrorMessage(`Cash tendered (${formatNaira(tenderedNum)}) is less than the total (${formatNaira(pricing.amount)}).`);
       return;
     }
-    const pump = pumps.find(p => p.id === selectedPumpId);
-    if (pump && pump.product_id && pump.product_id !== selectedProduct.id) {
-      setErrorMessage(`${pump.label} is not on the ${selectedProduct.name} line — pick a matching pump.`);
-      return;
+    if (!isPreKegged) {
+      const pump = pumps.find(p => p.id === selectedPumpId);
+      if (pump && pump.product_id && pump.product_id !== selectedProduct.id) {
+        setErrorMessage(`${pump.label} is not on the ${selectedProduct.name} line — pick a matching pump.`);
+        return;
+      }
     }
     if (isKegShortage && !allowKeg) {
       setKegShortageModal(true);
@@ -336,8 +344,8 @@ export const NewOrderScreen: React.FC = () => {
       qty: numericQty,
       paymentMethod,
       kegSource: unit === 'keg' ? kegSource : null,
-      pumpId: selectedPumpId || null,
-      meterReading: orderMeterReading ? parseFloat(orderMeterReading) : null,
+      pumpId: isPreKegged ? undefined : (selectedPumpId || undefined),
+      meterReading: !isPreKegged && orderMeterReading ? parseFloat(orderMeterReading) : null,
       deliveredQty: deliveredTons ? parseFloat(deliveredTons) : null,
       customRate: isCustomRateEnabled ? effectiveRate : undefined,
       discountReason: isDiscountApplied ? discountReason.trim() : undefined,
@@ -376,7 +384,7 @@ export const NewOrderScreen: React.FC = () => {
     runSale(overrideKegShortage, overrideCreditLimit);
   };
 
-  const gateLocked = !shiftGateStatus.isPassed;
+  const gateLocked = !shiftGateStatus.isPassed && !isPreKegged;
   const paymentLabel = PAYMENT_MODES.find(m => m.id === paymentMethod)?.label || paymentMethod;
 
   return (
@@ -534,47 +542,57 @@ export const NewOrderScreen: React.FC = () => {
               </div>
             )}
 
-            {/* Pump line */}
-            <div className="mt-3">
-              <div className="flex items-center justify-between">
-                <label className="text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
-                  <Fuel className="w-3.5 h-3.5 text-purple-500" /> Dispense pump line
-                </label>
-                <button type="button" onClick={() => setIsMeterPanelOpen(o => !o)} className="text-[11px] font-bold text-purple-600 dark:text-purple-400 flex items-center gap-1">
-                  <Gauge className="w-3.5 h-3.5" /> {isMeterPanelOpen ? 'Hide meter' : 'Meter reading'}
-                </button>
+            {/* Dispense mechanism: Pumps for bulk vegetable oil, direct keg handover for pre-kegged palm oil */}
+            {!isPreKegged ? (
+              <div className="mt-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                    <Fuel className="w-3.5 h-3.5 text-purple-500" /> Dispense pump line
+                  </label>
+                  <button type="button" onClick={() => setIsMeterPanelOpen(o => !o)} className="text-[11px] font-bold text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                    <Gauge className="w-3.5 h-3.5" /> {isMeterPanelOpen ? 'Hide meter' : 'Meter reading'}
+                  </button>
+                </div>
+                <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {pumps.map(pump => {
+                    const isSel = selectedPumpId === pump.id;
+                    return (
+                      <button
+                        type="button"
+                        key={pump.id}
+                        onClick={() => setSelectedPumpId(pump.id)}
+                        className={`p-2.5 rounded-xl border text-left text-[12px] transition-all ${
+                          isSel
+                            ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-500 text-purple-900 dark:text-purple-300 font-bold shadow-sm'
+                            : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-sans font-bold truncate">{pump.label}</span>
+                        </div>
+                        <div className="text-[11px] font-mono tabular-nums text-slate-500 mt-0.5">
+                          Meter {pump.last_meter_reading.toLocaleString()} L
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {pumps.map(pump => {
-                  const compatible = !pump.product_id || pump.product_id === productId;
-                  const isSel = selectedPumpId === pump.id;
-                  return (
-                    <button
-                      type="button"
-                      key={pump.id}
-                      disabled={!compatible}
-                      onClick={() => compatible && setSelectedPumpId(pump.id)}
-                      className={`p-2.5 rounded-xl border text-left text-[12px] transition-all ${
-                        !compatible
-                          ? 'opacity-40 bg-slate-100 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-400 cursor-not-allowed'
-                          : isSel
-                          ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-500 text-purple-900 dark:text-purple-300 font-bold'
-                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-sans font-bold truncate">{pump.label}</span>
-                        {!compatible && <Lock className="w-3 h-3 shrink-0" />}
-                      </div>
-                      <div className="text-[11px] font-mono tabular-nums text-slate-500 mt-0.5">
-                        {compatible ? `Meter ${pump.last_meter_reading.toLocaleString()} L` : pump.product_id === 'veg' ? 'Golden line only' : 'Palm line only'}
-                      </div>
-                    </button>
-                  );
-                })}
+            ) : (
+              <div className="mt-3 p-3.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200">
+                <div className="flex items-center gap-2.5">
+                  <Package className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>
+                    <strong>Pre-Kegged Stock:</strong> Factory-sealed {selectedProduct?.litres_per_keg || 25}L containers dispatched directly from yard bays. No dispensing pump line required.
+                  </span>
+                </div>
+                <span className="font-mono font-bold text-[11px] bg-amber-200/70 dark:bg-amber-900/60 px-2.5 py-1 rounded shrink-0">
+                  1 Keg = {selectedProduct?.litres_per_keg || 25}L
+                </span>
               </div>
+            )}
 
-              {isMeterPanelOpen && selectedPumpId && (
+            {!isPreKegged && isMeterPanelOpen && selectedPumpId && (
                 <div className="mt-2 p-3 rounded-xl bg-purple-50/60 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/50 space-y-2">
                   <div className="flex items-center justify-between text-[11px] font-mono tabular-nums text-purple-700 dark:text-purple-300">
                     <span className="font-sans font-semibold">Nozzle meter now</span>
@@ -630,7 +648,6 @@ export const NewOrderScreen: React.FC = () => {
                   )}
                 </div>
               )}
-            </div>
           </section>
 
           {/* STEP 2 — VOLUME + CONTAINER */}
@@ -644,8 +661,8 @@ export const NewOrderScreen: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-stretch">
               {/* Unit toggle */}
-              <div className="md:col-span-5 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800 grid grid-cols-3 gap-1">
-                {(['keg', 'litre', 'ton'] as UnitType[]).map(u => (
+              <div className="md:col-span-5 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800 grid grid-cols-2 sm:grid-cols-3 gap-1">
+                {(isPreKegged ? (['keg', 'litre'] as UnitType[]) : (['keg', 'litre', 'ton'] as UnitType[])).map(u => (
                   <button
                     type="button"
                     key={u}
@@ -658,7 +675,7 @@ export const NewOrderScreen: React.FC = () => {
                       unit === u ? 'bg-brand-500 text-slate-950 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                     }`}
                   >
-                    {u === 'keg' ? `Keg` : u === 'litre' ? 'Litres' : 'Tons'}
+                    {u === 'keg' ? `Keg (${selectedProduct?.litres_per_keg}L)` : u === 'litre' ? 'Litres' : 'Tons'}
                   </button>
                 ))}
               </div>
@@ -678,7 +695,11 @@ export const NewOrderScreen: React.FC = () => {
                     className="w-full text-center font-mono font-black text-3xl text-slate-900 dark:text-white bg-transparent border-0 p-0 focus:ring-0 leading-none"
                   />
                   <span className="text-[11px] font-bold text-slate-500 block mt-0.5">
-                    ~ {Math.round(pricing.litres / (selectedProduct?.litres_per_keg || 30))} kegs · {pricing.litres.toLocaleString()} L
+                    {unit === 'keg'
+                      ? `= ${pricing.litres.toLocaleString()} Litres (${selectedProduct?.litres_per_keg || 25}L per keg)`
+                      : unit === 'litre'
+                      ? `= ${(Number(qty || 0) / (selectedProduct?.litres_per_keg || 25)).toFixed(1)} kegs (${selectedProduct?.litres_per_keg || 25}L per keg)`
+                      : `= ${(Number(qty || 0) * 1075).toLocaleString()} Litres (Tonnage)`}
                   </span>
                 </div>
                 <button type="button" onClick={() => quickAdd(unit === 'keg' ? 1 : unit === 'ton' ? 0.5 : 30)} className="w-11 h-11 rounded-lg bg-brand-500 text-slate-950 border border-brand-600 flex items-center justify-center active:scale-95">

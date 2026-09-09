@@ -60,21 +60,15 @@ export const DEFAULT_RATE_CARDS: RateCard[] = [
 export const DEFAULT_PUMPS: Pump[] = [
   {
     id: 'p-1',
-    label: 'Pump 1 (Golden Oil Line)',
+    label: 'Pump 1 (Golden Vegetable Oil)',
     product_id: 'veg',
     last_meter_reading: 12450
   },
   {
     id: 'p-2',
-    label: 'Pump 2 (Golden Oil Line)',
+    label: 'Pump 2 (Golden Vegetable Oil)',
     product_id: 'veg',
     last_meter_reading: 8920
-  },
-  {
-    id: 'p-3',
-    label: 'Pump 3 (Palm Oil Line)',
-    product_id: 'red',
-    last_meter_reading: 5340
   }
 ];
 
@@ -99,20 +93,6 @@ export const SEED_PUMP_READINGS: PumpReading[] = [
     reading: 8920,
     recorded_at: '2026-09-08T07:00:00Z',
     note: 'Morning shift meter verification'
-  },
-  {
-    id: 'pr-4',
-    pump_id: 'p-3',
-    reading: 5040,
-    recorded_at: '2026-09-07T06:00:00Z',
-    note: 'Baseline palm oil meter reading'
-  },
-  {
-    id: 'pr-5',
-    pump_id: 'p-3',
-    reading: 5340,
-    recorded_at: '2026-09-07T18:00:00Z',
-    note: 'End of day reading'
   }
 ];
 
@@ -345,8 +325,7 @@ export const SEED_SHIFTS: Shift[] = [
     opening_float: 150000,
     opening_readings: {
       'p-1': 12450,
-      'p-2': 8920,
-      'p-3': 5340
+      'p-2': 8920
     },
     cash_sales: 0,
     cash_expenses: 37000,
