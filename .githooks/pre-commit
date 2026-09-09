@@ -1,0 +1,13 @@
+#!/bin/sh
+# Pre-commit hook: block the commit if the typecheck or test suite fails.
+# Enabled via `npm run prepare` (sets core.hooksPath to .githooks).
+
+set -e
+
+echo "pre-commit: running typecheck..."
+npm run typecheck
+
+echo "pre-commit: running tests..."
+npm test
+
+echo "pre-commit: checks passed."

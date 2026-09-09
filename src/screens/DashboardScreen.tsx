@@ -22,12 +22,9 @@ import {
   Banknote,
   Ruler,
   ShieldCheck,
-  UserCheck,
   ChevronRight,
-  Phone,
-  MessageSquare,
-  ChevronDown,
-  Sparkles
+  Sparkles,
+  PlusCircle
 } from 'lucide-react';
 
 interface DashboardScreenProps {
@@ -46,7 +43,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     orders,
     expenses,
     settings,
-    shifts,
     activeShift,
     startShift,
     closeShift,
@@ -257,6 +253,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       });
     });
 
+    // 7. Tank running low on stock (Amber)
+    activeAlerts.lowTankStock.forEach(a => {
+      list.push({
+        id: `lowtank-${a.product.id}`,
+        type: 'Tank Running Low',
+        title: `${a.product.name} (${a.litres.toLocaleString()}L left)`,
+        subtitle: `Below ${a.threshold.toLocaleString()}L reorder threshold`,
+        details: `Combined active tank stock for ${a.product.name} has fallen to ${a.litres.toLocaleString()}L, under the ${a.threshold.toLocaleString()}L low-stock threshold. Schedule a resupply intake before stock runs out.`,
+        severity: 'amber',
+        actionLabel: 'Open Truck Intake',
+        action: () => onNavigate('intake')
+      });
+    });
+
     return list;
   }, [activeAlerts, settings.truck_shortfall_threshold, onNavigate]);
 
@@ -310,7 +320,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           </div>
         )}
 
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex flex-col split:flex-row split:items-center justify-between gap-4">
           {/* Left: Shift Info */}
           <div className="flex items-start sm:items-center gap-3.5">
             <div
@@ -387,7 +397,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           )}
 
           {/* Right: Actions */}
-          <div className="flex items-center gap-2 self-start lg:self-auto">
+          <div className="flex items-center gap-2 self-start split:self-auto">
             {activeShift ? (
               <button
                 type="button"
@@ -419,173 +429,235 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         </div>
       </div>
 
-      {/* KPI Stat Grid (7 Metric Cards - Mobile 2-col, Tablet 4-col, Desktop 7-col) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3.5">
+      {/* KPI Stat Grid (7 Metric Cards - Responsive Grid with Clean Typography & Alignment) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7 gap-3 sm:gap-3.5">
         {/* 1. Cash / Transfer Sales Today */}
-        <div
+        <button
+          type="button"
           onClick={() => setActiveStatSheet('cash')}
-          className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm cursor-pointer active:scale-98 group"
+          className="w-full text-left p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-800/80 transition-all shadow-sm cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between"
         >
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-[12px] font-sans font-medium uppercase tracking-wider">Cash & Transfer</span>
-            <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
+          <div className="flex items-center justify-between gap-1.5 mb-2.5">
+            <span className="text-[11px] sm:text-[12px] font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
+              Cash & Transfer
+            </span>
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/60 dark:border-emerald-800/50 flex items-center justify-center shrink-0">
+              <DollarSign className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
+            </div>
           </div>
-          <div className="text-[32px] font-mono font-bold leading-tight text-emerald-600 dark:text-emerald-400">
+          <div
+            title={formatNaira(todayStats.cashTransferSales)}
+            className="text-[20px] sm:text-[22px] lg:text-[24px] 2xl:text-[22px] font-heading font-black tabular-nums tracking-tight leading-none text-emerald-600 dark:text-emerald-400 truncate my-1"
+          >
             {formatNaira(todayStats.cashTransferSales)}
           </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-            <span className="hidden sm:inline">Collected today</span>
-            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden">
-              Breakdown <ChevronRight className="w-3 h-3" />
+          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800/60">
+            <span className="truncate">Collected today</span>
+            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden shrink-0">
+              <ChevronRight className="w-3 h-3" />
             </span>
           </div>
-        </div>
+        </button>
 
         {/* 2. Kegs Sold Today */}
-        <div
+        <button
+          type="button"
           onClick={() => onNavigate('order')}
-          className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm cursor-pointer active:scale-98 group"
+          className="w-full text-left p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-brand-300 dark:hover:border-brand-800/80 transition-all shadow-sm cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between"
         >
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-[12px] font-sans font-medium uppercase tracking-wider">Kegs Sold Today</span>
-            <Boxes className="w-4 h-4 text-brand-600 dark:text-brand-400 group-hover:scale-110 transition-transform" />
-          </div>
-          <div className="text-[32px] font-mono font-bold leading-tight text-slate-900 dark:text-slate-100">
-            {todayStats.kegsSoldToday}{' '}
-            <span className="text-[14px] font-sans font-normal text-slate-500 dark:text-slate-400">kegs</span>
-          </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-            <span className="hidden sm:inline">
-              {todayStats.purchasedKegsToday > 0 ? `${todayStats.purchasedKegsToday} bought outright` : 'Discharged today'}
+          <div className="flex items-center justify-between gap-1.5 mb-2.5">
+            <span className="text-[11px] sm:text-[12px] font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
+              Kegs Sold Today
             </span>
-            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden">
-              Orders <ChevronRight className="w-3 h-3" />
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-amber-50 dark:bg-amber-950/50 border border-amber-200/60 dark:border-amber-800/50 flex items-center justify-center shrink-0">
+              <Boxes className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400 group-hover:scale-110 transition-transform" />
+            </div>
+          </div>
+          <div className="flex items-baseline gap-1.5 truncate my-1">
+            <span className="text-[22px] sm:text-[24px] lg:text-[26px] 2xl:text-[24px] font-heading font-black tabular-nums tracking-tight leading-none text-slate-900 dark:text-white">
+              {todayStats.kegsSoldToday}
+            </span>
+            <span className="text-xs sm:text-[13px] font-sans font-semibold text-slate-500 dark:text-slate-400">
+              kegs
             </span>
           </div>
-        </div>
+          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800/60">
+            <span className="truncate">
+              {todayStats.purchasedKegsToday > 0 ? `${todayStats.purchasedKegsToday} outright` : 'Discharged today'}
+            </span>
+            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden shrink-0">
+              <ChevronRight className="w-3 h-3" />
+            </span>
+          </div>
+        </button>
 
-        {/* 2. Credit Outstanding (Highlighted in Red) */}
-        <div
+        {/* 3. Credit Outstanding (Credit Ledger) */}
+        <button
+          type="button"
           onClick={() => setActiveStatSheet('credit')}
-          className="p-4 rounded-2xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-800 transition-all shadow-sm cursor-pointer active:scale-98 group"
+          className="w-full text-left p-3.5 sm:p-4 rounded-2xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-700 transition-all shadow-sm cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between"
         >
-          <div className="flex items-center justify-between text-rose-700 dark:text-rose-400 mb-2">
-            <span className="text-[12px] font-sans font-semibold uppercase tracking-wider">Credit Ledger</span>
-            <CreditCard className="w-4 h-4 text-rose-600 dark:text-rose-400 group-hover:scale-110 transition-transform" />
+          <div className="flex items-center justify-between gap-1.5 mb-2.5">
+            <span className="text-[11px] sm:text-[12px] font-sans font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 truncate">
+              Credit Ledger
+            </span>
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-rose-100/70 dark:bg-rose-900/40 border border-rose-200/80 dark:border-rose-800/50 flex items-center justify-center shrink-0">
+              <CreditCard className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 group-hover:scale-110 transition-transform" />
+            </div>
           </div>
-          <div className="text-[32px] font-mono font-bold leading-tight text-rose-600 dark:text-rose-400">
+          <div
+            title={formatNaira(todayStats.creditOutstanding)}
+            className="text-[20px] sm:text-[22px] lg:text-[24px] 2xl:text-[22px] font-heading font-black tabular-nums tracking-tight leading-none text-rose-600 dark:text-rose-400 truncate my-1"
+          >
             {formatNaira(todayStats.creditOutstanding)}
           </div>
-          <div className="flex items-center justify-between text-[11px] text-rose-600/80 dark:text-rose-400/80 mt-1">
-            <span className="hidden sm:inline">Total open balance</span>
-            <span className="inline-flex items-center gap-0.5 text-rose-700 dark:text-rose-300 font-bold sm:hidden">
-              Ledger <ChevronRight className="w-3 h-3" />
+          <div className="flex items-center justify-between text-[11px] text-rose-600/80 dark:text-rose-400/80 mt-1.5 pt-1.5 border-t border-rose-100 dark:border-rose-950/60">
+            <span className="truncate">Total open balance</span>
+            <span className="inline-flex items-center gap-0.5 text-rose-700 dark:text-rose-300 font-bold sm:hidden shrink-0">
+              <ChevronRight className="w-3 h-3" />
             </span>
           </div>
-        </div>
+        </button>
 
-        {/* 3. Company Kegs Out */}
-        <div
+        {/* 4. Company Kegs Out */}
+        <button
+          type="button"
           onClick={() => setActiveStatSheet('kegs_out')}
-          className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm cursor-pointer active:scale-98 group"
+          className="w-full text-left p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between"
         >
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-[12px] font-sans font-medium uppercase tracking-wider">Company Kegs Out</span>
-            <Package className="w-4 h-4 text-slate-500 dark:text-slate-400 group-hover:scale-110 transition-transform" />
+          <div className="flex items-center justify-between gap-1.5 mb-2.5">
+            <span className="text-[11px] sm:text-[12px] font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
+              Company Kegs Out
+            </span>
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-center shrink-0">
+              <Package className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 group-hover:scale-110 transition-transform" />
+            </div>
           </div>
-          <div className="text-[32px] font-mono font-bold leading-tight text-slate-900 dark:text-slate-100">
-            {todayStats.companyKegsOut}{' '}
-            <span className="text-[14px] font-sans font-normal text-slate-500 dark:text-slate-400">kegs</span>
-          </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-            <span className="hidden sm:inline">In customer custody</span>
-            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden">
-              Custody <ChevronRight className="w-3 h-3" />
+          <div className="flex items-baseline gap-1.5 truncate my-1">
+            <span className="text-[22px] sm:text-[24px] lg:text-[26px] 2xl:text-[24px] font-heading font-black tabular-nums tracking-tight leading-none text-slate-900 dark:text-white">
+              {todayStats.companyKegsOut}
+            </span>
+            <span className="text-xs sm:text-[13px] font-sans font-semibold text-slate-500 dark:text-slate-400">
+              kegs
             </span>
           </div>
-        </div>
+          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800/60">
+            <span className="truncate">In customer custody</span>
+            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden shrink-0">
+              <ChevronRight className="w-3 h-3" />
+            </span>
+          </div>
+        </button>
 
-        {/* 4. Kegs at Depot (Red ONLY if < settings.kegs_at_depot_low_threshold) */}
-        <div
+        {/* 5. Kegs at Depot */}
+        <button
+          type="button"
           onClick={() => setActiveStatSheet('depot_kegs')}
-          className={`p-4 rounded-2xl border transition-all shadow-sm cursor-pointer active:scale-98 group ${
+          className={`w-full text-left p-3.5 sm:p-4 rounded-2xl border transition-all shadow-sm cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between ${
             kegInventory.isDepotStockCritical
               ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-600/60 shadow-rose-500/10 animate-pulse'
               : 'bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
           }`}
         >
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between gap-1.5 mb-2.5">
             <span
-              className={`text-[12px] font-sans font-medium uppercase tracking-wider ${
+              className={`text-[11px] sm:text-[12px] font-sans font-bold uppercase tracking-wider truncate ${
                 kegInventory.isDepotStockCritical ? 'text-rose-700 dark:text-rose-300' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
               Kegs at Depot
             </span>
-            <Boxes
-              className={`w-4 h-4 ${
-                kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'
-              } group-hover:scale-110 transition-transform`}
-            />
+            <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center shrink-0 border ${
+              kegInventory.isDepotStockCritical
+                ? 'bg-rose-100 dark:bg-rose-900/50 border-rose-300 dark:border-rose-700'
+                : 'bg-slate-100 dark:bg-slate-800 border-slate-200/80 dark:border-slate-700/60'
+            }`}>
+              <Boxes
+                className={`w-3.5 h-3.5 ${
+                  kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400' : 'text-slate-600 dark:text-slate-300'
+                } group-hover:scale-110 transition-transform`}
+              />
+            </div>
+          </div>
+          <div className="flex items-baseline gap-1.5 truncate my-1">
+            <span
+              className={`text-[22px] sm:text-[24px] lg:text-[26px] 2xl:text-[24px] font-heading font-black tabular-nums tracking-tight leading-none ${
+                kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'
+              }`}
+            >
+              {todayStats.kegsAtDepot}
+            </span>
+            <span className="text-xs sm:text-[13px] font-sans font-semibold text-slate-500 dark:text-slate-400">
+              kegs
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-[11px] mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800/60">
+            <span className="truncate text-slate-500 dark:text-slate-400">
+              {kegInventory.isDepotStockCritical ? `CRITICAL < ${settings.kegs_at_depot_low_threshold}` : 'Physical yard stock'}
+            </span>
+            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden shrink-0">
+              <ChevronRight className="w-3 h-3" />
+            </span>
+          </div>
+        </button>
+
+        {/* 6. Customer Kegs */}
+        <button
+          type="button"
+          onClick={() => setActiveStatSheet('customer_kegs')}
+          className="w-full text-left p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between gap-1.5 mb-2.5">
+            <span className="text-[11px] sm:text-[12px] font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
+              Customer Kegs
+            </span>
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-sky-50 dark:bg-sky-950/50 border border-sky-200/60 dark:border-sky-800/50 flex items-center justify-center shrink-0">
+              <Droplet className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 group-hover:scale-110 transition-transform" />
+            </div>
+          </div>
+          <div className="flex items-baseline gap-1.5 truncate my-1">
+            <span className="text-[22px] sm:text-[24px] lg:text-[26px] 2xl:text-[24px] font-heading font-black tabular-nums tracking-tight leading-none text-slate-900 dark:text-white">
+              {todayStats.customerKegsFilledToday}
+            </span>
+            <span className="text-xs sm:text-[13px] font-sans font-semibold text-slate-500 dark:text-slate-400">
+              filled
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800/60">
+            <span className="truncate">Own containers</span>
+            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden shrink-0">
+              <ChevronRight className="w-3 h-3" />
+            </span>
+          </div>
+        </button>
+
+        {/* 7. Expenses Today */}
+        <button
+          type="button"
+          onClick={() => setActiveStatSheet('expenses')}
+          className="w-full text-left p-3.5 sm:p-4 rounded-2xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-700 transition-all shadow-sm cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between gap-1.5 mb-2.5">
+            <span className="text-[11px] sm:text-[12px] font-sans font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 truncate">
+              Expenses Today
+            </span>
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-rose-100/70 dark:bg-rose-900/40 border border-rose-200/80 dark:border-rose-800/50 flex items-center justify-center shrink-0">
+              <Package className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 group-hover:scale-110 transition-transform" />
+            </div>
           </div>
           <div
-            className={`text-[32px] font-mono font-bold leading-tight ${
-              kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'
-            }`}
+            title={formatNaira(todayStats.expensesToday)}
+            className="text-[20px] sm:text-[22px] lg:text-[24px] 2xl:text-[22px] font-heading font-black tabular-nums tracking-tight leading-none text-rose-600 dark:text-rose-400 truncate my-1"
           >
-            {todayStats.kegsAtDepot}{' '}
-            <span className="text-[14px] font-sans font-normal text-slate-500 dark:text-slate-400">kegs</span>
-          </div>
-          <div className="flex items-center justify-between text-[11px] mt-1">
-            <span className="hidden sm:inline text-slate-500 dark:text-slate-400">
-              {kegInventory.isDepotStockCritical ? `CRITICAL < ${settings.kegs_at_depot_low_threshold}` : 'Physical yard inventory'}
-            </span>
-            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden">
-              Stock <ChevronRight className="w-3 h-3" />
-            </span>
-          </div>
-        </div>
-
-        {/* 5. Customer-Owned Kegs Filled Today */}
-        <div
-          onClick={() => setActiveStatSheet('customer_kegs')}
-          className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm cursor-pointer active:scale-98 group"
-        >
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-[12px] font-sans font-medium uppercase tracking-wider">Customer Kegs</span>
-            <Droplet className="w-4 h-4 text-slate-500 dark:text-slate-400 group-hover:scale-110 transition-transform" />
-          </div>
-          <div className="text-[32px] font-mono font-bold leading-tight text-slate-900 dark:text-slate-100">
-            {todayStats.customerKegsFilledToday}{' '}
-            <span className="text-[14px] font-sans font-normal text-slate-500 dark:text-slate-400">filled</span>
-          </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-            <span className="hidden sm:inline">Own containers today</span>
-            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden">
-              Orders <ChevronRight className="w-3 h-3" />
-            </span>
-          </div>
-        </div>
-
-        {/* 6. Spent Today / Expenses (Highlighted in Red) */}
-        <div
-          onClick={() => setActiveStatSheet('expenses')}
-          className="p-4 rounded-2xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-800 transition-all shadow-sm cursor-pointer active:scale-98 group"
-        >
-          <div className="flex items-center justify-between text-rose-700 dark:text-rose-400 mb-2">
-            <span className="text-[12px] font-sans font-semibold uppercase tracking-wider">Expenses Today</span>
-            <Package className="w-4 h-4 text-rose-600 dark:text-rose-400 group-hover:scale-110 transition-transform" />
-          </div>
-          <div className="text-[32px] font-mono font-bold leading-tight text-rose-600 dark:text-rose-400">
             {formatNaira(todayStats.expensesToday)}
           </div>
-          <div className="flex items-center justify-between text-[11px] text-rose-600/80 dark:text-rose-400/80 mt-1">
-            <span className="hidden sm:inline">Float: {formatNaira(todayStats.dailyFloatRemaining)}</span>
-            <span className="inline-flex items-center gap-0.5 text-rose-700 dark:text-rose-300 font-bold sm:hidden">
-              Expenses <ChevronRight className="w-3 h-3" />
+          <div className="flex items-center justify-between text-[11px] text-rose-600/80 dark:text-rose-400/80 mt-1.5 pt-1.5 border-t border-rose-100 dark:border-rose-950/60">
+            <span className="truncate">Float: {formatNaira(todayStats.dailyFloatRemaining)}</span>
+            <span className="inline-flex items-center gap-0.5 text-rose-700 dark:text-rose-300 font-bold sm:hidden shrink-0">
+              <ChevronRight className="w-3 h-3" />
             </span>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* DEPOT PUMPS LIVE METER STATUS SECTION */}
@@ -677,7 +749,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       </div>
 
       {/* Volumetric Tanks Level Overview Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 split:grid-cols-2 gap-6">
         {/* Golden Vegetable Oil Active Tanks Overview */}
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 mb-4">
@@ -833,7 +905,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         </div>
       </div>
 
-      {/* Split Alert Stream: FOUR DISTINCT ALERT TYPES (Desktop 4-col, Tablet 2-col, Mobile 1-col) */}
+      {/* Split Alert Stream: SEVEN DISTINCT ALERT TYPES (Desktop 3-col, Tablet 2-col, Mobile 1-col) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
@@ -856,10 +928,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           ) : (
             <>
               {allAlertsList.slice(0, 3).map(alert => (
-                <div
+                <button
+                  type="button"
                   key={alert.id}
                   onClick={() => setSelectedAlert(alert)}
-                  className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 active:scale-98 transition-all cursor-pointer ${
+                  className={`w-full text-left p-3.5 rounded-xl border flex items-center justify-between gap-3 active:scale-98 transition-all cursor-pointer ${
                     alert.severity === 'red'
                       ? 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60'
                       : 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60'
@@ -881,7 +954,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-                </div>
+                </button>
               ))}
               {allAlertsList.length > 3 && (
                 <button
@@ -921,7 +994,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   {activeAlerts.overdueCredit.map(alert => (
                     <div
                       key={alert.customer.id}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => onNavigate('customers')}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate('customers'); } }}
                       className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-[12px]"
                     >
                       <div>
@@ -967,7 +1043,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   {activeAlerts.overLimit.map(alert => (
                     <div
                       key={alert.customer.id}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => onNavigate('customers')}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate('customers'); } }}
                       className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-[12px]"
                     >
                       <div>
@@ -1013,7 +1092,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   {activeAlerts.deliveryShortfall.map((alert, idx) => (
                     <div
                       key={idx}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => onNavigate('intake')}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate('intake'); } }}
                       className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-[12px]"
                     >
                       <div>
@@ -1059,7 +1141,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   {activeAlerts.pumpVariance.map((audit, idx) => (
                     <div
                       key={idx}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => onNavigate('order')}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate('order'); } }}
                       className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-[12px]"
                     >
                       <div>
@@ -1105,7 +1190,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   {activeAlerts.dipstickVariance.map((alert, idx) => (
                     <div
                       key={idx}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => onNavigate('intake')}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate('intake'); } }}
                       className="cursor-pointer p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors flex items-center justify-between text-[12px]"
                     >
                       <div>
@@ -1167,6 +1255,52 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                         </div>
                         <span className="text-[10px] font-sans text-slate-500 block">
                           {formatDepotDate(s.start_time)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Alert Stream 7: Tank Running Low on Stock (< settings.low_stock_litres_threshold) */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-amber-200 dark:border-amber-900/80 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between border-b border-amber-200 dark:border-amber-900/60 pb-2.5 mb-3">
+                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-bold text-[12px] font-sans uppercase tracking-wider">
+                  <Droplet className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <span>7. Tank Running Low (&lt; {settings.low_stock_litres_threshold}L)</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono tabular-nums font-bold bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30">
+                  {activeAlerts.lowTankStock.length}
+                </span>
+              </div>
+
+              {activeAlerts.lowTankStock.length === 0 ? (
+                <p className="text-[12px] font-sans text-slate-400 py-3 text-center">
+                  All products above the low-stock threshold.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {activeAlerts.lowTankStock.map(alert => (
+                    <div
+                      key={alert.product.id}
+                      onClick={() => onNavigate('intake')}
+                      className="cursor-pointer p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors flex items-center justify-between text-[12px]"
+                    >
+                      <div>
+                        <div className="font-bold text-slate-900 dark:text-slate-200 font-sans">{alert.product.name}</div>
+                        <div className="text-[11px] text-amber-800 dark:text-amber-300 font-mono tabular-nums">
+                          Reorder threshold: {alert.threshold.toLocaleString()} L
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono tabular-nums font-bold text-amber-700 dark:text-amber-300">
+                          {alert.litres.toLocaleString()} L left
+                        </div>
+                        <span className="text-[11px] font-sans text-slate-500 flex items-center justify-end gap-0.5">
+                          Restock <ArrowRight className="w-2.5 h-2.5" />
                         </span>
                       </div>
                     </div>
@@ -1910,13 +2044,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       >
         <div className="space-y-2.5">
           {allAlertsList.map(alert => (
-            <div
+            <button
+              type="button"
               key={alert.id}
               onClick={() => {
                 setIsAllAlertsOpen(false);
                 setSelectedAlert(alert);
               }}
-              className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 active:scale-98 transition-all cursor-pointer ${
+              className={`w-full text-left p-3.5 rounded-xl border flex items-center justify-between gap-3 active:scale-98 transition-all cursor-pointer ${
                 alert.severity === 'red'
                   ? 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60'
                   : 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60'
@@ -1938,7 +2073,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-            </div>
+            </button>
           ))}
         </div>
       </DisclosureContainer>
