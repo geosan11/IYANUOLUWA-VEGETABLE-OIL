@@ -8,6 +8,7 @@ import {
   RateCard,
   CustomerType,
   CustomerCalculatedStats,
+  KegInventorySummary,
   TankDrawResult,
   PaymentApplicationResult,
   UnitType,
@@ -40,14 +41,14 @@ export function calculateLitres(
  * expected_kegs   = expected_litres / litresPerKeg
  * recovered       = (actual_kegs_filled * litresPerKeg) + leftover_litres_recovered
  * shortfall       = expected_litres - recovered
- * isShortfallHigh = shortfall > 50L
+ * isShortfallHigh = shortfall > thresholdLitres (default 50L)
  */
 export interface IntakeMetrics {
   expectedLitres: number;
   expectedKegs: number;
   recoveredLitres: number;
   shortfall: number;
-  isShortfallHigh: boolean; // > 50L
+  isShortfallHigh: boolean; // shortfall > thresholdLitres
   exceedsDepotKegCapacity: boolean;
 }
 
@@ -57,7 +58,8 @@ export function calculateIntakeMetrics(
   actualKegsFilled: number,
   leftoverLitresRecovered: number,
   kegsAtDepot: number,
-  litresPerKeg = LITRES_PER_KEG
+  litresPerKeg = LITRES_PER_KEG,
+  thresholdLitres = 50
 ): IntakeMetrics {
   const numTons = Number(tons) || 0;
   const numActualKegs = Number(actualKegsFilled) || 0;
@@ -73,7 +75,7 @@ export function calculateIntakeMetrics(
     expectedKegs: Number(expectedKegs.toFixed(1)),
     recoveredLitres: Number(recoveredLitres.toFixed(2)),
     shortfall: Number(shortfall.toFixed(2)),
-    isShortfallHigh: shortfall > 50,
+    isShortfallHigh: shortfall > thresholdLitres,
     exceedsDepotKegCapacity: expectedKegs > kegsAtDepot
   };
 }
@@ -290,19 +292,13 @@ export function calculateCustomerStats(
  * kegs_out (per customer) = sum(orders where keg_source='company', qty) - sum(keg_returns.qty)
  * total_kegs_out = sum across all customers
  * kegs_at_depot = total_company_kegs - total_kegs_out
- * flag red if kegs_at_depot < 20
+ * flag red if kegs_at_depot < criticalThreshold (default 20)
  */
-export interface KegInventorySummary {
-  totalCompanyKegs: number;
-  totalKegsOut: number;
-  kegsAtDepot: number;
-  isDepotStockCritical: boolean; // < 20
-}
-
 export function calculateKegInventory(
   totalCompanyKegs: number,
   orders: Order[],
-  kegReturns: KegReturn[]
+  kegReturns: KegReturn[],
+  criticalThreshold = 20
 ): KegInventorySummary {
   // Company loan obligations: kegs loaned to customers that are expected back
   const totalCompanySupplied = orders
@@ -324,7 +320,7 @@ export function calculateKegInventory(
     totalCompanyKegs,
     totalKegsOut,
     kegsAtDepot,
-    isDepotStockCritical: kegsAtDepot < 20
+    isDepotStockCritical: kegsAtDepot < criticalThreshold
   };
 }
 

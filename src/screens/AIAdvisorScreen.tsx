@@ -18,17 +18,11 @@ import {
   Sparkles,
   ShieldCheck,
   RefreshCw,
-  AlertTriangle,
-  Droplets,
   Lock,
-  ChevronRight,
   Send,
   Copy,
   Check,
-  MessageSquare,
-  ArrowUpRight,
-  TrendingDown,
-  CheckCircle2
+  MessageSquare
 } from 'lucide-react';
 
 export const AIAdvisorScreen: React.FC = () => {

@@ -71,8 +71,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       <div className="flex items-center gap-3">
         {!showScreenSwitcher && (
           <button
+            type="button"
             onClick={onMobileMenuOpen}
-            className="lg:hidden p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800"
+            className="split:hidden p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800"
             aria-label="Open menu"
           >
             <Menu className="w-5 h-5" />
@@ -135,7 +136,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
         {/* Mobile Logo Brand (sidebar users only — switcher already brands) */}
         {!showScreenSwitcher && (
-          <div className="lg:hidden flex items-center gap-2">
+          <div className="split:hidden flex items-center gap-2">
             {settings.company_logo_url ? (
               <img
                 src={settings.company_logo_url}
@@ -154,7 +155,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         )}
 
         {/* Desktop Breadcrumbs & Title */}
-        <div className={`${showScreenSwitcher ? 'hidden xl:flex' : 'hidden lg:flex'} flex-col`}>
+        <div className={`${showScreenSwitcher ? 'hidden xl:flex' : 'hidden split:flex'} flex-col`}>
           <div className="flex items-center gap-2 text-[12px] font-sans font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
             <span>Depot Counter</span>
             <span>/</span>

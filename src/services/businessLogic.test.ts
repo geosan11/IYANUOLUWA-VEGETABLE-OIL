@@ -30,8 +30,6 @@ import {
   Shift
 } from '../types';
 
-import { LITRES_PER_KEG } from '../constants/config';
-
 console.log('====================================================');
 console.log('RUNNING IYANUOLUWA DIGITAL OPERATIONS LOGIC VERIFICATION');
 console.log('====================================================');
@@ -63,8 +61,13 @@ const intake1 = calculateIntakeMetrics(10, 1090, 360, 20, 100, 30);
 assert(intake1.expectedLitres === 10900, 'Intake: expectedLitres is 10,900L');
 assert(intake1.recoveredLitres === 10820, 'Intake: recoveredLitres is 10,820L');
 assert(intake1.shortfall === 80, 'Intake: shortfall is 80L');
-assert(intake1.isShortfallHigh === true, 'Intake: shortfall > 50L flagged true');
+assert(intake1.isShortfallHigh === true, 'Intake: 80L shortfall > default 50L threshold flagged true');
 assert(intake1.exceedsDepotKegCapacity === true, 'Intake: 363.3 expected kegs > 100 depot kegs warning');
+
+// Configurable shortfall threshold: the same 80L shortfall is NOT high under a 100L threshold
+const intakeHiThresh = calculateIntakeMetrics(10, 1090, 360, 20, 100, 30, 100);
+assert(intakeHiThresh.shortfall === 80, 'Intake: shortfall still 80L with a custom threshold');
+assert(intakeHiThresh.isShortfallHigh === false, 'Intake: 80L shortfall is within a configured 100L threshold');
 
 // 3. FIFO TANK DRAW
 const mockTanks: Tank[] = [
@@ -98,6 +101,15 @@ assert(drawResult.allocations[0].tankId === 'tank-1' && drawResult.allocations[0
 assert(drawResult.allocations[1].tankId === 'tank-2' && drawResult.allocations[1].drawnLitres === 200, 'FIFO Tank Draw: pulled remainder (200L) from Tank-2');
 assert(drawResult.updatedTanks[0].remaining_litres === 0, 'FIFO Tank Draw: Tank-1 remaining is 0L');
 assert(drawResult.updatedTanks[1].remaining_litres === 600, 'FIFO Tank Draw: Tank-2 remaining is 600L');
+
+// Order.tank_allocations provenance: a 2-tank sale records 2 allocations summing to the order litres
+// (mirrors how createNewOrder maps drawResult.allocations onto the order)
+const orderTankAllocations = drawResult.allocations.map(a => ({ tank_id: a.tankId, litres: a.drawnLitres }));
+assert(orderTankAllocations.length === 2, 'Order tank_allocations: 2-tank sale records 2 allocations');
+assert(
+  orderTankAllocations.reduce((sum, a) => sum + a.litres, 0) === 600,
+  'Order tank_allocations: allocation litres sum to the 600L order'
+);
 
 // Insufficient stock hard stop
 const failDraw = executeFifoTankDraw(mockTanks, 'veg', 1500);
@@ -311,7 +323,7 @@ const mockTransfers: Transfer[] = [
     item_type: 'keg',
     qty: 6,
     date: '2026-09-05T12:00:00Z',
-    notes: 'Yard transfer from Sender to Receiver'
+    note: 'Yard transfer from Sender to Receiver'
   }
 ];
 

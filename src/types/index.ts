@@ -122,6 +122,8 @@ export interface Order {
   date: string;
   due_date: string | null;
   source_tank_id: string | null;
+  /** Per-tank FIFO draw breakdown. Present when a sale spans one or more tanks; `source_tank_id` stays the primary (first) tank for back-compat. */
+  tank_allocations?: { tank_id: string; litres: number }[] | null;
   pump_id: string | null;
   meter_reading?: number | null;
   meter_delta?: number | null;
@@ -147,7 +149,6 @@ export interface Transfer {
   product_id?: string | null;
   date: string;
   note?: string;
-  notes?: string;
 }
 
 export interface CustomerCredit {
@@ -166,10 +167,8 @@ export interface TankDipstickReading {
   system_litres?: number;
   recorded_at: string;
   note?: string;
-  notes?: string;
   variance?: number;
   is_flagged?: boolean;
-  isOverThreshold?: boolean;
 }
 
 export interface Shift {
@@ -186,7 +185,6 @@ export interface Shift {
   cash_counted?: number | null;
   cash_variance?: number | null;
   note?: string;
-  notes?: string;
   status: 'open' | 'closed';
 }
 

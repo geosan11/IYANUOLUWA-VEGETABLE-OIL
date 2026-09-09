@@ -11,15 +11,11 @@ import {
   MessageSquare,
   CreditCard,
   Plus,
-  ChevronDown,
-  ChevronUp,
   ChevronRight,
-  Package,
   AlertCircle,
   Receipt,
   ArrowRightLeft,
-  CheckCircle2,
-  Calendar
+  CheckCircle2
 } from 'lucide-react';
 
 type FilterChip = 'all' | 'overdue' | 'high_balance' | 'corporate' | 'agent';
@@ -40,7 +36,6 @@ export const CustomersScreen: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState<FilterChip>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>(customers[0]?.id || '');
-  const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null);
 
   // Quick In-Panel Payment State (Desktop Master-Detail)
   const [inlineAmount, setInlineAmount] = useState<string>('');
@@ -167,10 +162,6 @@ export const CustomersScreen: React.FC = () => {
     } else {
       setInlineError(res.error || 'Failed to record payment.');
     }
-  };
-
-  const toggleExpand = (id: string) => {
-    setExpandedCustomerId(prev => (prev === id ? null : id));
   };
 
   const handleOpenPayment = (customer: Customer, fullBalance: number) => {

@@ -101,6 +101,7 @@ interface StoreContextType {
     pumpVariance: PumpVarianceAudit[];
     dipstickVariance: { reading: TankDipstickReading; tank: Tank; variance: number }[];
     shiftDiscrepancy: Shift[];
+    lowTankStock: { product: Product; litres: number; threshold: number }[];
     totalAlertCount: number;
   };
   todayStats: {
@@ -259,6 +260,22 @@ const STORAGE_KEYS = {
   THEME: 'iyanu_theme_v2'
 };
 
+/**
+ * Read + JSON-parse a persisted value, tolerating missing or corrupt data.
+ * On any failure it warns and returns the caller's fallback so a bad
+ * localStorage entry can never crash app start-up.
+ */
+function loadPersisted<T>(key: string, fallback: T): T {
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved == null) return fallback;
+    return JSON.parse(saved) as T;
+  } catch (err) {
+    console.warn(`[store] Could not parse persisted "${key}" — using fallback.`, err);
+    return fallback;
+  }
+}
+
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Theme state: defaults to 'light'
   const [theme, setThemeState] = useState<'light' | 'dark'>(() => {
@@ -285,87 +302,44 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [theme]);
 
   // Load state from LocalStorage or seed defaults
-  const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
-    return saved ? JSON.parse(saved) : DEFAULT_PRODUCTS;
-  });
+  const [products, setProducts] = useState<Product[]>(() => loadPersisted(STORAGE_KEYS.PRODUCTS, DEFAULT_PRODUCTS));
 
-  const [rateCards, setRateCards] = useState<RateCard[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.RATE_CARDS);
-    return saved ? JSON.parse(saved) : DEFAULT_RATE_CARDS;
-  });
+  const [rateCards, setRateCards] = useState<RateCard[]>(() => loadPersisted(STORAGE_KEYS.RATE_CARDS, DEFAULT_RATE_CARDS));
 
-  const [customers, setCustomers] = useState<Customer[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
-    return saved ? JSON.parse(saved) : DEFAULT_CUSTOMERS;
-  });
+  const [customers, setCustomers] = useState<Customer[]>(() => loadPersisted(STORAGE_KEYS.CUSTOMERS, DEFAULT_CUSTOMERS));
 
-  const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.SUPPLIERS);
-    return saved ? JSON.parse(saved) : DEFAULT_SUPPLIERS;
-  });
+  const [suppliers, setSuppliers] = useState<Supplier[]>(() => loadPersisted(STORAGE_KEYS.SUPPLIERS, DEFAULT_SUPPLIERS));
 
-  const [physicalTanks, setPhysicalTanks] = useState<PhysicalTank[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.PHYSICAL_TANKS);
-    return saved ? JSON.parse(saved) : DEFAULT_PHYSICAL_TANKS;
-  });
+  const [physicalTanks, setPhysicalTanks] = useState<PhysicalTank[]>(() => loadPersisted(STORAGE_KEYS.PHYSICAL_TANKS, DEFAULT_PHYSICAL_TANKS));
 
-  const [tanks, setTanks] = useState<Tank[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.TANKS);
-    return saved ? JSON.parse(saved) : SEED_TANKS;
-  });
+  const [tanks, setTanks] = useState<Tank[]>(() => loadPersisted(STORAGE_KEYS.TANKS, SEED_TANKS));
 
-  const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.ORDERS);
-    return saved ? JSON.parse(saved) : SEED_ORDERS;
-  });
+  const [orders, setOrders] = useState<Order[]>(() => loadPersisted(STORAGE_KEYS.ORDERS, SEED_ORDERS));
 
-  const [kegReturns, setKegReturns] = useState<KegReturn[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.KEG_RETURNS);
-    return saved ? JSON.parse(saved) : SEED_KEG_RETURNS;
-  });
+  const [kegReturns, setKegReturns] = useState<KegReturn[]>(() => loadPersisted(STORAGE_KEYS.KEG_RETURNS, SEED_KEG_RETURNS));
 
-  const [expenses, setExpenses] = useState<Expense[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.EXPENSES);
-    return saved ? JSON.parse(saved) : SEED_EXPENSES;
-  });
+  const [expenses, setExpenses] = useState<Expense[]>(() => loadPersisted(STORAGE_KEYS.EXPENSES, SEED_EXPENSES));
 
-  const [settings, setSettings] = useState<AppSettings>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-    return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
-  });
+  const [settings, setSettings] = useState<AppSettings>(() => ({
+    ...DEFAULT_SETTINGS,
+    ...loadPersisted<Partial<AppSettings>>(STORAGE_KEYS.SETTINGS, {})
+  }));
 
   const [pumps, setPumps] = useState<Pump[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.PUMPS);
-    const loaded: Pump[] = saved ? JSON.parse(saved) : DEFAULT_PUMPS;
+    const loaded = loadPersisted<Pump[]>(STORAGE_KEYS.PUMPS, DEFAULT_PUMPS);
     // Palm oil is strictly pre-kegged, so exclude any palm pump from active pumps
     return loaded.filter(p => p.product_id !== 'red' && p.product_id !== 'red_oil_25l' && !p.label.toLowerCase().includes('palm'));
   });
 
-  const [pumpReadings, setPumpReadings] = useState<PumpReading[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.PUMP_READINGS);
-    return saved ? JSON.parse(saved) : SEED_PUMP_READINGS;
-  });
+  const [pumpReadings, setPumpReadings] = useState<PumpReading[]>(() => loadPersisted(STORAGE_KEYS.PUMP_READINGS, SEED_PUMP_READINGS));
 
-  const [transfers, setTransfers] = useState<Transfer[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.TRANSFERS);
-    return saved ? JSON.parse(saved) : SEED_TRANSFERS;
-  });
+  const [transfers, setTransfers] = useState<Transfer[]>(() => loadPersisted(STORAGE_KEYS.TRANSFERS, SEED_TRANSFERS));
 
-  const [customerCredits, setCustomerCredits] = useState<CustomerCredit[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMER_CREDITS);
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [customerCredits, setCustomerCredits] = useState<CustomerCredit[]>(() => loadPersisted<CustomerCredit[]>(STORAGE_KEYS.CUSTOMER_CREDITS, []));
 
-  const [dipstickReadings, setDipstickReadings] = useState<TankDipstickReading[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.DIPSTICK_READINGS);
-    return saved ? JSON.parse(saved) : SEED_DIPSTICK_READINGS;
-  });
+  const [dipstickReadings, setDipstickReadings] = useState<TankDipstickReading[]>(() => loadPersisted(STORAGE_KEYS.DIPSTICK_READINGS, SEED_DIPSTICK_READINGS));
 
-  const [shifts, setShifts] = useState<Shift[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.SHIFTS);
-    return saved ? JSON.parse(saved) : SEED_SHIFTS;
-  });
+  const [shifts, setShifts] = useState<Shift[]>(() => loadPersisted(STORAGE_KEYS.SHIFTS, SEED_SHIFTS));
 
   const [userRole, setUserRole] = useState<UserRole>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.USER_ROLE);
@@ -468,11 +442,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // 2. Keg inventory summary (total company kegs, out, at depot)
   const kegInventory = useMemo(() => {
-    const summary = calculateKegInventory(settings.total_company_kegs, orders, kegReturns);
-    return {
-      ...summary,
-      isDepotStockCritical: summary.kegsAtDepot < settings.kegs_at_depot_low_threshold
-    };
+    return calculateKegInventory(
+      settings.total_company_kegs,
+      orders,
+      kegReturns,
+      settings.kegs_at_depot_low_threshold
+    );
   }, [settings.total_company_kegs, settings.kegs_at_depot_low_threshold, orders, kegReturns]);
 
   // 3. Tank stock by product
@@ -504,13 +479,26 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return allAudits;
   }, [pumps, pumpReadings, orders, settings.pump_variance_threshold]);
 
-  // 5. Split alerts (Overdue Credit, Over Limit, Delivery Shortfall, Pump Variance, Dipstick, Shifts)
+  // 5. Split alerts (Overdue Credit, Over Limit, Delivery Shortfall, Pump Variance, Dipstick, Shifts, Low Tank Stock)
   const activeAlerts = useMemo(() => {
     const overdueCredit: { customer: Customer; overdueDays: number; amount: number }[] = [];
     const overLimit: { customer: Customer; balance: number; limit: number; excess: number }[] = [];
     const deliveryShortfall: { tank: Tank; shortfallLitres: number }[] = [];
     const pumpVariance = pumpVarianceAudits.filter(a => a.isOverThreshold);
     const dipstickVariance: { reading: TankDipstickReading; tank: Tank; variance: number }[] = [];
+    const lowTankStock: { product: Product; litres: number; threshold: number }[] = [];
+
+    // Tank running low: combined active stock for a product is above zero but under the reorder threshold
+    products.forEach(p => {
+      const stock = tankStockByProduct[p.id];
+      if (stock && stock.totalLitres > 0 && stock.totalLitres < settings.low_stock_litres_threshold) {
+        lowTankStock.push({
+          product: p,
+          litres: stock.totalLitres,
+          threshold: settings.low_stock_litres_threshold
+        });
+      }
+    });
 
     // Check customer credit alerts
     Object.values(customerStatsMap).forEach(stats => {
@@ -568,7 +556,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       deliveryShortfall.length +
       pumpVariance.length +
       dipstickVariance.length +
-      shiftDiscrepancy.length;
+      shiftDiscrepancy.length +
+      lowTankStock.length;
 
     return {
       overdueCredit,
@@ -577,9 +566,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       pumpVariance,
       dipstickVariance,
       shiftDiscrepancy,
+      lowTankStock,
       totalAlertCount
     };
-  }, [customerStatsMap, tanks, settings.truck_shortfall_threshold, settings.dipstick_variance_threshold, pumpVarianceAudits, dipstickReadings, shifts]);
+  }, [customerStatsMap, tanks, products, tankStockByProduct, settings.truck_shortfall_threshold, settings.dipstick_variance_threshold, settings.low_stock_litres_threshold, pumpVarianceAudits, dipstickReadings, shifts]);
 
 
   // 6. Today's operational stats
@@ -658,7 +648,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       data.actualKegs,
       data.leftoverLitres,
       kegInventory.kegsAtDepot,
-      product.litres_per_keg
+      product.litres_per_keg,
+      settings.truck_shortfall_threshold
     );
 
     const newTank: Tank = {
@@ -859,6 +850,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       date: orderDate.toISOString(),
       due_date: dueDate,
       source_tank_id: drawResult.primaryTankId,
+      tank_allocations: drawResult.allocations.map(a => ({ tank_id: a.tankId, litres: a.drawnLitres })),
       pump_id: isPreKegged ? null : (data.pumpId || null),
       meter_reading: isPreKegged ? null : (data.meterReading ?? null),
       meter_delta: isPreKegged ? null : (meterDelta ?? null),
@@ -1080,7 +1072,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       item_type: 'keg',
       qty: Number(data.qty),
       date: new Date().toISOString(),
-      notes: data.notes?.trim() || undefined
+      note: data.notes?.trim() || undefined
     };
 
     setTransfers(prev => [newTransfer, ...prev]);
@@ -1113,8 +1105,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       recorded_at: new Date().toISOString(),
       variance: varianceAudit.variance,
       is_flagged: varianceAudit.isOverThreshold,
-      isOverThreshold: varianceAudit.isOverThreshold,
-      notes: data.notes?.trim() || undefined
+      note: data.notes?.trim() || undefined
     };
 
     setDipstickReadings(prev => [newReading, ...prev]);
@@ -1139,7 +1130,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       start_time: new Date().toISOString(),
       opening_float: Number(data.openingFloat),
       status: 'open',
-      notes: data.notes?.trim() || undefined
+      note: data.notes?.trim() || undefined
     };
 
     setShifts(prev => [newShift, ...prev]);
@@ -1174,7 +1165,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       cash_counted: summary.cashCounted,
       cash_variance: summary.cashVariance,
       status: 'closed',
-      notes: data.notes ? (shift.notes ? `${shift.notes} | ${data.notes}` : data.notes) : shift.notes
+      note: data.notes ? (shift.note ? `${shift.note} | ${data.notes}` : data.notes) : shift.note
     };
 
     setShifts(prev => prev.map(s => s.id === data.shiftId ? updatedShift : s));

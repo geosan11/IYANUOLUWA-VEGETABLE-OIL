@@ -1,33 +1,161 @@
 /**
  * Vercel Serverless Function: /api/ai
- * 
+ *
  * Secure serverless endpoint for Iyanuoluwa Depot AI Operations Intelligence.
  * Keeps GEMINI_API_KEY and ANTHROPIC_API_KEY securely on the Vercel server.
  * Never exposes secrets to the browser.
+ *
+ * SECURITY MODEL
+ * -------------
+ * 1. PRIMARY AUTH - shared-secret bearer token. The caller must send
+ *    `Authorization: Bearer <token>` where the token equals
+ *    process.env.AI_PROXY_TOKEN. Compared in constant time. Missing / wrong
+ *    token => 401. This is the real gate on who can spend the API budget.
+ * 2. SECONDARY GATE - the legacy `x-user-role` header / `body.userRole` must
+ *    still be `owner`. Defence-in-depth only; it is trivially spoofable and is
+ *    NOT sufficient by itself.
+ * 3. CORS - locked to an allowlist from process.env.AI_ALLOWED_ORIGINS
+ *    (comma-separated). The request Origin is echoed back only when it is on
+ *    the list. `Access-Control-Allow-Credentials` is intentionally NOT sent
+ *    (the client uses a bearer token, not cookies).
+ * 4. RATE LIMIT - in-memory per-IP token bucket (20 requests / 10 min, keyed on
+ *    x-forwarded-for). NOTE: this is per serverless *instance* only. Vercel can
+ *    run many concurrent instances and recycles them on cold start, so this
+ *    slows a naive loop but does not hard-cap spend. A durable limiter backed
+ *    by Upstash Redis / Vercel KV is the real fix; deliberately not added here
+ *    to avoid a new dependency.
+ *
+ * DATA DISCLOSURE - CONSCIOUS, DOCUMENTED CHOICE
+ * ---------------------------------------------
+ * Every audit/chat request forwards a full depot snapshot - including customer
+ * names, phone numbers, outstanding credit balances and cash figures - to the
+ * configured third-party LLM provider(s) (Google Gemini and/or Anthropic).
+ * This is accepted for the operational value delivered, under each provider's
+ * standard API terms (API traffic is not used for model training). If this ever
+ * becomes unacceptable, redact PII in src/services/ai/dataExtractor.ts before
+ * the snapshot reaches this proxy.
  */
 
+import { timingSafeEqual } from 'node:crypto';
 import { runDeterministicOperationsAudit, answerCopilotQuestionDeterministic } from '../src/services/ai/deterministicEngine';
 import { AIRequestPayload, AIResponsePayload, AIAnalysisReport } from '../src/services/ai/types';
 
-export default async function handler(req: any, res: any) {
-  // 1. CORS & Preflight handling
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-User-Role'
+// ---------------------------------------------------------------------------
+// Lightweight in-memory rate limiter (per-instance only - see security note).
+// ---------------------------------------------------------------------------
+const RATE_LIMIT_MAX = 20;                     // max requests ...
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;   // ... per 10 minutes, per IP
+const RATE_LIMIT_REFILL_PER_MS = RATE_LIMIT_MAX / RATE_LIMIT_WINDOW_MS;
+
+interface TokenBucket {
+  tokens: number;
+  updatedAt: number;
+}
+const rateBuckets = new Map<string, TokenBucket>();
+
+function rateLimitOk(ip: string): boolean {
+  const now = Date.now();
+
+  // Opportunistic cleanup so the map cannot grow without bound on a warm instance.
+  if (rateBuckets.size > 5000) {
+    for (const [key, b] of rateBuckets) {
+      if (now - b.updatedAt > RATE_LIMIT_WINDOW_MS) rateBuckets.delete(key);
+    }
+  }
+
+  const bucket = rateBuckets.get(ip) ?? { tokens: RATE_LIMIT_MAX, updatedAt: now };
+  bucket.tokens = Math.min(
+    RATE_LIMIT_MAX,
+    bucket.tokens + (now - bucket.updatedAt) * RATE_LIMIT_REFILL_PER_MS
   );
+  bucket.updatedAt = now;
+  rateBuckets.set(ip, bucket);
+
+  if (bucket.tokens < 1) return false;
+  bucket.tokens -= 1;
+  return true;
+}
+
+function clientIp(req: any): string {
+  const xff = req.headers['x-forwarded-for'];
+  const raw = Array.isArray(xff) ? xff[0] : typeof xff === 'string' ? xff : '';
+  return (raw.split(',')[0] || '').trim() || req.socket?.remoteAddress || 'unknown';
+}
+
+function bearerMatches(provided: string, expected: string): boolean {
+  if (!provided || !expected) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+function parseAllowedOrigins(): string[] {
+  return (process.env.AI_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+}
+
+export default async function handler(req: any, res: any) {
+  // 1. CORS - strict allowlist, no wildcard, no credentials.
+  const allowedOrigins = parseAllowedOrigins();
+  const origin = typeof req.headers.origin === 'string' ? req.headers.origin : '';
+  const originAllowed = origin !== '' && allowedOrigins.includes(origin);
+
+  if (originAllowed) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-User-Role');
+  res.setHeader('Access-Control-Max-Age', '600');
 
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    // Preflight always answers 204; a disallowed caller is blocked by the
+    // browser because the Access-Control-Allow-Origin header is absent.
+    return res.status(204).end();
   }
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed. POST required.' });
   }
 
-  // 2. Strict Security: Verify Admin / Owner role
+  // 2. PRIMARY AUTH: shared-secret bearer token (constant-time compare).
+  const expectedToken = process.env.AI_PROXY_TOKEN || '';
+  const authHeader = req.headers['authorization'] || req.headers['Authorization'] || '';
+  const providedToken =
+    typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+      ? authHeader.slice('Bearer '.length).trim()
+      : '';
+
+  if (!expectedToken) {
+    return res.status(500).json({
+      success: false,
+      error: 'AI proxy is not configured: AI_PROXY_TOKEN is unset on the server.',
+      source: 'vercel_serverless'
+    });
+  }
+  if (!bearerMatches(providedToken, expectedToken)) {
+    return res.status(401).json({
+      success: false,
+      error: 'Unauthorized: missing or invalid proxy bearer token.',
+      source: 'vercel_serverless'
+    });
+  }
+
+  // 3. Rate limit (per-IP, in-memory, per-instance only).
+  const ip = clientIp(req);
+  if (!rateLimitOk(ip)) {
+    res.setHeader('Retry-After', String(Math.ceil(RATE_LIMIT_WINDOW_MS / 1000)));
+    return res.status(429).json({
+      success: false,
+      error: 'Rate limit exceeded. Try again later.',
+      source: 'vercel_serverless'
+    });
+  }
+
+  // 4. SECONDARY GATE (defence in depth, not primary auth): owner role only.
   const userRole = req.headers['x-user-role'] || req.body?.userRole;
   if (userRole !== 'owner') {
     return res.status(403).json({

@@ -1,22 +1,15 @@
 import React from 'react';
 import { useStore } from '../../services/store';
 import { UserRole } from '../../types';
+import { NAV_ITEMS } from '../../constants/nav';
 import {
-  LayoutDashboard,
-  Truck,
-  PlusCircle,
-  Users,
-  Package,
-  ReceiptText,
-  Settings,
   AlertTriangle,
   User,
   ShieldCheck,
   ChevronRight,
   Droplets,
   Sun,
-  Moon,
-  Sparkles
+  Moon
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -27,19 +20,16 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => {
   const { settings, userRole, setUserRole, activeAlerts, theme, toggleTheme } = useStore();
 
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
-    ...(userRole === 'owner' ? [{ id: 'ai-advisor', label: 'AI Advisor', icon: Sparkles, badge: null, adminOnly: true }] : []),
-    { id: 'intake', label: 'Truck Intake', icon: Truck, badge: null },
-    { id: 'order', label: 'New Sale', icon: PlusCircle, badge: null },
-    { id: 'customers', label: 'Customers', icon: Users, badge: activeAlerts.overdueCredit.length > 0 ? activeAlerts.overdueCredit.length : null },
-    { id: 'kegs', label: 'Kegs Ledger', icon: Package, badge: null },
-    { id: 'expenses', label: 'Expenses', icon: ReceiptText, badge: null },
-    { id: 'settings', label: 'Settings', icon: Settings, badge: null },
-  ];
+  const overdueCount = activeAlerts.overdueCredit.length;
+  const navItems = NAV_ITEMS
+    .filter(item => !item.adminOnly || userRole === 'owner')
+    .map(item => ({
+      ...item,
+      badge: item.id === 'customers' && overdueCount > 0 ? overdueCount : null
+    }));
 
   return (
-    <aside className="hidden lg:flex flex-col w-[72px] hover:w-72 group bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800/80 h-screen select-none flex-shrink-0 z-40 transition-all duration-300 ease-in-out shadow-sm overflow-x-hidden overflow-y-auto">
+    <aside className="hidden split:flex flex-col w-[72px] hover:w-72 group bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800/80 h-screen select-none flex-shrink-0 z-40 transition-all duration-300 ease-in-out shadow-sm overflow-x-hidden overflow-y-auto">
       {/* Brand Header */}
       <div className="h-16 px-3.5 border-b border-slate-200 dark:border-slate-800/80 flex items-center justify-between overflow-hidden flex-shrink-0">
         <div className="flex items-center gap-3 min-w-0">
@@ -127,21 +117,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
         {activeAlerts.totalAlertCount > 0 && (
           <div className="pt-3">
             {/* Collapsed Alert Icon Pill */}
-            <div
+            <button
+              type="button"
               onClick={() => onTabChange('dashboard')}
-              className="group-hover:hidden flex items-center justify-center p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 cursor-pointer shadow-sm relative"
+              className="group-hover:hidden w-full flex items-center justify-center p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 cursor-pointer shadow-sm relative"
               title={`Depot Alerts (${activeAlerts.totalAlertCount})`}
             >
               <AlertTriangle className="w-5 h-5 animate-pulse" />
               <span className="absolute -top-1 -right-1 px-1.5 py-0.2 bg-rose-600 text-white rounded-full text-[11px] font-mono font-bold">
                 {activeAlerts.totalAlertCount}
               </span>
-            </div>
+            </button>
 
             {/* Expanded Alert Card */}
-            <div
+            <button
+              type="button"
               onClick={() => onTabChange('dashboard')}
-              className="hidden group-hover:block cursor-pointer p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100/80 dark:hover:bg-rose-950/60 transition-colors shadow-sm overflow-hidden"
+              className="hidden group-hover:block w-full text-left cursor-pointer p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100/80 dark:hover:bg-rose-950/60 transition-colors shadow-sm overflow-hidden"
             >
               <div className="flex items-center justify-between text-[12px] font-sans font-semibold text-rose-800 dark:text-rose-300 whitespace-nowrap">
                 <div className="flex items-center gap-2">
@@ -184,7 +176,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
                   </div>
                 )}
               </div>
-            </div>
+            </button>
           </div>
         )}
       </nav>

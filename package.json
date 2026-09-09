@@ -1,13 +1,16 @@
 {
   "name": "iyanuoluwa-digital-operations",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "tsx src/services/businessLogic.test.ts"
+    "test": "tsx src/services/businessLogic.test.ts",
+    "typecheck": "tsc --noEmit",
+    "typecheck:api": "tsc -p api/tsconfig.json",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

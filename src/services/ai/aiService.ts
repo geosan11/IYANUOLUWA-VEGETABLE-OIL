@@ -17,6 +17,36 @@ const STORAGE_KEYS = {
   CLAUDE_MODEL_PREF: 'iyanuoluwa_ai_claude_model'
 };
 
+/**
+ * Shared-secret bearer token for the /api/ai serverless proxy. Must match
+ * process.env.AI_PROXY_TOKEN on Vercel. If unset the client refuses to call
+ * the proxy (see assertAiProxyConfigured) instead of firing an un-authorised
+ * request that would just 401.
+ */
+const AI_PROXY_TOKEN = import.meta.env.VITE_AI_PROXY_TOKEN as string | undefined;
+
+export class AIProxyNotConfiguredError extends Error {
+  constructor() {
+    super('AI proxy not configured: set VITE_AI_PROXY_TOKEN so the app can authenticate to /api/ai.');
+    this.name = 'AIProxyNotConfiguredError';
+  }
+}
+
+function assertAiProxyConfigured(): void {
+  if (!AI_PROXY_TOKEN) {
+    throw new AIProxyNotConfiguredError();
+  }
+}
+
+function aiProxyHeaders(userRole: string): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    // Primary auth. The x-user-role header below is only a secondary gate.
+    Authorization: `Bearer ${AI_PROXY_TOKEN}`,
+    'x-user-role': userRole
+  };
+}
+
 export function getCachedReport(): AIAnalysisReport | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.CACHED_REPORT);
@@ -90,13 +120,13 @@ export async function requestOperationsAudit(
     snapshot
   };
 
+  // Refuse to call the proxy without a bearer token - surface a clear error.
+  assertAiProxyConfigured();
+
   try {
     const response = await fetch('/api/ai', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-user-role': userRole
-      },
+      headers: aiProxyHeaders(userRole),
       body: JSON.stringify({ ...payload, userRole })
     });
 
@@ -142,13 +172,13 @@ export async function askOperationsQuestion(
     chatMessage: question
   };
 
+  // Refuse to call the proxy without a bearer token - surface a clear error.
+  assertAiProxyConfigured();
+
   try {
     const response = await fetch('/api/ai', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-user-role': userRole
-      },
+      headers: aiProxyHeaders(userRole),
       body: JSON.stringify({ ...payload, userRole })
     });
 

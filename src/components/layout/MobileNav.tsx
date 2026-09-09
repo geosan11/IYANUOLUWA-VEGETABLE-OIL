@@ -1,18 +1,17 @@
 import React from 'react';
 import { useStore } from '../../services/store';
-import {
-  LayoutDashboard,
-  Truck,
-  PlusCircle,
-  Users,
-  Package,
-  ReceiptText,
-  Settings,
-  X,
-  Sun,
-  Moon,
-  Sparkles
-} from 'lucide-react';
+import { NAV_ITEMS } from '../../constants/nav';
+import { X, Sun, Moon } from 'lucide-react';
+
+/** Fixed 5-slot bottom bar — a curated subset of NAV_ITEMS. `order` is the raised centre button. */
+const BOTTOM_BAR_IDS = ['dashboard', 'intake', 'order', 'customers', 'kegs'] as const;
+const SHORT_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  intake: 'Intake',
+  order: 'New Sale',
+  customers: 'Customers',
+  kegs: 'Kegs'
+};
 
 interface MobileNavProps {
   currentTab: string;
@@ -29,30 +28,31 @@ export const MobileNav: React.FC<MobileNavProps> = ({
 }) => {
   const { activeAlerts, userRole, setUserRole, theme, toggleTheme } = useStore();
 
-  const primaryNavItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'intake', label: 'Intake', icon: Truck },
-    { id: 'order', label: 'New Sale', icon: PlusCircle, isMain: true },
-    { id: 'customers', label: 'Customers', icon: Users, badge: activeAlerts.overdueCredit.length },
-    { id: 'kegs', label: 'Kegs', icon: Package }
-  ];
+  const overdueCount = activeAlerts.overdueCredit.length;
 
-  const allNavItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    ...(userRole === 'owner' ? [{ id: 'ai-advisor', label: 'AI Operations Advisor', icon: Sparkles }] : []),
-    { id: 'intake', label: 'Truck Intake', icon: Truck },
-    { id: 'order', label: 'New Sale', icon: PlusCircle },
-    { id: 'customers', label: 'Customers & Credit', icon: Users, badge: activeAlerts.overdueCredit.length },
-    { id: 'kegs', label: 'Kegs Ledger', icon: Package },
-    { id: 'expenses', label: 'Expenses & Float', icon: ReceiptText },
-    { id: 'settings', label: 'Settings & Branding', icon: Settings },
-  ];
+  const allNavItems = NAV_ITEMS
+    .filter(item => !item.adminOnly || userRole === 'owner')
+    .map(item => ({
+      ...item,
+      badge: item.id === 'customers' ? overdueCount : 0
+    }));
+
+  const primaryNavItems = BOTTOM_BAR_IDS.map(id => {
+    const base = NAV_ITEMS.find(n => n.id === id)!;
+    return {
+      id: base.id,
+      label: SHORT_LABELS[id] || base.label,
+      icon: base.icon,
+      isMain: id === 'order',
+      badge: id === 'customers' ? overdueCount : 0
+    };
+  });
 
   return (
     <>
       {/* Mobile Drawer (When hamburger is clicked) */}
       {isMenuOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden flex">
+        <div className="fixed inset-0 z-50 split:hidden flex">
           <div
             className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm"
             onClick={onCloseMenu}
@@ -135,7 +135,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
       )}
 
       {/* Mobile Bottom Navigation Bar */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 dark:bg-slate-950/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800/80 px-2 flex items-center justify-around z-30 select-none shadow-lg">
+      <div className="split:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 dark:bg-slate-950/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800/80 px-2 flex items-center justify-around z-30 select-none shadow-lg">
         {primaryNavItems.map(item => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;

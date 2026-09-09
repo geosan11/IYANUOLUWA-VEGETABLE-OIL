@@ -5,9 +5,9 @@
 
 import { extractSystemSnapshot } from './dataExtractor';
 import { runDeterministicOperationsAudit, answerCopilotQuestionDeterministic } from './deterministicEngine';
-import { SystemSnapshot, AVAILABLE_MODELS } from './types';
+import { AVAILABLE_MODELS } from './types';
 import { DEFAULT_PRODUCTS, DEFAULT_SUPPLIERS } from '../../constants/config';
-import { Tank, Order, Customer, CustomerCalculatedStats, KegInventorySummary, PumpVarianceAudit, Shift, AppSettings } from '../../types';
+import { Tank, Customer, CustomerCalculatedStats, KegInventorySummary, PumpVarianceAudit, Shift, AppSettings } from '../../types';
 
 function assert(condition: boolean, msg: string) {
   if (!condition) {

@@ -12,10 +12,23 @@ interface ReceiptModalProps {
 export type ReceiptFormat = 'commercial' | 'dispatch';
 
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) => {
-  const { settings } = useStore();
+  const { settings, tanks } = useStore();
   const [receiptFormat, setReceiptFormat] = useState<ReceiptFormat>('commercial');
 
   if (!receipt) return null;
+
+  // Multi-tank FIFO draw: list each source tank when a sale spanned 2+ tanks.
+  const allocs = receipt.order?.tank_allocations;
+  const multiSource =
+    allocs && allocs.length > 1
+      ? allocs.map(a => ({
+          label: tanks.find(t => t.id === a.tank_id)?.truck_label || a.tank_id,
+          litres: a.litres
+        }))
+      : null;
+  const sourceLine = multiSource
+    ? multiSource.map(s => `${s.label} × ${s.litres.toLocaleString()} L`).join(', ')
+    : receipt.tankLabel;
 
   const handlePrint = () => {
     window.print();
@@ -187,9 +200,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                                 ? 'Customer-Owned Keg'
                                 : 'Bulk Dispense'}
                             </div>
-                            {receipt.tankLabel && (
+                            {sourceLine && (
                               <div className="text-[11px] text-slate-500 font-sans">
-                                Source: {receipt.tankLabel}
+                                Source: {sourceLine}
                               </div>
                             )}
                           </td>
@@ -377,9 +390,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                                   : 'Bulk Dispense Tanker'}
                               </span>
                             </div>
-                            {receipt.tankLabel && (
+                            {sourceLine && (
                               <div className="text-[11px] text-slate-500 font-sans">
-                                Dispensed from: {receipt.tankLabel}
+                                Dispensed from: {sourceLine}
                               </div>
                             )}
                           </td>

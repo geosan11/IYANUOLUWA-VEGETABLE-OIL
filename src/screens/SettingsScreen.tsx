@@ -15,7 +15,6 @@ import {
   Sliders,
   DollarSign,
   AlertTriangle,
-  Layers,
   Save,
   ChevronRight,
   Plus,
@@ -26,7 +25,6 @@ import {
   X
 } from 'lucide-react';
 import { UserRole, SupplyModel, ProductVariety } from '../types';
-import { BottomSheet } from '../components/common/BottomSheet';
 
 export const SettingsScreen: React.FC = () => {
   const {
@@ -49,11 +47,19 @@ export const SettingsScreen: React.FC = () => {
     resetToSeedData
   } = useStore();
 
+  // Only the owner can change pricing, products, thresholds, branding, or reset data.
+  const isOwner = userRole === 'owner';
+  const denyIfNotOwner = () => {
+    if (isOwner) return false;
+    showNotification('Only the owner can change this. You are viewing as ' + userRole + '.');
+    return true;
+  };
+
   // Desktop Tab Navigation
   const [activeDesktopTab, setActiveDesktopTab] = useState<'company' | 'kegs' | 'pricing' | 'infrastructure' | 'thresholds' | 'system'>('company');
 
   // Mobile BottomSheet Navigation
-  const [activeMobileSheet, setActiveMobileSheet] = useState<'company' | 'kegs' | 'pricing' | 'infrastructure' | 'thresholds' | 'system' | null>(null);
+  const [, setActiveMobileSheet] = useState<'company' | 'kegs' | 'pricing' | 'infrastructure' | 'thresholds' | 'system' | null>(null);
 
   // 1. Company Profile Local State
   const [companyName, setCompanyName] = useState(settings.company_name);
@@ -88,7 +94,7 @@ export const SettingsScreen: React.FC = () => {
   }, [products]);
 
   // 3. Products & Pricing Local State
-  const [productTonnages, setProductTonnages] = useState<Record<string, string>>(() => {
+  const [productTonnages] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
     products.forEach(p => {
       map[p.id] = (p.litres_per_ton ?? 1075).toString();
@@ -163,6 +169,7 @@ export const SettingsScreen: React.FC = () => {
   // 1. Save Company Profile
   const handleSaveCompanyInfo = (e: React.FormEvent) => {
     e.preventDefault();
+    if (denyIfNotOwner()) return;
     updateSettings({
       company_name: companyName.trim(),
       company_phone: companyPhone.trim(),
@@ -175,6 +182,7 @@ export const SettingsScreen: React.FC = () => {
   // 2. Save Keg Configuration
   const handleSaveKegConfig = (e: React.FormEvent) => {
     e.preventDefault();
+    if (denyIfNotOwner()) return;
     const globalDefault = Math.max(1, parseFloat(litresPerKeg) || 30);
     updateSettings({
       litres_per_keg: globalDefault,
@@ -197,6 +205,7 @@ export const SettingsScreen: React.FC = () => {
   // 3. Save Products & Pricing Rate Cards
   const handleSaveProductsAndPricing = (e: React.FormEvent) => {
     e.preventDefault();
+    if (denyIfNotOwner()) return;
     products.forEach(p => {
       if (p.supply_model === 'bulk_truck') {
         const val = parseFloat(productTonnages[p.id]);
@@ -223,6 +232,7 @@ export const SettingsScreen: React.FC = () => {
   // Product Add / Edit Handler
   const handleSaveProductModal = (e: React.FormEvent) => {
     e.preventDefault();
+    if (denyIfNotOwner()) return;
     if (!newProductName.trim()) return;
 
     const kegSell = parseFloat(newProductKegSellPrice) || 3500;
@@ -321,6 +331,7 @@ export const SettingsScreen: React.FC = () => {
   // 4. Save Alert Thresholds
   const handleSaveAlertThresholds = (e: React.FormEvent) => {
     e.preventDefault();
+    if (denyIfNotOwner()) return;
     updateSettings({
       low_stock_litres_threshold: Math.max(0, parseFloat(lowStockThreshold) || 500),
       truck_shortfall_threshold: Math.max(0, parseFloat(truckShortfallThreshold) || 50),
@@ -333,6 +344,7 @@ export const SettingsScreen: React.FC = () => {
   // 5. Save Daily Operations Float
   const handleSaveDailyFloat = (e: React.FormEvent) => {
     e.preventDefault();
+    if (denyIfNotOwner()) return;
     const val = Math.max(0, parseFloat(defaultDailyFloat) || 150000);
     updateSettings({
       default_daily_float: val
@@ -342,6 +354,7 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const handleResetData = () => {
+    if (denyIfNotOwner()) return;
     if (window.confirm('Reset all demo data (tanks, orders, kegs, pumps, suppliers, physical tanks, expenses, pricing) to default factory seed values?')) {
       resetToSeedData();
       showNotification('Database reset to default factory seed data.');
@@ -364,9 +377,19 @@ export const SettingsScreen: React.FC = () => {
       </div>
 
       {statusMsg && (
-        <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300 text-[12px] font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
+        <div role="status" aria-live="polite" className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300 text-[12px] font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
           <span>{statusMsg}</span>
+        </div>
+      )}
+
+      {!isOwner && (
+        <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-[13px] font-sans flex items-start gap-2.5">
+          <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+          <span>
+            You are viewing settings as <span className="font-bold capitalize">{userRole}</span>. Pricing, products,
+            thresholds, branding, and data reset are read-only — only the owner can change them.
+          </span>
         </div>
       )}
 

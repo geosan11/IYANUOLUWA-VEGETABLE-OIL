@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
 
 interface BottomSheetProps {
@@ -12,6 +12,9 @@ interface BottomSheetProps {
   className?: string;
 }
 
+const FOCUSABLE =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export const BottomSheet: React.FC<BottomSheetProps> = ({
   isOpen,
   onClose,
@@ -22,15 +25,56 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   maxHeight = 'max-h-[85vh]',
   className = ''
 }) => {
-  // Close on ESC key
+  const panelRef = useRef<HTMLDivElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const labelId = useId();
+
+  // ESC to close, Tab focus-trap, restore focus to the trigger on close
   useEffect(() => {
+    if (!isOpen) return;
+    restoreFocusRef.current = document.activeElement as HTMLElement | null;
+
+    const panel = panelRef.current;
+    const getItems = () =>
+      panel
+        ? Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+            el => el.offsetParent !== null || el === document.activeElement
+          )
+        : [];
+
+    (getItems()[0] || panel)?.focus();
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape') {
         onClose();
+        return;
+      }
+      if (e.key !== 'Tab' || !panel) return;
+      const items = getItems();
+      if (items.length === 0) {
+        e.preventDefault();
+        panel.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey) {
+        if (active === first || !panel.contains(active)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (active === last || !panel.contains(active)) {
+        e.preventDefault();
+        first.focus();
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+      restoreFocusRef.current?.focus?.();
+    };
   }, [isOpen, onClose]);
 
   // Lock body scroll when open
@@ -54,7 +98,12 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
 
       {/* Sheet / Modal Container */}
       <div
-        className={`relative z-10 w-full split:max-w-xl bg-white dark:bg-slate-900 border-t split:border border-slate-200 dark:border-slate-800 rounded-t-3xl split:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-6 split:zoom-in-95 duration-200 ${maxHeight} ${className}`}
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={labelId}
+        tabIndex={-1}
+        className={`relative z-10 w-full split:max-w-xl bg-white dark:bg-slate-900 border-t split:border border-slate-200 dark:border-slate-800 rounded-t-3xl split:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-6 split:zoom-in-95 duration-200 focus:outline-none ${maxHeight} ${className}`}
       >
         {/* Mobile Drag Indicator Handle */}
         <div className="w-full flex justify-center pt-3 pb-1 split:hidden">
@@ -66,7 +115,10 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 flex-shrink-0">
             <div className="pr-4 min-w-0">
               {title && (
-                <div className="font-heading font-bold text-[17px] text-slate-900 dark:text-white truncate">
+                <div
+                  id={labelId}
+                  className="font-heading font-bold text-[17px] text-slate-900 dark:text-white truncate"
+                >
                   {title}
                 </div>
               )}

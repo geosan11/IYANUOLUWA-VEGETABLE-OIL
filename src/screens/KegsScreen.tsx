@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
 import { Customer } from '../types';
 import { BottomSheet } from '../components/common/BottomSheet';
-import { useIsDesktopSplit } from '../hooks/useBreakpoint';
 import { formatDepotDate, formatDepotTime } from '../services/businessLogic';
 import {
   Package,
@@ -31,8 +30,6 @@ export const KegsScreen: React.FC = () => {
     kegInventory,
     logKegReturn
   } = useStore();
-
-  const isDesktop = useIsDesktopSplit();
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -85,7 +82,7 @@ export const KegsScreen: React.FC = () => {
         qty: t.qty,
         fromName: customers.find(c => c.id === t.from_customer_id)?.name || 'Sender',
         toName: customers.find(c => c.id === t.to_customer_id)?.name || 'Receiver',
-        notes: t.note || t.notes
+        notes: t.note
       }));
 
     return [...returnEvents, ...transferEvents].sort(
@@ -271,14 +268,14 @@ export const KegsScreen: React.FC = () => {
       </div>
 
       {logSuccessMsg && (
-        <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300 text-[12px] font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
+        <div role="status" aria-live="polite" className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300 text-[12px] font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
           <span>{logSuccessMsg}</span>
         </div>
       )}
 
       {logErrorMsg && (
-        <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-300 text-[12px] font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
+        <div role="alert" aria-live="assertive" className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-300 text-[12px] font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
           <span>{logErrorMsg}</span>
           <button type="button" onClick={() => setLogErrorMsg(null)} className="ml-auto text-rose-500 hover:text-rose-700 dark:hover:text-rose-200">✕</button>
         </div>

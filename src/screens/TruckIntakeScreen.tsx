@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
-import { TankGauge } from '../components/common/TankGauge';
 import { TruckTankIllustration } from '../components/common/TruckTankIllustration';
 import { BottomSheet } from '../components/common/BottomSheet';
 import { SlideOverDrawer } from '../components/common/SlideOverDrawer';
@@ -12,10 +11,8 @@ import {
   formatDepotDate
 } from '../services/businessLogic';
 import {
-  Truck,
   CheckCircle2,
   Scale,
-  Boxes,
   ArrowDownToLine,
   Info,
   AlertTriangle,
@@ -26,7 +23,6 @@ import {
   ShoppingCart,
   Building2,
   Warehouse,
-  Layers,
   FileText
 } from 'lucide-react';
 
@@ -52,17 +48,17 @@ export const TruckIntakeScreen: React.FC = () => {
   const [productId, setProductId] = useState<string>('veg');
   const [supplierId, setSupplierId] = useState<string>(() => suppliers[0]?.id || '');
   const [physicalTankId, setPhysicalTankId] = useState<string>('');
-  const [truckLabel, setTruckLabel] = useState<string>('Truck 3 · KJA-492-XA');
-  const [driverName, setDriverName] = useState<string>('Alhaji Musa');
+  const [truckLabel, setTruckLabel] = useState<string>('');
+  const [driverName, setDriverName] = useState<string>('');
   const [spaceNote, setSpaceNote] = useState<string>('');
 
   // Bulk truck state
-  const [tons, setTons] = useState<string>('10');
-  const [actualKegs, setActualKegs] = useState<string>('360');
-  const [leftoverLitres, setLeftoverLitres] = useState<string>('20');
+  const [tons, setTons] = useState<string>('');
+  const [actualKegs, setActualKegs] = useState<string>('');
+  const [leftoverLitres, setLeftoverLitres] = useState<string>('');
 
   // Pre-kegged palm state
-  const [kegsReceived, setKegsReceived] = useState<string>('100');
+  const [kegsReceived, setKegsReceived] = useState<string>('');
 
   const [newlyAddedTankId, setNewlyAddedTankId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -133,9 +129,10 @@ export const TruckIntakeScreen: React.FC = () => {
       parseFloat(actualKegs) || 0,
       parseFloat(leftoverLitres) || 0,
       kegInventory.kegsAtDepot,
-      selectedProduct.litres_per_keg
+      selectedProduct.litres_per_keg,
+      settings.truck_shortfall_threshold
     );
-  }, [tons, selectedProduct, actualKegs, leftoverLitres, kegInventory.kegsAtDepot]);
+  }, [tons, selectedProduct, actualKegs, leftoverLitres, kegInventory.kegsAtDepot, settings.truck_shortfall_threshold]);
 
   // Live calculation metrics for pre-kegged
   const preKeggedMetrics = useMemo(() => {
@@ -180,11 +177,11 @@ export const TruckIntakeScreen: React.FC = () => {
       if (result.success && result.tank) {
         setNewlyAddedTankId(result.tank.id);
         setSuccessMessage(`Bulk offload recorded! Received ${result.tank.received_litres.toLocaleString()}L from ${suppliers.find(s => s.id === supplierId)?.name || 'Supplier'}.`);
-        setTruckLabel('Truck 4 · BDG-102-LK');
-        setDriverName('Emeka Obi');
-        setTons('10');
-        setActualKegs('360');
-        setLeftoverLitres('0');
+        setTruckLabel('');
+        setDriverName('');
+        setTons('');
+        setActualKegs('');
+        setLeftoverLitres('');
         setSpaceNote('');
         setTimeout(() => setSuccessMessage(null), 5000);
       } else {
@@ -210,9 +207,9 @@ export const TruckIntakeScreen: React.FC = () => {
       if (result.success && result.tank) {
         setNewlyAddedTankId(result.tank.id);
         setSuccessMessage(`Pre-kegged delivery recorded! Received ${numKegs} kegs (${result.tank.received_litres.toLocaleString()}L) from ${suppliers.find(s => s.id === supplierId)?.name || 'Supplier'}.`);
-        setTruckLabel(`Batch #${Date.now().toString().slice(-4)} · Palm Delivery`);
-        setDriverName('Malam Ibrahim');
-        setKegsReceived('100');
+        setTruckLabel('');
+        setDriverName('');
+        setKegsReceived('');
         setSpaceNote('');
         setTimeout(() => setSuccessMessage(null), 5000);
       } else {
@@ -224,14 +221,14 @@ export const TruckIntakeScreen: React.FC = () => {
   return (
     <div className="space-y-6 pb-20">
       {successMessage && (
-        <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300 text-[13px] font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
+        <div role="status" aria-live="polite" className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300 text-[13px] font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
           <span>{successMessage}</span>
         </div>
       )}
 
       {errorMessage && (
-        <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-300 text-[13px] font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
+        <div role="alert" aria-live="assertive" className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-300 text-[13px] font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
           <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />
           <span>{errorMessage}</span>
         </div>
@@ -267,16 +264,7 @@ export const TruckIntakeScreen: React.FC = () => {
                   <button
                     type="button"
                     key={p.id}
-                    onClick={() => {
-                      setProductId(p.id);
-                      if (p.supply_model === 'pre_kegged') {
-                        setTruckLabel(`Batch #${Date.now().toString().slice(-4)} · Palm Delivery`);
-                        setDriverName('Malam Ibrahim');
-                      } else {
-                        setTruckLabel('Truck 3 · KJA-492-XA');
-                        setDriverName('Alhaji Musa');
-                      }
-                    }}
+                    onClick={() => setProductId(p.id)}
                     className={`p-3.5 rounded-xl border text-left flex items-center justify-between transition-all min-h-[52px] ${
                       isSelected
                         ? isVeg
@@ -688,7 +676,6 @@ export const TruckIntakeScreen: React.FC = () => {
         {/* Mobile Compact Tank Rows (<900px) */}
         <div className="split:hidden space-y-2.5">
           {tanks.map(t => {
-            const prod = products.find(p => p.id === t.product_id);
             const supp = suppliers.find(s => s.id === t.supplier_id);
             const pct = Math.min(100, (t.remaining_litres / (t.received_litres || 1)) * 100);
             const tankReadings = dipstickReadings

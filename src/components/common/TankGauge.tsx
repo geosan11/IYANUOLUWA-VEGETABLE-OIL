@@ -7,6 +7,8 @@ interface TankGaugeProps {
   totalCapacityLitres?: number;
   truckLabel?: string;
   shortfall?: number;
+  /** Litres above which the shortfall flag shows. Callers with settings should pass `settings.truck_shortfall_threshold`. */
+  shortfallThresholdLitres?: number;
   size?: 'sm' | 'md' | 'lg';
   showLabels?: boolean;
 }
@@ -18,6 +20,7 @@ export const TankGauge: React.FC<TankGaugeProps> = ({
   totalCapacityLitres = 15000,
   truckLabel,
   shortfall = 0,
+  shortfallThresholdLitres = 50,
   size = 'md',
   showLabels = true
 }) => {
@@ -112,7 +115,7 @@ export const TankGauge: React.FC<TankGaugeProps> = ({
               {truckLabel}
             </div>
           )}
-          {shortfall > 50 && (
+          {shortfall > shortfallThresholdLitres && (
             <div className="mt-1 inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono tabular-nums font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-500/30">
               Shortfall: -{shortfall.toFixed(0)}L
             </div>

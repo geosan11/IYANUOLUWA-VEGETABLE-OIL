@@ -22,7 +22,6 @@ import {
   ChevronDown,
   ChevronUp,
   Gauge,
-  Lock,
   Unlock,
   ShieldAlert,
   Zap,
@@ -57,10 +56,13 @@ export const NewOrderScreen: React.FC = () => {
     settings,
     activeShift,
     shiftGateStatus,
+    userRole,
     createNewOrder,
     recordPumpReading,
     recordShiftOpeningReadings
   } = useStore();
+
+  const canAuthorizeOverride = userRole === 'owner';
 
   // ---- Sale entry state ----
   const [customerId, setCustomerId] = useState<string>(customers[0]?.id || '');
@@ -221,7 +223,6 @@ export const NewOrderScreen: React.FC = () => {
   const savingsVsRetail = Math.max(0, (retailRate - effectiveRate) * pricing.litres);
 
   const productStock = tankStockByProduct[productId]?.totalLitres || 0;
-  const activeFifoTank = tankStockByProduct[productId]?.tanks[0] || null;
 
   const priorPumpReading = useMemo(() => {
     if (!selectedPumpId) return 0;
@@ -496,7 +497,7 @@ export const NewOrderScreen: React.FC = () => {
       )}
 
       {errorMessage && (
-        <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-300 text-[13px] font-sans flex items-center gap-2">
+        <div role="alert" aria-live="assertive" className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-300 text-[13px] font-sans flex items-center gap-2">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>{errorMessage}</span>
           <button type="button" onClick={() => setErrorMessage(null)} className="ml-auto text-rose-500 hover:text-rose-700">✕</button>
@@ -1184,6 +1185,7 @@ export const NewOrderScreen: React.FC = () => {
           title="Sale goes over the credit limit"
           onCancel={() => setCreditModal(false)}
           onConfirm={() => { setOverrideCreditLimit(true); setCreditModal(false); runSale(overrideKegShortage, true); }}
+          canConfirm={canAuthorizeOverride}
           confirmLabel="Authorise manager override"
           rows={[
             ['Customer', selectedCustomer?.name || ''],
@@ -1338,7 +1340,9 @@ const DecisionModal: React.FC<{
   confirmLabel: string;
   onCancel: () => void;
   onConfirm: () => void;
-}> = ({ tone, title, body, rows, confirmLabel, onCancel, onConfirm }) => (
+  /** When false, the confirm button is disabled with an "owner needed" note. */
+  canConfirm?: boolean;
+}> = ({ tone, title, body, rows, confirmLabel, onCancel, onConfirm, canConfirm = true }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-sm">
     <div className={`w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border shadow-2xl overflow-hidden ${tone === 'amber' ? 'border-amber-300 dark:border-amber-700' : 'border-rose-300 dark:border-rose-700'}`}>
       <div className={`p-4 border-b flex items-center gap-2.5 ${tone === 'amber' ? 'bg-amber-50/60 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60' : 'bg-rose-50/60 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900/60'}`}>
@@ -1355,6 +1359,11 @@ const DecisionModal: React.FC<{
           ))}
         </div>
         <p className="text-[12px] text-slate-600 dark:text-slate-300">{body}</p>
+        {!canConfirm && (
+          <p className="text-[12px] font-semibold text-rose-700 dark:text-rose-400">
+            Only the owner can authorise this. Switch the buyer to cash / transfer, or ask the owner.
+          </p>
+        )}
         <div className="flex gap-2 pt-1">
           <button type="button" onClick={onCancel} className="flex-1 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-[13px] font-medium hover:bg-slate-100 dark:hover:bg-slate-800">
             Cancel
@@ -1362,7 +1371,8 @@ const DecisionModal: React.FC<{
           <button
             type="button"
             onClick={onConfirm}
-            className={`flex-1 py-2.5 rounded-xl text-white text-[13px] font-bold ${tone === 'amber' ? 'bg-amber-500 hover:bg-amber-400 text-slate-950' : 'bg-rose-600 hover:bg-rose-500'}`}
+            disabled={!canConfirm}
+            className={`flex-1 py-2.5 rounded-xl text-white text-[13px] font-bold disabled:opacity-40 disabled:cursor-not-allowed ${tone === 'amber' ? 'bg-amber-500 hover:bg-amber-400 text-slate-950' : 'bg-rose-600 hover:bg-rose-500'}`}
           >
             {confirmLabel}
           </button>

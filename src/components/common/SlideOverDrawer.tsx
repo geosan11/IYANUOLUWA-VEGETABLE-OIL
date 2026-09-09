@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
 
 interface SlideOverDrawerProps {
@@ -12,6 +12,9 @@ interface SlideOverDrawerProps {
   className?: string;
 }
 
+const FOCUSABLE =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
   isOpen,
   onClose,
@@ -22,15 +25,56 @@ export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
   width = 'max-w-md split:max-w-lg',
   className = ''
 }) => {
-  // Close on ESC key
+  const panelRef = useRef<HTMLDivElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const labelId = useId();
+
+  // ESC to close, Tab focus-trap, restore focus to the trigger on close
   useEffect(() => {
+    if (!isOpen) return;
+    restoreFocusRef.current = document.activeElement as HTMLElement | null;
+
+    const panel = panelRef.current;
+    const getItems = () =>
+      panel
+        ? Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+            el => el.offsetParent !== null || el === document.activeElement
+          )
+        : [];
+
+    (getItems()[0] || panel)?.focus();
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape') {
         onClose();
+        return;
+      }
+      if (e.key !== 'Tab' || !panel) return;
+      const items = getItems();
+      if (items.length === 0) {
+        e.preventDefault();
+        panel.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey) {
+        if (active === first || !panel.contains(active)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (active === last || !panel.contains(active)) {
+        e.preventDefault();
+        first.focus();
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+      restoreFocusRef.current?.focus?.();
+    };
   }, [isOpen, onClose]);
 
   // Lock body scroll when open
@@ -51,7 +95,7 @@ export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
     <div className="fixed inset-0 z-50 overflow-hidden">
       {/* Dimmed backdrop */}
       <div
-        className="fixed inset-0 bg-slate-950/50 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+        className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -59,14 +103,22 @@ export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
       {/* Drawer slide-in panel */}
       <div className="fixed inset-y-0 right-0 pl-10 max-w-full flex">
         <div
-          className={`w-screen ${width} bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-300 ${className}`}
+          ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={labelId}
+          tabIndex={-1}
+          className={`w-screen ${width} bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-300 focus:outline-none ${className}`}
         >
           {/* Header */}
           {(title || subtitle || headerActions) && (
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/60 flex-shrink-0">
               <div className="pr-4 min-w-0">
                 {title && (
-                  <div className="font-heading font-bold text-[18px] text-slate-900 dark:text-white truncate">
+                  <div
+                    id={labelId}
+                    className="font-heading font-bold text-[18px] text-slate-900 dark:text-white truncate"
+                  >
                     {title}
                   </div>
                 )}

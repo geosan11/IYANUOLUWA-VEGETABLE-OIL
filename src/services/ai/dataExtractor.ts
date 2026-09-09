@@ -49,7 +49,6 @@ export function extractSystemSnapshot(params: ExtractParams): SystemSnapshot {
     products,
     suppliers,
     orders,
-    customers,
     customerStatsMap,
     kegInventory,
     todayStats,

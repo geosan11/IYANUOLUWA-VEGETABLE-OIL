@@ -311,7 +311,7 @@ export const SEED_DIPSTICK_READINGS: TankDipstickReading[] = [
     reading_litres: 15660,
     recorded_at: '2026-09-08T07:30:00Z',
     variance: 0,
-    isOverThreshold: false,
+    is_flagged: false,
     note: 'Morning yard calibration'
   }
 ];
@@ -333,7 +333,7 @@ export const SEED_SHIFTS: Shift[] = [
     cash_counted: null,
     cash_variance: null,
     status: 'open',
-    notes: 'Morning shift operational run'
+    note: 'Morning shift operational run'
   }
 ];
 
