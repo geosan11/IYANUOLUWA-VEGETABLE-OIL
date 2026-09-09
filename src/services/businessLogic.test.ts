@@ -13,6 +13,8 @@ import {
   calculateDipstickVariance,
   calculateShiftSummary,
   computeShiftCash,
+  calculatePreKeggedIntakeMetrics,
+  checkShiftOpeningMetersGate,
   depotDateKey,
   getDepotToday
 } from './businessLogic';
@@ -22,7 +24,9 @@ import {
   KegReturn,
   Tank,
   RateCard,
-  Transfer
+  Transfer,
+  Pump,
+  Shift
 } from '../types';
 
 import { LITRES_PER_KEG } from '../constants/config';
@@ -426,6 +430,76 @@ const creditEntries = [
 ];
 const creditStats = calculateCustomerStats(creditCustomer, [], [], [], new Date('2026-09-10T00:00:00Z'), creditEntries);
 assert(creditStats.creditBalance === 18000, 'Store credit: 28000 added - 10000 redeemed = 18000 for this customer only');
+
+// 18. PRE-KEGGED INTAKE METRICS (Palm Oil - No tons, exact volume)
+const preKegged = calculatePreKeggedIntakeMetrics(100, 25);
+assert(preKegged.exactLitres === 2500, 'Pre-kegged intake: 100 kegs * 25L = 2,500L exact volume');
+assert(preKegged.kegsReceived === 100, 'Pre-kegged intake: kegs received preserved as 100');
+
+// 19. OUTRIGHT KEG CONTAINER PURCHASE
+// Pricing line item: 10 kegs * 25L = 250L * ₦5,000 = ₦1,250,000 oil + (10 * ₦3,500) = ₦1,285,000 total
+const pricingPurchased = calculateOrderPricing('keg', 10, 5000, 25, null, 'purchased', 3500);
+assert(pricingPurchased.oilAmount === 1250000, 'Outright keg pricing: oil amount is ₦1,250,000');
+assert(pricingPurchased.kegAmount === 35000, 'Outright keg pricing: keg container amount is ₦35,000');
+assert(pricingPurchased.amount === 1285000, 'Outright keg pricing: total sale is ₦1,285,000');
+
+// Keg Inventory: outright purchased keg permanently leaves depot but creates NO return debt
+const purchasedOrders: Order[] = [
+  {
+    id: 'ord-pur-1',
+    customer_id: 'c-test',
+    product_id: 'veg',
+    unit: 'keg',
+    qty: 15,
+    litres: 450,
+    rate: 5000,
+    amount: 2250000,
+    paid_amount: 2250000,
+    payment_method: 'cash',
+    keg_source: 'purchased',
+    date: '2026-09-09T10:00:00Z',
+    due_date: null,
+    source_tank_id: null,
+    pump_id: null
+  }
+];
+const invWithPurchased = calculateKegInventory(500, purchasedOrders, []);
+assert(invWithPurchased.totalKegsOut === 0, 'Outright keg inventory: zero kegs out debt created');
+assert(invWithPurchased.kegsAtDepot === 485, 'Outright keg inventory: depot stock reduced by 15 (500 - 15 = 485)');
+
+// 20. SHIFT-START METER HARD GATE
+const testPumps: Pump[] = [
+  { id: 'pump-1', label: 'Pump 1 (Veg)', last_meter_reading: 1000, product_id: 'veg' },
+  { id: 'pump-2', label: 'Pump 2 (Veg)', last_meter_reading: 2000, product_id: 'veg' },
+  { id: 'pump-3', label: 'Pump 3 (Palm)', last_meter_reading: 3000, product_id: 'red' }
+];
+
+// Incomplete: only pump-1 and pump-2 logged
+const shiftMissing: Shift = {
+  id: 'shift-test-1',
+  status: 'open',
+  cashier_name: 'Counter Cashier',
+  start_time: '2026-09-09T08:00:00Z',
+  end_time: null,
+  opening_float: 50000,
+  opening_readings: { 'pump-1': 1000, 'pump-2': 2000 }
+};
+const gateCheckFail = checkShiftOpeningMetersGate(shiftMissing, testPumps);
+assert(gateCheckFail.isPassed === false, 'Shift meter gate: blocked when pump-3 is missing');
+assert(gateCheckFail.missingPumps.length === 1 && gateCheckFail.missingPumps[0].id === 'pump-3', 'Shift meter gate: accurately identifies pump-3 as missing');
+
+// Complete: all 3 pumps logged
+const shiftComplete: Shift = {
+  ...shiftMissing,
+  opening_readings: { 'pump-1': 1000, 'pump-2': 2000, 'pump-3': 3000 }
+};
+const gateCheckPass = checkShiftOpeningMetersGate(shiftComplete, testPumps);
+assert(gateCheckPass.isPassed === true, 'Shift meter gate: unlocked when all 3 pumps are logged');
+assert(gateCheckPass.missingPumps.length === 0, 'Shift meter gate: zero missing pumps on pass');
+
+// 21. PER-PRODUCT LITRES PER KEG (Veg 30L vs Palm 25L)
+assert(calculateLitres('keg', 10, 30) === 300, 'Per-product capacity: 10 veg kegs (30L) = 300L');
+assert(calculateLitres('keg', 10, 25) === 250, 'Per-product capacity: 10 palm kegs (25L) = 250L');
 
 console.log('====================================================');
 console.log(`TEST SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);

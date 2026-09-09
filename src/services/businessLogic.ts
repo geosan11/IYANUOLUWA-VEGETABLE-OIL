@@ -10,31 +10,35 @@ import {
   CustomerCalculatedStats,
   TankDrawResult,
   PaymentApplicationResult,
-  UnitType
+  UnitType,
+  KegSource,
+  Pump,
+  PumpReading,
+  Shift
 } from '../types';
 import { LITRES_PER_KEG } from '../constants/config';
 
 /**
  * 1. UNIT CONVERSION
- * litres = unit === 'ton' ? qty * litresPerTon : unit === 'keg' ? qty * LITRES_PER_KEG : qty
+ * litres = unit === 'ton' ? qty * litresPerTon : unit === 'keg' ? qty * litresPerKeg : qty
  */
 export function calculateLitres(
   unit: UnitType,
   qty: number,
   litresPerKeg = LITRES_PER_KEG,
-  litresPerTon = 1090
+  litresPerTon: number | null = 1075
 ): number {
   const numericQty = Number(qty) || 0;
-  if (unit === 'ton') return numericQty * (litresPerTon || 1090);
+  if (unit === 'ton') return numericQty * (litresPerTon || 1075);
   if (unit === 'keg') return numericQty * litresPerKeg;
   return numericQty;
 }
 
 /**
- * 2. TRUCK INTAKE METRICS
+ * 2. TRUCK INTAKE METRICS (bulk_truck only)
  * expected_litres = tons * product.litres_per_ton
- * expected_kegs   = expected_litres / LITRES_PER_KEG
- * recovered       = (actual_kegs_filled * LITRES_PER_KEG) + leftover_litres_recovered
+ * expected_kegs   = expected_litres / litresPerKeg
+ * recovered       = (actual_kegs_filled * litresPerKeg) + leftover_litres_recovered
  * shortfall       = expected_litres - recovered
  * isShortfallHigh = shortfall > 50L
  */
@@ -59,7 +63,7 @@ export function calculateIntakeMetrics(
   const numActualKegs = Number(actualKegsFilled) || 0;
   const numLeftovers = Number(leftoverLitresRecovered) || 0;
 
-  const expectedLitres = numTons * (litresPerTon || 1090);
+  const expectedLitres = numTons * (litresPerTon || 1075);
   const expectedKegs = expectedLitres > 0 ? expectedLitres / litresPerKeg : 0;
   const recoveredLitres = (numActualKegs * litresPerKeg) + numLeftovers;
   const shortfall = expectedLitres - recoveredLitres;
@@ -75,9 +79,31 @@ export function calculateIntakeMetrics(
 }
 
 /**
+ * 2b. PRE-KEGGED INTAKE METRICS (palm oil)
+ * litres = kegs_received * product.litres_per_keg — EXACT, not estimated.
+ * No shortfall, variance, or tons involved.
+ */
+export interface PreKeggedIntakeMetrics {
+  exactLitres: number;
+  kegsReceived: number;
+}
+
+export function calculatePreKeggedIntakeMetrics(
+  kegsReceived: number,
+  litresPerKeg: number
+): PreKeggedIntakeMetrics {
+  const kegs = Math.max(0, Number(kegsReceived) || 0);
+  const exactLitres = Number((kegs * (litresPerKeg || 25)).toFixed(2));
+  return {
+    exactLitres,
+    kegsReceived: kegs
+  };
+}
+
+/**
  * 8. RATE LOOKUP
  * rate_per_litre = rate_cards[product_id][customer.type]
- * keg price = rate_per_litre * LITRES_PER_KEG
+ * keg price = rate_per_litre * litres_per_keg
  */
 export function lookupRatePerLitre(
   rateCards: RateCard[],
@@ -103,14 +129,27 @@ export function calculateOrderPricing(
   qty: number,
   ratePerLitre: number,
   litresPerKeg = LITRES_PER_KEG,
-  litresPerTon = 1090
-): { litres: number; amount: number; ratePerKeg: number } {
+  litresPerTon: number | null = 1075,
+  kegSource: KegSource = null,
+  kegSellPrice: number | null = null
+): {
+  litres: number;
+  oilAmount: number;
+  kegAmount: number;
+  amount: number;
+  ratePerKeg: number;
+} {
   const litres = calculateLitres(unit, qty, litresPerKeg, litresPerTon);
   const ratePerKeg = ratePerLitre * litresPerKeg;
-  const amount = litres * ratePerLitre;
+  const oilAmount = Number((litres * ratePerLitre).toFixed(2));
+  const isPurchasedKeg = unit === 'keg' && kegSource === 'purchased' && kegSellPrice !== null && kegSellPrice !== undefined;
+  const kegAmount = isPurchasedKeg ? Number(((Number(qty) || 0) * (kegSellPrice || 0)).toFixed(2)) : 0;
+  const amount = Number((oilAmount + kegAmount).toFixed(2));
   return {
     litres: Number(litres.toFixed(2)),
-    amount: Number(amount.toFixed(2)),
+    oilAmount,
+    kegAmount,
+    amount,
     ratePerKeg
   };
 }
@@ -265,14 +304,21 @@ export function calculateKegInventory(
   orders: Order[],
   kegReturns: KegReturn[]
 ): KegInventorySummary {
+  // Company loan obligations: kegs loaned to customers that are expected back
   const totalCompanySupplied = orders
     .filter(o => o.keg_source === 'company' && o.unit === 'keg')
+    .reduce((sum, o) => sum + Number(o.qty || 0), 0);
+
+  // Outright purchased kegs: physical company keg permanently sold to customer (no return obligation)
+  const totalPurchased = orders
+    .filter(o => o.keg_source === 'purchased' && o.unit === 'keg')
     .reduce((sum, o) => sum + Number(o.qty || 0), 0);
 
   const totalReturned = kegReturns.reduce((sum, r) => sum + Number(r.qty || 0), 0);
 
   const totalKegsOut = Math.max(0, totalCompanySupplied - totalReturned);
-  const kegsAtDepot = Math.max(0, totalCompanyKegs - totalKegsOut);
+  // Physical stock in depot is reduced by both loaned kegs and outright purchased kegs
+  const kegsAtDepot = Math.max(0, totalCompanyKegs - totalKegsOut - totalPurchased);
 
   return {
     totalCompanyKegs,
@@ -715,5 +761,61 @@ export function computeShiftCash(
     expectedCash
   };
 }
+
+/**
+ * 13. SHIFT-START METER GATE
+ * A shift cannot be used to record ANY sale until all active depot pumps have an
+ * opening meter reading logged for that shift.
+ */
+export interface ShiftOpeningGateStatus {
+  isPassed: boolean;
+  reason?: 'no_shift' | 'missing_readings';
+  missingPumps: Pump[];
+  loggedReadings: Record<string, number>;
+}
+
+export function checkShiftOpeningMetersGate(
+  shift: Shift | null,
+  pumps: Pump[],
+  pumpReadings: PumpReading[] = []
+): ShiftOpeningGateStatus {
+  const isShiftOpen = !!shift && (!shift.end_time || shift.status === 'open') && shift.status !== 'closed';
+  if (!isShiftOpen) {
+    return {
+      isPassed: false,
+      reason: 'no_shift',
+      missingPumps: pumps,
+      loggedReadings: {}
+    };
+  }
+
+  const shiftStartMs = new Date(shift.start_time).getTime();
+  const loggedReadings: Record<string, number> = { ...(shift.opening_readings || {}) };
+  const missingPumps: Pump[] = [];
+
+  for (const pump of pumps) {
+    if (loggedReadings[pump.id] !== undefined && loggedReadings[pump.id] !== null) {
+      continue;
+    }
+    // Check if there is a pumpReading recorded since shift start
+    const readingSinceStart = pumpReadings
+      .filter(r => r.pump_id === pump.id && new Date(r.recorded_at).getTime() >= shiftStartMs)
+      .sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime())[0];
+
+    if (readingSinceStart) {
+      loggedReadings[pump.id] = readingSinceStart.reading;
+    } else {
+      missingPumps.push(pump);
+    }
+  }
+
+  return {
+    isPassed: missingPumps.length === 0,
+    reason: missingPumps.length > 0 ? 'missing_readings' : undefined,
+    missingPumps,
+    loggedReadings
+  };
+}
+
 
 

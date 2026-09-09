@@ -106,6 +106,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
+                  {/* Oil Dispense Row */}
                   <tr>
                     <td className="py-2 text-left">
                       <div className="font-heading font-bold text-slate-900 text-[13px]">{receipt.product?.name}</div>
@@ -114,8 +115,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                       </div>
                       <div className="text-[11px] text-slate-600 font-sans font-medium">
                         Container:{' '}
-                        {order.keg_source === 'company'
-                          ? 'Company Keg (Returnable)'
+                        {order.keg_source === 'purchased'
+                          ? 'Purchased Outright (Customer Owns Container)'
+                          : order.keg_source === 'company'
+                          ? 'Company Keg (Returnable Loan)'
                           : order.keg_source === 'own'
                           ? 'Customer-Owned Keg'
                           : 'Bulk Dispense'}
@@ -133,11 +136,40 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                       ₦{order.rate.toLocaleString()}/L
                     </td>
                     <td className="py-2 text-right align-top font-bold text-slate-900">
-                      {formatNaira(order.amount)}
+                      {formatNaira(order.amount - (order.keg_amount || 0))}
                     </td>
                   </tr>
+
+                  {/* Outright Keg Container Row (if purchased) */}
+                  {order.keg_source === 'purchased' && order.keg_amount && (
+                    <tr className="bg-amber-50/50">
+                      <td className="py-2 text-left">
+                        <div className="font-heading font-bold text-amber-900 text-[12px]">
+                          Physical Keg Container Outright Purchase
+                        </div>
+                        <div className="text-[10px] text-amber-700 font-sans">
+                          Permanent sale of company keg container (no return obligation)
+                        </div>
+                      </td>
+                      <td className="py-2 text-center align-top font-bold text-amber-900">
+                        {order.qty}
+                      </td>
+                      <td className="py-2 text-right align-top text-amber-900">
+                        {formatNaira(order.keg_price || 0)}/keg
+                      </td>
+                      <td className="py-2 text-right align-top font-bold text-amber-950">
+                        {formatNaira(order.keg_amount)}
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
+
+              {order.discount_reason && (
+                <div className="mt-2 text-[11px] font-sans text-amber-900 bg-amber-50 p-2 rounded border border-amber-200">
+                  <span className="font-bold">Authorized Discount:</span> {order.discount_reason}
+                </div>
+              )}
 
               {order.note && (
                 <div className="mt-2 text-[12px] font-sans text-slate-600 bg-slate-50 p-2 rounded border border-slate-200">

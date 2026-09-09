@@ -1,4 +1,4 @@
-import { Product, RateCard, Customer, AppSettings, Tank, Order, KegReturn, Expense, Pump, PumpReading, Transfer, TankDipstickReading, Shift } from '../types';
+import { Product, RateCard, Customer, AppSettings, Tank, Order, KegReturn, Expense, Pump, PumpReading, Transfer, TankDipstickReading, Shift, Supplier, PhysicalTank } from '../types';
 
 export const LITRES_PER_KEG = 30;
 
@@ -6,17 +6,36 @@ export const DEFAULT_PRODUCTS: Product[] = [
   {
     id: 'veg',
     name: 'Golden Vegetable Oil',
-    litres_per_ton: 1090,
+    supply_model: 'bulk_truck',
+    litres_per_ton: 1075,
+    litres_per_keg: 30,
+    keg_sell_price: 3500,
     color_light: '#FCD34D',
     color_dark: '#B45309'
   },
   {
     id: 'red',
     name: 'Red / Palm Oil',
-    litres_per_ton: 1085,
+    supply_model: 'pre_kegged',
+    litres_per_ton: null,
+    litres_per_keg: 25, // Note: confirm actual capacity with client
+    keg_sell_price: 3000,
     color_light: '#F87171',
     color_dark: '#7F1D1D'
   }
+];
+
+export const DEFAULT_SUPPLIERS: Supplier[] = [
+  { id: 'sup-1', name: 'Presco Oil Plc', phone: '+234 803 100 2000' },
+  { id: 'sup-2', name: 'Okomu Oil Palm Company', phone: '+234 802 200 3000' },
+  { id: 'sup-3', name: 'Grand Cereals Mills', phone: '+234 805 300 4000' },
+  { id: 'sup-4', name: 'Ondo Local Palm Producers', phone: '+234 809 400 5000' }
+];
+
+export const DEFAULT_PHYSICAL_TANKS: PhysicalTank[] = [
+  { id: 'pt-1', label: 'Yard Tank 1 (Bulk Veg - 30,000L)', product_id: 'veg', capacity_litres: 30000, notes: 'Main East yard bulk vertical tank' },
+  { id: 'pt-2', label: 'Yard Tank 2 (Reserve Veg - 20,000L)', product_id: 'veg', capacity_litres: 20000, notes: 'Secondary West yard tank' },
+  { id: 'pt-3', label: 'Yard Tank 3 (Palm Decanting - 15,000L)', product_id: 'red', capacity_litres: 15000, notes: 'Dedicated decanting vessel for palm deliveries' }
 ];
 
 export const DEFAULT_RATE_CARDS: RateCard[] = [
@@ -145,11 +164,14 @@ export const SEED_TANKS: Tank[] = [
     product_id: 'veg',
     truck_label: 'Truck 1 · AAA-123-XB (Alhaji Musa)',
     tons: 15,
-    received_litres: 16350,
-    remaining_litres: 15660,
+    received_litres: 16125,
+    remaining_litres: 15435,
     date: '2026-09-01T08:00:00Z',
     shortfall: 0,
-    last_dipstick_reading: 15660,
+    supplier_id: 'sup-1',
+    physical_tank_id: 'pt-1',
+    supply_model: 'bulk_truck',
+    last_dipstick_reading: 15435,
     last_dipstick_variance: 0
   },
   {
@@ -157,23 +179,30 @@ export const SEED_TANKS: Tank[] = [
     product_id: 'veg',
     truck_label: 'Truck 2 · KJA-492-XA (Emeka Obi)',
     tons: 10,
-    received_litres: 10900,
-    remaining_litres: 10900,
+    received_litres: 10750,
+    remaining_litres: 10750,
     date: '2026-09-06T10:30:00Z',
     shortfall: 20,
-    last_dipstick_reading: 10890,
+    supplier_id: 'sup-3',
+    physical_tank_id: 'pt-2',
+    supply_model: 'bulk_truck',
+    last_dipstick_reading: 10740,
     last_dipstick_variance: -10
   },
   {
     id: 'tank-r1',
     product_id: 'red',
     truck_label: 'Truck Red · OGL-881-ZZ (Babatunde)',
-    tons: 12,
-    received_litres: 13020,
-    remaining_litres: 12720,
+    tons: 0,
+    received_litres: 12500,
+    remaining_litres: 12250,
     date: '2026-09-03T11:00:00Z',
     shortfall: 0,
-    last_dipstick_reading: 12720,
+    supplier_id: 'sup-2',
+    physical_tank_id: 'pt-3',
+    supply_model: 'pre_kegged',
+    space_note: 'Filled 1 decanting tank',
+    last_dipstick_reading: 12250,
     last_dipstick_variance: 0
   }
 ];
@@ -304,6 +333,11 @@ export const SEED_SHIFTS: Shift[] = [
     start_time: '2026-09-08T07:00:00Z',
     end_time: null,
     opening_float: 150000,
+    opening_readings: {
+      'p-1': 12450,
+      'p-2': 8920,
+      'p-3': 5340
+    },
     cash_sales: 0,
     cash_expenses: 37000,
     expected_cash: 113000,

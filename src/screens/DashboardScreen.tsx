@@ -62,6 +62,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   const isDesktop = useIsDesktopSplit();
   const DisclosureContainer = isDesktop ? SlideOverDrawer : BottomSheet;
 
+  const vegProduct = products.find(p => p.id === 'veg') || products[0];
+  const redProduct = products.find(p => p.id === 'red') || products[1] || products[0];
+  const vegLitresPerKeg = vegProduct?.litres_per_keg || 30;
+  const redLitresPerKeg = redProduct?.litres_per_keg || 25;
+
+  const vegKegsSoldToday = orders
+    .filter(o => depotDateKey(o.date) === todayStr && o.product_id === 'veg' && o.unit === 'keg')
+    .reduce((sum, o) => sum + Number(o.qty || 0), 0);
+
+  const redKegsSoldToday = orders
+    .filter(o => depotDateKey(o.date) === todayStr && o.product_id === 'red' && o.unit === 'keg')
+    .reduce((sum, o) => sum + Number(o.qty || 0), 0);
+
   // Progressive Disclosure States (Side Drawer on Desktop ≥900px, Bottom Sheet on Mobile)
   const [activeStatSheet, setActiveStatSheet] = useState<
     'cash' | 'credit' | 'kegs_out' | 'depot_kegs' | 'customer_kegs' | 'expenses' | null
@@ -407,8 +420,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         </div>
       </div>
 
-      {/* KPI Stat Grid (6 Metric Cards - Mobile 2-col, Tablet 3-col, Desktop 6-col) */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3.5">
+      {/* KPI Stat Grid (7 Metric Cards - Mobile 2-col, Tablet 4-col, Desktop 7-col) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3.5">
         {/* 1. Cash / Transfer Sales Today */}
         <div
           onClick={() => setActiveStatSheet('cash')}
@@ -425,6 +438,29 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             <span className="hidden sm:inline">Collected today</span>
             <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden">
               Breakdown <ChevronRight className="w-3 h-3" />
+            </span>
+          </div>
+        </div>
+
+        {/* 2. Kegs Sold Today */}
+        <div
+          onClick={() => onNavigate('order')}
+          className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm cursor-pointer active:scale-98 group"
+        >
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+            <span className="text-[12px] font-sans font-medium uppercase tracking-wider">Kegs Sold Today</span>
+            <Boxes className="w-4 h-4 text-brand-600 dark:text-brand-400 group-hover:scale-110 transition-transform" />
+          </div>
+          <div className="text-[32px] font-mono font-bold leading-tight text-slate-900 dark:text-slate-100">
+            {todayStats.kegsSoldToday}{' '}
+            <span className="text-[14px] font-sans font-normal text-slate-500 dark:text-slate-400">kegs</span>
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+            <span className="hidden sm:inline">
+              {todayStats.purchasedKegsToday > 0 ? `${todayStats.purchasedKegsToday} bought outright` : 'Discharged today'}
+            </span>
+            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden">
+              Orders <ChevronRight className="w-3 h-3" />
             </span>
           </div>
         </div>
@@ -662,7 +698,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 {vegStock.toLocaleString()} L
               </span>
               <span className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400 block">
-                ≈ {(vegStock / settings.litres_per_keg).toFixed(0)} Kegs
+                ≈ {(vegStock / vegLitresPerKeg).toFixed(0)} Kegs ({vegLitresPerKeg}L)
+              </span>
+              <span className="text-[11px] font-mono tabular-nums text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
+                Sold Today: {vegKegsSoldToday} kegs
               </span>
             </div>
           </div>
@@ -736,7 +775,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 {redStock.toLocaleString()} L
               </span>
               <span className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400 block">
-                ≈ {(redStock / settings.litres_per_keg).toFixed(0)} Kegs
+                ≈ {(redStock / redLitresPerKeg).toFixed(0)} Kegs ({redLitresPerKeg}L)
+              </span>
+              <span className="text-[11px] font-mono tabular-nums text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
+                Sold Today: {redKegsSoldToday} kegs
               </span>
             </div>
           </div>

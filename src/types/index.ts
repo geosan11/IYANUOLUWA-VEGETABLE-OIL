@@ -1,15 +1,33 @@
 export type CustomerType = 'retail' | 'agent' | 'corporate';
 export type UnitType = 'litre' | 'keg' | 'ton';
 export type PaymentMethod = 'cash' | 'transfer' | 'credit';
-export type KegSource = 'company' | 'own' | null;
+export type KegSource = 'company' | 'own' | 'purchased' | null;
 export type UserRole = 'owner' | 'staff' | 'driver';
+export type SupplyModel = 'bulk_truck' | 'pre_kegged';
 
 export interface Product {
-  id: string; // 'veg' | 'red'
+  id: string; // 'veg' | 'red' | custom string
   name: string;
-  litres_per_ton: number;
+  supply_model: SupplyModel;
+  litres_per_ton: number | null; // null for pre_kegged
+  litres_per_keg: number; // now PER-PRODUCT
+  keg_sell_price: number | null; // price to sell physical container outright
   color_light: string;
   color_dark: string;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  phone?: string;
+}
+
+export interface PhysicalTank {
+  id: string;
+  label: string; // e.g. "Storage Tank 1"
+  product_id: string;
+  capacity_litres: number;
+  notes?: string;
 }
 
 export interface RateCard {
@@ -37,6 +55,10 @@ export interface Tank {
   remaining_litres: number;
   date: string;
   shortfall: number;
+  supplier_id?: string | null;
+  space_note?: string;
+  physical_tank_id?: string | null;
+  supply_model?: SupplyModel;
   last_dipstick_reading?: number;
   last_dipstick_variance?: number;
 }
@@ -82,6 +104,9 @@ export interface Order {
   paid_amount: number;
   payment_method: PaymentMethod;
   keg_source: KegSource;
+  keg_price?: number | null;
+  keg_amount?: number | null;
+  discount_reason?: string | null;
   date: string;
   due_date: string | null;
   source_tank_id: string | null;
@@ -142,6 +167,7 @@ export interface Shift {
   start_time: string;
   end_time?: string | null;
   opening_float: number;
+  opening_readings?: Record<string, number>;
   cash_sales?: number;
   cash_expenses?: number;
   expected_cash?: number;
@@ -235,6 +261,9 @@ export interface ReceiptData {
   product?: Product;
   tankLabel?: string;
   pumpLabel?: string;
+  kegPrice?: number | null;
+  kegAmount?: number | null;
+  discountReason?: string | null;
   paymentAmount?: number;
   paymentMethod: PaymentMethod;
   previousBalance: number;

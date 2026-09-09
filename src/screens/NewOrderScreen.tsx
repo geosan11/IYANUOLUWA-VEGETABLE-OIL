@@ -24,7 +24,11 @@ import {
   ChevronUp,
   Gauge,
   Save,
-  Lock
+  Lock,
+  Eye,
+  Tag,
+  ShieldAlert,
+  Unlock
 } from 'lucide-react';
 
 export const NewOrderScreen: React.FC = () => {
@@ -39,8 +43,11 @@ export const NewOrderScreen: React.FC = () => {
     pumpReadings,
     orders,
     settings,
+    activeShift,
+    shiftGateStatus,
     createNewOrder,
-    recordPumpReading
+    recordPumpReading,
+    recordShiftOpeningReadings
   } = useStore();
 
   const [customerId, setCustomerId] = useState<string>(customers[0]?.id || '');
@@ -51,7 +58,19 @@ export const NewOrderScreen: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('credit');
   const [note, setNote] = useState<string>('');
 
-  // Pump Assignment & Per-Order Meter Reading (strictly constrained to selected product)
+  // Discount & Custom Rate states
+  const [isCustomRateEnabled, setIsCustomRateEnabled] = useState<boolean>(false);
+  const [customRateInput, setCustomRateInput] = useState<string>('');
+  const [discountReason, setDiscountReason] = useState<string>('');
+
+  // Quick Rates Modal State
+  const [isRatesGlanceOpen, setIsRatesGlanceOpen] = useState<boolean>(false);
+
+  // Shift Opening Gate State (for inline unlocking if locked)
+  const [gateReadings, setGateReadings] = useState<Record<string, string>>({});
+  const [gateError, setGateError] = useState<string | null>(null);
+
+  // Pump Assignment & Per-Order Meter Reading
   const [selectedPumpId, setSelectedPumpId] = useState<string>(() => {
     const initial = pumps.find(p => p.product_id === 'veg') || pumps[0];
     return initial?.id || '';
@@ -69,7 +88,7 @@ export const NewOrderScreen: React.FC = () => {
     }
   }, [productId, pumps, selectedPumpId]);
 
-  // Lightweight "Record Pump Reading" Action state
+  // Cumulative Pump Meter Logger State
   const [isPumpReadingOpen, setIsPumpReadingOpen] = useState(false);
   const [readingPumpId, setReadingPumpId] = useState<string>(pumps[0]?.id || '');
   const [newMeterReading, setNewMeterReading] = useState<string>('');
@@ -101,21 +120,35 @@ export const NewOrderScreen: React.FC = () => {
     return Number(currentPump?.last_meter_reading) || 0;
   }, [orders, pumps, selectedPumpId]);
 
-  // Rate & Pricing Calculations
-  const ratePerLitre = useMemo(() => {
+  // Standard Rate from Rate Cards
+  const standardRatePerLitre = useMemo(() => {
     if (!selectedCustomer || !selectedProduct) return 5000;
     return lookupRatePerLitre(rateCards, selectedProduct.id, selectedCustomer.type);
   }, [rateCards, selectedProduct, selectedCustomer]);
 
+  // Effective Rate (custom rate if enabled, else standard rate card)
+  const effectiveRatePerLitre = useMemo(() => {
+    if (isCustomRateEnabled && customRateInput) {
+      const parsed = parseFloat(customRateInput);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    return standardRatePerLitre;
+  }, [isCustomRateEnabled, customRateInput, standardRatePerLitre]);
+
+  const isDiscountApplied = effectiveRatePerLitre < standardRatePerLitre;
+
+  // Pricing calculation
   const pricing = useMemo(() => {
     return calculateOrderPricing(
       unit,
       parseFloat(qty) || 0,
-      ratePerLitre,
-      settings.litres_per_keg,
-      selectedProduct.litres_per_ton
+      effectiveRatePerLitre,
+      selectedProduct.litres_per_keg,
+      selectedProduct.litres_per_ton || 1075,
+      unit === 'keg' ? kegSource : null,
+      selectedProduct.keg_sell_price || null
     );
-  }, [unit, qty, ratePerLitre, settings.litres_per_keg, selectedProduct.litres_per_ton]);
+  }, [unit, qty, effectiveRatePerLitre, selectedProduct, kegSource]);
 
   // Live per-order meter analysis
   const meterAnalysis = useMemo(() => {
@@ -136,7 +169,6 @@ export const NewOrderScreen: React.FC = () => {
     };
   }, [orderMeterReading, selectedPumpId, priorPumpReading, pricing.litres, settings.pump_variance_threshold]);
 
-
   // Combined stock and active FIFO tank
   const productStock = tankStockByProduct[productId]?.totalLitres || 0;
   const activeFifoTank = tankStockByProduct[productId]?.tanks[0] || null;
@@ -149,7 +181,7 @@ export const NewOrderScreen: React.FC = () => {
     return d.toISOString();
   }, [paymentMethod, selectedCustomer]);
 
-  // Soft Warnings checks
+  // Warnings checks
   const isCreditExceeded = useMemo(() => {
     if (paymentMethod !== 'credit' || !customerStats) return false;
     const projectedBalance = customerStats.currentBalance + pricing.amount;
@@ -157,7 +189,7 @@ export const NewOrderScreen: React.FC = () => {
   }, [paymentMethod, customerStats, pricing.amount, selectedCustomer]);
 
   const isKegShortage = useMemo(() => {
-    if (unit !== 'keg' || kegSource !== 'company') return false;
+    if (unit !== 'keg' || (kegSource !== 'company' && kegSource !== 'purchased')) return false;
     const requestedKegs = parseFloat(qty) || 0;
     return requestedKegs > kegInventory.kegsAtDepot;
   }, [unit, kegSource, qty, kegInventory.kegsAtDepot]);
@@ -168,6 +200,31 @@ export const NewOrderScreen: React.FC = () => {
   const handleQuickQtyAdd = (additional: number) => {
     const current = parseFloat(qty) || 0;
     setQty((current + additional).toString());
+  };
+
+  // Submit Shift Opening Gate Readings
+  const handleUnlockShiftGate = (e: React.FormEvent) => {
+    e.preventDefault();
+    setGateError(null);
+
+    const missing = shiftGateStatus.missingPumps;
+    const readingsToRecord: Record<string, number> = {};
+
+    for (const p of missing) {
+      const val = parseFloat(gateReadings[p.id]);
+      if (isNaN(val) || val <= 0) {
+        setGateError(`Please enter a valid meter reading for ${p.label}.`);
+        return;
+      }
+      readingsToRecord[p.id] = val;
+    }
+
+    const res = recordShiftOpeningReadings(readingsToRecord);
+    if (!res.success) {
+      setGateError(res.error || 'Failed to record shift opening meters.');
+    } else {
+      setGateReadings({});
+    }
   };
 
   // Pump Reading Submit Handler
@@ -197,9 +254,26 @@ export const NewOrderScreen: React.FC = () => {
 
   const submitOrder = (allowKegOverride: boolean, allowCreditOverride: boolean) => {
     setErrorMessage(null);
+
+    // Hard Gate Check: Active Shift Opening Meter readings
+    if (!shiftGateStatus.isPassed) {
+      setErrorMessage(
+        'Sales are locked! Opening meter readings for all dispensing pumps must be logged before recording sales for this active shift.'
+      );
+      return;
+    }
+
     const numericQty = parseFloat(qty) || 0;
     if (numericQty <= 0) {
       setErrorMessage('Quantity must be greater than zero.');
+      return;
+    }
+
+    // Discount Reason Check: If below standard rate card, reason is strictly required!
+    if (isDiscountApplied && !discountReason.trim()) {
+      setErrorMessage(
+        `Discount reason required! Entered rate (₦${effectiveRatePerLitre.toLocaleString()}/L) is below the approved standard card (₦${standardRatePerLitre.toLocaleString()}/L). Please provide an authorized discount reason.`
+      );
       return;
     }
 
@@ -238,6 +312,8 @@ export const NewOrderScreen: React.FC = () => {
       pumpId: selectedPumpId || null,
       meterReading: orderMeterReading ? parseFloat(orderMeterReading) : null,
       deliveredQty: deliveredTons ? parseFloat(deliveredTons) : null,
+      customRate: isCustomRateEnabled ? effectiveRatePerLitre : undefined,
+      discountReason: isDiscountApplied ? discountReason.trim() : undefined,
       note: note.trim() || undefined
     });
 
@@ -249,6 +325,9 @@ export const NewOrderScreen: React.FC = () => {
       setOrderMeterReading('');
       setDeliveredTons('');
       setNote('');
+      setIsCustomRateEnabled(false);
+      setCustomRateInput('');
+      setDiscountReason('');
       setOverrideKegShortage(false);
       setOverrideCreditLimit(false);
       setIsCreditOverrideModalOpen(false);
@@ -263,7 +342,100 @@ export const NewOrderScreen: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-20">
-      {/* 2-COLUMN SALE WORKSPACE (60% / 40% Split at ≥900px) */}
+      {/* 1. SHIFT OPENING METERS HARD GATE ALERT / UNLOCK BANNER */}
+      {!shiftGateStatus.isPassed && (
+        <div className="p-5 rounded-2xl bg-rose-50 dark:bg-rose-950/70 border-2 border-rose-500 shadow-lg text-rose-900 dark:text-rose-100 animate-in fade-in space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-rose-200 dark:border-rose-900/80 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-md animate-pulse">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-[17px] font-heading font-bold flex items-center gap-2">
+                  <span>Shift-Start Meter Hard Gate: Counter Sales Locked</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] uppercase font-bold bg-rose-200 dark:bg-rose-900 text-rose-900 dark:text-rose-200">
+                    Mandatory
+                  </span>
+                </h3>
+                <p className="text-[12px] opacity-90">
+                  {activeShift?.cashier_name || 'Active Shift'} must log opening meter readings for all 3 pumps before counter sales can be recorded.
+                </p>
+              </div>
+            </div>
+            <span className="text-[12px] font-mono font-bold px-3 py-1 rounded-lg bg-white/80 dark:bg-slate-900 text-rose-700 dark:text-rose-300 self-start sm:self-auto border border-rose-300 dark:border-rose-800">
+              {shiftGateStatus.missingPumps.length} Pumps Pending
+            </span>
+          </div>
+
+          {gateError && (
+            <div className="p-3 rounded-xl bg-white dark:bg-slate-900 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2 border border-rose-300">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{gateError}</span>
+            </div>
+          )}
+
+          {/* Inline Opening Reading Form for Missing Pumps */}
+          <form onSubmit={handleUnlockShiftGate} className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {shiftGateStatus.missingPumps.map(pump => {
+                const isVeg = pump.product_id === 'veg';
+                return (
+                  <div
+                    key={pump.id}
+                    className="p-3.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-rose-300 dark:border-rose-800 space-y-1.5 shadow-xs"
+                  >
+                    <div className="flex items-center justify-between text-xs font-sans">
+                      <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full"
+                          style={{ backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }}
+                        />
+                        {pump.label}
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        Prior: {pump.last_meter_reading.toLocaleString()}L
+                      </span>
+                    </div>
+
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.5"
+                        min={pump.last_meter_reading}
+                        required
+                        placeholder={`>= ${pump.last_meter_reading}`}
+                        value={gateReadings[pump.id] || ''}
+                        onChange={e =>
+                          setGateReadings({ ...gateReadings, [pump.id]: e.target.value })
+                        }
+                        className="w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white font-mono font-bold text-[14px] focus:outline-none focus:ring-2 focus:ring-rose-500"
+                      />
+                      <span className="absolute right-2.5 top-2.5 text-[11px] font-mono text-slate-400">
+                        Litres
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[11px] text-rose-800 dark:text-rose-200">
+                Opening meters verify physical oil volume and ensure zero unlogged sales bypass.
+              </span>
+              <button
+                type="submit"
+                className="px-5 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
+              >
+                <Unlock className="w-4 h-4" />
+                <span>Save Opening Meters & Unlock Sales</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* 2-COLUMN SALE WORKSPACE (60% / 40% Split at >=900px) */}
       <div className="grid grid-cols-1 split:grid-cols-5 gap-6 items-start">
         {/* LEFT COLUMN: SALE ENTRY FORM (60% - 3 cols) */}
         <form
@@ -277,16 +449,26 @@ export const NewOrderScreen: React.FC = () => {
             </div>
           )}
 
-          {/* 1. Customer Select */}
+          {/* 1. Customer Select & Rate Glance Trigger */}
           <div className="space-y-1.5">
-            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <User className="w-4 h-4 text-brand-600 dark:text-brand-400" />
-              <span>Customer Account</span>
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <User className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                <span>Customer Account *</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsRatesGlanceOpen(true)}
+                className="text-[11px] font-sans font-bold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>View Rate Cards</span>
+              </button>
+            </div>
             <select
               value={customerId}
               onChange={e => setCustomerId(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-white/95 dark:bg-slate-950 border border-stone-300/90 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-sans font-semibold text-[14px] focus:outline-none focus:border-brand-500 shadow-xs"
+              className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-white/95 dark:bg-slate-950 border border-stone-300/90 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-sans font-semibold text-[15px] focus:outline-none focus:border-brand-500 shadow-xs"
             >
               {customers.map(c => (
                 <option key={c.id} value={c.id}>
@@ -298,7 +480,9 @@ export const NewOrderScreen: React.FC = () => {
 
           {/* 2. Product Selection Chips */}
           <div className="space-y-1.5">
-            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">Product Type</label>
+            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+              Product Category *
+            </label>
             <div className="grid grid-cols-2 gap-3">
               {products.map(p => {
                 const isSelected = productId === p.id;
@@ -323,9 +507,11 @@ export const NewOrderScreen: React.FC = () => {
                         : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                     }`}
                   >
-                    <div className="text-[14px] font-sans font-bold">{p.name}</div>
+                    <div className="text-[15px] font-sans font-bold">{p.name}</div>
                     <div className="text-[11px] font-sans opacity-80 mt-0.5">
-                      {isVeg ? 'Golden Veg Oil' : 'Palm Oil / Epo Pupa'}
+                      {p.supply_model === 'bulk_truck'
+                        ? `Bulk Offload · ${p.litres_per_keg}L Kegs`
+                        : `Pre-Kegged · ${p.litres_per_keg}L Kegs`}
                     </div>
                   </button>
                 );
@@ -363,7 +549,7 @@ export const NewOrderScreen: React.FC = () => {
                     <Gauge className="w-4 h-4" /> Record Cumulative Pump Reading
                   </span>
                   <span className="text-[11px] font-sans text-purple-700 dark:text-purple-300">
-                    Depot Routine Calibration
+                    Routine Calibration
                   </span>
                 </div>
 
@@ -379,7 +565,7 @@ export const NewOrderScreen: React.FC = () => {
                     <select
                       value={readingPumpId}
                       onChange={e => setReadingPumpId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-slate-100"
+                      className="w-full px-3 py-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-slate-100"
                     >
                       {pumps.map(p => (
                         <option key={p.id} value={p.id}>{p.label} ({p.last_meter_reading}L)</option>
@@ -394,7 +580,7 @@ export const NewOrderScreen: React.FC = () => {
                       value={newMeterReading}
                       onChange={e => setNewMeterReading(e.target.value)}
                       placeholder={`> ${selectedReadingPump?.last_meter_reading}`}
-                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold text-slate-900 dark:text-slate-100"
+                      className="w-full px-3 py-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold text-slate-900 dark:text-slate-100"
                     />
                   </div>
                   <div>
@@ -405,7 +591,7 @@ export const NewOrderScreen: React.FC = () => {
                         value={readingNote}
                         onChange={e => setReadingNote(e.target.value)}
                         placeholder="Shift check"
-                        className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-100"
+                        className="w-full px-3 py-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-100"
                       />
                       <button
                         type="button"
@@ -490,14 +676,14 @@ export const NewOrderScreen: React.FC = () => {
                       value={orderMeterReading}
                       onChange={e => setOrderMeterReading(e.target.value)}
                       placeholder={`Current meter (e.g. ${(priorPumpReading + pricing.litres).toFixed(0)})`}
-                      className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-slate-950 border border-purple-300 dark:border-purple-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-purple-500"
+                      className="w-full px-3.5 py-3 min-h-[48px] rounded-xl bg-white dark:bg-slate-950 border border-purple-300 dark:border-purple-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-purple-500"
                     />
                   </div>
                   <div className="sm:col-span-4">
                     <button
                       type="button"
                       onClick={() => setOrderMeterReading((priorPumpReading + pricing.litres).toString())}
-                      className="w-full py-2 px-3 rounded-xl bg-purple-100 dark:bg-purple-900/40 hover:bg-purple-200 dark:hover:bg-purple-900/60 text-purple-800 dark:text-purple-200 text-[11px] font-sans font-bold border border-purple-300 dark:border-purple-800 transition-colors"
+                      className="w-full py-3 min-h-[48px] px-3 rounded-xl bg-purple-100 dark:bg-purple-900/40 hover:bg-purple-200 dark:hover:bg-purple-900/60 text-purple-800 dark:text-purple-200 text-[12px] font-sans font-bold border border-purple-300 dark:border-purple-800 transition-colors"
                     >
                       Fill Expected (+{pricing.litres}L)
                     </button>
@@ -531,8 +717,10 @@ export const NewOrderScreen: React.FC = () => {
           {/* 4. Unit & Quantity (Keg, Litre, Ton) */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Volume & Unit</label>
-              <span className="text-[12px] font-mono tabular-nums font-bold text-brand-600 dark:text-brand-400">
+              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Volume & Unit *
+              </label>
+              <span className="text-[13px] font-mono tabular-nums font-bold text-brand-600 dark:text-brand-400">
                 = {pricing.litres.toLocaleString()} Litres
               </span>
             </div>
@@ -543,18 +731,18 @@ export const NewOrderScreen: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => { setUnit('keg'); if (parseFloat(qty) > 100) setQty('10'); }}
-                  className={`py-2 rounded-lg text-[11px] font-sans font-bold transition-all ${
+                  className={`py-2.5 rounded-lg text-[12px] font-sans font-bold transition-all ${
                     unit === 'keg'
                       ? 'bg-brand-500 text-slate-950 shadow-sm'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
                   }`}
                 >
-                  Keg ({settings.litres_per_keg}L)
+                  Keg ({selectedProduct.litres_per_keg}L)
                 </button>
                 <button
                   type="button"
                   onClick={() => setUnit('litre')}
-                  className={`py-2 rounded-lg text-[11px] font-sans font-bold transition-all ${
+                  className={`py-2.5 rounded-lg text-[12px] font-sans font-bold transition-all ${
                     unit === 'litre'
                       ? 'bg-brand-500 text-slate-950 shadow-sm'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
@@ -565,7 +753,7 @@ export const NewOrderScreen: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => { setUnit('ton'); setQty('5'); }}
-                  className={`py-2 rounded-lg text-[11px] font-sans font-bold transition-all ${
+                  className={`py-2.5 rounded-lg text-[12px] font-sans font-bold transition-all ${
                     unit === 'ton'
                       ? 'bg-brand-500 text-slate-950 shadow-sm'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
@@ -585,7 +773,7 @@ export const NewOrderScreen: React.FC = () => {
                   onChange={e => setQty(e.target.value)}
                   placeholder={unit === 'ton' ? '5' : '10'}
                   inputMode="decimal"
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[16px] font-mono tabular-nums font-bold focus:outline-none focus:border-brand-500 text-right"
+                  className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[16px] font-mono tabular-nums font-bold focus:outline-none focus:border-brand-500 text-right"
                   required
                 />
               </div>
@@ -596,7 +784,7 @@ export const NewOrderScreen: React.FC = () => {
               <div className="p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 text-[12px] space-y-2">
                 <div className="flex items-center justify-between text-blue-950 dark:text-blue-200 font-semibold">
                   <span>Wholesale Bulk Tonnage Sale</span>
-                  <span className="font-mono tabular-nums font-bold">1 Ton = {selectedProduct.litres_per_ton}L</span>
+                  <span className="font-mono tabular-nums font-bold">1 Ton = {selectedProduct.litres_per_ton || 1075}L</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div>
@@ -609,14 +797,14 @@ export const NewOrderScreen: React.FC = () => {
                       value={deliveredTons}
                       onChange={e => setDeliveredTons(e.target.value)}
                       placeholder={`e.g. ${qty}`}
-                      className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[13px] font-mono tabular-nums focus:outline-none focus:border-blue-500"
+                      className="w-full px-3 py-2 min-h-[40px] rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[14px] font-mono tabular-nums focus:outline-none focus:border-blue-500"
                     />
                   </div>
                   <div className="flex items-end">
                     {deliveredTons && parseFloat(deliveredTons) < (parseFloat(qty) || 0) ? (
                       <div className="text-[11px] font-mono tabular-nums text-amber-700 dark:text-amber-400 font-bold p-1">
                         Shortfall: {((parseFloat(qty) || 0) - parseFloat(deliveredTons)).toFixed(2)} Tons (
-                        {(((parseFloat(qty) || 0) - parseFloat(deliveredTons)) * selectedProduct.litres_per_ton).toFixed(1)}L)
+                        {(((parseFloat(qty) || 0) - parseFloat(deliveredTons)) * (selectedProduct.litres_per_ton || 1075)).toFixed(1)}L)
                       </div>
                     ) : (
                       <div className="text-[11px] text-slate-500 dark:text-slate-400 italic">
@@ -636,7 +824,7 @@ export const NewOrderScreen: React.FC = () => {
                   type="button"
                   key={val}
                   onClick={() => handleQuickQtyAdd(val)}
-                  className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[12px] font-mono tabular-nums font-bold text-slate-700 dark:text-slate-300 hover:border-brand-500 hover:text-brand-600 dark:hover:text-white transition-colors"
+                  className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[12px] font-mono tabular-nums font-bold text-slate-700 dark:text-slate-300 hover:border-brand-500 hover:text-brand-600 dark:hover:text-white transition-colors"
                 >
                   +{val} {unit}
                 </button>
@@ -644,56 +832,191 @@ export const NewOrderScreen: React.FC = () => {
             </div>
           </div>
 
-          {/* 5. Keg Source (Only if unit === 'keg') */}
+          {/* 5. Container Source (Only if unit === 'keg') — Extended with Outright Purchase */}
           {unit === 'keg' && (
-            <div className="space-y-1.5 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
-              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <Package className="w-4 h-4 text-brand-600 dark:text-brand-400" />
-                <span>Container / Jerrycan Source</span>
-              </label>
-              <div className="grid grid-cols-2 gap-2 text-[12px]">
+            <div className="space-y-2 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between">
+                <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Package className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                  <span>Container / Jerrycan Source *</span>
+                </label>
+                <span className="text-[11px] text-slate-500 font-mono">
+                  Depot Stock: <strong>{kegInventory.kegsAtDepot}</strong> kegs
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[12px]">
+                {/* Company Keg */}
                 <button
                   type="button"
                   onClick={() => setKegSource('company')}
-                  className={`p-3 rounded-lg border text-left transition-all min-h-[44px] ${
+                  className={`p-3 rounded-xl border text-left transition-all min-h-[52px] ${
                     kegSource === 'company'
-                      ? 'bg-brand-50 dark:bg-brand-500/15 border-brand-500 text-brand-900 dark:text-brand-300 font-bold'
+                      ? 'bg-brand-50 dark:bg-brand-500/15 border-brand-500 text-brand-900 dark:text-brand-300 font-bold shadow-xs'
                       : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
                   }`}
                 >
-                  <div className="font-sans font-bold">Company-Owned Keg</div>
-                  <div className="text-[11px] font-sans text-slate-500">Returnable obligation logged</div>
+                  <div className="font-sans font-bold text-[13px]">Company Keg</div>
+                  <div className="text-[11px] font-sans text-slate-500 mt-0.5">Returnable Debt Logged</div>
                 </button>
 
+                {/* Customer Keg */}
                 <button
                   type="button"
                   onClick={() => setKegSource('own')}
-                  className={`p-3 rounded-lg border text-left transition-all min-h-[44px] ${
+                  className={`p-3 rounded-xl border text-left transition-all min-h-[52px] ${
                     kegSource === 'own'
-                      ? 'bg-brand-50 dark:bg-brand-500/15 border-brand-500 text-brand-900 dark:text-brand-300 font-bold'
+                      ? 'bg-brand-50 dark:bg-brand-500/15 border-brand-500 text-brand-900 dark:text-brand-300 font-bold shadow-xs'
                       : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
                   }`}
                 >
-                  <div className="font-sans font-bold">Customer-Owned Keg</div>
-                  <div className="text-[11px] font-sans text-slate-500">Bypasses keg return ledger</div>
+                  <div className="font-sans font-bold text-[13px]">Customer's Own Keg</div>
+                  <div className="text-[11px] font-sans text-slate-500 mt-0.5">No Container Charge</div>
+                </button>
+
+                {/* Outright Keg Purchase */}
+                <button
+                  type="button"
+                  onClick={() => setKegSource('purchased')}
+                  className={`p-3 rounded-xl border text-left transition-all min-h-[52px] ${
+                    kegSource === 'purchased'
+                      ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500 text-amber-900 dark:text-amber-300 font-bold shadow-xs'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  <div className="font-sans font-bold text-[13px] flex items-center justify-between">
+                    <span>Buy Keg Outright</span>
+                    <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 font-bold">
+                      +₦{(selectedProduct.keg_sell_price || 3500).toLocaleString()}/keg
+                    </span>
+                  </div>
+                  <div className="text-[11px] font-sans text-slate-500 mt-0.5">Permanent Sale (No Debt)</div>
                 </button>
               </div>
+
+              {kegSource === 'purchased' && (
+                <div className="p-3 rounded-lg bg-amber-50/80 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 text-[11px] font-sans text-amber-900 dark:text-amber-200 flex items-center justify-between">
+                  <span>
+                    Container line item: <strong>{qty} kegs × ₦{(selectedProduct.keg_sell_price || 3500).toLocaleString()}</strong>
+                  </span>
+                  <span className="font-mono font-bold text-amber-800 dark:text-amber-300 text-[13px]">
+                    +{formatNaira(pricing.kegAmount)}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
-          {/* 6. Payment Method */}
+          {/* 6. Pricing & Discount Controls */}
+          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Tag className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                <span className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Rate Card & Discount Authorization
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCustomRateEnabled(!isCustomRateEnabled)}
+                className="text-[11px] font-sans font-bold text-brand-600 dark:text-brand-400 hover:underline"
+              >
+                {isCustomRateEnabled ? 'Reset to Standard Card' : 'Apply Custom Rate'}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] uppercase text-slate-500 block">Standard Approved Rate:</span>
+                  <span className="font-mono font-bold text-[14px] text-slate-900 dark:text-white">
+                    ₦{standardRatePerLitre.toLocaleString()}/L
+                  </span>
+                </div>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                  {selectedCustomer.type} Tier
+                </span>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] uppercase text-slate-500 block">Effective Per-Keg Rate:</span>
+                  <span className="font-mono font-bold text-[14px] text-brand-600 dark:text-brand-400">
+                    {formatNaira(pricing.ratePerKeg)}
+                  </span>
+                </div>
+                <span className="text-[11px] font-mono text-slate-500">
+                  {selectedProduct.litres_per_keg}L Keg
+                </span>
+              </div>
+            </div>
+
+            {/* Custom Rate Input & Discount Reason */}
+            {isCustomRateEnabled && (
+              <div className="space-y-2.5 pt-2 border-t border-slate-200 dark:border-slate-800 animate-in fade-in">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-sans uppercase font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                      Custom Rate per Litre (₦/L)
+                    </label>
+                    <input
+                      type="number"
+                      step="50"
+                      min="100"
+                      placeholder={`e.g. ${standardRatePerLitre}`}
+                      value={customRateInput}
+                      onChange={e => setCustomRateInput(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-brand-300 dark:border-brand-700 bg-white dark:bg-slate-900 text-[14px] font-mono font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-sans uppercase font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                      Equivalent Rate per {selectedProduct.litres_per_keg}L Keg
+                    </label>
+                    <div className="px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono font-bold text-[14px] text-emerald-600 dark:text-emerald-400">
+                      {formatNaira(pricing.ratePerKeg)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* MANDATORY DISCOUNT REASON INPUT IF RATE < STANDARD RATE */}
+                {isDiscountApplied && (
+                  <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 space-y-2">
+                    <div className="flex items-center gap-1.5 text-[12px] font-bold text-amber-900 dark:text-amber-200">
+                      <AlertTriangle className="w-4 h-4 text-amber-600" />
+                      <span>Discount Alert: Rate is below standard card</span>
+                    </div>
+                    <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                      Entered rate (₦{effectiveRatePerLitre.toLocaleString()}/L) is below standard tier rate (₦{standardRatePerLitre.toLocaleString()}/L). An authorized discount reason is strictly mandatory.
+                    </p>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Approved bulk loyalty discount by Alhaji / MD concession"
+                      value={discountReason}
+                      onChange={e => setDiscountReason(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-[13px] font-sans text-slate-900 dark:text-white placeholder-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 7. Payment Method */}
           <div className="space-y-1.5">
             <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <CreditCard className="w-4 h-4 text-brand-600 dark:text-brand-400" />
-              <span>Payment Terms / Method</span>
+              <span>Payment Terms / Method *</span>
             </label>
-            <div className="grid grid-cols-3 gap-2 text-[12px] font-sans font-semibold">
+            <div className="grid grid-cols-3 gap-2 text-[13px] font-sans font-semibold">
               {(['credit', 'cash', 'transfer'] as PaymentMethod[]).map(method => (
                 <button
                   type="button"
                   key={method}
                   onClick={() => setPaymentMethod(method)}
-                  className={`py-2.5 rounded-xl border capitalize transition-all min-h-[44px] ${
+                  className={`py-3.5 min-h-[48px] rounded-xl border capitalize transition-all ${
                     paymentMethod === method
                       ? 'bg-brand-500 text-slate-950 font-bold border-brand-500 shadow-sm'
                       : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
@@ -705,7 +1028,7 @@ export const NewOrderScreen: React.FC = () => {
             </div>
           </div>
 
-          {/* 7. Soft Warnings & Overrides (Interactive Decision Prompts) */}
+          {/* 8. Soft Warnings & Overrides (Interactive Decision Prompts) */}
           {isKegShortage && (
             <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 text-[12px] font-sans text-amber-900 dark:text-amber-300 space-y-2">
               <div className="flex items-center justify-between">
@@ -720,7 +1043,7 @@ export const NewOrderScreen: React.FC = () => {
                 )}
               </div>
               <p className="text-[11px] text-amber-800 dark:text-amber-200">
-                You requested {qty} company kegs, but depot yard only has {kegInventory.kegsAtDepot} available (threshold: {settings.kegs_at_depot_low_threshold}).
+                You requested {qty} kegs, but depot yard only has {kegInventory.kegsAtDepot} available (safety threshold: {settings.kegs_at_depot_low_threshold}).
               </p>
               {!overrideKegShortage ? (
                 <button
@@ -779,29 +1102,40 @@ export const NewOrderScreen: React.FC = () => {
             </div>
           )}
 
-          {/* 8. Optional Note */}
+          {/* 9. Optional Note */}
           <div className="space-y-1">
-            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Sale Note / Reference (Optional)</label>
+            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+              Sale Note / Dispatch Slip (Optional)
+            </label>
             <input
               type="text"
               value={note}
               onChange={e => setNote(e.target.value)}
               placeholder="e.g. Dispensed into customer white cans, gate dispatch slip #890"
-              className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 text-[14px] font-sans focus:outline-none focus:border-brand-500"
+              className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 text-[15px] font-sans focus:outline-none focus:border-brand-500"
             />
           </div>
 
-          {/* 9. Submit Button */}
+          {/* 10. Submit Button */}
           <button
             type="submit"
-            className="w-full py-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[14px] uppercase tracking-wider shadow-lg shadow-brand-500/25 transition-all flex items-center justify-center gap-2 active:scale-98"
+            disabled={!shiftGateStatus.isPassed}
+            className={`w-full py-4 min-h-[52px] rounded-xl font-sans font-bold text-[14px] uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-2 active:scale-98 ${
+              shiftGateStatus.isPassed
+                ? 'bg-brand-500 hover:bg-brand-400 text-slate-950 shadow-brand-500/25'
+                : 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed'
+            }`}
           >
-            <Receipt className="w-[18px] h-[18px] text-slate-950" />
-            <span>Complete Sale & Issue Official Receipt</span>
+            <Receipt className="w-[18px] h-[18px]" />
+            <span>
+              {shiftGateStatus.isPassed
+                ? 'Complete Sale & Issue Official Receipt'
+                : 'Locked: Record Opening Meters Above'}
+            </span>
           </button>
         </form>
 
-        {/* RIGHT COLUMN: FIXED CUSTOMER SALE CONTAINER (40% - 2 COLS AT ≥900px) */}
+        {/* RIGHT COLUMN: FIXED CUSTOMER SALE CONTAINER (40% - 2 COLS AT >=900px) */}
         <div className="split:col-span-2 split:sticky split:top-4 split:self-start space-y-4">
           {/* Mobile Accordion Toggle (<900px only) */}
           <div className="split:hidden p-4 rounded-2xl bg-rough-paper border border-stone-300/90 dark:border-slate-800 shadow-md flex items-center justify-between">
@@ -877,25 +1211,44 @@ export const NewOrderScreen: React.FC = () => {
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
-                  <span className="font-sans">Price per Litre</span>
+                  <span className="font-sans">Effective Rate/Litre</span>
                   <span className="font-bold text-slate-900 dark:text-slate-200">
-                    ₦{ratePerLitre.toLocaleString()}/L
+                    ₦{effectiveRatePerLitre.toLocaleString()}/L
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
-                  <span className="font-sans">Rate per {settings.litres_per_keg}L Keg</span>
+                  <span className="font-sans">Rate per {selectedProduct.litres_per_keg}L Keg</span>
                   <span className="font-bold text-slate-900 dark:text-slate-200">
                     {formatNaira(pricing.ratePerKeg)}
                   </span>
                 </div>
 
+                {/* Packaging Specification Line */}
                 {unit === 'keg' && (
                   <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
                     <span className="font-sans">Keg Packaging</span>
                     <span className="font-bold text-slate-900 dark:text-slate-200">
-                      {kegSource === 'company' ? 'Depot Yellow Kegs' : 'Customer Kegs'}
+                      {kegSource === 'company'
+                        ? 'Depot Yellow Keg (Returnable)'
+                        : kegSource === 'purchased'
+                        ? 'Bought Outright (+₦3,500)'
+                        : 'Customer-Owned Keg'}
                     </span>
                   </div>
+                )}
+
+                {/* Subtotals if purchased outright */}
+                {pricing.kegAmount > 0 && (
+                  <>
+                    <div className="flex justify-between items-center text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">
+                      <span className="font-sans">Oil Subtotal:</span>
+                      <span className="font-mono">{formatNaira(pricing.oilAmount)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-amber-700 dark:text-amber-400">
+                      <span className="font-sans">Container Purchase ({qty} kegs):</span>
+                      <span className="font-mono font-bold">+{formatNaira(pricing.kegAmount)}</span>
+                    </div>
+                  </>
                 )}
 
                 {selectedPumpId && (
@@ -935,11 +1288,18 @@ export const NewOrderScreen: React.FC = () => {
                 {/* Primary Action Button inside the Fixed Right Panel */}
                 <button
                   type="button"
+                  disabled={!shiftGateStatus.isPassed}
                   onClick={() => submitOrder(overrideKegShortage, overrideCreditLimit)}
-                  className="w-full py-3.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] uppercase tracking-wider shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2 active:scale-98"
+                  className={`w-full py-3.5 px-4 rounded-xl font-sans font-bold text-[13px] uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-2 active:scale-98 ${
+                    shiftGateStatus.isPassed
+                      ? 'bg-brand-500 hover:bg-brand-400 text-slate-950 shadow-brand-500/20'
+                      : 'bg-slate-300 dark:bg-slate-800 text-slate-500 cursor-not-allowed'
+                  }`}
                 >
-                  <Receipt className="w-4 h-4 text-slate-950" />
-                  <span>Complete Sale & Issue Receipt</span>
+                  <Receipt className="w-4 h-4" />
+                  <span>
+                    {shiftGateStatus.isPassed ? 'Complete Sale & Issue Receipt' : 'Shift Locked'}
+                  </span>
                 </button>
               </div>
             </div>
@@ -1007,6 +1367,100 @@ export const NewOrderScreen: React.FC = () => {
         </div>
       </div>
 
+      {/* MODAL: QUICK RATES GLANCE MODAL */}
+      {isRatesGlanceOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-800">
+                  <Eye className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading font-bold text-[16px] text-slate-900 dark:text-white">
+                    Current Depot Rate Cards
+                  </h3>
+                  <p className="text-[12px] font-sans text-slate-500">
+                    Live rates per litre & per keg across customer tiers
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRatesGlanceOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 overflow-y-auto">
+              <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-100 dark:bg-slate-950 uppercase font-semibold text-slate-600 dark:text-slate-400 font-sans">
+                    <tr>
+                      <th className="px-4 py-3">Product</th>
+                      <th className="px-4 py-3">Customer Tier</th>
+                      <th className="px-4 py-3">Rate / Litre</th>
+                      <th className="px-4 py-3 text-right">Per-Keg Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono tabular-nums">
+                    {products.map(p =>
+                      (['retail', 'agent', 'corporate'] as const).map(tier => {
+                        const rate = lookupRatePerLitre(rateCards, p.id, tier);
+                        const kegRate = rate * p.litres_per_keg;
+                        const isVeg = p.id === 'veg';
+
+                        return (
+                          <tr key={`${p.id}_${tier}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="px-4 py-3 font-sans font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
+                              <span
+                                className="w-2.5 h-2.5 rounded-full"
+                                style={{ backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }}
+                              />
+                              <span>{p.name}</span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="px-2 py-0.5 rounded font-sans uppercase font-bold text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                {tier}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 font-bold text-slate-900 dark:text-slate-100">
+                              ₦{rate.toLocaleString()}/L
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                              {formatNaira(kegRate)} ({p.litres_per_keg}L)
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[12px] font-sans text-slate-600 dark:text-slate-400 flex items-center justify-between">
+                <span>Outright empty keg container price:</span>
+                <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+                  ₦{(selectedProduct.keg_sell_price || 3500).toLocaleString()} per container
+                </span>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex justify-end bg-slate-50 dark:bg-slate-950">
+              <button
+                type="button"
+                onClick={() => setIsRatesGlanceOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-sans font-semibold text-xs"
+              >
+                Close Rates Glance
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL 1: BLOCKING KEG SHORTAGE DECISION MODAL */}
       {isKegShortageModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-sm animate-in fade-in duration-200">
@@ -1037,7 +1491,7 @@ export const NewOrderScreen: React.FC = () => {
             <div className="p-5 space-y-4 text-[13px] font-sans">
               <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 space-y-2">
                 <div className="flex justify-between font-mono tabular-nums">
-                  <span className="font-sans text-slate-600 dark:text-slate-400">Requested Company Kegs:</span>
+                  <span className="font-sans text-slate-600 dark:text-slate-400">Requested Kegs:</span>
                   <span className="font-bold text-slate-900 dark:text-white">{qty} kegs</span>
                 </div>
                 <div className="flex justify-between font-mono tabular-nums">
