@@ -432,7 +432,7 @@ export const TruckTankIllustration: React.FC<TruckTankIllustrationProps> = ({
 
         <div>
           <span className="text-[11px] uppercase text-slate-500 dark:text-slate-400 block font-sans">
-            Offload Shortfall
+            Short by
           </span>
           <span
             className={`font-bold inline-flex items-center gap-1 ${

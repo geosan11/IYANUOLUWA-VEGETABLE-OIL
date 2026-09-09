@@ -88,6 +88,35 @@
   }
 }
 
+/* Thermal ticket — perforated top/bottom edges + faux barcode */
+.receipt-edge-top {
+  height: 12px;
+  background:
+    radial-gradient(circle at 9px 12px, transparent 8px, var(--receipt-bg, #fbfbf8) 8.5px);
+  background-size: 18px 12px;
+  background-repeat: repeat-x;
+}
+.receipt-edge-bottom {
+  height: 12px;
+  background:
+    radial-gradient(circle at 9px 0, transparent 8px, var(--receipt-bg, #fbfbf8) 8.5px);
+  background-size: 18px 12px;
+  background-repeat: repeat-x;
+}
+.receipt-barcode {
+  height: 42px;
+  background-image: repeating-linear-gradient(
+    90deg,
+    #0f172a 0, #0f172a 2px,
+    transparent 2px, transparent 4px,
+    #0f172a 4px, #0f172a 7px,
+    transparent 7px, transparent 9px,
+    #0f172a 9px, #0f172a 10px,
+    transparent 10px, transparent 13px
+  );
+  background-size: 13px 100%;
+}
+
 /* Rough Paper & Grain Noise Textures for Workspaces & Receipts */
 .bg-rough-paper {
   background-color: #f7f4ed;

@@ -12,16 +12,23 @@ import { CustomersScreen } from './screens/CustomersScreen';
 import { KegsScreen } from './screens/KegsScreen';
 import { ExpensesScreen } from './screens/ExpensesScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
+import { AIAdvisorScreen } from './screens/AIAdvisorScreen';
 
 const MainLayout: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { activeReceipt, setActiveReceipt } = useStore();
+  const { activeReceipt, setActiveReceipt, userRole } = useStore();
+
+  // Owner/admin gets the full sidebar; counter staff & drivers get a compact
+  // top-bar screen switcher instead (dedicated counter tablet).
+  const isAdmin = userRole === 'owner';
 
   const renderActiveScreen = () => {
     switch (currentTab) {
       case 'dashboard':
         return <DashboardScreen onNavigate={setCurrentTab} />;
+      case 'ai-advisor':
+        return <AIAdvisorScreen />;
       case 'intake':
         return <TruckIntakeScreen />;
       case 'order':
@@ -41,8 +48,8 @@ const MainLayout: React.FC = () => {
 
   return (
     <div className="flex h-screen w-full bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 overflow-hidden font-sans transition-colors duration-200">
-      {/* Desktop Sidebar (Permanent Desktop Navigation) */}
-      <Sidebar currentTab={currentTab} onTabChange={setCurrentTab} />
+      {/* Desktop Sidebar — owner/admin only */}
+      {isAdmin && <Sidebar currentTab={currentTab} onTabChange={setCurrentTab} />}
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
@@ -51,6 +58,7 @@ const MainLayout: React.FC = () => {
           currentTab={currentTab}
           onTabChange={setCurrentTab}
           onMobileMenuOpen={() => setIsMobileMenuOpen(true)}
+          showScreenSwitcher={!isAdmin}
         />
 
         {/* Scrollable Screen Content Container */}

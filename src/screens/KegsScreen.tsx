@@ -262,10 +262,10 @@ export const KegsScreen: React.FC = () => {
         <div>
           <h2 className="text-[24px] font-heading font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             <Package className="w-5 h-5 text-slate-600 dark:text-slate-300" />
-            <span>Keg Container Inventory & Depot Gate Ledger</span>
+            <span>Kegs in and out</span>
           </h2>
           <p className="text-[14px] font-sans text-slate-500 dark:text-slate-400 mt-1">
-            Track company-owned 30L return obligations vs customer-owned containers with physical yard inventory limits.
+            Track company kegs that are still with customers vs. kegs the depot owns, and what came back through the gate.
           </p>
         </div>
       </div>
@@ -319,7 +319,7 @@ export const KegsScreen: React.FC = () => {
             {kegInventory.totalKegsOut} <span className="text-[14px] font-sans font-normal text-slate-500 dark:text-slate-400">with customers</span>
           </div>
           <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-2">
-            Active return obligations awaiting gate collection.
+            Company kegs still out with customers, waiting to come back.
           </div>
         </div>
 
@@ -375,7 +375,7 @@ export const KegsScreen: React.FC = () => {
                 <span>Customer Keg Balance Matrix</span>
               </h3>
               <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-                Supplied vs Returned company jerrycans. Click any row to view detail & log returns.
+                Kegs given out vs. kegs returned. Tap a row to see details and log a return.
               </p>
             </div>
 
@@ -668,7 +668,7 @@ export const KegsScreen: React.FC = () => {
           <div>
             <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
               <History className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              <span>Depot Fleet Movement & Yard Gate Ledger</span>
+              <span>Everything in and out of the gate</span>
             </h3>
             <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
               Physical depot gate returns & inter-customer yard transfers across the entire fleet.

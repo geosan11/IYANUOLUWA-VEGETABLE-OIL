@@ -10,6 +10,12 @@ export const DEFAULT_PRODUCTS: Product[] = [
     litres_per_ton: 1075,
     litres_per_keg: 30,
     keg_sell_price: 3500,
+    varieties: [
+      { id: 'veg-soya', name: 'Pure Soya (Grade A)', rate_delta_per_litre: 0 },
+      { id: 'veg-olein', name: 'Triple-Refined Palm Olein', rate_delta_per_litre: -100 },
+      { id: 'veg-groundnut', name: 'Groundnut / Peanut Blend', rate_delta_per_litre: 250 },
+      { id: 'veg-corn', name: 'Refined Corn / Maize Oil', rate_delta_per_litre: 150 }
+    ],
     color_light: '#FCD34D',
     color_dark: '#B45309'
   },
@@ -20,6 +26,10 @@ export const DEFAULT_PRODUCTS: Product[] = [
     litres_per_ton: null,
     litres_per_keg: 25, // Note: confirm actual capacity with client
     keg_sell_price: 3000,
+    varieties: [
+      { id: 'red-edo', name: 'Grade-A Edo Spec', rate_delta_per_litre: 0 },
+      { id: 'red-ondo', name: 'Ondo Local Producer', rate_delta_per_litre: -150 }
+    ],
     color_light: '#F87171',
     color_dark: '#7F1D1D'
   }

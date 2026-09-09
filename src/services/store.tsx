@@ -3,6 +3,7 @@ import {
   Product,
   RateCard,
   Customer,
+  CustomerType,
   Tank,
   Order,
   KegReturn,
@@ -148,6 +149,9 @@ interface StoreContextType {
     note?: string;
     customRate?: number;
     discountReason?: string;
+    pricingTier?: CustomerType;
+    varietyId?: string | null;
+    amountTendered?: number | null;
   }) => { success: boolean; order?: Order; receipt?: ReceiptData; error?: string };
 
   recordCustomerPayment: (
@@ -581,9 +585,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const todayStr = getDepotToday();
     const todayOrders = orders.filter(o => depotDateKey(o.date) === todayStr);
 
-    // Cash/Transfer sales today
+    // Money collected today that isn't credit (cash, bank transfer, POS card)
     const cashTransferSales = todayOrders
-      .filter(o => o.payment_method === 'cash' || o.payment_method === 'transfer')
+      .filter(o => o.payment_method === 'cash' || o.payment_method === 'transfer' || o.payment_method === 'pos')
       .reduce((sum, o) => sum + (o.paid_amount || 0), 0);
 
     // Total Credit Outstanding across all customers
@@ -726,6 +730,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     note?: string;
     customRate?: number;
     discountReason?: string;
+    pricingTier?: CustomerType;
+    varietyId?: string | null;
+    amountTendered?: number | null;
   }) => {
     // 0. Hard Gate: Shift opening meter readings required
     const gateCheck = checkShiftOpeningMetersGate(activeShift, pumps, pumpReadings);
@@ -742,7 +749,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const product = products.find(p => p.id === data.productId);
     if (!product) return { success: false, error: 'Product not found' };
 
-    const standardRate = lookupRatePerLitre(rateCards, data.productId, customer.type);
+    // Pricing tier: defaults to the customer's own tier, but the counter can override it
+    // (e.g. a walk-in agent buying at agent rate). The chosen tier is what "standard" means here.
+    const pricingTier: CustomerType = data.pricingTier || customer.type;
+    const variety = data.varietyId
+      ? (product.varieties || []).find(v => v.id === data.varietyId) || null
+      : null;
+    const varietyDelta = variety ? Number(variety.rate_delta_per_litre || 0) : 0;
+    const standardRate = lookupRatePerLitre(rateCards, data.productId, pricingTier) + varietyDelta;
     const effectiveRate = data.customRate !== undefined && data.customRate !== null && !isNaN(Number(data.customRate)) && Number(data.customRate) > 0
       ? Number(data.customRate)
       : standardRate;
@@ -833,6 +847,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       keg_price: data.unit === 'keg' && data.kegSource === 'purchased' ? product.keg_sell_price : null,
       keg_amount: pricing.kegAmount > 0 ? pricing.kegAmount : null,
       discount_reason: isDiscounted ? data.discountReason?.trim() : null,
+      pricing_tier: pricingTier,
+      variety_id: variety?.id || null,
+      variety_name: variety?.name || null,
       date: orderDate.toISOString(),
       due_date: dueDate,
       source_tank_id: drawResult.primaryTankId,
@@ -870,6 +887,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       kegPrice: newOrder.keg_price,
       kegAmount: newOrder.keg_amount,
       discountReason: newOrder.discount_reason,
+      varietyName: newOrder.variety_name,
+      pricingTier: newOrder.pricing_tier,
+      amountTendered: data.paymentMethod === 'cash' && data.amountTendered != null ? Number(data.amountTendered) : null,
+      changeDue: data.paymentMethod === 'cash' && data.amountTendered != null
+        ? Number(Math.max(0, Number(data.amountTendered) - pricing.amount).toFixed(2))
+        : null,
       paymentMethod: data.paymentMethod,
       previousBalance,
       newBalance,

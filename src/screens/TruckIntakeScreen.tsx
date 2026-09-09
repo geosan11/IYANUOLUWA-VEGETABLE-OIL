@@ -228,10 +228,10 @@ export const TruckIntakeScreen: React.FC = () => {
         <div>
           <h2 className="text-[24px] font-heading font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             <Truck className="w-5 h-5 text-slate-600 dark:text-slate-300" />
-            <span>Product Intake & Tank Reception</span>
+            <span>Receive oil deliveries</span>
           </h2>
           <p className="text-[14px] font-sans text-slate-500 dark:text-slate-400 mt-1">
-            Dual intake flows: bulk tonnage offload (Vegetable Oil) with shortfall analysis, and direct pre-kegged deliveries (Palm Oil) with exact volume tracking.
+            Two ways oil arrives: by tanker (measured in tons, checked for shortfall) or already in kegs (counted exactly).
           </p>
         </div>
 
@@ -575,7 +575,7 @@ export const TruckIntakeScreen: React.FC = () => {
           >
             <ArrowDownToLine className="w-[18px] h-[18px] text-slate-950" />
             <span>
-              {isBulkTruck ? 'Complete Bulk Offload & Register Batch' : 'Log Pre-Kegged Delivery & Store Batch'}
+              {isBulkTruck ? 'Save this tanker delivery' : 'Save this keg delivery'}
             </span>
           </button>
         </form>
@@ -586,7 +586,7 @@ export const TruckIntakeScreen: React.FC = () => {
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <span className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                {isBulkTruck ? 'Live Bulk Offload Reconciliation' : 'Live Pre-Kegged Batch Preview'}
+                {isBulkTruck ? 'Live delivery check' : 'Live keg count'}
               </span>
               <span className="text-[11px] font-mono tabular-nums px-2 py-0.5 rounded bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300 font-bold">
                 {isBulkTruck ? 'Formula Verified' : 'Direct Volume'}
@@ -638,7 +638,7 @@ export const TruckIntakeScreen: React.FC = () => {
             ) : (
               <div className="space-y-3 text-[12px] font-mono tabular-nums">
                 <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span className="font-sans">Kegs Offloaded:</span>
+                  <span className="font-sans">Kegs received:</span>
                   <span className="font-bold text-slate-900 dark:text-slate-200">{preKeggedMetrics.kegsReceived} kegs</span>
                 </div>
                 <div className="flex justify-between text-slate-600 dark:text-slate-400">
@@ -756,7 +756,7 @@ export const TruckIntakeScreen: React.FC = () => {
                     </span>
                   )}
                   <span className="px-2 py-0.5 rounded bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300 font-medium">
-                    {t.supply_model === 'pre_kegged' ? 'Pre-Kegged' : 'Bulk Offload'}
+                    {t.supply_model === 'pre_kegged' ? 'In kegs' : 'By tanker'}
                   </span>
                 </div>
 
@@ -810,7 +810,7 @@ export const TruckIntakeScreen: React.FC = () => {
                       </span>
                     )}
                     <span className="px-2 py-0.5 rounded-full bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300 font-sans font-bold">
-                      {t.supply_model === 'pre_kegged' ? 'Pre-Kegged' : `${t.tons}T Bulk`}
+                      {t.supply_model === 'pre_kegged' ? 'In kegs' : `${t.tons}T tanker`}
                     </span>
                   </div>
                   <span className="text-brand-600 dark:text-brand-400 font-bold group-hover:underline flex items-center gap-1">
@@ -1104,7 +1104,7 @@ export const TruckIntakeScreen: React.FC = () => {
                 {/* Provenance & Supply Model strip */}
                 <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
                   <div>
-                    <span className="text-[11px] font-sans text-slate-500 block uppercase">Supplier Provenance</span>
+                    <span className="text-[11px] font-sans text-slate-500 block uppercase">Supplier</span>
                     <span className="font-bold text-slate-900 dark:text-white text-[13px]">
                       {selectedSupplier?.name || 'Direct Depot Intake'}
                     </span>
@@ -1112,7 +1112,7 @@ export const TruckIntakeScreen: React.FC = () => {
                   <div className="text-right">
                     <span className="text-[11px] font-sans text-slate-500 block uppercase">Intake Model</span>
                     <span className="px-2 py-0.5 rounded font-bold uppercase tracking-wider text-[10px] bg-brand-100 text-brand-800 dark:bg-brand-950 dark:text-brand-300">
-                      {selectedTank.supply_model === 'pre_kegged' ? 'Pre-Kegged' : 'Bulk Offload'}
+                      {selectedTank.supply_model === 'pre_kegged' ? 'In kegs' : 'By tanker'}
                     </span>
                   </div>
                 </div>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { ReceiptData } from '../../types';
 import { useStore } from '../../services/store';
-import { formatNaira, formatDepotDate, formatDepotTime } from '../../services/businessLogic';
+import { formatNaira, formatNairaWords, formatDepotDate, formatDepotTime } from '../../services/businessLogic';
 import { Printer, X, CheckCircle2, ShieldCheck } from 'lucide-react';
 
 interface ReceiptModalProps {
@@ -23,13 +23,13 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-200">
-        
+      <div className="relative w-full max-w-sm bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl my-8 animate-in fade-in zoom-in-95 duration-200">
+
         {/* Top Modal Action Bar (Hidden on print) */}
-        <div className="no-print flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/90">
-          <div className="flex items-center gap-2 text-brand-400 font-sans font-semibold text-[14px]">
+        <div className="no-print flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-900/90 rounded-t-2xl">
+          <div className="flex items-center gap-2 text-brand-400 font-sans font-semibold text-[13px]">
             <CheckCircle2 className="w-5 h-5 text-brand-500" />
-            <span>Transaction Processed Successfully</span>
+            <span>Sale recorded</span>
           </div>
           <button
             onClick={onClose}
@@ -39,31 +39,33 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
           </button>
         </div>
 
-        {/* Printable Receipt Paper Container */}
-        <div className="p-6 bg-white text-slate-900" id="receipt-print-area">
-          {/* Header */}
-          <div className="text-center border-b-2 border-dashed border-slate-300 pb-4 mb-4">
-            {settings.company_logo_url ? (
-              <img
-                src={settings.company_logo_url}
-                alt="Company Logo"
-                className="h-14 mx-auto mb-2 object-contain"
-              />
-            ) : (
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-brand-500 text-white font-extrabold text-xl mb-2 shadow-sm font-heading">
-                IO
+        {/* Thermal ticket */}
+        <div className="px-4 pt-3 pb-4">
+          <div className="receipt-edge-top no-print" aria-hidden="true" />
+          <div
+            className="px-5 py-5 text-slate-900 font-mono"
+            id="receipt-print-area"
+            style={{ ['--receipt-bg' as string]: '#fbfbf8', backgroundColor: '#fbfbf8' }}
+          >
+            {/* Header */}
+            <div className="text-center border-b-2 border-dashed border-slate-300 pb-3 mb-3">
+              {settings.company_logo_url ? (
+                <img src={settings.company_logo_url} alt="Company Logo" className="h-12 mx-auto mb-2 object-contain" />
+              ) : (
+                <div className="inline-flex items-center justify-center w-11 h-11 rounded-lg bg-brand-500 text-white font-extrabold text-lg mb-2 font-heading">
+                  IO
+                </div>
+              )}
+              <h1 className="text-[15px] font-heading font-extrabold tracking-tight text-slate-950 uppercase leading-tight">
+                {settings.company_name}
+              </h1>
+              <p className="text-[11px] font-sans text-slate-600 mt-0.5">{settings.company_address}</p>
+              <p className="text-[11px] tabular-nums text-slate-600">Tel: {settings.company_phone}</p>
+
+              <div className="mt-2.5 tracking-[0.35em] text-[11px] font-bold text-slate-700">
+                * * OFFICIAL RECEIPT * *
               </div>
-            )}
-            <h1 className="text-[18px] font-heading font-extrabold tracking-tight text-slate-950 uppercase">
-              {settings.company_name}
-            </h1>
-            <p className="text-[12px] font-sans text-slate-600 mt-0.5">{settings.company_address}</p>
-            <p className="text-[12px] font-mono tabular-nums text-slate-600">Tel: {settings.company_phone}</p>
-            
-            <div className="mt-3 inline-block px-3 py-1 bg-slate-100 rounded-full border border-slate-300 text-[12px] font-mono tabular-nums font-bold uppercase tracking-wider text-slate-800">
-              OFFICIAL RECEIPT
             </div>
-          </div>
 
           {/* Metadata Grid */}
           <div className="grid grid-cols-2 gap-2 text-[12px] border-b border-slate-200 pb-3 mb-3 font-mono tabular-nums">
@@ -165,6 +167,17 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                 </tbody>
               </table>
 
+              {(order.variety_name || order.pricing_tier) && (
+                <div className="mt-2 text-[11px] font-sans text-slate-600 flex flex-wrap gap-x-3 gap-y-0.5">
+                  {order.variety_name && (
+                    <span><span className="font-bold">Spec:</span> {order.variety_name}</span>
+                  )}
+                  {order.pricing_tier && (
+                    <span><span className="font-bold">Price tier:</span> <span className="capitalize">{order.pricing_tier}</span></span>
+                  )}
+                </div>
+              )}
+
               {order.discount_reason && (
                 <div className="mt-2 text-[11px] font-sans text-amber-900 bg-amber-50 p-2 rounded border border-amber-200">
                   <span className="font-bold">Authorized Discount:</span> {order.discount_reason}
@@ -208,10 +221,25 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                   <span className="font-sans">Grand Total:</span>
                   <span>{formatNaira(order.amount)}</span>
                 </div>
+                <div className="text-[10px] font-sans text-slate-500 text-right -mt-0.5">
+                  {formatNairaWords(order.amount)}
+                </div>
                 <div className="flex justify-between text-slate-600 text-[12px]">
                   <span className="font-sans">Paid Amount:</span>
                   <span className="font-bold">{formatNaira(order.paid_amount)}</span>
                 </div>
+                {receipt.amountTendered != null && (
+                  <>
+                    <div className="flex justify-between text-slate-600 text-[12px]">
+                      <span className="font-sans">Cash Tendered:</span>
+                      <span className="font-bold">{formatNaira(receipt.amountTendered)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-900 text-[12px] font-bold">
+                      <span className="font-sans">Change Due:</span>
+                      <span>{formatNaira(receipt.changeDue || 0)}</span>
+                    </div>
+                  </>
+                )}
               </>
             )}
 
@@ -227,21 +255,25 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
             </div>
           </div>
 
-          {/* Footer Sign-off */}
-          <div className="text-center text-[11px] font-sans text-slate-500 pt-1 space-y-1">
-            <div className="flex items-center justify-center gap-1 text-emerald-700 font-semibold">
-              <ShieldCheck className="w-4 h-4" />
-              <span>Verified Authentic Depot Receipt</span>
+            {/* Footer Sign-off */}
+            <div className="text-center text-[11px] font-sans text-slate-500 pt-1 space-y-1 border-t-2 border-dashed border-slate-300 mt-1">
+              <div className="flex items-center justify-center gap-1 text-emerald-700 font-semibold pt-2">
+                <ShieldCheck className="w-4 h-4" />
+                <span>Verified authentic depot receipt</span>
+              </div>
+              <p>Thank you for your business!</p>
+              <p className="text-[11px] tabular-nums text-slate-400">
+                Cashier: {receipt.cashierName || 'Depot Cashier'} · Printed {new Date().toLocaleDateString('en-GB')}
+              </p>
+              <div className="receipt-barcode mt-2 mx-auto w-3/4" aria-hidden="true" />
+              <p className="text-[10px] tracking-[0.2em] text-slate-600 font-bold">{receipt.receiptNumber}</p>
             </div>
-            <p>Thank you for your business!</p>
-            <p className="text-[11px] font-mono tabular-nums text-slate-400">
-              Cashier: {receipt.cashierName || 'Depot Cashier'} · Printed on {new Date().toLocaleDateString('en-GB')}
-            </p>
           </div>
+          <div className="receipt-edge-bottom no-print" aria-hidden="true" />
         </div>
 
         {/* Modal Action Buttons (Screen only) */}
-        <div className="no-print p-4 bg-slate-900 border-t border-slate-800 flex items-center justify-end gap-3">
+        <div className="no-print p-4 bg-slate-900 border-t border-slate-800 flex items-center justify-end gap-3 rounded-b-2xl">
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-xl text-[13px] font-sans font-semibold text-slate-300 hover:bg-slate-800 transition-colors"

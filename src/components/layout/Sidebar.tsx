@@ -15,7 +15,8 @@ import {
   ChevronRight,
   Droplets,
   Sun,
-  Moon
+  Moon,
+  Sparkles
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -28,6 +29,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
+    ...(userRole === 'owner' ? [{ id: 'ai-advisor', label: 'AI Advisor', icon: Sparkles, badge: null, adminOnly: true }] : []),
     { id: 'intake', label: 'Truck Intake', icon: Truck, badge: null },
     { id: 'order', label: 'New Sale', icon: PlusCircle, badge: null },
     { id: 'customers', label: 'Customers', icon: Users, badge: activeAlerts.overdueCredit.length > 0 ? activeAlerts.overdueCredit.length : null },

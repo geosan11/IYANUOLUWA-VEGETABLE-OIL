@@ -1,35 +1,45 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../services/store';
-import { TankGauge } from '../components/common/TankGauge';
 import {
   lookupRatePerLitre,
   calculateOrderPricing,
   formatNaira,
+  formatNairaWords,
   formatDepotDate
 } from '../services/businessLogic';
-import { UnitType, PaymentMethod, KegSource } from '../types';
+import { UnitType, PaymentMethod, KegSource, CustomerType } from '../types';
 import {
-  ShoppingCart,
   User,
   Package,
   CreditCard,
   AlertTriangle,
   Calendar,
   AlertCircle,
-  Receipt,
   Fuel,
   Plus,
+  Minus,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   Gauge,
-  Save,
   Lock,
-  Eye,
-  Tag,
+  Unlock,
   ShieldAlert,
-  Unlock
+  Zap,
+  Banknote,
+  Smartphone,
+  Landmark,
+  ClipboardList
 } from 'lucide-react';
+
+const TANK_CAP_FALLBACK: Record<string, number> = { veg: 30000, red: 15000 };
+
+const PAYMENT_MODES: { id: PaymentMethod; label: string; icon: React.ElementType }[] = [
+  { id: 'cash', label: 'Cash in Hand', icon: Banknote },
+  { id: 'transfer', label: 'Bank Transfer', icon: Smartphone },
+  { id: 'pos', label: 'Card (POS)', icon: CreditCard },
+  { id: 'credit', label: 'Credit (Ledger)', icon: Landmark }
+];
 
 export const NewOrderScreen: React.FC = () => {
   const {
@@ -39,8 +49,8 @@ export const NewOrderScreen: React.FC = () => {
     customerStatsMap,
     kegInventory,
     tankStockByProduct,
+    physicalTanks,
     pumps,
-    pumpReadings,
     orders,
     settings,
     activeShift,
@@ -50,130 +60,147 @@ export const NewOrderScreen: React.FC = () => {
     recordShiftOpeningReadings
   } = useStore();
 
+  // ---- Sale entry state ----
   const [customerId, setCustomerId] = useState<string>(customers[0]?.id || '');
-  const [productId, setProductId] = useState<string>('veg');
-  const [unit, setUnit] = useState<UnitType>('keg');
-  const [qty, setQty] = useState<string>('10');
+  const [productId, setProductId] = useState<string>(products[0]?.id || 'veg');
+  const [varietyId, setVarietyId] = useState<string>('');
+  const [unit, setUnit] = useState<UnitType>('litre');
+  const [qty, setQty] = useState<string>('300');
   const [kegSource, setKegSource] = useState<KegSource>('company');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('credit');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [amountTendered, setAmountTendered] = useState<string>('');
   const [note, setNote] = useState<string>('');
 
-  // Discount & Custom Rate states
-  const [isCustomRateEnabled, setIsCustomRateEnabled] = useState<boolean>(false);
-  const [customRateInput, setCustomRateInput] = useState<string>('');
-  const [discountReason, setDiscountReason] = useState<string>('');
+  // Pricing tier override (defaults to the customer's registered tier)
+  const [tierOverride, setTierOverride] = useState<CustomerType | null>(null);
 
-  // Quick Rates Modal State
-  const [isRatesGlanceOpen, setIsRatesGlanceOpen] = useState<boolean>(false);
+  // Manual / discounted rate
+  const [isCustomRateEnabled, setIsCustomRateEnabled] = useState(false);
+  const [customRateInput, setCustomRateInput] = useState('');
+  const [discountReason, setDiscountReason] = useState('');
 
-  // Shift Opening Gate State (for inline unlocking if locked)
+  // Pump & per-order meter
+  const [selectedPumpId, setSelectedPumpId] = useState<string>(() => {
+    const initial = pumps.find(p => p.product_id === (products[0]?.id || 'veg')) || pumps[0];
+    return initial?.id || '';
+  });
+  const [orderMeterReading, setOrderMeterReading] = useState('');
+  const [deliveredTons, setDeliveredTons] = useState('');
+  const [isMeterPanelOpen, setIsMeterPanelOpen] = useState(false);
+
+  // Cumulative pump meter logger
+  const [isPumpLoggerOpen, setIsPumpLoggerOpen] = useState(false);
+  const [loggerPumpId, setLoggerPumpId] = useState<string>(pumps[0]?.id || '');
+  const [loggerReading, setLoggerReading] = useState('');
+  const [loggerNote, setLoggerNote] = useState('');
+  const [loggerStatus, setLoggerStatus] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  // Shift opening-meter gate
   const [gateReadings, setGateReadings] = useState<Record<string, string>>({});
   const [gateError, setGateError] = useState<string | null>(null);
 
-  // Pump Assignment & Per-Order Meter Reading
-  const [selectedPumpId, setSelectedPumpId] = useState<string>(() => {
-    const initial = pumps.find(p => p.product_id === 'veg') || pumps[0];
-    return initial?.id || '';
-  });
-  const [orderMeterReading, setOrderMeterReading] = useState<string>('');
-  const [deliveredTons, setDeliveredTons] = useState<string>('');
+  // Overrides
+  const [overrideKegShortage, setOverrideKegShortage] = useState(false);
+  const [overrideCreditLimit, setOverrideCreditLimit] = useState(false);
+  const [kegShortageModal, setKegShortageModal] = useState(false);
+  const [creditModal, setCreditModal] = useState(false);
 
-  // Automatically ensure selected pump belongs to selected product type
-  useEffect(() => {
-    const currentPump = pumps.find(p => p.id === selectedPumpId);
-    if (!currentPump || (currentPump.product_id && currentPump.product_id !== productId)) {
-      const compatiblePump = pumps.find(p => p.product_id === productId);
-      setSelectedPumpId(compatiblePump ? compatiblePump.id : '');
-      setOrderMeterReading('');
-    }
-  }, [productId, pumps, selectedPumpId]);
-
-  // Cumulative Pump Meter Logger State
-  const [isPumpReadingOpen, setIsPumpReadingOpen] = useState(false);
-  const [readingPumpId, setReadingPumpId] = useState<string>(pumps[0]?.id || '');
-  const [newMeterReading, setNewMeterReading] = useState<string>('');
-  const [readingNote, setReadingNote] = useState<string>('');
-  const [pumpReadingStatus, setPumpReadingStatus] = useState<{ success: boolean; msg: string } | null>(null);
-
-  // Overrides for soft warnings
-  const [overrideKegShortage, setOverrideKegShortage] = useState<boolean>(false);
-  const [overrideCreditLimit, setOverrideCreditLimit] = useState<boolean>(false);
-  const [isCreditOverrideModalOpen, setIsCreditOverrideModalOpen] = useState<boolean>(false);
-  const [isKegShortageModalOpen, setIsKegShortageModalOpen] = useState<boolean>(false);
-  const [isPricingDetailsOpen, setIsPricingDetailsOpen] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isDispensing, setIsDispensing] = useState(false);
+  const [mobileSlipOpen, setMobileSlipOpen] = useState(false);
 
   const selectedCustomer = customers.find(c => c.id === customerId) || customers[0];
   const selectedProduct = products.find(p => p.id === productId) || products[0];
   const customerStats = selectedCustomer ? customerStatsMap[selectedCustomer.id] : null;
+  const varieties = selectedProduct?.varieties || [];
 
-  // Derive previous meter reading for selected pump
-  const priorPumpReading = useMemo(() => {
-    if (!selectedPumpId) return 0;
-    const priorOrdersWithMeter = (orders || [])
-      .filter(o => o.pump_id === selectedPumpId && o.meter_reading !== undefined && o.meter_reading !== null)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    if (priorOrdersWithMeter.length > 0) {
-      return Number(priorOrdersWithMeter[0].meter_reading);
+  // Keep variety valid for the selected product
+  useEffect(() => {
+    if (varieties.length === 0) {
+      if (varietyId) setVarietyId('');
+      return;
     }
-    const currentPump = pumps.find(p => p.id === selectedPumpId);
-    return Number(currentPump?.last_meter_reading) || 0;
-  }, [orders, pumps, selectedPumpId]);
+    if (!varieties.some(v => v.id === varietyId)) setVarietyId(varieties[0].id);
+  }, [productId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Standard Rate from Rate Cards
-  const standardRatePerLitre = useMemo(() => {
-    if (!selectedCustomer || !selectedProduct) return 5000;
-    return lookupRatePerLitre(rateCards, selectedProduct.id, selectedCustomer.type);
-  }, [rateCards, selectedProduct, selectedCustomer]);
+  // Keep the pump on a line that matches the product
+  useEffect(() => {
+    const current = pumps.find(p => p.id === selectedPumpId);
+    if (!current || (current.product_id && current.product_id !== productId)) {
+      const compatible = pumps.find(p => p.product_id === productId);
+      setSelectedPumpId(compatible ? compatible.id : '');
+      setOrderMeterReading('');
+    }
+  }, [productId, pumps, selectedPumpId]);
 
-  // Effective Rate (custom rate if enabled, else standard rate card)
-  const effectiveRatePerLitre = useMemo(() => {
+  const selectedVariety = varieties.find(v => v.id === varietyId) || null;
+  const varietyDelta = selectedVariety ? Number(selectedVariety.rate_delta_per_litre || 0) : 0;
+
+  const effectiveTier: CustomerType = tierOverride || selectedCustomer?.type || 'retail';
+  const registeredTier: CustomerType = selectedCustomer?.type || 'retail';
+
+  const tierCardRate = useMemo(
+    () => (selectedProduct ? lookupRatePerLitre(rateCards, selectedProduct.id, effectiveTier) : 5000),
+    [rateCards, selectedProduct, effectiveTier]
+  );
+  const standardRate = tierCardRate + varietyDelta;
+
+  const effectiveRate = useMemo(() => {
     if (isCustomRateEnabled && customRateInput) {
       const parsed = parseFloat(customRateInput);
       if (!isNaN(parsed) && parsed > 0) return parsed;
     }
-    return standardRatePerLitre;
-  }, [isCustomRateEnabled, customRateInput, standardRatePerLitre]);
+    return standardRate;
+  }, [isCustomRateEnabled, customRateInput, standardRate]);
 
-  const isDiscountApplied = effectiveRatePerLitre < standardRatePerLitre;
+  const isDiscountApplied = effectiveRate < standardRate - 0.001;
 
-  // Pricing calculation
-  const pricing = useMemo(() => {
-    return calculateOrderPricing(
-      unit,
-      parseFloat(qty) || 0,
-      effectiveRatePerLitre,
-      selectedProduct.litres_per_keg,
-      selectedProduct.litres_per_ton || 1075,
-      unit === 'keg' ? kegSource : null,
-      selectedProduct.keg_sell_price || null
-    );
-  }, [unit, qty, effectiveRatePerLitre, selectedProduct, kegSource]);
+  const pricing = useMemo(
+    () =>
+      calculateOrderPricing(
+        unit,
+        parseFloat(qty) || 0,
+        effectiveRate,
+        selectedProduct?.litres_per_keg || 30,
+        selectedProduct?.litres_per_ton || 1075,
+        unit === 'keg' ? kegSource : null,
+        selectedProduct?.keg_sell_price || null
+      ),
+    [unit, qty, effectiveRate, selectedProduct, kegSource]
+  );
 
-  // Live per-order meter analysis
+  // Savings vs. what a walk-in retail customer would pay for the same spec
+  const retailRate = useMemo(
+    () => (selectedProduct ? lookupRatePerLitre(rateCards, selectedProduct.id, 'retail') + varietyDelta : 0),
+    [rateCards, selectedProduct, varietyDelta]
+  );
+  const savingsVsRetail = Math.max(0, (retailRate - effectiveRate) * pricing.litres);
+
+  const productStock = tankStockByProduct[productId]?.totalLitres || 0;
+  const activeFifoTank = tankStockByProduct[productId]?.tanks[0] || null;
+
+  const priorPumpReading = useMemo(() => {
+    if (!selectedPumpId) return 0;
+    const withMeter = (orders || [])
+      .filter(o => o.pump_id === selectedPumpId && o.meter_reading != null)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    if (withMeter.length > 0) return Number(withMeter[0].meter_reading);
+    return Number(pumps.find(p => p.id === selectedPumpId)?.last_meter_reading) || 0;
+  }, [orders, pumps, selectedPumpId]);
+
   const meterAnalysis = useMemo(() => {
     if (!orderMeterReading || !selectedPumpId) return null;
     const current = parseFloat(orderMeterReading);
     if (isNaN(current)) return null;
     const delta = current - priorPumpReading;
-    const expected = pricing.litres;
-    const variance = delta - expected;
-    const isOverThreshold = Math.abs(variance) > settings.pump_variance_threshold;
+    const variance = delta - pricing.litres;
     return {
-      current,
-      prior: priorPumpReading,
       delta: Number(delta.toFixed(2)),
-      expected: Number(expected.toFixed(2)),
       variance: Number(variance.toFixed(2)),
-      isOverThreshold
+      isOver: Math.abs(variance) > settings.pump_variance_threshold
     };
   }, [orderMeterReading, selectedPumpId, priorPumpReading, pricing.litres, settings.pump_variance_threshold]);
 
-  // Combined stock and active FIFO tank
-  const productStock = tankStockByProduct[productId]?.totalLitres || 0;
-  const activeFifoTank = tankStockByProduct[productId]?.tanks[0] || null;
-
-  // Credit due date calculation preview
   const creditDueDate = useMemo(() => {
     if (paymentMethod !== 'credit' || !selectedCustomer) return null;
     const d = new Date();
@@ -181,127 +208,127 @@ export const NewOrderScreen: React.FC = () => {
     return d.toISOString();
   }, [paymentMethod, selectedCustomer]);
 
-  // Warnings checks
   const isCreditExceeded = useMemo(() => {
-    if (paymentMethod !== 'credit' || !customerStats) return false;
-    const projectedBalance = customerStats.currentBalance + pricing.amount;
-    return projectedBalance > selectedCustomer.credit_limit;
+    if (paymentMethod !== 'credit' || !customerStats || !selectedCustomer) return false;
+    return customerStats.currentBalance + pricing.amount > selectedCustomer.credit_limit;
   }, [paymentMethod, customerStats, pricing.amount, selectedCustomer]);
 
   const isKegShortage = useMemo(() => {
     if (unit !== 'keg' || (kegSource !== 'company' && kegSource !== 'purchased')) return false;
-    const requestedKegs = parseFloat(qty) || 0;
-    return requestedKegs > kegInventory.kegsAtDepot;
+    return (parseFloat(qty) || 0) > kegInventory.kegsAtDepot;
   }, [unit, kegSource, qty, kegInventory.kegsAtDepot]);
 
   const isStockInsufficient = pricing.litres > productStock;
 
-  // Quick increment for quantity
-  const handleQuickQtyAdd = (additional: number) => {
-    const current = parseFloat(qty) || 0;
-    setQty((current + additional).toString());
+  const tenderedNum = parseFloat(amountTendered) || 0;
+  const changeDue = paymentMethod === 'cash' && tenderedNum > 0 ? Math.max(0, tenderedNum - pricing.amount) : 0;
+  const shortTender = paymentMethod === 'cash' && tenderedNum > 0 && tenderedNum < pricing.amount;
+
+  // ---- Tank reserve bars (Step 1 cards) ----
+  const reserveByProduct = useMemo(() => {
+    const out: Record<string, { litres: number; cap: number; pct: number; kegs: number }> = {};
+    products.forEach(p => {
+      const litres = tankStockByProduct[p.id]?.totalLitres || 0;
+      const cap =
+        physicalTanks.filter(pt => pt.product_id === p.id).reduce((s, pt) => s + pt.capacity_litres, 0) ||
+        TANK_CAP_FALLBACK[p.id] ||
+        20000;
+      out[p.id] = {
+        litres,
+        cap,
+        pct: Math.min(100, cap > 0 ? (litres / cap) * 100 : 0),
+        kegs: Math.floor(litres / (p.litres_per_keg || 30))
+      };
+    });
+    return out;
+  }, [products, tankStockByProduct, physicalTanks]);
+
+  // ---- Handlers ----
+  const quickAdd = (n: number) => setQty(((parseFloat(qty) || 0) + n).toString());
+  const setMaxTank = () => {
+    if (unit === 'keg') {
+      setQty(Math.floor(productStock / (selectedProduct?.litres_per_keg || 30)).toString());
+    } else if (unit === 'ton') {
+      setQty((productStock / (selectedProduct?.litres_per_ton || 1075)).toFixed(2));
+    } else {
+      setQty(Math.floor(productStock).toString());
+    }
   };
 
-  // Submit Shift Opening Gate Readings
-  const handleUnlockShiftGate = (e: React.FormEvent) => {
+  const handleUnlockGate = (e: React.FormEvent) => {
     e.preventDefault();
     setGateError(null);
-
-    const missing = shiftGateStatus.missingPumps;
-    const readingsToRecord: Record<string, number> = {};
-
-    for (const p of missing) {
-      const val = parseFloat(gateReadings[p.id]);
-      if (isNaN(val) || val <= 0) {
-        setGateError(`Please enter a valid meter reading for ${p.label}.`);
+    const toRecord: Record<string, number> = {};
+    for (const p of shiftGateStatus.missingPumps) {
+      const v = parseFloat(gateReadings[p.id]);
+      if (isNaN(v) || v <= 0) {
+        setGateError(`Enter a valid meter reading for ${p.label}.`);
         return;
       }
-      readingsToRecord[p.id] = val;
+      toRecord[p.id] = v;
     }
-
-    const res = recordShiftOpeningReadings(readingsToRecord);
-    if (!res.success) {
-      setGateError(res.error || 'Failed to record shift opening meters.');
-    } else {
-      setGateReadings({});
-    }
+    const res = recordShiftOpeningReadings(toRecord);
+    if (!res.success) setGateError(res.error || 'Could not save opening meters.');
+    else setGateReadings({});
   };
 
-  // Pump Reading Submit Handler
-  const handleRecordReadingSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const num = parseFloat(newMeterReading);
-    if (isNaN(num)) return;
-
-    const res = recordPumpReading(readingPumpId, num, readingNote.trim() || undefined);
+  const handleLoggerSubmit = () => {
+    const n = parseFloat(loggerReading);
+    if (isNaN(n)) return;
+    const res = recordPumpReading(loggerPumpId, n, loggerNote.trim() || undefined);
     if (res.success) {
-      setPumpReadingStatus({
-        success: true,
-        msg: `Meter reading of ${num.toLocaleString()}L recorded for ${pumps.find(p => p.id === readingPumpId)?.label}.`
-      });
-      setNewMeterReading('');
-      setReadingNote('');
-      setTimeout(() => setPumpReadingStatus(null), 4500);
+      setLoggerStatus({ ok: true, msg: `Logged ${n.toLocaleString()} L for ${pumps.find(p => p.id === loggerPumpId)?.label}.` });
+      setLoggerReading('');
+      setLoggerNote('');
+      setTimeout(() => setLoggerStatus(null), 4500);
     } else {
-      setPumpReadingStatus({
-        success: false,
-        msg: res.error || 'Failed to record meter reading'
-      });
+      setLoggerStatus({ ok: false, msg: res.error || 'Could not record reading.' });
     }
   };
 
-  const selectedReadingPump = pumps.find(p => p.id === readingPumpId) || pumps[0];
-
-  const submitOrder = (allowKegOverride: boolean, allowCreditOverride: boolean) => {
+  const runSale = (allowKeg: boolean, allowCredit: boolean) => {
     setErrorMessage(null);
 
-    // Hard Gate Check: Active Shift Opening Meter readings
     if (!shiftGateStatus.isPassed) {
-      setErrorMessage(
-        'Sales are locked! Opening meter readings for all dispensing pumps must be logged before recording sales for this active shift.'
-      );
+      setErrorMessage('Sales are locked — record opening meter readings for every pump first.');
       return;
     }
-
     const numericQty = parseFloat(qty) || 0;
     if (numericQty <= 0) {
-      setErrorMessage('Quantity must be greater than zero.');
+      setErrorMessage('Enter a quantity greater than zero.');
       return;
     }
-
-    // Discount Reason Check: If below standard rate card, reason is strictly required!
     if (isDiscountApplied && !discountReason.trim()) {
       setErrorMessage(
-        `Discount reason required! Entered rate (₦${effectiveRatePerLitre.toLocaleString()}/L) is below the approved standard card (₦${standardRatePerLitre.toLocaleString()}/L). Please provide an authorized discount reason.`
+        `Discount reason required — ₦${effectiveRate.toLocaleString()}/L is below the ₦${standardRate.toLocaleString()}/L standard rate for this spec and tier.`
       );
       return;
     }
-
     if (isStockInsufficient) {
       setErrorMessage(
-        `Insufficient depot stock! You requested ${pricing.litres.toLocaleString()}L, but only ${productStock.toLocaleString()}L is available in active tanks.`
+        `Not enough stock — this sale needs ${pricing.litres.toLocaleString()} L but only ${productStock.toLocaleString()} L is in the tanks.`
       );
       return;
     }
-
-    const selectedPump = pumps.find(p => p.id === selectedPumpId);
-    if (selectedPump && selectedPump.product_id && selectedPump.product_id !== selectedProduct.id) {
-      setErrorMessage(
-        `Selected pump (${selectedPump.label}) is not configured for ${selectedProduct.name}. Please select a compatible pump line.`
-      );
+    if (shortTender) {
+      setErrorMessage(`Cash tendered (${formatNaira(tenderedNum)}) is less than the total (${formatNaira(pricing.amount)}).`);
+      return;
+    }
+    const pump = pumps.find(p => p.id === selectedPumpId);
+    if (pump && pump.product_id && pump.product_id !== selectedProduct.id) {
+      setErrorMessage(`${pump.label} is not on the ${selectedProduct.name} line — pick a matching pump.`);
+      return;
+    }
+    if (isKegShortage && !allowKeg) {
+      setKegShortageModal(true);
+      return;
+    }
+    if (isCreditExceeded && !allowCredit) {
+      setCreditModal(true);
       return;
     }
 
-    if (isKegShortage && !allowKegOverride) {
-      setIsKegShortageModalOpen(true);
-      return;
-    }
-
-    if (isCreditExceeded && !allowCreditOverride) {
-      setIsCreditOverrideModalOpen(true);
-      return;
-    }
-
+    setIsDispensing(true);
     const result = createNewOrder({
       customerId: selectedCustomer.id,
       productId: selectedProduct.id,
@@ -312,1318 +339,799 @@ export const NewOrderScreen: React.FC = () => {
       pumpId: selectedPumpId || null,
       meterReading: orderMeterReading ? parseFloat(orderMeterReading) : null,
       deliveredQty: deliveredTons ? parseFloat(deliveredTons) : null,
-      customRate: isCustomRateEnabled ? effectiveRatePerLitre : undefined,
+      customRate: isCustomRateEnabled ? effectiveRate : undefined,
       discountReason: isDiscountApplied ? discountReason.trim() : undefined,
+      pricingTier: tierOverride || undefined,
+      varietyId: varietyId || null,
+      amountTendered: paymentMethod === 'cash' && tenderedNum > 0 ? tenderedNum : null,
       note: note.trim() || undefined
     });
 
     if (!result.success) {
-      setErrorMessage(result.error || 'Failed to process sale.');
-    } else {
-      // Reset form fields
-      setQty(unit === 'ton' ? '5' : '10');
-      setOrderMeterReading('');
-      setDeliveredTons('');
-      setNote('');
-      setIsCustomRateEnabled(false);
-      setCustomRateInput('');
-      setDiscountReason('');
-      setOverrideKegShortage(false);
-      setOverrideCreditLimit(false);
-      setIsCreditOverrideModalOpen(false);
-      setIsKegShortageModalOpen(false);
+      setErrorMessage(result.error || 'Could not complete the sale.');
+      setIsDispensing(false);
+      return;
     }
+
+    // Reset for the next customer
+    setQty(unit === 'ton' ? '5' : unit === 'keg' ? '10' : '300');
+    setOrderMeterReading('');
+    setDeliveredTons('');
+    setAmountTendered('');
+    setNote('');
+    setIsCustomRateEnabled(false);
+    setCustomRateInput('');
+    setDiscountReason('');
+    setTierOverride(null);
+    setOverrideKegShortage(false);
+    setOverrideCreditLimit(false);
+    setKegShortageModal(false);
+    setCreditModal(false);
+    setMobileSlipOpen(false);
+    setTimeout(() => setIsDispensing(false), 700);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    submitOrder(overrideKegShortage, overrideCreditLimit);
+    runSale(overrideKegShortage, overrideCreditLimit);
   };
 
+  const gateLocked = !shiftGateStatus.isPassed;
+  const paymentLabel = PAYMENT_MODES.find(m => m.id === paymentMethod)?.label || paymentMethod;
+
   return (
-    <div className="space-y-6 pb-20">
-      {/* 1. SHIFT OPENING METERS HARD GATE ALERT / UNLOCK BANNER */}
-      {!shiftGateStatus.isPassed && (
-        <div className="p-5 rounded-2xl bg-rose-50 dark:bg-rose-950/70 border-2 border-rose-500 shadow-lg text-rose-900 dark:text-rose-100 animate-in fade-in space-y-4">
+    <div className="space-y-5 pb-24">
+      {/* ============ SHIFT OPENING METER GATE ============ */}
+      {gateLocked && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-rose-50 dark:bg-rose-950/70 border-2 border-rose-500 shadow-lg text-rose-900 dark:text-rose-100 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-rose-200 dark:border-rose-900/80 pb-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-md animate-pulse">
                 <ShieldAlert className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-[17px] font-heading font-bold flex items-center gap-2">
-                  <span>Shift-Start Meter Hard Gate: Counter Sales Locked</span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] uppercase font-bold bg-rose-200 dark:bg-rose-900 text-rose-900 dark:text-rose-200">
-                    Mandatory
-                  </span>
-                </h3>
+                <h3 className="text-[16px] font-heading font-bold">Sales locked — log opening pump meters</h3>
                 <p className="text-[12px] opacity-90">
-                  {activeShift?.cashier_name || 'Active Shift'} must log opening meter readings for all 3 pumps before counter sales can be recorded.
+                  {activeShift?.cashier_name || 'This shift'} must record the opening reading on every pump before any sale.
                 </p>
               </div>
             </div>
-            <span className="text-[12px] font-mono font-bold px-3 py-1 rounded-lg bg-white/80 dark:bg-slate-900 text-rose-700 dark:text-rose-300 self-start sm:self-auto border border-rose-300 dark:border-rose-800">
-              {shiftGateStatus.missingPumps.length} Pumps Pending
+            <span className="text-[12px] font-mono font-bold px-3 py-1 rounded-lg bg-white/80 dark:bg-slate-900 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 self-start">
+              {shiftGateStatus.missingPumps.length} pending
             </span>
           </div>
-
           {gateError && (
             <div className="p-3 rounded-xl bg-white dark:bg-slate-900 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2 border border-rose-300">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{gateError}</span>
             </div>
           )}
-
-          {/* Inline Opening Reading Form for Missing Pumps */}
-          <form onSubmit={handleUnlockShiftGate} className="space-y-3">
+          <form onSubmit={handleUnlockGate} className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {shiftGateStatus.missingPumps.map(pump => {
-                const isVeg = pump.product_id === 'veg';
-                return (
-                  <div
-                    key={pump.id}
-                    className="p-3.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-rose-300 dark:border-rose-800 space-y-1.5 shadow-xs"
-                  >
-                    <div className="flex items-center justify-between text-xs font-sans">
-                      <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <span
-                          className="w-2.5 h-2.5 rounded-full"
-                          style={{ backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }}
-                        />
-                        {pump.label}
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-mono">
-                        Prior: {pump.last_meter_reading.toLocaleString()}L
-                      </span>
-                    </div>
-
-                    <div className="relative">
-                      <input
-                        type="number"
-                        step="0.5"
-                        min={pump.last_meter_reading}
-                        required
-                        placeholder={`>= ${pump.last_meter_reading}`}
-                        value={gateReadings[pump.id] || ''}
-                        onChange={e =>
-                          setGateReadings({ ...gateReadings, [pump.id]: e.target.value })
-                        }
-                        className="w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white font-mono font-bold text-[14px] focus:outline-none focus:ring-2 focus:ring-rose-500"
-                      />
-                      <span className="absolute right-2.5 top-2.5 text-[11px] font-mono text-slate-400">
-                        Litres
-                      </span>
-                    </div>
+              {shiftGateStatus.missingPumps.map(pump => (
+                <div key={pump.id} className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-rose-300 dark:border-rose-800 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: pump.product_id === 'veg' ? '#F59E0B' : '#EF4444' }} />
+                      {pump.label}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">Prior: {pump.last_meter_reading.toLocaleString()} L</span>
                   </div>
-                );
-              })}
+                  <input
+                    type="number"
+                    step="0.5"
+                    min={pump.last_meter_reading}
+                    required
+                    placeholder={`>= ${pump.last_meter_reading}`}
+                    value={gateReadings[pump.id] || ''}
+                    onChange={e => setGateReadings({ ...gateReadings, [pump.id]: e.target.value })}
+                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white font-mono font-bold text-[14px] focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  />
+                </div>
+              ))}
             </div>
-
-            <div className="flex items-center justify-between pt-1">
-              <span className="text-[11px] text-rose-800 dark:text-rose-200">
-                Opening meters verify physical oil volume and ensure zero unlogged sales bypass.
-              </span>
-              <button
-                type="submit"
-                className="px-5 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
-              >
-                <Unlock className="w-4 h-4" />
-                <span>Save Opening Meters & Unlock Sales</span>
-              </button>
-            </div>
+            <button type="submit" className="w-full sm:w-auto px-5 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-sans font-bold text-[13px] shadow-md transition-all flex items-center justify-center gap-2 active:scale-95">
+              <Unlock className="w-4 h-4" />
+              <span>Save opening meters &amp; unlock</span>
+            </button>
           </form>
         </div>
       )}
 
-      {/* 2-COLUMN SALE WORKSPACE (60% / 40% Split at >=900px) */}
-      <div className="grid grid-cols-1 split:grid-cols-5 gap-6 items-start">
-        {/* LEFT COLUMN: SALE ENTRY FORM (60% - 3 cols) */}
-        <form
-          onSubmit={handleSubmit}
-          className="split:col-span-3 p-6 rounded-2xl bg-rough-paper border border-stone-300/90 dark:border-slate-800 space-y-5 shadow-md"
-        >
-          {errorMessage && (
-            <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-300 text-xs flex items-center gap-2 animate-in fade-in">
-              <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
+      {errorMessage && (
+        <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-300 text-[13px] font-sans flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>{errorMessage}</span>
+          <button type="button" onClick={() => setErrorMessage(null)} className="ml-auto text-rose-500 hover:text-rose-700">✕</button>
+        </div>
+      )}
 
-          {/* 1. Customer Select & Rate Glance Trigger */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <User className="w-4 h-4 text-brand-600 dark:text-brand-400" />
-                <span>Customer Account *</span>
-              </label>
-              <button
-                type="button"
-                onClick={() => setIsRatesGlanceOpen(true)}
-                className="text-[11px] font-sans font-bold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1"
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>View Rate Cards</span>
-              </button>
-            </div>
-            <select
-              value={customerId}
-              onChange={e => setCustomerId(e.target.value)}
-              className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-white/95 dark:bg-slate-950 border border-stone-300/90 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-sans font-semibold text-[15px] focus:outline-none focus:border-brand-500 shadow-xs"
-            >
-              {customers.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.type.toUpperCase()}) — Limit: {formatNaira(c.credit_limit)}
-                </option>
-              ))}
-            </select>
-          </div>
+      {/* ============ 65 / 35 TERMINAL ============ */}
+      <form onSubmit={handleSubmit} className={`grid grid-cols-1 split:grid-cols-3 gap-5 items-start ${gateLocked ? 'opacity-60 pointer-events-none select-none' : ''}`}>
+        {/* ---------- LEFT: STEPS ---------- */}
+        <div className="split:col-span-2 space-y-4">
+          {/* STEP 1 — COMMODITY + SPEC + PUMP */}
+          <section className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <StepHeader n={1} title="Select oil & pump line" sub="Confirm the tank source and metered line" />
 
-          {/* 2. Product Selection Chips */}
-          <div className="space-y-1.5">
-            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
-              Product Category *
-            </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {products.map(p => {
-                const isSelected = productId === p.id;
+                const isSel = p.id === productId;
                 const isVeg = p.id === 'veg';
+                const r = reserveByProduct[p.id];
+                const rate = lookupRatePerLitre(rateCards, p.id, effectiveTier);
                 return (
                   <button
                     type="button"
                     key={p.id}
-                    onClick={() => {
-                      setProductId(p.id);
-                      const compatible = pumps.find(pump => pump.product_id === p.id);
-                      if (compatible) {
-                        setSelectedPumpId(compatible.id);
-                        setOrderMeterReading('');
-                      }
-                    }}
-                    className={`p-3.5 rounded-xl border text-left transition-all min-h-[52px] ${
-                      isSelected
+                    onClick={() => setProductId(p.id)}
+                    className={`relative text-left rounded-2xl p-4 border-2 transition-all ${
+                      isSel
                         ? isVeg
-                          ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-500 text-amber-900 dark:text-amber-300 font-bold shadow-sm'
-                          : 'bg-rose-50 dark:bg-rose-950/30 border-rose-500 text-rose-900 dark:text-rose-300 font-bold shadow-sm'
-                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                          ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/30'
+                          : 'border-rose-500 bg-rose-50/50 dark:bg-rose-950/30'
+                        : 'border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 hover:border-slate-300'
                     }`}
                   >
-                    <div className="text-[15px] font-sans font-bold">{p.name}</div>
-                    <div className="text-[11px] font-sans opacity-80 mt-0.5">
-                      {p.supply_model === 'bulk_truck'
-                        ? `Bulk Offload · ${p.litres_per_keg}L Kegs`
-                        : `Pre-Kegged · ${p.litres_per_keg}L Kegs`}
+                    {isSel && (
+                      <span className={`absolute top-3 right-3 text-[10px] font-black px-2 py-0.5 rounded-full text-white ${isVeg ? 'bg-amber-500' : 'bg-rose-500'}`}>
+                        SELECTED
+                      </span>
+                    )}
+                    <div className="flex items-center gap-3">
+                      <span className="w-11 h-11 rounded-xl text-white flex items-center justify-center text-xl shrink-0" style={{ backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }}>
+                        {isVeg ? '🌻' : '🛢️'}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-[15px] font-heading font-bold text-slate-900 dark:text-white truncate">{p.name}</div>
+                        <div className="text-[11px] font-sans text-slate-500">
+                          {p.supply_model === 'pre_kegged' ? 'Pre-kegged' : 'Bulk truck'} · {p.litres_per_keg}L/keg
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-slate-200/70 dark:border-slate-800 flex items-end justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{effectiveTier} rate</div>
+                        <div className="text-[18px] font-mono tabular-nums font-black text-slate-900 dark:text-white leading-none">
+                          ₦{rate.toLocaleString()}<span className="text-[11px] font-sans font-bold text-slate-400"> /L</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] font-bold text-slate-400">Tank reserve</div>
+                        <div className="text-[12px] font-mono tabular-nums font-bold text-slate-700 dark:text-slate-300">
+                          {r.litres.toLocaleString()} L <span className="text-slate-400">(~{r.kegs} kegs)</span>
+                        </div>
+                        <div className="w-24 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden mt-1 ml-auto">
+                          <div className="h-full rounded-full" style={{ width: `${r.pct}%`, backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }} />
+                        </div>
+                      </div>
                     </div>
                   </button>
                 );
               })}
             </div>
-          </div>
 
-          {/* 3. Dispensing Pump Selection & Live Per-Order Meter Input */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <Fuel className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                <span>Dispense Pump Meter Line</span>
-              </label>
-              <div className="flex items-center gap-3">
-                <span className="text-[11px] font-mono tabular-nums text-slate-500">
-                  Threshold: ±{settings.pump_variance_threshold}L
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setIsPumpReadingOpen(!isPumpReadingOpen)}
-                  className="text-[11px] font-sans font-bold text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 flex items-center gap-1 transition-colors"
+            {/* Spec / variety */}
+            {varieties.length > 0 && (
+              <div className="mt-3">
+                <label htmlFor="variety" className="text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                  <ClipboardList className="w-3.5 h-3.5" /> Oil spec / variety
+                  <span className="text-rose-600">*</span>
+                </label>
+                <select
+                  id="variety"
+                  value={varietyId}
+                  onChange={e => setVarietyId(e.target.value)}
+                  className="mt-1 w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-sans font-semibold text-[14px] focus:outline-none focus:border-brand-500"
                 >
-                  <Gauge className="w-3.5 h-3.5" />
-                  <span>{isPumpReadingOpen ? 'Close Logger' : 'Log Pump Meter'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Inline Cumulative Pump Meter Logger */}
-            {isPumpReadingOpen && (
-              <div className="p-3.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/40 border border-purple-300 dark:border-purple-800/80 space-y-3 animate-in fade-in">
-                <div className="flex items-center justify-between">
-                  <span className="text-[12px] font-sans font-bold text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
-                    <Gauge className="w-4 h-4" /> Record Cumulative Pump Reading
-                  </span>
-                  <span className="text-[11px] font-sans text-purple-700 dark:text-purple-300">
-                    Routine Calibration
-                  </span>
-                </div>
-
-                {pumpReadingStatus && (
-                  <div className={`p-2 rounded-lg text-[12px] font-sans ${pumpReadingStatus.success ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300' : 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300'}`}>
-                    {pumpReadingStatus.msg}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div>
-                    <label className="text-[10px] font-sans uppercase font-bold text-slate-500 block mb-1">Select Pump</label>
-                    <select
-                      value={readingPumpId}
-                      onChange={e => setReadingPumpId(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-slate-100"
-                    >
-                      {pumps.map(p => (
-                        <option key={p.id} value={p.id}>{p.label} ({p.last_meter_reading}L)</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-sans uppercase font-bold text-slate-500 block mb-1">New Meter (Litres)</label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      value={newMeterReading}
-                      onChange={e => setNewMeterReading(e.target.value)}
-                      placeholder={`> ${selectedReadingPump?.last_meter_reading}`}
-                      className="w-full px-3 py-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold text-slate-900 dark:text-slate-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-sans uppercase font-bold text-slate-500 block mb-1">Note (Optional)</label>
-                    <div className="flex gap-1.5">
-                      <input
-                        type="text"
-                        value={readingNote}
-                        onChange={e => setReadingNote(e.target.value)}
-                        placeholder="Shift check"
-                        className="w-full px-3 py-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-100"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleRecordReadingSubmit}
-                        className="px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex-shrink-0"
-                      >
-                        Save
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                  {varieties.map(v => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                      {v.rate_delta_per_litre ? ` (${v.rate_delta_per_litre > 0 ? '+' : ''}₦${v.rate_delta_per_litre}/L)` : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
-            
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {pumps.map(pump => {
-                const isSelected = selectedPumpId === pump.id;
-                const isCompatible = !pump.product_id || pump.product_id === productId;
-                return (
-                  <button
-                    type="button"
-                    key={pump.id}
-                    disabled={!isCompatible}
-                    onClick={() => {
-                      if (isCompatible) {
-                        setSelectedPumpId(pump.id);
-                      }
-                    }}
-                    title={
-                      !isCompatible
-                        ? `Locked: Configured for ${pump.product_id === 'veg' ? 'Golden Vegetable Oil' : 'Palm Oil'} line only.`
-                        : undefined
-                    }
-                    className={`p-2.5 rounded-xl border text-left text-[12px] transition-all relative ${
-                      !isCompatible
-                        ? 'opacity-40 bg-slate-100/90 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed select-none'
-                        : isSelected
-                        ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-500 text-purple-900 dark:text-purple-300 font-bold shadow-sm cursor-pointer'
-                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 cursor-pointer'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-1">
-                      <div className="font-sans font-bold truncate">{pump.label}</div>
-                      {!isCompatible && (
-                        <span className="text-[9px] font-sans font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center gap-0.5 flex-shrink-0">
-                          <Lock className="w-2.5 h-2.5" /> Locked
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[11px] font-mono tabular-nums text-slate-500 mt-0.5">
-                      {isCompatible ? (
-                        `Meter: ${pump.last_meter_reading.toLocaleString()}L`
-                      ) : (
-                        <span className="text-amber-700/90 dark:text-amber-400/90 font-sans font-semibold">
-                          {pump.product_id === 'veg' ? 'Golden Oil Only' : 'Palm Oil Only'}
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
 
-            {/* Per-Order Pump Meter Input with Live Delta & Variance */}
-            {selectedPumpId && (
-              <div className="p-3.5 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/50 space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                  <span className="text-[12px] font-sans font-semibold text-purple-950 dark:text-purple-200">
-                    Pump Dispense Meter Reading
-                  </span>
-                  <span className="text-[11px] font-mono tabular-nums text-purple-700 dark:text-purple-300">
-                    Prior Dispense Reading: <span className="font-bold">{priorPumpReading.toLocaleString()} L</span>
-                  </span>
-                </div>
+            {/* Pump line */}
+            <div className="mt-3">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                  <Fuel className="w-3.5 h-3.5 text-purple-500" /> Dispense pump line
+                </label>
+                <button type="button" onClick={() => setIsMeterPanelOpen(o => !o)} className="text-[11px] font-bold text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                  <Gauge className="w-3.5 h-3.5" /> {isMeterPanelOpen ? 'Hide meter' : 'Meter reading'}
+                </button>
+              </div>
+              <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {pumps.map(pump => {
+                  const compatible = !pump.product_id || pump.product_id === productId;
+                  const isSel = selectedPumpId === pump.id;
+                  return (
+                    <button
+                      type="button"
+                      key={pump.id}
+                      disabled={!compatible}
+                      onClick={() => compatible && setSelectedPumpId(pump.id)}
+                      className={`p-2.5 rounded-xl border text-left text-[12px] transition-all ${
+                        !compatible
+                          ? 'opacity-40 bg-slate-100 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-400 cursor-not-allowed'
+                          : isSel
+                          ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-500 text-purple-900 dark:text-purple-300 font-bold'
+                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-sans font-bold truncate">{pump.label}</span>
+                        {!compatible && <Lock className="w-3 h-3 shrink-0" />}
+                      </div>
+                      <div className="text-[11px] font-mono tabular-nums text-slate-500 mt-0.5">
+                        {compatible ? `Meter ${pump.last_meter_reading.toLocaleString()} L` : pump.product_id === 'veg' ? 'Golden line only' : 'Palm line only'}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
-                  <div className="sm:col-span-8">
+              {isMeterPanelOpen && selectedPumpId && (
+                <div className="mt-2 p-3 rounded-xl bg-purple-50/60 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/50 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-mono tabular-nums text-purple-700 dark:text-purple-300">
+                    <span className="font-sans font-semibold">Nozzle meter now</span>
+                    <span>Prior: <b>{priorPumpReading.toLocaleString()} L</b></span>
+                  </div>
+                  <div className="flex gap-2">
                     <input
                       type="number"
                       step="0.5"
                       min={priorPumpReading}
                       value={orderMeterReading}
                       onChange={e => setOrderMeterReading(e.target.value)}
-                      placeholder={`Current meter (e.g. ${(priorPumpReading + pricing.litres).toFixed(0)})`}
-                      className="w-full px-3.5 py-3 min-h-[48px] rounded-xl bg-white dark:bg-slate-950 border border-purple-300 dark:border-purple-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-purple-500"
+                      placeholder={`e.g. ${(priorPumpReading + pricing.litres).toFixed(0)}`}
+                      className="flex-1 px-3 py-2 rounded-lg bg-white dark:bg-slate-950 border border-purple-300 dark:border-purple-800 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-purple-500"
                     />
-                  </div>
-                  <div className="sm:col-span-4">
                     <button
                       type="button"
                       onClick={() => setOrderMeterReading((priorPumpReading + pricing.litres).toString())}
-                      className="w-full py-3 min-h-[48px] px-3 rounded-xl bg-purple-100 dark:bg-purple-900/40 hover:bg-purple-200 dark:hover:bg-purple-900/60 text-purple-800 dark:text-purple-200 text-[12px] font-sans font-bold border border-purple-300 dark:border-purple-800 transition-colors"
+                      className="px-3 rounded-lg bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-200 text-[11px] font-bold border border-purple-300 dark:border-purple-800"
                     >
-                      Fill Expected (+{pricing.litres}L)
+                      +{pricing.litres}L
                     </button>
                   </div>
-                </div>
-
-                {/* Live Variance Feedback */}
-                {meterAnalysis && (
-                  <div className={`p-2.5 rounded-lg text-[12px] flex items-center gap-2 ${
-                    meterAnalysis.isOverThreshold
-                      ? 'bg-amber-100/90 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200'
-                      : 'bg-emerald-100/90 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200'
-                  }`}>
-                    {meterAnalysis.isOverThreshold ? (
-                      <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                    ) : (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    )}
-                    <span className="font-mono tabular-nums text-[12px]">
-                      Delta: <strong>{meterAnalysis.delta}L</strong> (Expected: {meterAnalysis.expected}L)
-                      {' | '}
-                      Variance: <strong>{meterAnalysis.variance > 0 ? `+${meterAnalysis.variance}` : meterAnalysis.variance}L</strong>
-                      {meterAnalysis.isOverThreshold && ` (Flagged > ±${settings.pump_variance_threshold}L threshold)`}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* 4. Unit & Quantity (Keg, Litre, Ton) */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Volume & Unit *
-              </label>
-              <span className="text-[13px] font-mono tabular-nums font-bold text-brand-600 dark:text-brand-400">
-                = {pricing.litres.toLocaleString()} Litres
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-              {/* 3-Way Unit Toggle */}
-              <div className="sm:col-span-6 grid grid-cols-3 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => { setUnit('keg'); if (parseFloat(qty) > 100) setQty('10'); }}
-                  className={`py-2.5 rounded-lg text-[12px] font-sans font-bold transition-all ${
-                    unit === 'keg'
-                      ? 'bg-brand-500 text-slate-950 shadow-sm'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
-                  }`}
-                >
-                  Keg ({selectedProduct.litres_per_keg}L)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUnit('litre')}
-                  className={`py-2.5 rounded-lg text-[12px] font-sans font-bold transition-all ${
-                    unit === 'litre'
-                      ? 'bg-brand-500 text-slate-950 shadow-sm'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
-                  }`}
-                >
-                  Litres
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setUnit('ton'); setQty('5'); }}
-                  className={`py-2.5 rounded-lg text-[12px] font-sans font-bold transition-all ${
-                    unit === 'ton'
-                      ? 'bg-brand-500 text-slate-950 shadow-sm'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
-                  }`}
-                >
-                  Tons
-                </button>
-              </div>
-
-              {/* Quantity Input */}
-              <div className="sm:col-span-6">
-                <input
-                  type="number"
-                  step={unit === 'keg' ? '1' : unit === 'ton' ? '0.1' : '0.5'}
-                  min="0.1"
-                  value={qty}
-                  onChange={e => setQty(e.target.value)}
-                  placeholder={unit === 'ton' ? '5' : '10'}
-                  inputMode="decimal"
-                  className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[16px] font-mono tabular-nums font-bold focus:outline-none focus:border-brand-500 text-right"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Wholesale Tonnage Outbound Shortfall Card */}
-            {unit === 'ton' && (
-              <div className="p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 text-[12px] space-y-2">
-                <div className="flex items-center justify-between text-blue-950 dark:text-blue-200 font-semibold">
-                  <span>Wholesale Bulk Tonnage Sale</span>
-                  <span className="font-mono tabular-nums font-bold">1 Ton = {selectedProduct.litres_per_ton || 1075}L</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <label className="text-[11px] font-sans text-slate-600 dark:text-slate-400 block mb-1">
-                      Delivered Tons (Optional Outbound Check)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={deliveredTons}
-                      onChange={e => setDeliveredTons(e.target.value)}
-                      placeholder={`e.g. ${qty}`}
-                      className="w-full px-3 py-2 min-h-[40px] rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[14px] font-mono tabular-nums focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    {deliveredTons && parseFloat(deliveredTons) < (parseFloat(qty) || 0) ? (
-                      <div className="text-[11px] font-mono tabular-nums text-amber-700 dark:text-amber-400 font-bold p-1">
-                        Shortfall: {((parseFloat(qty) || 0) - parseFloat(deliveredTons)).toFixed(2)} Tons (
-                        {(((parseFloat(qty) || 0) - parseFloat(deliveredTons)) * (selectedProduct.litres_per_ton || 1075)).toFixed(1)}L)
+                  {meterAnalysis && (
+                    <div className={`px-2.5 py-1.5 rounded-lg text-[11px] font-mono tabular-nums flex items-center gap-1.5 ${
+                      meterAnalysis.isOver
+                        ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200'
+                        : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200'
+                    }`}>
+                      {meterAnalysis.isOver ? <AlertTriangle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                      Delta {meterAnalysis.delta}L · variance {meterAnalysis.variance > 0 ? `+${meterAnalysis.variance}` : meterAnalysis.variance}L
+                      {meterAnalysis.isOver && ` (over ±${settings.pump_variance_threshold}L)`}
+                    </div>
+                  )}
+                  <button type="button" onClick={() => setIsPumpLoggerOpen(o => !o)} className="text-[11px] font-bold text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                    {isPumpLoggerOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    Log a cumulative calibration reading
+                  </button>
+                  {isPumpLoggerOpen && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                      <select value={loggerPumpId} onChange={e => setLoggerPumpId(e.target.value)} className="px-2.5 py-2 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white">
+                        {pumps.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+                      </select>
+                      <input type="number" step="0.5" value={loggerReading} onChange={e => setLoggerReading(e.target.value)} placeholder="New meter L" className="px-2.5 py-2 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold text-slate-900 dark:text-white" />
+                      <div className="flex gap-1.5">
+                        <input type="text" value={loggerNote} onChange={e => setLoggerNote(e.target.value)} placeholder="Note" className="flex-1 min-w-0 px-2.5 py-2 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white" />
+                        <button type="button" onClick={handleLoggerSubmit} className="px-2.5 rounded-lg bg-purple-600 text-white text-xs font-bold">Save</button>
                       </div>
-                    ) : (
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400 italic">
-                        Direct wholesale discharge — container allocation bypassed.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Quick Increment Chips */}
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <span className="text-[11px] font-sans font-semibold text-slate-500 uppercase">Quick Add:</span>
-              {(unit === 'ton' ? [1, 2, 5, 10] : [1, 5, 10, 20, 50]).map(val => (
-                <button
-                  type="button"
-                  key={val}
-                  onClick={() => handleQuickQtyAdd(val)}
-                  className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[12px] font-mono tabular-nums font-bold text-slate-700 dark:text-slate-300 hover:border-brand-500 hover:text-brand-600 dark:hover:text-white transition-colors"
-                >
-                  +{val} {unit}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 5. Container Source (Only if unit === 'keg') — Extended with Outright Purchase */}
-          {unit === 'keg' && (
-            <div className="space-y-2 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
-              <div className="flex items-center justify-between">
-                <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <Package className="w-4 h-4 text-brand-600 dark:text-brand-400" />
-                  <span>Container / Jerrycan Source *</span>
-                </label>
-                <span className="text-[11px] text-slate-500 font-mono">
-                  Depot Stock: <strong>{kegInventory.kegsAtDepot}</strong> kegs
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[12px]">
-                {/* Company Keg */}
-                <button
-                  type="button"
-                  onClick={() => setKegSource('company')}
-                  className={`p-3 rounded-xl border text-left transition-all min-h-[52px] ${
-                    kegSource === 'company'
-                      ? 'bg-brand-50 dark:bg-brand-500/15 border-brand-500 text-brand-900 dark:text-brand-300 font-bold shadow-xs'
-                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
-                  }`}
-                >
-                  <div className="font-sans font-bold text-[13px]">Company Keg</div>
-                  <div className="text-[11px] font-sans text-slate-500 mt-0.5">Returnable Debt Logged</div>
-                </button>
-
-                {/* Customer Keg */}
-                <button
-                  type="button"
-                  onClick={() => setKegSource('own')}
-                  className={`p-3 rounded-xl border text-left transition-all min-h-[52px] ${
-                    kegSource === 'own'
-                      ? 'bg-brand-50 dark:bg-brand-500/15 border-brand-500 text-brand-900 dark:text-brand-300 font-bold shadow-xs'
-                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
-                  }`}
-                >
-                  <div className="font-sans font-bold text-[13px]">Customer's Own Keg</div>
-                  <div className="text-[11px] font-sans text-slate-500 mt-0.5">No Container Charge</div>
-                </button>
-
-                {/* Outright Keg Purchase */}
-                <button
-                  type="button"
-                  onClick={() => setKegSource('purchased')}
-                  className={`p-3 rounded-xl border text-left transition-all min-h-[52px] ${
-                    kegSource === 'purchased'
-                      ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500 text-amber-900 dark:text-amber-300 font-bold shadow-xs'
-                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
-                  }`}
-                >
-                  <div className="font-sans font-bold text-[13px] flex items-center justify-between">
-                    <span>Buy Keg Outright</span>
-                    <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 font-bold">
-                      +₦{(selectedProduct.keg_sell_price || 3500).toLocaleString()}/keg
-                    </span>
-                  </div>
-                  <div className="text-[11px] font-sans text-slate-500 mt-0.5">Permanent Sale (No Debt)</div>
-                </button>
-              </div>
-
-              {kegSource === 'purchased' && (
-                <div className="p-3 rounded-lg bg-amber-50/80 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 text-[11px] font-sans text-amber-900 dark:text-amber-200 flex items-center justify-between">
-                  <span>
-                    Container line item: <strong>{qty} kegs × ₦{(selectedProduct.keg_sell_price || 3500).toLocaleString()}</strong>
-                  </span>
-                  <span className="font-mono font-bold text-amber-800 dark:text-amber-300 text-[13px]">
-                    +{formatNaira(pricing.kegAmount)}
-                  </span>
+                      {loggerStatus && (
+                        <div className={`sm:col-span-3 text-[11px] font-semibold ${loggerStatus.ok ? 'text-emerald-600' : 'text-rose-600'}`}>{loggerStatus.msg}</div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
+          </section>
 
-          {/* 6. Pricing & Discount Controls */}
-          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Tag className="w-4 h-4 text-brand-600 dark:text-brand-400" />
-                <span className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                  Rate Card & Discount Authorization
-                </span>
+          {/* STEP 2 — VOLUME + CONTAINER */}
+          <section className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <StepHeader
+              n={2}
+              title="Volume & container"
+              sub={`Metered at ${selectedProduct?.litres_per_keg || 30}.00 L per keg`}
+              right={<span className="text-[12px] font-mono tabular-nums font-black text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-1 rounded-full">= {pricing.litres.toLocaleString()} L</span>}
+            />
+
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-stretch">
+              {/* Unit toggle */}
+              <div className="md:col-span-5 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800 grid grid-cols-3 gap-1">
+                {(['keg', 'litre', 'ton'] as UnitType[]).map(u => (
+                  <button
+                    type="button"
+                    key={u}
+                    onClick={() => {
+                      setUnit(u);
+                      if (u === 'ton') setQty('5');
+                      else if (u === 'keg' && (parseFloat(qty) || 0) > 200) setQty('10');
+                    }}
+                    className={`py-2.5 rounded-lg text-[12px] font-bold capitalize transition-all ${
+                      unit === u ? 'bg-brand-500 text-slate-950 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    {u === 'keg' ? `Keg` : u === 'litre' ? 'Litres' : 'Tons'}
+                  </button>
+                ))}
               </div>
-              <button
-                type="button"
-                onClick={() => setIsCustomRateEnabled(!isCustomRateEnabled)}
-                className="text-[11px] font-sans font-bold text-brand-600 dark:text-brand-400 hover:underline"
-              >
-                {isCustomRateEnabled ? 'Reset to Standard Card' : 'Apply Custom Rate'}
+              {/* Stepper */}
+              <div className="md:col-span-7 bg-slate-50 dark:bg-slate-950 rounded-xl p-1.5 border-2 border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <button type="button" onClick={() => quickAdd(unit === 'keg' ? -1 : unit === 'ton' ? -0.5 : -30)} className="w-11 h-11 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-center active:scale-95">
+                  <Minus className="w-5 h-5" />
+                </button>
+                <div className="text-center flex-1 px-2">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step={unit === 'keg' ? '1' : unit === 'ton' ? '0.1' : '0.5'}
+                    min="0"
+                    value={qty}
+                    onChange={e => setQty(e.target.value)}
+                    className="w-full text-center font-mono font-black text-3xl text-slate-900 dark:text-white bg-transparent border-0 p-0 focus:ring-0 leading-none"
+                  />
+                  <span className="text-[11px] font-bold text-slate-500 block mt-0.5">
+                    ~ {Math.round(pricing.litres / (selectedProduct?.litres_per_keg || 30))} kegs · {pricing.litres.toLocaleString()} L
+                  </span>
+                </div>
+                <button type="button" onClick={() => quickAdd(unit === 'keg' ? 1 : unit === 'ton' ? 0.5 : 30)} className="w-11 h-11 rounded-lg bg-brand-500 text-slate-950 border border-brand-600 flex items-center justify-center active:scale-95">
+                  <Plus className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-2.5 grid grid-cols-3 sm:grid-cols-6 gap-2">
+              {(unit === 'ton' ? [1, 2, 5, 10] : unit === 'keg' ? [1, 5, 10, 20] : [30, 60, 150, 300, 600]).map(v => (
+                <button type="button" key={v} onClick={() => quickAdd(v)} className="py-2 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 font-bold text-[11px] text-slate-800 dark:text-slate-200 hover:border-brand-500">
+                  +{v} {unit === 'litre' ? 'L' : unit}
+                </button>
+              ))}
+              <button type="button" onClick={setMaxTank} className="py-2 rounded-lg bg-slate-900 dark:bg-slate-100 text-amber-400 dark:text-amber-600 font-black text-[10px] uppercase tracking-wide">
+                Max tank
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] uppercase text-slate-500 block">Standard Approved Rate:</span>
-                  <span className="font-mono font-bold text-[14px] text-slate-900 dark:text-white">
-                    ₦{standardRatePerLitre.toLocaleString()}/L
-                  </span>
+            {unit === 'ton' && (
+              <div className="mt-3 p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 text-[12px]">
+                <div className="flex items-center justify-between text-blue-950 dark:text-blue-200 font-semibold">
+                  <span>Wholesale tonnage — delivered check</span>
+                  <span className="font-mono">1 T = {selectedProduct?.litres_per_ton || 1075} L</span>
                 </div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                  {selectedCustomer.type} Tier
-                </span>
-              </div>
-
-              <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] uppercase text-slate-500 block">Effective Per-Keg Rate:</span>
-                  <span className="font-mono font-bold text-[14px] text-brand-600 dark:text-brand-400">
-                    {formatNaira(pricing.ratePerKeg)}
-                  </span>
-                </div>
-                <span className="text-[11px] font-mono text-slate-500">
-                  {selectedProduct.litres_per_keg}L Keg
-                </span>
-              </div>
-            </div>
-
-            {/* Custom Rate Input & Discount Reason */}
-            {isCustomRateEnabled && (
-              <div className="space-y-2.5 pt-2 border-t border-slate-200 dark:border-slate-800 animate-in fade-in">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[11px] font-sans uppercase font-bold text-slate-600 dark:text-slate-400 block mb-1">
-                      Custom Rate per Litre (₦/L)
-                    </label>
-                    <input
-                      type="number"
-                      step="50"
-                      min="100"
-                      placeholder={`e.g. ${standardRatePerLitre}`}
-                      value={customRateInput}
-                      onChange={e => setCustomRateInput(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-brand-300 dark:border-brand-700 bg-white dark:bg-slate-900 text-[14px] font-mono font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-sans uppercase font-bold text-slate-600 dark:text-slate-400 block mb-1">
-                      Equivalent Rate per {selectedProduct.litres_per_keg}L Keg
-                    </label>
-                    <div className="px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono font-bold text-[14px] text-emerald-600 dark:text-emerald-400">
-                      {formatNaira(pricing.ratePerKeg)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* MANDATORY DISCOUNT REASON INPUT IF RATE < STANDARD RATE */}
-                {isDiscountApplied && (
-                  <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 space-y-2">
-                    <div className="flex items-center gap-1.5 text-[12px] font-bold text-amber-900 dark:text-amber-200">
-                      <AlertTriangle className="w-4 h-4 text-amber-600" />
-                      <span>Discount Alert: Rate is below standard card</span>
-                    </div>
-                    <p className="text-[11px] text-amber-800 dark:text-amber-300">
-                      Entered rate (₦{effectiveRatePerLitre.toLocaleString()}/L) is below standard tier rate (₦{standardRatePerLitre.toLocaleString()}/L). An authorized discount reason is strictly mandatory.
-                    </p>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Approved bulk loyalty discount by Alhaji / MD concession"
-                      value={discountReason}
-                      onChange={e => setDiscountReason(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-[13px] font-sans text-slate-900 dark:text-white placeholder-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    />
+                <input type="number" step="0.01" value={deliveredTons} onChange={e => setDeliveredTons(e.target.value)} placeholder={`Delivered tons (e.g. ${qty})`} className="mt-1.5 w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[13px] font-mono focus:outline-none focus:border-blue-500" />
+                {deliveredTons && parseFloat(deliveredTons) < (parseFloat(qty) || 0) && (
+                  <div className="mt-1 text-[11px] font-mono text-amber-700 dark:text-amber-400 font-bold">
+                    Shortfall {((parseFloat(qty) || 0) - parseFloat(deliveredTons)).toFixed(2)} T
+                    ({(((parseFloat(qty) || 0) - parseFloat(deliveredTons)) * (selectedProduct?.litres_per_ton || 1075)).toFixed(0)} L)
                   </div>
                 )}
               </div>
             )}
-          </div>
 
-          {/* 7. Payment Method */}
-          <div className="space-y-1.5">
-            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <CreditCard className="w-4 h-4 text-brand-600 dark:text-brand-400" />
-              <span>Payment Terms / Method *</span>
-            </label>
-            <div className="grid grid-cols-3 gap-2 text-[13px] font-sans font-semibold">
-              {(['credit', 'cash', 'transfer'] as PaymentMethod[]).map(method => (
-                <button
-                  type="button"
-                  key={method}
-                  onClick={() => setPaymentMethod(method)}
-                  className={`py-3.5 min-h-[48px] rounded-xl border capitalize transition-all ${
-                    paymentMethod === method
-                      ? 'bg-brand-500 text-slate-950 font-bold border-brand-500 shadow-sm'
-                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
-                  }`}
-                >
-                  {method}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 8. Soft Warnings & Overrides (Interactive Decision Prompts) */}
-          {isKegShortage && (
-            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 text-[12px] font-sans text-amber-900 dark:text-amber-300 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 font-bold">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                  <span>Depot Keg Shortage Warning</span>
-                </div>
-                {overrideKegShortage && (
-                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300">
-                    Override Authorized
+            {unit === 'keg' && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                    <Package className="w-3.5 h-3.5 text-brand-600" /> Container source
+                    <span className="text-rose-600">*</span>
                   </span>
+                  <span className="text-[11px] text-slate-500">Depot stock: <b className="text-slate-900 dark:text-white">{kegInventory.kegsAtDepot}</b></span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[12px]">
+                  {([
+                    { id: 'company', title: 'Company Keg', sub: 'Returnable — debt logged' },
+                    { id: 'own', title: "Customer's Own", sub: 'No container charge' },
+                    { id: 'purchased', title: 'Buy Outright', sub: `+${formatNaira(selectedProduct?.keg_sell_price || 0)}/keg` }
+                  ] as const).map(opt => (
+                    <button
+                      type="button"
+                      key={opt.id}
+                      onClick={() => setKegSource(opt.id as KegSource)}
+                      className={`p-3 rounded-xl border-2 text-left transition-all ${
+                        kegSource === opt.id
+                          ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200'
+                          : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="font-heading font-bold">{opt.title}</div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">{opt.sub}</div>
+                    </button>
+                  ))}
+                </div>
+                {kegSource === 'purchased' && pricing.kegAmount > 0 && (
+                  <div className="mt-2 px-3.5 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 flex items-center justify-between text-[12px] font-bold text-amber-800 dark:text-amber-300">
+                    <span>Container line: {qty} kegs × {formatNaira(selectedProduct?.keg_sell_price || 0)}</span>
+                    <span>+{formatNaira(pricing.kegAmount)}</span>
+                  </div>
                 )}
               </div>
-              <p className="text-[11px] text-amber-800 dark:text-amber-200">
-                You requested {qty} kegs, but depot yard only has {kegInventory.kegsAtDepot} available (safety threshold: {settings.kegs_at_depot_low_threshold}).
-              </p>
-              {!overrideKegShortage ? (
-                <button
-                  type="button"
-                  onClick={() => setIsKegShortageModalOpen(true)}
-                  className="px-3 py-1.5 rounded-lg bg-amber-200/80 dark:bg-amber-900/60 hover:bg-amber-300 dark:hover:bg-amber-800 text-amber-950 dark:text-amber-100 font-semibold text-[11px] transition-colors"
-                >
-                  Review & Authorize Keg Override →
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setOverrideKegShortage(false)}
-                  className="text-[11px] text-slate-500 hover:underline block"
-                >
-                  Revoke authorization
-                </button>
-              )}
-            </div>
-          )}
+            )}
+          </section>
 
-          {isCreditExceeded && (
-            <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/80 text-[12px] font-sans text-rose-900 dark:text-rose-300 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 font-bold">
-                  <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />
-                  <span>Credit Limit Breach Warning</span>
-                </div>
-                {overrideCreditLimit && (
-                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300">
-                    Override Authorized
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px] text-rose-800 dark:text-rose-200 font-mono tabular-nums">
-                Projected balance ({formatNaira(customerStats ? customerStats.currentBalance + pricing.amount : 0)})
-                exceeds approved limit ({formatNaira(selectedCustomer.credit_limit)}) by +{formatNaira(Math.max(0, (customerStats ? customerStats.currentBalance + pricing.amount : 0) - selectedCustomer.credit_limit))}.
-              </p>
-              {!overrideCreditLimit ? (
-                <button
-                  type="button"
-                  onClick={() => setIsCreditOverrideModalOpen(true)}
-                  className="px-3 py-1.5 rounded-lg bg-rose-200/80 dark:bg-rose-900/60 hover:bg-rose-300 dark:hover:bg-rose-800 text-rose-950 dark:text-rose-100 font-semibold text-[11px] transition-colors"
-                >
-                  Review & Authorize Credit Override →
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setOverrideCreditLimit(false)}
-                  className="text-[11px] text-slate-500 hover:underline block"
-                >
-                  Revoke authorization
-                </button>
-              )}
-            </div>
-          )}
+          {/* STEP 3 — BUYER + PAYMENT */}
+          <section className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <StepHeader n={3} title="Buyer & payment" sub="Tier is auto-detected — override only when needed" />
 
-          {/* 9. Optional Note */}
-          <div className="space-y-1">
-            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              Sale Note / Dispatch Slip (Optional)
+            <label htmlFor="cust" className="text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5 text-brand-600" /> Customer account <span className="text-rose-600">*</span>
             </label>
-            <input
-              type="text"
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              placeholder="e.g. Dispensed into customer white cans, gate dispatch slip #890"
-              className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 text-[15px] font-sans focus:outline-none focus:border-brand-500"
-            />
-          </div>
-
-          {/* 10. Submit Button */}
-          <button
-            type="submit"
-            disabled={!shiftGateStatus.isPassed}
-            className={`w-full py-4 min-h-[52px] rounded-xl font-sans font-bold text-[14px] uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-2 active:scale-98 ${
-              shiftGateStatus.isPassed
-                ? 'bg-brand-500 hover:bg-brand-400 text-slate-950 shadow-brand-500/25'
-                : 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed'
-            }`}
-          >
-            <Receipt className="w-[18px] h-[18px]" />
-            <span>
-              {shiftGateStatus.isPassed
-                ? 'Complete Sale & Issue Official Receipt'
-                : 'Locked: Record Opening Meters Above'}
-            </span>
-          </button>
-        </form>
-
-        {/* RIGHT COLUMN: FIXED CUSTOMER SALE CONTAINER (40% - 2 COLS AT >=900px) */}
-        <div className="split:col-span-2 split:sticky split:top-4 split:self-start space-y-4">
-          {/* Mobile Accordion Toggle (<900px only) */}
-          <div className="split:hidden p-4 rounded-2xl bg-rough-paper border border-stone-300/90 dark:border-slate-800 shadow-md flex items-center justify-between">
-            <div>
-              <div className="text-[11px] font-sans text-slate-500 uppercase tracking-wider font-semibold">
-                Customer Sale Total
-              </div>
-              <div className="text-[24px] font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400">
-                {formatNaira(pricing.amount)}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsPricingDetailsOpen(!isPricingDetailsOpen)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/90 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[12px] font-sans font-bold border border-stone-300 dark:border-slate-700 active:scale-95 transition-all shadow-xs"
+            <select
+              id="cust"
+              value={customerId}
+              onChange={e => { setCustomerId(e.target.value); setTierOverride(null); }}
+              className="mt-1 w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-sans font-semibold text-[14px] focus:outline-none focus:border-brand-500"
             >
-              <span>{isPricingDetailsOpen ? 'Hide Sale Details' : 'View Sale Details'}</span>
-              {isPricingDetailsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
-          </div>
+              {customers.map(c => (
+                <option key={c.id} value={c.id}>{c.name} ({c.type.toUpperCase()}) — limit {formatNaira(c.credit_limit)}</option>
+              ))}
+            </select>
 
-          {/* Fixed Sale Container on Desktop, toggled on mobile */}
-          <div className={`${isPricingDetailsOpen ? 'space-y-4' : 'hidden split:block split:space-y-4'} split:max-h-[calc(100vh-5rem)] split:overflow-y-auto split:pr-1`}>
-            {/* Customer Sale Ticket Card */}
-            <div className="p-5 rounded-2xl bg-rough-paper border border-stone-300/90 dark:border-slate-800 shadow-md space-y-4">
-              
-              {/* Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-stone-300/70 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800 flex items-center justify-center text-brand-600 dark:text-brand-400">
-                    <Receipt className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="font-heading font-bold text-[15px] text-slate-900 dark:text-white leading-tight">
-                      Customer Sale
-                    </h3>
-                    <p className="text-[11px] font-sans text-slate-500">Live Dispense & Sale Invoice</p>
-                  </div>
-                </div>
-                <span className="px-2.5 py-1 rounded-full text-[11px] font-sans font-bold uppercase tracking-wider bg-white/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-stone-300 dark:border-slate-700">
-                  {selectedCustomer.type}
+            {/* Tier + rate line */}
+            <div className="mt-2 p-2.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-[12px]">
+                <span className="w-6 h-6 rounded-lg bg-brand-500 text-white font-black flex items-center justify-center text-xs">✓</span>
+                <span className="font-bold text-emerald-900 dark:text-emerald-200 capitalize">
+                  {tierOverride ? `${tierOverride} pricing (override)` : `${registeredTier} pricing (auto)`}
                 </span>
               </div>
-
-              {/* Customer Info Row */}
-              <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-950 border border-stone-200/90 dark:border-slate-800 flex items-center justify-between shadow-xs">
-                <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-sans text-slate-500 uppercase tracking-wider">Customer</div>
-                  <div className="text-[14px] font-sans font-bold text-slate-900 dark:text-white truncate">
-                    {selectedCustomer.name}
-                  </div>
-                </div>
-                <div className="text-right flex-shrink-0 pl-2">
-                  <div className="text-[11px] font-sans text-slate-500 uppercase tracking-wider">Payment</div>
-                  <div className="text-[12px] font-sans font-bold text-slate-800 dark:text-slate-200 capitalize">
-                    {paymentMethod === 'credit' ? `Credit (${selectedCustomer.credit_term_days}d)` : paymentMethod}
-                  </div>
-                </div>
-              </div>
-
-              {/* Sale Line Breakdown */}
-              <div className="space-y-2 text-[12px] font-mono tabular-nums">
-                <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
-                  <span className="font-sans">Product</span>
-                  <span className="font-bold text-slate-900 dark:text-slate-200">
-                    {selectedProduct.name}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
-                  <span className="font-sans">Volume Dispensed</span>
-                  <span className="font-bold text-slate-900 dark:text-slate-200">
-                    {pricing.litres.toLocaleString()} L <span className="font-normal text-slate-500">({qty} {unit}{parseFloat(qty) !== 1 ? 's' : ''})</span>
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
-                  <span className="font-sans">Effective Rate/Litre</span>
-                  <span className="font-bold text-slate-900 dark:text-slate-200">
-                    ₦{effectiveRatePerLitre.toLocaleString()}/L
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
-                  <span className="font-sans">Rate per {selectedProduct.litres_per_keg}L Keg</span>
-                  <span className="font-bold text-slate-900 dark:text-slate-200">
-                    {formatNaira(pricing.ratePerKeg)}
-                  </span>
-                </div>
-
-                {/* Packaging Specification Line */}
-                {unit === 'keg' && (
-                  <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
-                    <span className="font-sans">Keg Packaging</span>
-                    <span className="font-bold text-slate-900 dark:text-slate-200">
-                      {kegSource === 'company'
-                        ? 'Depot Yellow Keg (Returnable)'
-                        : kegSource === 'purchased'
-                        ? 'Bought Outright (+₦3,500)'
-                        : 'Customer-Owned Keg'}
-                    </span>
-                  </div>
-                )}
-
-                {/* Subtotals if purchased outright */}
-                {pricing.kegAmount > 0 && (
-                  <>
-                    <div className="flex justify-between items-center text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">
-                      <span className="font-sans">Oil Subtotal:</span>
-                      <span className="font-mono">{formatNaira(pricing.oilAmount)}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-amber-700 dark:text-amber-400">
-                      <span className="font-sans">Container Purchase ({qty} kegs):</span>
-                      <span className="font-mono font-bold">+{formatNaira(pricing.kegAmount)}</span>
-                    </div>
-                  </>
-                )}
-
-                {selectedPumpId && (
-                  <div className="flex justify-between items-center text-purple-700 dark:text-purple-400 pt-1 border-t border-slate-100 dark:border-slate-800">
-                    <span className="font-sans flex items-center gap-1">
-                      <Fuel className="w-3.5 h-3.5" /> Pump Line
-                    </span>
-                    <span className="font-bold">
-                      {pumps.find(p => p.id === selectedPumpId)?.label || 'Selected'}
-                    </span>
-                  </div>
-                )}
-
-                {creditDueDate && (
-                  <div className="flex justify-between items-center text-amber-700 dark:text-amber-400 pt-1 border-t border-slate-100 dark:border-slate-800">
-                    <span className="font-sans flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" /> Due Date ({selectedCustomer.credit_term_days}d):
-                    </span>
-                    <span className="font-bold">{formatDepotDate(creditDueDate)}</span>
-                  </div>
-                )}
-
-                {/* Prominent Total Sale Value Callout */}
-                <div className="pt-3 pb-1 border-t-2 border-dashed border-stone-300/80 dark:border-slate-800">
-                  <div className="p-3.5 rounded-xl bg-white/95 dark:bg-slate-950 border border-stone-200/90 dark:border-slate-800 flex items-center justify-between shadow-xs">
-                    <div>
-                      <div className="text-[11px] font-sans font-bold text-slate-500 uppercase tracking-wider">
-                        Total Sale Value
-                      </div>
-                      <div className="text-[28px] font-mono tabular-nums font-black text-emerald-600 dark:text-emerald-400 leading-tight mt-0.5">
-                        {formatNaira(pricing.amount)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Primary Action Button inside the Fixed Right Panel */}
-                <button
-                  type="button"
-                  disabled={!shiftGateStatus.isPassed}
-                  onClick={() => submitOrder(overrideKegShortage, overrideCreditLimit)}
-                  className={`w-full py-3.5 px-4 rounded-xl font-sans font-bold text-[13px] uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-2 active:scale-98 ${
-                    shiftGateStatus.isPassed
-                      ? 'bg-brand-500 hover:bg-brand-400 text-slate-950 shadow-brand-500/20'
-                      : 'bg-slate-300 dark:bg-slate-800 text-slate-500 cursor-not-allowed'
-                  }`}
-                >
-                  <Receipt className="w-4 h-4" />
-                  <span>
-                    {shiftGateStatus.isPassed ? 'Complete Sale & Issue Receipt' : 'Shift Locked'}
-                  </span>
-                </button>
+              <div className="flex items-center gap-1.5">
+                {(['retail', 'agent', 'corporate'] as CustomerType[]).map(t => (
+                  <button
+                    type="button"
+                    key={t}
+                    onClick={() => setTierOverride(t === registeredTier ? null : t)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold capitalize border transition-all ${
+                      effectiveTier === t
+                        ? 'bg-brand-500 text-slate-950 border-brand-600'
+                        : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Customer Ledger Position Card */}
-            {customerStats && (
-              <div className="p-4 rounded-2xl bg-rough-paper border border-stone-300/90 dark:border-slate-800 space-y-2.5 shadow-md">
-                <div className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                  Customer Ledger Position
+            {/* Custom rate / discount */}
+            <div className="mt-2 flex items-center justify-between">
+              <label className="text-[12px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                <input type="checkbox" checked={isCustomRateEnabled} onChange={e => setIsCustomRateEnabled(e.target.checked)} className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500" />
+                Manual rate / discount
+              </label>
+              <span className="text-[11px] font-mono text-slate-500">Standard: ₦{standardRate.toLocaleString()}/L</span>
+            </div>
+            {isCustomRateEnabled && (
+              <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input type="number" step="10" value={customRateInput} onChange={e => setCustomRateInput(e.target.value)} placeholder={`₦/L (e.g. ${standardRate})`} className="px-3 py-2 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[13px] font-mono font-bold text-slate-900 dark:text-white" />
+                <input type="text" value={discountReason} onChange={e => setDiscountReason(e.target.value)} placeholder="Authorised discount reason" className={`px-3 py-2 rounded-lg bg-white dark:bg-slate-950 border text-[13px] text-slate-900 dark:text-white ${isDiscountApplied && !discountReason.trim() ? 'border-rose-400' : 'border-slate-300 dark:border-slate-700'}`} />
+              </div>
+            )}
+
+            {/* Payment modes */}
+            <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {PAYMENT_MODES.map(m => {
+                const Icon = m.icon;
+                const active = paymentMethod === m.id;
+                return (
+                  <button
+                    type="button"
+                    key={m.id}
+                    onClick={() => setPaymentMethod(m.id)}
+                    className={`py-2.5 px-2 rounded-xl border-2 text-[11px] font-bold flex flex-col items-center gap-1 transition-all ${
+                      active ? 'border-brand-500 bg-brand-500 text-slate-950' : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span className="text-center leading-tight">{m.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {paymentMethod === 'cash' && (
+              <div className="mt-2 grid grid-cols-2 gap-2 text-[12px]">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-500 block mb-1">Cash tendered</label>
+                  <input type="number" step="100" value={amountTendered} onChange={e => setAmountTendered(e.target.value)} placeholder={pricing.amount.toFixed(0)} className={`w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-950 border text-[14px] font-mono font-bold text-slate-900 dark:text-white ${shortTender ? 'border-rose-400' : 'border-slate-300 dark:border-slate-700'}`} />
                 </div>
-                <div className="grid grid-cols-2 gap-2.5 text-[12px]">
-                  <div className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-950 border border-stone-200/90 dark:border-slate-800 shadow-xs">
-                    <div className="text-[11px] font-sans text-slate-500">Current Balance</div>
-                    <div className="text-[15px] font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100 mt-0.5">
-                      {formatNaira(customerStats.currentBalance)}
-                    </div>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-950 border border-stone-200/90 dark:border-slate-800 shadow-xs">
-                    <div className="text-[11px] font-sans text-slate-500">Credit Limit</div>
-                    <div className="text-[15px] font-mono tabular-nums font-bold text-slate-700 dark:text-slate-300 mt-0.5">
-                      {formatNaira(selectedCustomer.credit_limit)}
-                    </div>
+                <div>
+                  <span className="text-[11px] font-semibold text-slate-500 block mb-1">Change due</span>
+                  <div className={`w-full px-3 py-2 rounded-lg border text-[14px] font-mono font-bold ${shortTender ? 'border-rose-400 text-rose-600' : 'border-slate-200 dark:border-slate-800 text-emerald-600 dark:text-emerald-400'} bg-slate-50 dark:bg-slate-950`}>
+                    {shortTender ? 'Short!' : formatNaira(changeDue)}
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Active FIFO Tank Depletion Preview */}
-            {activeFifoTank && (
-              <div className="p-4 rounded-2xl bg-rough-paper border border-stone-300/90 dark:border-slate-800 space-y-2.5 shadow-md">
-                <div className="flex items-center justify-between">
-                  <span className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    Target Tank (FIFO Sequence)
-                  </span>
-                  <span className="text-[10px] font-mono tabular-nums px-2 py-0.5 rounded bg-white/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold border border-stone-200 dark:border-slate-700">
-                    Oldest Active
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-3 p-2.5 rounded-xl bg-white/80 dark:bg-slate-950/60 border border-stone-200/80 dark:border-slate-800/80">
-                  <TankGauge
-                    productId={productId}
-                    remainingLitres={activeFifoTank.remaining_litres}
-                    totalCapacityLitres={15000}
-                    size="sm"
-                    showLabels={false}
-                  />
-                  <div className="space-y-0.5 text-[12px] font-sans">
-                    <div className="font-bold text-slate-900 dark:text-white truncate max-w-[180px]">
-                      {activeFifoTank.truck_label}
-                    </div>
-                    <div className="text-slate-500 text-[11px]">
-                      Stock in Tank: <span className="font-mono tabular-nums font-bold text-slate-800 dark:text-slate-200">{activeFifoTank.remaining_litres.toLocaleString()}L</span>
-                    </div>
-                    <div className="text-slate-500 text-[11px]">
-                      After Draw: <span className="font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100">
-                        {Math.max(0, activeFifoTank.remaining_litres - pricing.litres).toLocaleString()}L
-                      </span>
-                    </div>
-                  </div>
-                </div>
+            {paymentMethod === 'credit' && (
+              <div className="mt-2 p-2.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-[12px] font-sans text-amber-900 dark:text-amber-200 flex items-center justify-between">
+                <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> Due {formatDepotDate(creditDueDate)} ({selectedCustomer?.credit_term_days}d)</span>
+                {isCreditExceeded && <span className="font-bold text-rose-600 dark:text-rose-400">Over limit</span>}
               </div>
             )}
+
+            <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="Sale note / dispatch ref (optional)" className="mt-2 w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px] text-slate-900 dark:text-white" />
+          </section>
+        </div>
+
+        {/* ---------- RIGHT: LIVE SLIP ---------- */}
+        <div className="hidden split:block split:col-span-1 split:sticky split:top-4 self-start">
+          <SlipCard
+            productName={selectedProduct?.name || ''}
+            varietyName={selectedVariety?.name || null}
+            effectiveTier={effectiveTier}
+            effectiveRate={effectiveRate}
+            standardRate={standardRate}
+            litres={pricing.litres}
+            qty={parseFloat(qty) || 0}
+            unit={unit}
+            oilAmount={pricing.oilAmount}
+            kegAmount={pricing.kegAmount}
+            kegSource={kegSource}
+            kegUnitPrice={selectedProduct?.keg_sell_price || 0}
+            total={pricing.amount}
+            savings={savingsVsRetail}
+            customerName={selectedCustomer?.name || ''}
+            paymentLabel={paymentLabel}
+            cashierName={activeShift?.cashier_name || 'Counter'}
+            isDispensing={isDispensing}
+            disabled={gateLocked || isStockInsufficient || shortTender}
+            onDispense={() => runSale(overrideKegShortage, overrideCreditLimit)}
+          />
+        </div>
+      </form>
+
+      {/* ---------- MOBILE STICKY TOTAL + SLIP ---------- */}
+      <div className="split:hidden fixed bottom-16 left-0 right-0 z-30 px-4">
+        <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-3 flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] font-bold uppercase text-slate-400">Total</div>
+            <div className="text-[20px] font-mono tabular-nums font-black text-emerald-600 dark:text-emerald-400 leading-none">{formatNaira(pricing.amount)}</div>
           </div>
+          <button type="button" onClick={() => setMobileSlipOpen(true)} className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[12px] font-bold border border-slate-200 dark:border-slate-700">Slip</button>
+          <button
+            type="button"
+            disabled={isDispensing || gateLocked || isStockInsufficient || shortTender}
+            onClick={() => runSale(overrideKegShortage, overrideCreditLimit)}
+            className="px-4 py-2.5 rounded-xl bg-brand-500 text-slate-950 text-[13px] font-black disabled:opacity-50 flex items-center gap-1.5"
+          >
+            <Zap className="w-4 h-4" /> {isDispensing ? '...' : 'Dispense'}
+          </button>
         </div>
       </div>
 
-      {/* MODAL: QUICK RATES GLANCE MODAL */}
-      {isRatesGlanceOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-2xl rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-800">
-                  <Eye className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-heading font-bold text-[16px] text-slate-900 dark:text-white">
-                    Current Depot Rate Cards
-                  </h3>
-                  <p className="text-[12px] font-sans text-slate-500">
-                    Live rates per litre & per keg across customer tiers
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsRatesGlanceOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4 overflow-y-auto">
-              <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-100 dark:bg-slate-950 uppercase font-semibold text-slate-600 dark:text-slate-400 font-sans">
-                    <tr>
-                      <th className="px-4 py-3">Product</th>
-                      <th className="px-4 py-3">Customer Tier</th>
-                      <th className="px-4 py-3">Rate / Litre</th>
-                      <th className="px-4 py-3 text-right">Per-Keg Rate</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono tabular-nums">
-                    {products.map(p =>
-                      (['retail', 'agent', 'corporate'] as const).map(tier => {
-                        const rate = lookupRatePerLitre(rateCards, p.id, tier);
-                        const kegRate = rate * p.litres_per_keg;
-                        const isVeg = p.id === 'veg';
-
-                        return (
-                          <tr key={`${p.id}_${tier}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                            <td className="px-4 py-3 font-sans font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
-                              <span
-                                className="w-2.5 h-2.5 rounded-full"
-                                style={{ backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }}
-                              />
-                              <span>{p.name}</span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="px-2 py-0.5 rounded font-sans uppercase font-bold text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                                {tier}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 font-bold text-slate-900 dark:text-slate-100">
-                              ₦{rate.toLocaleString()}/L
-                            </td>
-                            <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                              {formatNaira(kegRate)} ({p.litres_per_keg}L)
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[12px] font-sans text-slate-600 dark:text-slate-400 flex items-center justify-between">
-                <span>Outright empty keg container price:</span>
-                <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
-                  ₦{(selectedProduct.keg_sell_price || 3500).toLocaleString()} per container
-                </span>
-              </div>
-            </div>
-
-            <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex justify-end bg-slate-50 dark:bg-slate-950">
-              <button
-                type="button"
-                onClick={() => setIsRatesGlanceOpen(false)}
-                className="px-4 py-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-sans font-semibold text-xs"
-              >
-                Close Rates Glance
-              </button>
-            </div>
+      {mobileSlipOpen && (
+        <div className="split:hidden fixed inset-0 z-50 flex items-end bg-slate-950/60 backdrop-blur-sm" onClick={() => setMobileSlipOpen(false)}>
+          <div className="w-full bg-transparent p-3" onClick={e => e.stopPropagation()}>
+            <SlipCard
+              productName={selectedProduct?.name || ''}
+              varietyName={selectedVariety?.name || null}
+              effectiveTier={effectiveTier}
+              effectiveRate={effectiveRate}
+              standardRate={standardRate}
+              litres={pricing.litres}
+              qty={parseFloat(qty) || 0}
+              unit={unit}
+              oilAmount={pricing.oilAmount}
+              kegAmount={pricing.kegAmount}
+              kegSource={kegSource}
+              kegUnitPrice={selectedProduct?.keg_sell_price || 0}
+              total={pricing.amount}
+              savings={savingsVsRetail}
+              customerName={selectedCustomer?.name || ''}
+              paymentLabel={paymentLabel}
+              cashierName={activeShift?.cashier_name || 'Counter'}
+              isDispensing={isDispensing}
+              disabled={gateLocked || isStockInsufficient || shortTender}
+              onDispense={() => runSale(overrideKegShortage, overrideCreditLimit)}
+            />
           </div>
         </div>
       )}
 
-      {/* MODAL 1: BLOCKING KEG SHORTAGE DECISION MODAL */}
-      {isKegShortageModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 shadow-2xl overflow-hidden flex flex-col">
-            <div className="p-5 border-b border-amber-200 dark:border-amber-900/60 flex items-center justify-between bg-amber-50/60 dark:bg-amber-950/40">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-heading font-bold text-[16px] text-slate-900 dark:text-white">
-                    Authorize Keg Shortage Dispatch
-                  </h3>
-                  <p className="text-[12px] font-sans text-amber-800 dark:text-amber-300">
-                    Yard inventory below safety threshold
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsKegShortageModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4 text-[13px] font-sans">
-              <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 space-y-2">
-                <div className="flex justify-between font-mono tabular-nums">
-                  <span className="font-sans text-slate-600 dark:text-slate-400">Requested Kegs:</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{qty} kegs</span>
-                </div>
-                <div className="flex justify-between font-mono tabular-nums">
-                  <span className="font-sans text-slate-600 dark:text-slate-400">Available at Depot Yard:</span>
-                  <span className="font-bold text-amber-700 dark:text-amber-400">{kegInventory.kegsAtDepot} kegs</span>
-                </div>
-                <div className="flex justify-between font-mono tabular-nums border-t border-amber-200 dark:border-amber-900/60 pt-1.5">
-                  <span className="font-sans text-slate-600 dark:text-slate-400">Depot Safety Threshold:</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{settings.kegs_at_depot_low_threshold} kegs</span>
-                </div>
-              </div>
-
-              <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-[12px]">
-                Discharging this sale will exhaust yard safety reserves. Are you authorized by management to release these returnable containers?
-              </p>
-
-              <div className="pt-2 flex flex-col sm:flex-row gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsKegShortageModalOpen(false)}
-                  className="w-full sm:w-1/2 py-2.5 px-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-sans font-medium text-[13px] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                >
-                  Cancel / Adjust Qty
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOverrideKegShortage(true);
-                    setIsKegShortageModalOpen(false);
-                    submitOrder(true, overrideCreditLimit);
-                  }}
-                  className="w-full sm:w-1/2 py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-sans font-bold text-[13px] shadow-sm transition-all"
-                >
-                  Authorize & Dispense
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* ---------- KEG SHORTAGE MODAL ---------- */}
+      {kegShortageModal && (
+        <DecisionModal
+          tone="amber"
+          title="Yard keg reserve is low"
+          onCancel={() => setKegShortageModal(false)}
+          onConfirm={() => { setOverrideKegShortage(true); setKegShortageModal(false); runSale(true, overrideCreditLimit); }}
+          confirmLabel="Authorise & dispense"
+          rows={[
+            ['Company kegs requested', `${qty}`],
+            ['Available in yard', `${kegInventory.kegsAtDepot}`],
+            ['Safety threshold', `${settings.kegs_at_depot_low_threshold}`]
+          ]}
+          body="This sale takes the yard below its safety reserve of returnable containers. Continue only if authorised."
+        />
       )}
 
-      {/* MODAL 2: BLOCKING CREDIT LIMIT OVERRIDE DECISION MODAL */}
-      {isCreditOverrideModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-rose-300 dark:border-rose-700 shadow-2xl overflow-hidden flex flex-col">
-            <div className="p-5 border-b border-rose-200 dark:border-rose-900/60 flex items-center justify-between bg-rose-50/60 dark:bg-rose-950/40">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-700">
-                  <AlertCircle className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-heading font-bold text-[16px] text-slate-900 dark:text-white">
-                    Authorize Credit Cap Breach
-                  </h3>
-                  <p className="text-[12px] font-sans text-rose-800 dark:text-rose-300">
-                    Customer exceeds authorized ceiling
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCreditOverrideModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4 text-[13px] font-sans">
-              <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 space-y-2">
-                <div className="flex justify-between font-mono tabular-nums">
-                  <span className="font-sans text-slate-600 dark:text-slate-400">Customer:</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{selectedCustomer.name}</span>
-                </div>
-                <div className="flex justify-between font-mono tabular-nums">
-                  <span className="font-sans text-slate-600 dark:text-slate-400">Current Outstanding:</span>
-                  <span className="font-bold text-slate-900 dark:text-white">
-                    {formatNaira(customerStats?.currentBalance || 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between font-mono tabular-nums">
-                  <span className="font-sans text-slate-600 dark:text-slate-400">This Sale Value:</span>
-                  <span className="font-bold text-rose-600 dark:text-rose-400">+{formatNaira(pricing.amount)}</span>
-                </div>
-                <div className="flex justify-between font-mono tabular-nums border-t border-rose-200 dark:border-rose-900/60 pt-1.5">
-                  <span className="font-sans text-slate-600 dark:text-slate-400">Projected Balance:</span>
-                  <span className="font-bold text-rose-700 dark:text-rose-400">
-                    {formatNaira((customerStats?.currentBalance || 0) + pricing.amount)}
-                  </span>
-                </div>
-                <div className="flex justify-between font-mono tabular-nums">
-                  <span className="font-sans text-slate-600 dark:text-slate-400">Approved Credit Limit:</span>
-                  <span className="font-bold text-slate-700 dark:text-slate-300">
-                    {formatNaira(selectedCustomer.credit_limit)}
-                  </span>
-                </div>
-                <div className="flex justify-between font-mono tabular-nums text-rose-700 dark:text-rose-400 font-bold border-t border-rose-200 dark:border-rose-900/60 pt-1.5">
-                  <span className="font-sans">Excess Over Limit:</span>
-                  <span>
-                    +{formatNaira(Math.max(0, (customerStats?.currentBalance || 0) + pricing.amount - selectedCustomer.credit_limit))}
-                  </span>
-                </div>
-              </div>
-
-              <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-[12px]">
-                Dispensing this credit sale requires management authorization. Authorize override and register invoice to accounts receivable?
-              </p>
-
-              <div className="pt-2 flex flex-col sm:flex-row gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsCreditOverrideModalOpen(false)}
-                  className="w-full sm:w-1/2 py-2.5 px-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-sans font-medium text-[13px] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                >
-                  Switch to Cash / Transfer
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOverrideCreditLimit(true);
-                    setIsCreditOverrideModalOpen(false);
-                    submitOrder(overrideKegShortage, true);
-                  }}
-                  className="w-full sm:w-1/2 py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-sans font-bold text-[13px] shadow-sm transition-all"
-                >
-                  Authorize Manager Override
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* ---------- CREDIT LIMIT MODAL ---------- */}
+      {creditModal && (
+        <DecisionModal
+          tone="rose"
+          title="Sale goes over the credit limit"
+          onCancel={() => setCreditModal(false)}
+          onConfirm={() => { setOverrideCreditLimit(true); setCreditModal(false); runSale(overrideKegShortage, true); }}
+          confirmLabel="Authorise manager override"
+          rows={[
+            ['Customer', selectedCustomer?.name || ''],
+            ['Current owed', formatNaira(customerStats?.currentBalance || 0)],
+            ['This sale', `+${formatNaira(pricing.amount)}`],
+            ['Projected owed', formatNaira((customerStats?.currentBalance || 0) + pricing.amount)],
+            ['Approved limit', formatNaira(selectedCustomer?.credit_limit || 0)]
+          ]}
+          body="Recording this credit sale needs management authorisation."
+        />
       )}
     </div>
   );
 };
+
+// ---------------------------------------------------------------------------
+
+const StepHeader: React.FC<{ n: number; title: string; sub: string; right?: React.ReactNode }> = ({ n, title, sub, right }) => (
+  <div className="flex items-center justify-between mb-3">
+    <div className="flex items-center gap-2.5">
+      <span className="w-7 h-7 rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-black flex items-center justify-center">{n}</span>
+      <div>
+        <h3 className="text-[14px] font-heading font-bold text-slate-900 dark:text-white leading-tight">{title}</h3>
+        <p className="text-[11px] text-slate-500">{sub}</p>
+      </div>
+    </div>
+    {right}
+  </div>
+);
+
+interface SlipProps {
+  productName: string;
+  varietyName: string | null;
+  effectiveTier: CustomerType;
+  effectiveRate: number;
+  standardRate: number;
+  litres: number;
+  qty: number;
+  unit: UnitType;
+  oilAmount: number;
+  kegAmount: number;
+  kegSource: KegSource;
+  kegUnitPrice: number;
+  total: number;
+  savings: number;
+  customerName: string;
+  paymentLabel: string;
+  cashierName: string;
+  isDispensing: boolean;
+  disabled: boolean;
+  onDispense: () => void;
+}
+
+const SlipCard: React.FC<SlipProps> = (p) => (
+  <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl p-5">
+    <div className="text-center pb-3 border-b-2 border-dashed border-slate-200 dark:border-slate-800">
+      <span className="inline-block bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-black text-[10px] tracking-widest px-2.5 py-0.5 rounded uppercase">
+        Live dispense slip
+      </span>
+      <div className="text-[13px] font-heading font-black text-slate-900 dark:text-white mt-1.5">IYANUOLUWA OIL DEPOT</div>
+      <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+        {p.cashierName} · {formatDepotDate(new Date().toISOString())}
+      </div>
+    </div>
+
+    <div className="py-3 space-y-2.5 text-[12px]">
+      <div className="flex justify-between items-start gap-2">
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold text-slate-400 uppercase">Commodity &amp; rate</div>
+          <div className="font-heading font-bold text-slate-900 dark:text-white truncate">{p.productName}</div>
+          {p.varietyName && <div className="text-[10px] font-bold text-amber-700 dark:text-amber-400">{p.varietyName}</div>}
+          <div className="text-[9px] font-black uppercase mt-0.5 inline-block bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded">{p.effectiveTier} tier</div>
+        </div>
+        <div className="text-right shrink-0">
+          <span className="font-mono font-black text-emerald-700 dark:text-emerald-400">₦{p.effectiveRate.toLocaleString()}/L</span>
+          {p.effectiveRate < p.standardRate && (
+            <span className="block text-[9px] text-slate-400 line-through">₦{p.standardRate.toLocaleString()}/L</span>
+          )}
+        </div>
+      </div>
+
+      <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800">
+        <div>
+          <div className="text-[10px] font-semibold text-slate-400 uppercase">Volume billed</div>
+          <div className="font-bold text-slate-800 dark:text-slate-200">{p.litres.toLocaleString()} L</div>
+        </div>
+        <span className="font-mono font-black text-slate-900 dark:text-white">{formatNaira(p.oilAmount)}</span>
+      </div>
+
+      {p.kegSource === 'purchased' && p.kegAmount > 0 && (
+        <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800">
+          <div>
+            <div className="text-[10px] font-semibold text-slate-400 uppercase">Container surcharge</div>
+            <div className="font-medium text-amber-700 dark:text-amber-400">{p.qty} × {formatNaira(p.kegUnitPrice)}</div>
+          </div>
+          <span className="font-mono font-bold text-amber-700 dark:text-amber-400">+{formatNaira(p.kegAmount)}</span>
+        </div>
+      )}
+
+      <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800">
+        <div>
+          <div className="text-[10px] font-semibold text-slate-400 uppercase">Buyer &amp; settlement</div>
+          <div className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[160px]">{p.customerName}</div>
+        </div>
+        <span className="text-[10px] font-bold bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800 px-2 py-0.5 rounded">{p.paymentLabel}</span>
+      </div>
+    </div>
+
+    <div className="border-t-2 border-dashed border-slate-300 dark:border-slate-700 my-2" />
+
+    <div className="bg-slate-50 dark:bg-slate-950 rounded-xl p-3.5 border border-slate-200 dark:border-slate-800 text-center my-2">
+      <div className="flex items-center justify-center gap-2 mb-1">
+        <span className="text-[10px] font-black tracking-widest uppercase text-slate-500">Total amount</span>
+        {p.savings > 0 && (
+          <span className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-[9px] font-black px-1.5 py-0.5 rounded-full">
+            Saves {formatNaira(p.savings)}
+          </span>
+        )}
+      </div>
+      <div className="text-3xl font-black tracking-tight text-slate-900 dark:text-white font-mono">{formatNaira(p.total)}</div>
+      <p className="text-[10px] font-semibold text-slate-500 mt-0.5">{formatNairaWords(p.total)}</p>
+    </div>
+
+    <button
+      type="button"
+      disabled={p.isDispensing || p.disabled}
+      onClick={p.onDispense}
+      className="mt-2 w-full bg-brand-500 hover:bg-brand-400 active:scale-[0.99] text-slate-950 font-black text-[15px] py-3.5 rounded-2xl shadow-lg shadow-brand-500/25 flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+    >
+      <Zap className={`w-5 h-5 ${p.isDispensing ? 'animate-spin' : ''}`} />
+      <span className="uppercase tracking-wide">{p.isDispensing ? 'Processing…' : 'Dispense oil & print slip'}</span>
+    </button>
+  </div>
+);
+
+const DecisionModal: React.FC<{
+  tone: 'amber' | 'rose';
+  title: string;
+  body: string;
+  rows: [string, string][];
+  confirmLabel: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}> = ({ tone, title, body, rows, confirmLabel, onCancel, onConfirm }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-sm">
+    <div className={`w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border shadow-2xl overflow-hidden ${tone === 'amber' ? 'border-amber-300 dark:border-amber-700' : 'border-rose-300 dark:border-rose-700'}`}>
+      <div className={`p-4 border-b flex items-center gap-2.5 ${tone === 'amber' ? 'bg-amber-50/60 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60' : 'bg-rose-50/60 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900/60'}`}>
+        {tone === 'amber' ? <AlertTriangle className="w-5 h-5 text-amber-600" /> : <AlertCircle className="w-5 h-5 text-rose-600" />}
+        <h3 className="font-heading font-bold text-[15px] text-slate-900 dark:text-white">{title}</h3>
+      </div>
+      <div className="p-4 space-y-3 text-[13px]">
+        <div className={`p-3 rounded-xl space-y-1.5 ${tone === 'amber' ? 'bg-amber-50 dark:bg-amber-950/30' : 'bg-rose-50 dark:bg-rose-950/30'}`}>
+          {rows.map(([k, v]) => (
+            <div key={k} className="flex justify-between font-mono tabular-nums">
+              <span className="font-sans text-slate-600 dark:text-slate-400">{k}</span>
+              <span className="font-bold text-slate-900 dark:text-white">{v}</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-[12px] text-slate-600 dark:text-slate-300">{body}</p>
+        <div className="flex gap-2 pt-1">
+          <button type="button" onClick={onCancel} className="flex-1 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-[13px] font-medium hover:bg-slate-100 dark:hover:bg-slate-800">
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className={`flex-1 py-2.5 rounded-xl text-white text-[13px] font-bold ${tone === 'amber' ? 'bg-amber-500 hover:bg-amber-400 text-slate-950' : 'bg-rose-600 hover:bg-rose-500'}`}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+);

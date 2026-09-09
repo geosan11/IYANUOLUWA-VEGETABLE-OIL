@@ -27,7 +27,8 @@ import {
   ChevronRight,
   Phone,
   MessageSquare,
-  ChevronDown
+  ChevronDown,
+  Sparkles
 } from 'lucide-react';
 
 interface DashboardScreenProps {
@@ -52,7 +53,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     closeShift,
     customers,
     customerStatsMap,
-    products
+    products,
+    userRole
   } = useStore();
 
   const vegStock = tankStockByProduct['veg']?.totalLitres || 0;
@@ -265,13 +267,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-white via-slate-50 to-brand-50/50 dark:from-slate-900 dark:via-slate-900/90 dark:to-brand-950/40 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div>
           <h2 className="text-[24px] font-heading font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            <span>Depot Operational Command</span>
+            <span>Today at the depot</span>
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-sans font-semibold bg-brand-100 dark:bg-brand-500/20 text-brand-700 dark:text-brand-300 border border-brand-300 dark:border-brand-500/30">
               Live Real-Time
             </span>
           </h2>
           <p className="text-[14px] font-sans text-slate-500 dark:text-slate-400 mt-1">
-            Volumetric tank inventory, credit aging ledger, pump meter audit, and container tracking for Lagos operations.
+            Oil in the tanks, who owes money, pump checks, and keg tracking — all in one place.
           </p>
         </div>
 
@@ -293,6 +295,37 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           </button>
         </div>
       </div>
+
+      {/* EXECUTIVE AI INTELLIGENCE BANNER (OWNER ONLY) */}
+      {userRole === 'owner' && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-brand-950 text-white border border-slate-800 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-brand-500/20 text-brand-400 border border-brand-500/30 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-sm text-white tracking-wide">
+                  Executive AI Operations Advisor
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-brand-500/20 text-brand-400 border border-brand-500/30">
+                  Gemini & Claude
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Run on-demand audits across tank depletion runway, pump variances, and customer credit exposure.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onNavigate('ai-advisor')}
+            className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 active:scale-95 text-slate-950 font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 flex-shrink-0"
+          >
+            <span>Open Executive AI Hub</span>
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* SHIFT HANDOVER & CASH RECONCILIATION BANNER */}
       <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm transition-all">
@@ -327,7 +360,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-heading font-bold text-[16px] text-slate-900 dark:text-white">
-                  {activeShift ? 'Counter Cashier Shift Active' : 'No Active Counter Shift'}
+                  {activeShift ? 'Shift open' : 'No shift open'}
                 </span>
                 {activeShift ? (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-sans font-semibold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
@@ -343,8 +376,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
               <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
                 {activeShift
-                  ? `Cashier: ${activeShift.cashier_name || 'Counter Staff'} · Started at ${formatDepotTime(activeShift.start_time)} · Live cash drawer tracking`
-                  : 'Start a daily shift to log opening float and reconcile physical cash drawer balance against counter sales.'}
+                  ? `Cashier: ${activeShift.cashier_name || 'Counter Staff'} · Started ${formatDepotTime(activeShift.start_time)} · Cash is being tracked live`
+                  : 'Start a shift to record the opening cash and check the drawer against sales at the end.'}
               </p>
             </div>
           </div>
@@ -400,7 +433,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 className="px-3.5 py-2 text-[12px] font-sans font-semibold rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 hover:border-rose-300 dark:border-rose-800 transition-all shadow-sm flex items-center gap-1.5"
               >
                 <Banknote className="w-3.5 h-3.5" />
-                <span>Reconcile & Close Shift</span>
+                <span>Count cash & end shift</span>
               </button>
             ) : (
               <button
@@ -659,7 +692,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
                 <div className="space-y-1.5 text-[12px] font-mono tabular-nums">
                   <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                    <span className="font-sans">Cumulative Meter:</span>
+                    <span className="font-sans">Pump total:</span>
                     <span className="font-bold text-slate-900 dark:text-slate-100">
                       {pump.last_meter_reading.toLocaleString()} L
                     </span>
@@ -689,7 +722,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   Golden Vegetable Oil Tanks
                 </h3>
                 <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400">
-                  Standard Density: ~1,090 L/Ton · FIFO Draw Sequence
+                  About 1,090 L per ton · oldest tank used first
                 </p>
               </div>
             </div>
@@ -766,7 +799,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   Red / Palm Oil Tanks
                 </h3>
                 <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400">
-                  Standard Density: ~1,085 L/Ton · FIFO Draw Sequence
+                  About 1,085 L per ton · oldest tank used first
                 </p>
               </div>
             </div>
@@ -839,12 +872,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <div className="flex items-center justify-between">
           <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-amber-500" />
-            <span>Active Risk Signals & Operational Alerts</span>
+            <span>Things that need attention</span>
           </h3>
           <span className="text-[12px] font-sans text-slate-500 dark:text-slate-400">
             {activeAlerts.totalAlertCount === 0
-              ? 'All systems within normal thresholds'
-              : `${activeAlerts.totalAlertCount} alerts requiring counter attention`}
+              ? 'Nothing needs attention right now'
+              : `${activeAlerts.totalAlertCount} to check`}
           </span>
         </div>
 
@@ -852,7 +885,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <div className="sm:hidden space-y-2.5">
           {allAlertsList.length === 0 ? (
             <div className="p-4 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 text-center text-[12px] font-sans text-slate-500 dark:text-slate-400">
-              All systems operating within normal thresholds.
+              Nothing needs attention right now.
             </div>
           ) : (
             <>
@@ -1290,7 +1323,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 </div>
                 <div>
                   <h3 className="font-heading font-bold text-[16px] text-slate-900 dark:text-white">
-                    Shift Reconciliation & Closeout
+                    Count cash & end shift
                   </h3>
                   <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400">
                     Cashier: {activeShift.cashier_name || 'Counter Staff'} · Started at {formatDepotTime(activeShift.start_time)}

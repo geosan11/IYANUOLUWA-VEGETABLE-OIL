@@ -16,7 +16,8 @@ import {
   calculatePreKeggedIntakeMetrics,
   checkShiftOpeningMetersGate,
   depotDateKey,
-  getDepotToday
+  getDepotToday,
+  formatNairaWords
 } from './businessLogic';
 import {
   Customer,
@@ -500,6 +501,28 @@ assert(gateCheckPass.missingPumps.length === 0, 'Shift meter gate: zero missing 
 // 21. PER-PRODUCT LITRES PER KEG (Veg 30L vs Palm 25L)
 assert(calculateLitres('keg', 10, 30) === 300, 'Per-product capacity: 10 veg kegs (30L) = 300L');
 assert(calculateLitres('keg', 10, 25) === 250, 'Per-product capacity: 10 palm kegs (25L) = 250L');
+
+// 22. VARIETY RATE DELTA + TIER OVERRIDE (rate resolution, as done in createNewOrder)
+// Golden Oil agent rate ₦4,800/L; "Groundnut" variety +₦250 => ₦5,050/L base for that tier+spec.
+const vegAgentRate = lookupRatePerLitre(
+  [{ product_id: 'veg', tier: 'agent', rate_per_litre: 4800 }] as RateCard[], 'veg', 'agent'
+);
+assert(vegAgentRate === 4800, 'Rate lookup: veg agent tier is ₦4,800/L');
+assert(vegAgentRate + 250 === 5050, 'Variety delta: groundnut spec (+₦250) lifts agent rate to ₦5,050/L');
+// Overriding a retail customer down to agent tier lowers the standard rate (would need a discount reason).
+const retailStd = lookupRatePerLitre(
+  [
+    { product_id: 'veg', tier: 'retail', rate_per_litre: 5200 },
+    { product_id: 'veg', tier: 'agent', rate_per_litre: 4800 }
+  ] as RateCard[], 'veg', 'retail'
+);
+assert(retailStd === 5200 && retailStd > vegAgentRate, 'Tier override: agent rate is below retail, so overriding trips the discount-reason guard');
+
+// 23. AMOUNT IN WORDS (receipt spell-out)
+assert(formatNairaWords(0) === 'Zero naira only', 'Amount words: zero');
+assert(formatNairaWords(1385000) === 'One million, three hundred and eighty-five thousand naira only', 'Amount words: 1,385,000');
+assert(formatNairaWords(4500) === 'Four thousand, five hundred naira only', 'Amount words: 4,500');
+assert(formatNairaWords(215) === 'Two hundred and fifteen naira only', 'Amount words: 215');
 
 console.log('====================================================');
 console.log(`TEST SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);

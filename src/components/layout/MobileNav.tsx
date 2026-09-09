@@ -10,7 +10,8 @@ import {
   Settings,
   X,
   Sun,
-  Moon
+  Moon,
+  Sparkles
 } from 'lucide-react';
 
 interface MobileNavProps {
@@ -38,6 +39,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
 
   const allNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    ...(userRole === 'owner' ? [{ id: 'ai-advisor', label: 'AI Operations Advisor', icon: Sparkles }] : []),
     { id: 'intake', label: 'Truck Intake', icon: Truck },
     { id: 'order', label: 'New Sale', icon: PlusCircle },
     { id: 'customers', label: 'Customers & Credit', icon: Users, badge: activeAlerts.overdueCredit.length },

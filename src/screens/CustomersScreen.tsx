@@ -222,10 +222,10 @@ export const CustomersScreen: React.FC = () => {
         <div>
           <h2 className="text-[24px] font-heading font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             <Users className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-            <span>Customer Accounts & Aging Invoices</span>
+            <span>Customers & credit</span>
           </h2>
           <p className="text-[14px] font-sans text-slate-500 dark:text-slate-400 mt-1">
-            Real aging invoice tracking, FIFO credit payments, and customer keg ledger balances.
+            See who owes money, record payments (oldest invoice first), and keg balances.
           </p>
         </div>
 
@@ -670,7 +670,7 @@ export const CustomersScreen: React.FC = () => {
                     <Receipt className="w-4 h-4 text-brand-600 dark:text-brand-400" />
                     <span>Open Credit Invoices ({activeStats?.openOrders.length || 0})</span>
                   </span>
-                  <span className="text-[10px] text-slate-500 font-mono">FIFO Liquidation</span>
+                  <span className="text-[10px] text-slate-500 font-mono">Oldest first</span>
                 </div>
 
                 {activeStats?.openOrders && activeStats.openOrders.length > 0 ? (
@@ -874,7 +874,7 @@ export const CustomersScreen: React.FC = () => {
               </div>
 
               <div className="text-[11px] font-sans text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
-                Payment will be automatically credited to the customer's oldest open invoices first (FIFO).
+                The payment clears the oldest unpaid invoices first.
               </div>
 
               <button
@@ -1233,7 +1233,7 @@ export const CustomersScreen: React.FC = () => {
               <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                 <div className="flex items-center justify-between text-[12px] font-sans font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                   <span>Open Invoices ({stats?.openOrders.length || 0})</span>
-                  <span className="text-[11px] text-slate-500 font-normal">FIFO Settlement</span>
+                  <span className="text-[11px] text-slate-500 font-normal">Oldest first</span>
                 </div>
 
                 {stats?.openOrders.length === 0 ? (

@@ -581,6 +581,54 @@ export function formatNaira(amount: number): string {
 }
 
 /**
+ * Spell a Naira amount in words for receipts, e.g. 1385000 -> "One million,
+ * three hundred and eighty-five thousand naira only". Kobo is rounded off.
+ */
+export function formatNairaWords(amount: number): string {
+  const n = Math.round(Math.abs(Number(amount) || 0));
+  if (n === 0) return 'Zero naira only';
+
+  const ones = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
+    'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+  const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+
+  const under1000 = (num: number): string => {
+    let out = '';
+    if (num >= 100) {
+      out += ones[Math.floor(num / 100)] + ' hundred';
+      num %= 100;
+      if (num) out += ' and ';
+    }
+    if (num >= 20) {
+      out += tens[Math.floor(num / 10)];
+      if (num % 10) out += '-' + ones[num % 10];
+    } else if (num > 0) {
+      out += ones[num];
+    }
+    return out;
+  };
+
+  const scales = [
+    { value: 1_000_000_000, name: 'billion' },
+    { value: 1_000_000, name: 'million' },
+    { value: 1_000, name: 'thousand' }
+  ];
+
+  let remainder = n;
+  const parts: string[] = [];
+  for (const { value, name } of scales) {
+    if (remainder >= value) {
+      parts.push(under1000(Math.floor(remainder / value)) + ' ' + name);
+      remainder %= value;
+    }
+  }
+  if (remainder > 0) parts.push(under1000(remainder));
+
+  const words = parts.join(', ');
+  return words.charAt(0).toUpperCase() + words.slice(1) + ' naira only';
+}
+
+/**
  * Format date for depot displays (pinned to Lagos time)
  */
 export function formatDepotDate(dateStr: string | null | undefined): string {

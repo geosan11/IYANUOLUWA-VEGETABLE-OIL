@@ -1,9 +1,17 @@
 export type CustomerType = 'retail' | 'agent' | 'corporate';
 export type UnitType = 'litre' | 'keg' | 'ton';
-export type PaymentMethod = 'cash' | 'transfer' | 'credit';
+export type PaymentMethod = 'cash' | 'transfer' | 'credit' | 'pos';
 export type KegSource = 'company' | 'own' | 'purchased' | null;
 export type UserRole = 'owner' | 'staff' | 'driver';
 export type SupplyModel = 'bulk_truck' | 'pre_kegged';
+
+/** A grade / spec of a product actually in the tank (e.g. "Pure Soya", "Groundnut Blend"). */
+export interface ProductVariety {
+  id: string;
+  name: string;
+  /** Added to the tier rate/litre for this variety (0 = standard). May be negative. */
+  rate_delta_per_litre: number;
+}
 
 export interface Product {
   id: string; // 'veg' | 'red' | custom string
@@ -12,6 +20,7 @@ export interface Product {
   litres_per_ton: number | null; // null for pre_kegged
   litres_per_keg: number; // now PER-PRODUCT
   keg_sell_price: number | null; // price to sell physical container outright
+  varieties?: ProductVariety[]; // selectable specs; first entry is the default
   color_light: string;
   color_dark: string;
 }
@@ -107,6 +116,9 @@ export interface Order {
   keg_price?: number | null;
   keg_amount?: number | null;
   discount_reason?: string | null;
+  pricing_tier?: CustomerType | null; // tier the rate was drawn from (may be overridden at the counter)
+  variety_id?: string | null;
+  variety_name?: string | null;
   date: string;
   due_date: string | null;
   source_tank_id: string | null;
@@ -264,6 +276,10 @@ export interface ReceiptData {
   kegPrice?: number | null;
   kegAmount?: number | null;
   discountReason?: string | null;
+  varietyName?: string | null;
+  pricingTier?: CustomerType | null;
+  amountTendered?: number | null;
+  changeDue?: number | null;
   paymentAmount?: number;
   paymentMethod: PaymentMethod;
   previousBalance: number;

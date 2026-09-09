@@ -72,10 +72,10 @@ export const ExpensesScreen: React.FC = () => {
         <div>
           <h2 className="text-[24px] font-heading font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             <ReceiptText className="w-5 h-5 text-slate-600 dark:text-slate-300" />
-            <span>Petty Cash Float & Depot Expenses</span>
+            <span>Cash box & expenses</span>
           </h2>
           <p className="text-[14px] font-sans text-slate-500 dark:text-slate-400 mt-1">
-            Real-time daily float reconciliation, categorized depot disbursements, and cash register audits.
+            Track the cash box: what came in, what was spent, and what is left.
           </p>
         </div>
       </div>
@@ -100,7 +100,7 @@ export const ExpensesScreen: React.FC = () => {
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 flex flex-col justify-between shadow-sm">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[12px] font-sans font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Opening Petty Cash Float
+              Cash in the box at start of day
             </span>
             <button
               onClick={() => {
@@ -140,7 +140,7 @@ export const ExpensesScreen: React.FC = () => {
           )}
 
           <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-2">
-            Authorized daily cash in hand at start of shift.
+            Cash placed in the box at the start of the day.
           </div>
         </div>
 
@@ -156,7 +156,7 @@ export const ExpensesScreen: React.FC = () => {
             {formatNaira(todayStats.expensesToday)}
           </div>
           <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-2">
-            <span className="font-mono tabular-nums font-semibold">{todayExpenses.length}</span> itemized vouchers disbursed today.
+            <span className="font-mono tabular-nums font-semibold">{todayExpenses.length}</span> payments recorded today.
           </div>
         </div>
 

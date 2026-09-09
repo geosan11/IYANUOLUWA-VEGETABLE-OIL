@@ -25,7 +25,7 @@ import {
   Edit2,
   X
 } from 'lucide-react';
-import { UserRole, SupplyModel } from '../types';
+import { UserRole, SupplyModel, ProductVariety } from '../types';
 import { BottomSheet } from '../components/common/BottomSheet';
 
 export const SettingsScreen: React.FC = () => {
@@ -91,6 +91,7 @@ export const SettingsScreen: React.FC = () => {
   const [newProductLitresPerKeg, setNewProductLitresPerKeg] = useState('30');
   const [newProductLitresPerTon, setNewProductLitresPerTon] = useState('1075');
   const [newProductKegSellPrice, setNewProductKegSellPrice] = useState('3500');
+  const [newProductVarieties, setNewProductVarieties] = useState<{ id: string; name: string; delta: string }[]>([]);
 
   // Add Physical Tank Form State
   const [newTankLabel, setNewTankLabel] = useState('');
@@ -197,13 +198,22 @@ export const SettingsScreen: React.FC = () => {
     const lPerKeg = parseFloat(newProductLitresPerKeg) || 30;
     const lPerTon = newProductModel === 'bulk_truck' ? (parseFloat(newProductLitresPerTon) || 1075) : null;
 
+    const varieties: ProductVariety[] = newProductVarieties
+      .filter(v => v.name.trim())
+      .map(v => ({
+        id: v.id,
+        name: v.name.trim(),
+        rate_delta_per_litre: Math.round(parseFloat(v.delta) || 0)
+      }));
+
     if (editingProductId) {
       updateProduct(editingProductId, {
         name: newProductName.trim(),
         supply_model: newProductModel,
         litres_per_keg: lPerKeg,
         litres_per_ton: lPerTon,
-        keg_sell_price: kegSell
+        keg_sell_price: kegSell,
+        varieties: varieties.length ? varieties : undefined
       });
       showNotification(`Product ${newProductName.trim()} updated successfully.`);
     } else {
@@ -213,6 +223,7 @@ export const SettingsScreen: React.FC = () => {
         litres_per_keg: lPerKeg,
         litres_per_ton: lPerTon,
         keg_sell_price: kegSell,
+        varieties: varieties.length ? varieties : undefined,
         color_light: newProductModel === 'bulk_truck' ? '#FEF3C7' : '#FEE2E2',
         color_dark: newProductModel === 'bulk_truck' ? '#78350F' : '#7F1D1D'
       });
@@ -233,6 +244,9 @@ export const SettingsScreen: React.FC = () => {
     setNewProductLitresPerKeg(p.litres_per_keg.toString());
     setNewProductLitresPerTon(p.litres_per_ton ? p.litres_per_ton.toString() : '1075');
     setNewProductKegSellPrice(p.keg_sell_price ? p.keg_sell_price.toString() : '3500');
+    setNewProductVarieties(
+      (p.varieties || []).map(v => ({ id: v.id, name: v.name, delta: v.rate_delta_per_litre.toString() }))
+    );
     setIsProductModalOpen(true);
   };
 
@@ -243,6 +257,7 @@ export const SettingsScreen: React.FC = () => {
     setNewProductLitresPerKeg('30');
     setNewProductLitresPerTon('1075');
     setNewProductKegSellPrice('3500');
+    setNewProductVarieties([]);
     setIsProductModalOpen(true);
   };
 
@@ -382,7 +397,7 @@ export const SettingsScreen: React.FC = () => {
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-heading font-bold text-slate-900 dark:text-white text-[14px] truncate">
-                Products & Rate Card Matrix
+                Products & prices
               </div>
               <div className="text-[12px] font-sans text-slate-500 truncate mt-0.5">
                 {products.length} managed products · 3 customer tiers
@@ -758,7 +773,7 @@ export const SettingsScreen: React.FC = () => {
                 <div>
                   <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                     <DollarSign className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-                    <span>3. Managed Products Catalog & Rate Cards</span>
+                    <span>3. Products & prices</span>
                   </h3>
                   <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
                     Configure supply models (Bulk Truck vs Pre-Kegged), container sizes, outright keg purchase prices, and pricing tiers.
@@ -830,7 +845,7 @@ export const SettingsScreen: React.FC = () => {
                           <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                             <span className="text-[10px] font-sans uppercase text-slate-500 block">Supply Model</span>
                             <span className="font-bold text-slate-900 dark:text-white">
-                              {p.supply_model === 'bulk_truck' ? 'Bulk Truck Offload' : 'Pre-Kegged Delivery'}
+                              {p.supply_model === 'bulk_truck' ? 'By tanker truck' : 'Already in kegs'}
                             </span>
                           </div>
                           <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
@@ -852,6 +867,17 @@ export const SettingsScreen: React.FC = () => {
                             </span>
                           </div>
                         </div>
+
+                        {p.varieties && p.varieties.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {p.varieties.map(v => (
+                              <span key={v.id} className="text-[10px] font-sans px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                {v.name}
+                                {v.rate_delta_per_litre ? ` (${v.rate_delta_per_litre > 0 ? '+' : ''}₦${v.rate_delta_per_litre})` : ''}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -862,7 +888,7 @@ export const SettingsScreen: React.FC = () => {
               <form onSubmit={handleSaveProductsAndPricing} className="space-y-4 pt-2 border-t border-slate-200 dark:border-slate-800">
                 <div className="text-[15px] font-sans font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                   <Sliders className="w-4 h-4 text-slate-400" />
-                  <span>Rate Card Matrix (Product x Customer Tier)</span>
+                  <span>Prices by product and customer type</span>
                 </div>
 
                 <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
@@ -1225,7 +1251,7 @@ export const SettingsScreen: React.FC = () => {
               {/* Default Daily Float Form */}
               <form onSubmit={handleSaveDailyFloat} className="space-y-3">
                 <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                  Default Opening Daily Petty Cash Float (₦)
+                  Default cash in the box each morning (₦)
                 </label>
                 <div className="relative max-w-sm">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₦</span>
@@ -1355,7 +1381,7 @@ export const SettingsScreen: React.FC = () => {
                         : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
                     }`}
                   >
-                    <div className="text-[13px] font-bold">Bulk Truck Offload</div>
+                    <div className="text-[13px] font-bold">By tanker truck</div>
                     <div className="text-[11px] opacity-80 mt-0.5">Arrives in tons, offloaded to kegs</div>
                   </button>
 
@@ -1368,7 +1394,7 @@ export const SettingsScreen: React.FC = () => {
                         : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
                     }`}
                   >
-                    <div className="text-[13px] font-bold">Pre-Kegged Delivery</div>
+                    <div className="text-[13px] font-bold">Already in kegs</div>
                     <div className="text-[11px] opacity-80 mt-0.5">Arrives in sealed physical kegs</div>
                   </button>
                 </div>
@@ -1444,6 +1470,73 @@ export const SettingsScreen: React.FC = () => {
                 <span className="text-[10px] text-slate-500 font-sans block mt-0.5">
                   Distinct price charged to customers purchasing the physical empty keg outright
                 </span>
+              </div>
+
+              {/* Oil specs / varieties */}
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5" /> Oil Specs / Varieties
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setNewProductVarieties(vs => [
+                        ...vs,
+                        { id: `var-${Date.now()}`, name: '', delta: '0' }
+                      ])
+                    }
+                    className="text-[11px] font-bold text-brand-600 dark:text-brand-400 flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add spec
+                  </button>
+                </div>
+
+                {newProductVarieties.length === 0 ? (
+                  <p className="text-[11px] text-slate-500 italic">
+                    No specs — the counter sells this product at its plain tier rate.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {newProductVarieties.map((v, i) => (
+                      <div key={v.id} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={v.name}
+                          onChange={e =>
+                            setNewProductVarieties(vs => vs.map((x, xi) => (xi === i ? { ...x, name: e.target.value } : x)))
+                          }
+                          placeholder="e.g. Groundnut Blend"
+                          className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]"
+                        />
+                        <div className="relative w-28 shrink-0">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[11px]">₦</span>
+                          <input
+                            type="number"
+                            step="50"
+                            value={v.delta}
+                            onChange={e =>
+                              setNewProductVarieties(vs => vs.map((x, xi) => (xi === i ? { ...x, delta: e.target.value } : x)))
+                            }
+                            title="Rate change per litre vs the standard tier rate"
+                            className="w-full pl-6 pr-2 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px] font-mono font-bold"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setNewProductVarieties(vs => vs.filter((_, xi) => xi !== i))}
+                          className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 shrink-0"
+                          aria-label="Remove spec"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    <p className="text-[10px] text-slate-500">
+                      The ₦ value adds to (or subtracts from) the customer's tier rate per litre. First spec is the counter default.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
