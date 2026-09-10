@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../services/store';
+import { usePermissions } from '../services/permissions';
+import { Modal } from '../components/common/Modal';
 import { uploadDepotLogo } from '../services/supabase';
 import { formatNaira } from '../services/businessLogic';
 import {
@@ -29,7 +31,6 @@ import { UserRole, SupplyModel, ProductVariety } from '../types';
 export const SettingsScreen: React.FC = () => {
   const {
     products,
-    rateCards,
     physicalTanks,
     suppliers,
     settings,
@@ -42,13 +43,12 @@ export const SettingsScreen: React.FC = () => {
     deletePhysicalTank,
     addSupplier,
     deleteSupplier,
-    updateRateCard,
     updateSettings,
     resetToSeedData
   } = useStore();
 
   // Only the owner can change pricing, products, thresholds, branding, or reset data.
-  const isOwner = userRole === 'owner';
+  const { isOwner } = usePermissions();
   const denyIfNotOwner = () => {
     if (isOwner) return false;
     showNotification('Only the owner can change this. You are viewing as ' + userRole + '.');
@@ -93,22 +93,6 @@ export const SettingsScreen: React.FC = () => {
     });
   }, [products]);
 
-  // 3. Products & Pricing Local State
-  const [productTonnages] = useState<Record<string, string>>(() => {
-    const map: Record<string, string> = {};
-    products.forEach(p => {
-      map[p.id] = (p.litres_per_ton ?? 1075).toString();
-    });
-    return map;
-  });
-
-  const [rateCardRates, setRateCardRates] = useState<Record<string, string>>(() => {
-    const map: Record<string, string> = {};
-    rateCards.forEach(r => {
-      map[`${r.product_id}_${r.tier}`] = r.rate_per_litre.toString();
-    });
-    return map;
-  });
 
   // Add / Edit Product Modal State
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -118,7 +102,7 @@ export const SettingsScreen: React.FC = () => {
   const [newProductLitresPerKeg, setNewProductLitresPerKeg] = useState('30');
   const [newProductLitresPerTon, setNewProductLitresPerTon] = useState('1075');
   const [newProductKegSellPrice, setNewProductKegSellPrice] = useState('3500');
-  const [newProductVarieties, setNewProductVarieties] = useState<{ id: string; name: string; delta: string }[]>([]);
+  const [newProductVarieties, setNewProductVarieties] = useState<{ id: string; name: string }[]>([]);
 
   // Add Physical Tank Form State
   const [newTankLabel, setNewTankLabel] = useState('');
@@ -202,32 +186,6 @@ export const SettingsScreen: React.FC = () => {
     setActiveMobileSheet(null);
   };
 
-  // 3. Save Products & Pricing Rate Cards
-  const handleSaveProductsAndPricing = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (denyIfNotOwner()) return;
-    products.forEach(p => {
-      if (p.supply_model === 'bulk_truck') {
-        const val = parseFloat(productTonnages[p.id]);
-        if (!isNaN(val) && val > 0) {
-          updateProduct(p.id, { litres_per_ton: val });
-        }
-      }
-    });
-
-    products.forEach(p => {
-      (['retail', 'agent', 'corporate'] as const).forEach(tier => {
-        const key = `${p.id}_${tier}`;
-        const rate = parseFloat(rateCardRates[key]);
-        if (!isNaN(rate) && rate > 0) {
-          updateRateCard(p.id, tier, rate);
-        }
-      });
-    });
-
-    showNotification('Products volumetric density and rate card matrix updated successfully!');
-    setActiveMobileSheet(null);
-  };
 
   // Product Add / Edit Handler
   const handleSaveProductModal = (e: React.FormEvent) => {
@@ -239,13 +197,12 @@ export const SettingsScreen: React.FC = () => {
     const lPerKeg = parseFloat(newProductLitresPerKeg) || 30;
     const lPerTon = newProductModel === 'bulk_truck' ? (parseFloat(newProductLitresPerTon) || 1075) : null;
 
-    const varieties: ProductVariety[] = newProductVarieties
+    let varieties: ProductVariety[] = newProductVarieties
       .filter(v => v.name.trim())
-      .map(v => ({
-        id: v.id,
-        name: v.name.trim(),
-        rate_delta_per_litre: Math.round(parseFloat(v.delta) || 0)
-      }));
+      .map(v => ({ id: v.id, name: v.name.trim() }));
+    if (varieties.length === 0) {
+      varieties = [{ id: `var-${Date.now()}`, name: 'Standard' }];
+    }
 
     if (editingProductId) {
       updateProduct(editingProductId, {
@@ -254,9 +211,9 @@ export const SettingsScreen: React.FC = () => {
         litres_per_keg: lPerKeg,
         litres_per_ton: lPerTon,
         keg_sell_price: kegSell,
-        varieties: varieties.length ? varieties : undefined
+        varieties
       });
-      showNotification(`Product ${newProductName.trim()} updated successfully.`);
+      showNotification(`Product ${newProductName.trim()} updated. Set its pack sizes and prices in Inventory.`);
     } else {
       addProduct({
         name: newProductName.trim(),
@@ -264,11 +221,12 @@ export const SettingsScreen: React.FC = () => {
         litres_per_keg: lPerKeg,
         litres_per_ton: lPerTon,
         keg_sell_price: kegSell,
-        varieties: varieties.length ? varieties : undefined,
+        varieties,
+        pack_config: [],
         color_light: newProductModel === 'bulk_truck' ? '#FEF3C7' : '#FEE2E2',
         color_dark: newProductModel === 'bulk_truck' ? '#78350F' : '#7F1D1D'
       });
-      showNotification(`Product ${newProductName.trim()} added to depot catalog.`);
+      showNotification(`Product ${newProductName.trim()} added. Set its pack sizes and prices in Inventory.`);
     }
 
     setIsProductModalOpen(false);
@@ -285,9 +243,7 @@ export const SettingsScreen: React.FC = () => {
     setNewProductLitresPerKeg(p.litres_per_keg.toString());
     setNewProductLitresPerTon(p.litres_per_ton ? p.litres_per_ton.toString() : '1075');
     setNewProductKegSellPrice(p.keg_sell_price ? p.keg_sell_price.toString() : '3500');
-    setNewProductVarieties(
-      (p.varieties || []).map(v => ({ id: v.id, name: v.name, delta: v.rate_delta_per_litre.toString() }))
-    );
+    setNewProductVarieties((p.varieties || []).map(v => ({ id: v.id, name: v.name })));
     setIsProductModalOpen(true);
   };
 
@@ -680,10 +636,11 @@ export const SettingsScreen: React.FC = () => {
               {/* Contact Fields */}
               <form onSubmit={handleSaveCompanyInfo} className="space-y-4">
                 <div className="space-y-1">
-                  <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                  <label htmlFor="company-name" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                     Registered Business Name
                   </label>
                   <input
+                    id="company-name"
                     type="text"
                     value={companyName}
                     onChange={e => setCompanyName(e.target.value)}
@@ -694,10 +651,11 @@ export const SettingsScreen: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                    <label htmlFor="company-phone" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                       Depot Telephone
                     </label>
                     <input
+                      id="company-phone"
                       type="text"
                       value={companyPhone}
                       onChange={e => setCompanyPhone(e.target.value)}
@@ -707,10 +665,11 @@ export const SettingsScreen: React.FC = () => {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                    <label htmlFor="company-address" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                       Physical Depot Address
                     </label>
                     <input
+                      id="company-address"
                       type="text"
                       value={companyAddress}
                       onChange={e => setCompanyAddress(e.target.value)}
@@ -796,11 +755,12 @@ export const SettingsScreen: React.FC = () => {
                         </div>
 
                         <div className="space-y-1.5">
-                          <label className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
+                          <label htmlFor={`product-litres-per-keg-${p.id}`} className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
                             Capacity: Litres per Keg (L / keg)
                           </label>
                           <div className="relative">
                             <input
+                              id={`product-litres-per-keg-${p.id}`}
                               type="number"
                               step="0.5"
                               min="1"
@@ -839,11 +799,12 @@ export const SettingsScreen: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                    <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                    <label htmlFor="default-fallback-litres-per-keg" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                       Default Fallback L/Keg
                     </label>
                     <div className="relative">
                       <input
+                        id="default-fallback-litres-per-keg"
                         type="number"
                         step="1"
                         min="1"
@@ -858,11 +819,12 @@ export const SettingsScreen: React.FC = () => {
                   </div>
 
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                    <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                    <label htmlFor="total-company-kegs" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                       Total Company Fleet Owned
                     </label>
                     <div className="relative">
                       <input
+                        id="total-company-kegs"
                         type="number"
                         step="1"
                         min="0"
@@ -877,11 +839,12 @@ export const SettingsScreen: React.FC = () => {
                   </div>
 
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                    <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                    <label htmlFor="kegs-depot-low-threshold" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                       Depot Low Stock Alert Threshold
                     </label>
                     <div className="relative">
                       <input
+                        id="kegs-depot-low-threshold"
                         type="number"
                         step="1"
                         min="0"
@@ -925,7 +888,9 @@ export const SettingsScreen: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleOpenAddProduct}
-                  className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-sm flex items-center gap-1.5 transition-all self-start sm:self-auto active:scale-95"
+                  disabled={!isOwner}
+                  title={isOwner ? undefined : 'Only the owner can add products'}
+                  className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-sm flex items-center gap-1.5 transition-all self-start sm:self-auto active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-brand-500 disabled:active:scale-100"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Add New Product</span>
@@ -961,8 +926,9 @@ export const SettingsScreen: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleOpenEditProduct(p.id)}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
-                              title="Edit Product"
+                              disabled={!isOwner}
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                              title={isOwner ? 'Edit Product' : 'Only the owner can edit products'}
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
@@ -975,8 +941,9 @@ export const SettingsScreen: React.FC = () => {
                                     showNotification(`Product "${p.name}" deleted.`);
                                   }
                                 }}
-                                className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                                title="Delete Product"
+                                disabled={!isOwner}
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                title={isOwner ? 'Delete Product' : 'Only the owner can delete products'}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -1004,7 +971,7 @@ export const SettingsScreen: React.FC = () => {
                             </span>
                           </div>
                           <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                            <span className="text-[10px] font-sans uppercase text-slate-500 block">Outright Keg Sell Price</span>
+                            <span className="text-[10px] font-sans uppercase text-slate-500 block">Fallback Container Price</span>
                             <span className="font-bold text-amber-600 dark:text-amber-400">
                               {formatNaira(p.keg_sell_price || 3500)}
                             </span>
@@ -1016,7 +983,6 @@ export const SettingsScreen: React.FC = () => {
                             {p.varieties.map(v => (
                               <span key={v.id} className="text-[10px] font-sans px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                                 {v.name}
-                                {v.rate_delta_per_litre ? ` (${v.rate_delta_per_litre > 0 ? '+' : ''}₦${v.rate_delta_per_litre})` : ''}
                               </span>
                             ))}
                           </div>
@@ -1027,90 +993,19 @@ export const SettingsScreen: React.FC = () => {
                 </div>
               </div>
 
-              {/* Dynamic Rate Card Matrix Table */}
-              <form onSubmit={handleSaveProductsAndPricing} className="space-y-4 pt-2 border-t border-slate-200 dark:border-slate-800">
-                <div className="text-[15px] font-sans font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <Sliders className="w-4 h-4 text-slate-400" />
-                  <span>Prices by product and customer type</span>
+              {/* Pricing moved to the Inventory tab */}
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+                <div className="p-4 rounded-xl bg-brand-50 dark:bg-brand-950/40 border border-brand-200 dark:border-brand-800 flex items-start gap-3">
+                  <Sliders className="w-4 h-4 text-brand-600 dark:text-brand-400 mt-0.5 shrink-0" />
+                  <div className="text-[13px] text-slate-700 dark:text-slate-300 leading-relaxed">
+                    <span className="font-sans font-semibold text-slate-900 dark:text-white">
+                      Prices are managed in the Inventory tab.
+                    </span>{' '}
+                    Set the price for every pack size, variety and customer tier there, plus which
+                    sizes each product sells and its returnable-container rules.
+                  </div>
                 </div>
-
-                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-                  <table className="w-full text-xs text-left">
-                    <thead className="bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 uppercase font-semibold text-[11px] tracking-wider border-b border-slate-200 dark:border-slate-800 font-sans">
-                      <tr>
-                        <th className="px-4 py-3">Product</th>
-                        <th className="px-4 py-3">Customer Tier</th>
-                        <th className="px-4 py-3">Rate per Litre (₦/L)</th>
-                        <th className="px-4 py-3 text-right">Effective Keg Price</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80 font-mono tabular-nums">
-                      {products.map(p =>
-                        (['retail', 'agent', 'corporate'] as const).map(tier => {
-                          const key = `${p.id}_${tier}`;
-                          const currentRate = parseFloat(rateCardRates[key]) || 0;
-                          const effectiveKegPrice = currentRate * p.litres_per_keg;
-
-                          return (
-                            <tr key={key} className="hover:bg-slate-50/80 dark:hover:bg-slate-900/50">
-                              <td className="px-4 py-3 font-sans font-semibold text-slate-800 dark:text-slate-200 text-[14px]">
-                                <div className="flex items-center gap-2">
-                                  <span
-                                    className="w-2.5 h-2.5 rounded-full"
-                                    style={{ backgroundColor: p.id === 'veg' ? '#F59E0B' : '#EF4444' }}
-                                  />
-                                  <span className="font-heading">{p.name}</span>
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                <span className={`px-2 py-0.5 rounded text-[11px] font-sans font-bold uppercase ${
-                                  tier === 'corporate'
-                                    ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800'
-                                    : tier === 'agent'
-                                    ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800'
-                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
-                                }`}>
-                                  {tier}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="relative w-36">
-                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-[14px]">₦</span>
-                                  <input
-                                    type="number"
-                                    step="50"
-                                    min="100"
-                                    value={rateCardRates[key] || ''}
-                                    onChange={e =>
-                                      setRateCardRates({ ...rateCardRates, [key]: e.target.value })
-                                    }
-                                    className="w-full pl-6 pr-3 py-2 min-h-[40px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[14px] focus:outline-none focus:border-brand-500"
-                                    required
-                                  />
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400 text-[14px]">
-                                {formatNaira(effectiveKegPrice)}{' '}
-                                <span className="text-[10px] text-slate-400 font-normal">({p.litres_per_keg}L)</span>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="flex justify-end pt-1">
-                  <button
-                    type="submit"
-                    className="px-5 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
-                  >
-                    <Save className="w-[18px] h-[18px]" />
-                    <span>Save Rate Card Changes</span>
-                  </button>
-                </div>
-              </form>
+              </div>
             </div>
           )}
 
@@ -1309,11 +1204,12 @@ export const SettingsScreen: React.FC = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                 <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                  <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                  <label htmlFor="low-stock-threshold" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                     Low Depot Tank Stock Alert
                   </label>
                   <div className="relative">
                     <input
+                      id="low-stock-threshold"
                       type="number"
                       step="50"
                       min="0"
@@ -1328,11 +1224,12 @@ export const SettingsScreen: React.FC = () => {
                 </div>
 
                 <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                  <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                  <label htmlFor="truck-shortfall-threshold" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                     Truck Intake Shortfall Flag
                   </label>
                   <div className="relative">
                     <input
+                      id="truck-shortfall-threshold"
                       type="number"
                       step="5"
                       min="0"
@@ -1347,11 +1244,12 @@ export const SettingsScreen: React.FC = () => {
                 </div>
 
                 <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                  <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                  <label htmlFor="pump-variance-threshold" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                     Pump Meter Variance Flag
                   </label>
                   <div className="relative">
                     <input
+                      id="pump-variance-threshold"
                       type="number"
                       step="5"
                       min="0"
@@ -1393,12 +1291,13 @@ export const SettingsScreen: React.FC = () => {
 
               {/* Default Daily Float Form */}
               <form onSubmit={handleSaveDailyFloat} className="space-y-3">
-                <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                <label htmlFor="default-daily-float" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                   Default cash in the box each morning (₦)
                 </label>
                 <div className="relative max-w-sm">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₦</span>
                   <input
+                    id="default-daily-float"
                     type="number"
                     step="1000"
                     min="0"
@@ -1465,7 +1364,9 @@ export const SettingsScreen: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleResetData}
-                  className="px-4 py-2.5 rounded-xl bg-rose-100 dark:bg-rose-950/40 hover:bg-rose-200 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800/80 text-[13px] font-sans font-bold transition-all active:scale-95"
+                  disabled={!isOwner}
+                  title={isOwner ? undefined : 'Only the owner can reset the database'}
+                  className="px-4 py-2.5 rounded-xl bg-rose-100 dark:bg-rose-950/40 hover:bg-rose-200 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800/80 text-[13px] font-sans font-bold transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
                 >
                   Reset Database
                 </button>
@@ -1477,30 +1378,23 @@ export const SettingsScreen: React.FC = () => {
 
       {/* PRODUCT ADD / EDIT MODAL */}
       {isProductModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
-          <div className="w-full max-w-lg max-h-[90vh] rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col my-auto">
-            <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950 shrink-0">
-              <div className="flex items-center gap-2">
-                <Tag className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-                <h3 className="font-heading font-bold text-[16px] text-slate-900 dark:text-white">
-                  {editingProductId ? 'Edit Managed Product' : 'Add New Depot Product'}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsProductModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveProductModal} className="flex-1 overflow-y-auto p-5 space-y-4 min-h-0">
+        <Modal
+          isOpen
+          onClose={() => setIsProductModalOpen(false)}
+          title={
+            <span className="flex items-center gap-2">
+              <Tag className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+              <span>{editingProductId ? 'Edit Managed Product' : 'Add New Depot Product'}</span>
+            </span>
+          }
+        >
+            <form onSubmit={handleSaveProductModal} className="space-y-4">
               <div>
-                <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                <label htmlFor="product-name" className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
                   Product Name *
                 </label>
                 <input
+                  id="product-name"
                   type="text"
                   required
                   placeholder="e.g. Refined Soya Oil"
@@ -1545,10 +1439,11 @@ export const SettingsScreen: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  <label htmlFor="new-product-litres-per-keg" className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
                     Litres per Keg (L/keg) *
                   </label>
                   <input
+                    id="new-product-litres-per-keg"
                     type="number"
                     step="0.5"
                     min="1"
@@ -1565,10 +1460,11 @@ export const SettingsScreen: React.FC = () => {
 
                 {newProductModel === 'bulk_truck' ? (
                   <div>
-                    <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                    <label htmlFor="new-product-litres-per-ton" className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
                       Litres per Metric Ton *
                     </label>
                     <input
+                      id="new-product-litres-per-ton"
                       type="number"
                       step="0.1"
                       min="100"
@@ -1595,12 +1491,13 @@ export const SettingsScreen: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                <label htmlFor="new-product-keg-sell-price" className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
                   Outright Keg Container Sell Price (₦)
                 </label>
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₦</span>
                   <input
+                    id="new-product-keg-sell-price"
                     type="number"
                     step="100"
                     min="0"
@@ -1626,7 +1523,7 @@ export const SettingsScreen: React.FC = () => {
                     onClick={() =>
                       setNewProductVarieties(vs => [
                         ...vs,
-                        { id: `var-${Date.now()}`, name: '', delta: '0' }
+                        { id: `var-${Date.now()}`, name: '' }
                       ])
                     }
                     className="text-[11px] font-bold text-brand-600 dark:text-brand-400 flex items-center gap-1"
@@ -1637,7 +1534,7 @@ export const SettingsScreen: React.FC = () => {
 
                 {newProductVarieties.length === 0 ? (
                   <p className="text-[11px] text-slate-500 italic">
-                    No specs — the counter sells this product at its plain tier rate.
+                    No specs yet — a "Standard" spec is created automatically on save.
                   </p>
                 ) : (
                   <div className="space-y-2">
@@ -1652,19 +1549,6 @@ export const SettingsScreen: React.FC = () => {
                           placeholder="e.g. Groundnut Blend"
                           className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]"
                         />
-                        <div className="relative w-28 shrink-0">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[11px]">₦</span>
-                          <input
-                            type="number"
-                            step="50"
-                            value={v.delta}
-                            onChange={e =>
-                              setNewProductVarieties(vs => vs.map((x, xi) => (xi === i ? { ...x, delta: e.target.value } : x)))
-                            }
-                            title="Rate change per litre vs the standard tier rate"
-                            className="w-full pl-6 pr-2 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px] font-mono font-bold"
-                          />
-                        </div>
                         <button
                           type="button"
                           onClick={() => setNewProductVarieties(vs => vs.filter((_, xi) => xi !== i))}
@@ -1676,13 +1560,13 @@ export const SettingsScreen: React.FC = () => {
                       </div>
                     ))}
                     <p className="text-[10px] text-slate-500">
-                      The ₦ value adds to (or subtracts from) the customer's tier rate per litre. First spec is the counter default.
+                      Each spec is a full SKU — set its per-pack prices in the Inventory tab. First spec is the counter default.
                     </p>
                   </div>
                 )}
               </div>
 
-              <div className="sticky bottom-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm pt-3 pb-1 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2 shrink-0">
+              <div className="pt-3 pb-1 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsProductModalOpen(false)}
@@ -1698,8 +1582,7 @@ export const SettingsScreen: React.FC = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

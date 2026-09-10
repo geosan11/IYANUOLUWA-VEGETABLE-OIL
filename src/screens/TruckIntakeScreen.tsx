@@ -3,6 +3,7 @@ import { useStore } from '../services/store';
 import { TruckTankIllustration } from '../components/common/TruckTankIllustration';
 import { BottomSheet } from '../components/common/BottomSheet';
 import { SlideOverDrawer } from '../components/common/SlideOverDrawer';
+import { Modal } from '../components/common/Modal';
 import { useIsDesktopSplit } from '../hooks/useBreakpoint';
 import {
   calculateIntakeMetrics,
@@ -312,11 +313,12 @@ export const TruckIntakeScreen: React.FC = () => {
 
           {/* Required Supplier Selector */}
           <div className="space-y-1.5">
-            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+            <label htmlFor="intake-supplier" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <Building2 className="w-4 h-4 text-brand-600 dark:text-brand-400" />
               <span>Supplier Account *</span>
             </label>
             <select
+              id="intake-supplier"
               value={supplierId}
               onChange={e => setSupplierId(e.target.value)}
               className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[15px] font-sans font-semibold focus:outline-none focus:border-brand-500"
@@ -334,10 +336,11 @@ export const TruckIntakeScreen: React.FC = () => {
           {/* Truck Plate and Driver Name 2-Column */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+              <label htmlFor="intake-truck-label" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
                 {isBulkTruck ? 'Truck License / Plate No. *' : 'Delivery Batch Ref / Truck Plate *'}
               </label>
               <input
+                id="intake-truck-label"
                 type="text"
                 placeholder={isBulkTruck ? 'e.g. Truck 3 · KJA-492-XA' : 'e.g. Batch #24 · Palm Delivery'}
                 value={truckLabel}
@@ -348,10 +351,11 @@ export const TruckIntakeScreen: React.FC = () => {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+              <label htmlFor="intake-driver-name" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
                 Driver Name / Delivery Contact
               </label>
               <input
+                id="intake-driver-name"
                 type="text"
                 placeholder="e.g. Alhaji Musa"
                 value={driverName}
@@ -368,7 +372,7 @@ export const TruckIntakeScreen: React.FC = () => {
               {/* Scale Weight in Tons */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  <label htmlFor="intake-tons" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
                     Delivery Weight (Metric Tons) *
                   </label>
                   <span className="text-[11px] text-slate-500 font-mono tabular-nums">
@@ -377,6 +381,7 @@ export const TruckIntakeScreen: React.FC = () => {
                 </div>
                 <div className="relative">
                   <input
+                    id="intake-tons"
                     type="number"
                     step="0.01"
                     min="0.1"
@@ -397,10 +402,11 @@ export const TruckIntakeScreen: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Actual Kegs Filled */}
                 <div className="space-y-1">
-                  <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+                  <label htmlFor="intake-actual-kegs" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
                     Actual Kegs Filled ({selectedProduct.litres_per_keg}L) *
                   </label>
                   <input
+                    id="intake-actual-kegs"
                     type="number"
                     step="1"
                     min="0"
@@ -415,10 +421,11 @@ export const TruckIntakeScreen: React.FC = () => {
 
                 {/* Leftover Bulk Litres */}
                 <div className="space-y-1">
-                  <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+                  <label htmlFor="intake-leftover-litres" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
                     Leftover Recovered (Litres)
                   </label>
                   <input
+                    id="intake-leftover-litres"
                     type="number"
                     step="0.5"
                     min="0"
@@ -450,7 +457,7 @@ export const TruckIntakeScreen: React.FC = () => {
               {/* Kegs Received Count */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  <label htmlFor="intake-kegs-received" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
                     Physical Kegs Received ({selectedProduct.litres_per_keg}L/keg) *
                   </label>
                   <span className="text-[11px] text-slate-500 font-mono tabular-nums font-bold">
@@ -459,6 +466,7 @@ export const TruckIntakeScreen: React.FC = () => {
                 </div>
                 <div className="relative">
                   <input
+                    id="intake-kegs-received"
                     type="number"
                     step="1"
                     min="1"
@@ -496,11 +504,12 @@ export const TruckIntakeScreen: React.FC = () => {
           {/* Physical Tank Infrastructure Link & Space Note */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1 border-t border-slate-100 dark:border-slate-800">
             <div className="space-y-1">
-              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <label htmlFor="intake-physical-tank" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                 <Warehouse className="w-3.5 h-3.5 text-slate-500" />
                 <span>Physical Yard Tank Storage</span>
               </label>
               <select
+                id="intake-physical-tank"
                 value={physicalTankId}
                 onChange={e => setPhysicalTankId(e.target.value)}
                 className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-sans focus:outline-none focus:border-brand-500"
@@ -517,11 +526,12 @@ export const TruckIntakeScreen: React.FC = () => {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <label htmlFor="intake-space-note" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                 <FileText className="w-3.5 h-3.5 text-slate-500" />
                 <span>Space Note (Informational)</span>
               </label>
               <input
+                id="intake-space-note"
                 type="text"
                 value={spaceNote}
                 onChange={e => setSpaceNote(e.target.value)}
@@ -687,8 +697,17 @@ export const TruckIntakeScreen: React.FC = () => {
             return (
               <div
                 key={t.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`${t.truck_label}, ${pct.toFixed(0)} percent full`}
                 onClick={() => setSelectedTankForDetail(t.id)}
-                className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 active:scale-98 transition-all cursor-pointer flex flex-col gap-2.5 shadow-sm"
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedTankForDetail(t.id);
+                  }
+                }}
+                className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 active:scale-98 transition-all cursor-pointer flex flex-col gap-2.5 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 min-w-0">
@@ -703,12 +722,21 @@ export const TruckIntakeScreen: React.FC = () => {
                   <div className="flex items-center gap-1.5 shrink-0">
                     {latestReading ? (
                       latestReading.is_flagged ? (
-                        <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" title="Variance Alert" />
+                        <span className="flex items-center gap-1 text-[10px] font-sans font-bold text-rose-600 dark:text-rose-400">
+                          <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                          Variance
+                        </span>
                       ) : (
-                        <span className="w-2 h-2 rounded-full bg-emerald-500" title="Verified" />
+                        <span className="flex items-center gap-1 text-[10px] font-sans font-bold text-emerald-600 dark:text-emerald-400">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                          Verified
+                        </span>
                       )
                     ) : (
-                      <span className="w-2 h-2 rounded-full bg-slate-400" title="Awaiting Stick" />
+                      <span className="flex items-center gap-1 text-[10px] font-sans font-bold text-slate-500 dark:text-slate-400">
+                        <span className="w-2 h-2 rounded-full bg-slate-400" />
+                        Awaiting stick
+                      </span>
                     )}
                     <ChevronRight className="w-4 h-4 text-slate-400" />
                   </div>
@@ -760,8 +788,17 @@ export const TruckIntakeScreen: React.FC = () => {
             return (
               <div
                 key={t.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`${prod?.name || 'Tank'}, inspect audit history`}
                 onClick={() => setSelectedTankForDetail(t.id)}
-                className="flex flex-col space-y-2 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 hover:border-brand-400 dark:hover:border-brand-600/70 hover:shadow-md transition-all cursor-pointer group"
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedTankForDetail(t.id);
+                  }
+                }}
+                className="flex flex-col space-y-2 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 hover:border-brand-400 dark:hover:border-brand-600/70 hover:shadow-md transition-all cursor-pointer group focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
                 title="Click to inspect tank audit history & orders drawn in side drawer"
               >
                 <div className="flex items-center justify-between text-[11px] px-1 pb-1">
@@ -859,32 +896,21 @@ export const TruckIntakeScreen: React.FC = () => {
 
       {/* Modal: Record Physical Tank Dipstick Verification */}
       {dipstickTankId && selectedDipstickTank && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/40">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-800">
-                  <Ruler className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-heading font-bold text-[16px] text-slate-900 dark:text-white">
-                    Physical Tank Dipstick Audit
-                  </h3>
-                  <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400">
-                    {selectedDipstickTank.truck_label}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setDipstickTankId(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleRecordDipstickSubmit} className="p-5 space-y-4 overflow-y-auto">
+        <Modal
+          isOpen
+          onClose={() => setDipstickTankId(null)}
+          size="lg"
+          title={
+            <span className="flex items-center gap-2.5">
+              <span className="p-2 rounded-xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-800">
+                <Ruler className="w-5 h-5" />
+              </span>
+              <span>Physical Tank Dipstick Audit</span>
+            </span>
+          }
+          subtitle={selectedDipstickTank.truck_label}
+        >
+            <form onSubmit={handleRecordDipstickSubmit} className="space-y-4">
               <div className="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/40 text-[12px] font-sans text-amber-900 dark:text-amber-200 space-y-1">
                 <div className="font-semibold flex items-center gap-1.5">
                   <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
@@ -922,11 +948,12 @@ export const TruckIntakeScreen: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[12px] font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label htmlFor="dipstick-reading" className="block text-[12px] font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Physical Dipstick Reading (Litres) *
                 </label>
                 <div className="relative">
                   <input
+                    id="dipstick-reading"
                     type="number"
                     step="1"
                     min="0"
@@ -988,10 +1015,11 @@ export const TruckIntakeScreen: React.FC = () => {
               )}
 
               <div>
-                <label className="block text-[12px] font-sans font-medium text-slate-700 dark:text-slate-300 mb-1">
+                <label htmlFor="dipstick-notes" className="block text-[12px] font-sans font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Dip Notes / Stick Condition (Optional)
                 </label>
                 <input
+                  id="dipstick-notes"
                   type="text"
                   value={dipstickNotes}
                   onChange={e => setDipstickNotes(e.target.value)}
@@ -1017,8 +1045,7 @@ export const TruckIntakeScreen: React.FC = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Tank Detail Progressive Disclosure */}
@@ -1188,7 +1215,7 @@ export const TruckIntakeScreen: React.FC = () => {
                                 {cust?.name || 'Customer'}
                               </div>
                               <div className="text-[11px] text-slate-500 font-mono">
-                                {formatDepotDate(order.date)} · {order.unit.toUpperCase()} ({order.qty}) · {order.payment_method}
+                                {formatDepotDate(order.date)} · {order.qty} pack{order.qty === 1 ? '' : 's'} · {order.payment_method}
                               </div>
                             </div>
                             <div className="text-right font-mono">

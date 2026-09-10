@@ -19,24 +19,10 @@ const STORAGE_KEYS = {
 
 /**
  * Shared-secret bearer token for the /api/ai serverless proxy. Must match
- * process.env.AI_PROXY_TOKEN on Vercel. If unset the client refuses to call
- * the proxy (see assertAiProxyConfigured) instead of firing an un-authorised
- * request that would just 401.
+ * process.env.AI_PROXY_TOKEN on Vercel. If unset, callers skip the proxy
+ * entirely and use the local deterministic engine instead of 401ing.
  */
 const AI_PROXY_TOKEN = import.meta.env.VITE_AI_PROXY_TOKEN as string | undefined;
-
-export class AIProxyNotConfiguredError extends Error {
-  constructor() {
-    super('AI proxy not configured: set VITE_AI_PROXY_TOKEN so the app can authenticate to /api/ai.');
-    this.name = 'AIProxyNotConfiguredError';
-  }
-}
-
-function assertAiProxyConfigured(): void {
-  if (!AI_PROXY_TOKEN) {
-    throw new AIProxyNotConfiguredError();
-  }
-}
 
 function aiProxyHeaders(userRole: string): Record<string, string> {
   return {
@@ -120,25 +106,26 @@ export async function requestOperationsAudit(
     snapshot
   };
 
-  // Refuse to call the proxy without a bearer token - surface a clear error.
-  assertAiProxyConfigured();
+  // Only attempt the proxy if a bearer token is configured; otherwise go
+  // straight to the deterministic engine instead of throwing.
+  if (AI_PROXY_TOKEN) {
+    try {
+      const response = await fetch('/api/ai', {
+        method: 'POST',
+        headers: aiProxyHeaders(userRole),
+        body: JSON.stringify({ ...payload, userRole })
+      });
 
-  try {
-    const response = await fetch('/api/ai', {
-      method: 'POST',
-      headers: aiProxyHeaders(userRole),
-      body: JSON.stringify({ ...payload, userRole })
-    });
-
-    if (response.ok) {
-      const data: AIResponsePayload = await response.json();
-      if (data.report) {
-        saveCachedReport(data.report);
-        return data.report;
+      if (response.ok) {
+        const data: AIResponsePayload = await response.json();
+        if (data.report) {
+          saveCachedReport(data.report);
+          return data.report;
+        }
       }
+    } catch (networkError) {
+      console.warn('Network call to /api/ai failed or serverless offline, using local deterministic engine:', networkError);
     }
-  } catch (networkError) {
-    console.warn('Network call to /api/ai failed or serverless offline, using local deterministic engine:', networkError);
   }
 
   // Fallback to deterministic audit engine
@@ -172,24 +159,25 @@ export async function askOperationsQuestion(
     chatMessage: question
   };
 
-  // Refuse to call the proxy without a bearer token - surface a clear error.
-  assertAiProxyConfigured();
+  // Only attempt the proxy if a bearer token is configured; otherwise go
+  // straight to the deterministic answer engine instead of throwing.
+  if (AI_PROXY_TOKEN) {
+    try {
+      const response = await fetch('/api/ai', {
+        method: 'POST',
+        headers: aiProxyHeaders(userRole),
+        body: JSON.stringify({ ...payload, userRole })
+      });
 
-  try {
-    const response = await fetch('/api/ai', {
-      method: 'POST',
-      headers: aiProxyHeaders(userRole),
-      body: JSON.stringify({ ...payload, userRole })
-    });
-
-    if (response.ok) {
-      const data: AIResponsePayload = await response.json();
-      if (data.chatReply) {
-        return data.chatReply;
+      if (response.ok) {
+        const data: AIResponsePayload = await response.json();
+        if (data.chatReply) {
+          return data.chatReply;
+        }
       }
+    } catch (networkError) {
+      console.warn('Call to /api/ai failed, using local deterministic answer:', networkError);
     }
-  } catch (networkError) {
-    console.warn('Call to /api/ai failed, using local deterministic answer:', networkError);
   }
 
   return answerCopilotQuestionDeterministic(question, snapshot);

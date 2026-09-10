@@ -5,8 +5,6 @@ import {
   calculateKegInventory,
   executeFifoTankDraw,
   applyFifoPayment,
-  lookupRatePerLitre,
-  calculateOrderPricing,
   calculatePumpMeterVariance,
   validateNewPumpReading,
   calculatePerOrderMeterVariance,
@@ -19,14 +17,16 @@ import {
   getDepotToday,
   formatNairaWords
 } from './businessLogic';
+import { lookupPackPrice, priceSaleLine } from './pricing';
 import {
   Customer,
   Order,
   KegReturn,
   Tank,
-  RateCard,
   Transfer,
   Pump,
+  Product,
+  PackPrice,
   Shift
 } from '../types';
 
@@ -48,23 +48,46 @@ function assert(condition: boolean, testName: string) {
   }
 }
 
+/** Fill the new required Order (sale-line) fields so test literals stay terse. */
+function mkOrder(
+  p: Partial<Order> &
+    Pick<Order, 'id' | 'customer_id' | 'product_id' | 'qty' | 'litres' | 'amount' | 'payment_method' | 'date'>
+): Order {
+  return {
+    sale_id: `sale-${p.id}`,
+    variety_id: 'veg-soya',
+    variety_name: 'Pure Soya',
+    pack_size_id: 'sz_30',
+    unit_price: 0,
+    original_unit_price: null,
+    price_adjusted: false,
+    price_adjust_reason: null,
+    oil_amount: p.amount,
+    container_mode: 'none',
+    returnable: false,
+    container_unit_price: null,
+    container_amount: null,
+    line_amount: p.amount,
+    pricing_tier: 'agent',
+    paid_amount: 0,
+    due_date: null,
+    source_tank_id: null,
+    ...p
+  } as Order;
+}
+
 // 1. UNIT CONVERSION
 assert(calculateLitres('keg', 10, 30) === 300, 'Unit conversion: 10 kegs = 300L');
 assert(calculateLitres('litre', 150, 30) === 150, 'Unit conversion: 150L = 150L');
 
 // 2. TRUCK INTAKE & SHORTFALL
 const intake1 = calculateIntakeMetrics(10, 1090, 360, 20, 100, 30);
-// expected_litres = 10 * 1090 = 10900
-// expected_kegs = 10900 / 30 = 363.33
-// recovered = (360 * 30) + 20 = 10820
-// shortfall = 10900 - 10820 = 80L (>50L -> high variance)
 assert(intake1.expectedLitres === 10900, 'Intake: expectedLitres is 10,900L');
 assert(intake1.recoveredLitres === 10820, 'Intake: recoveredLitres is 10,820L');
 assert(intake1.shortfall === 80, 'Intake: shortfall is 80L');
 assert(intake1.isShortfallHigh === true, 'Intake: 80L shortfall > default 50L threshold flagged true');
 assert(intake1.exceedsDepotKegCapacity === true, 'Intake: 363.3 expected kegs > 100 depot kegs warning');
 
-// Configurable shortfall threshold: the same 80L shortfall is NOT high under a 100L threshold
 const intakeHiThresh = calculateIntakeMetrics(10, 1090, 360, 20, 100, 30, 100);
 assert(intakeHiThresh.shortfall === 80, 'Intake: shortfall still 80L with a custom threshold');
 assert(intakeHiThresh.isShortfallHigh === false, 'Intake: 80L shortfall is within a configured 100L threshold');
@@ -93,7 +116,6 @@ const mockTanks: Tank[] = [
   }
 ];
 
-// Order 600L -> Drains Tank-1 from 400 to 0, draws 200 from Tank-2 leaving 600
 const drawResult = executeFifoTankDraw(mockTanks, 'veg', 600);
 assert(drawResult.success === true, 'FIFO Tank Draw: successfully allocated across multiple tanks');
 assert(drawResult.allocations.length === 2, 'FIFO Tank Draw: allocated across 2 tanks');
@@ -102,8 +124,6 @@ assert(drawResult.allocations[1].tankId === 'tank-2' && drawResult.allocations[1
 assert(drawResult.updatedTanks[0].remaining_litres === 0, 'FIFO Tank Draw: Tank-1 remaining is 0L');
 assert(drawResult.updatedTanks[1].remaining_litres === 600, 'FIFO Tank Draw: Tank-2 remaining is 600L');
 
-// Order.tank_allocations provenance: a 2-tank sale records 2 allocations summing to the order litres
-// (mirrors how createNewOrder maps drawResult.allocations onto the order)
 const orderTankAllocations = drawResult.allocations.map(a => ({ tank_id: a.tankId, litres: a.drawnLitres }));
 assert(orderTankAllocations.length === 2, 'Order tank_allocations: 2-tank sale records 2 allocations');
 assert(
@@ -111,7 +131,6 @@ assert(
   'Order tank_allocations: allocation litres sum to the 600L order'
 );
 
-// Insufficient stock hard stop
 const failDraw = executeFifoTankDraw(mockTanks, 'veg', 1500);
 assert(failDraw.success === false, 'FIFO Tank Draw: hard stop when stock is insufficient (1200 available vs 1500 requested)');
 
@@ -126,46 +145,42 @@ const sampleCustomer: Customer = {
 };
 
 const sampleOrders: Order[] = [
-  {
+  mkOrder({
     id: 'o-1',
     customer_id: 'c-test',
     product_id: 'veg',
-    unit: 'keg',
+    pack_size_id: 'sz_30',
     qty: 10,
     litres: 300,
-    rate: 4800,
     amount: 48000,
-    paid_amount: 0,
     payment_method: 'credit',
-    keg_source: 'company',
+    container_mode: 'taken',
     date: '2026-08-01T00:00:00Z',
-    due_date: '2026-08-15T00:00:00Z', // 24 days overdue relative to 2026-09-08
-    source_tank_id: 'tank-1',
-    pump_id: 'pump-1'
-  },
-  {
+    due_date: '2026-08-15T00:00:00Z',
+    source_tank_id: 'tank-1'
+  }),
+  mkOrder({
     id: 'o-2',
     customer_id: 'c-test',
     product_id: 'veg',
-    unit: 'keg',
+    pack_size_id: 'sz_30',
     qty: 5,
     litres: 150,
-    rate: 4800,
     amount: 24000,
-    paid_amount: 0,
     payment_method: 'credit',
-    keg_source: 'company',
+    container_mode: 'taken',
     date: '2026-09-01T00:00:00Z',
-    due_date: '2026-09-15T00:00:00Z', // Due in 7 days
-    source_tank_id: 'tank-1',
-    pump_id: 'pump-1'
-  }
+    due_date: '2026-09-15T00:00:00Z',
+    source_tank_id: 'tank-1'
+  })
 ];
 
 const sampleKegReturns: KegReturn[] = [
   {
     id: 'ret-1',
     customer_id: 'c-test',
+    product_id: 'veg',
+    pack_size_id: 'sz_30',
     qty: 3,
     date: '2026-08-20T00:00:00Z'
   }
@@ -175,9 +190,20 @@ const refDate = new Date('2026-09-08T12:00:00Z');
 const stats = calculateCustomerStats(sampleCustomer, sampleOrders, sampleKegReturns, refDate);
 
 assert(stats.currentBalance === 72000, 'Customer Balance: 48000 + 24000 = ₦72,000');
-assert(stats.totalCompanyKegsOut === 12, 'Customer Kegs Out: 15 supplied - 3 returned = 12 kegs');
+assert(stats.totalCompanyKegsOut === 12, 'Customer Kegs Out: 15 taken - 3 returned = 12 containers');
+assert(stats.kegsOutByPack['veg|sz_30'] === 12, 'Customer Kegs Out: bucketed under veg|sz_30');
 assert(stats.agingBadge.status === 'overdue', 'Customer Aging: flagged overdue');
 assert(stats.agingBadge.days === 24, 'Customer Aging: 24 days overdue');
+
+// A voided line must not count toward balance or kegs out.
+const withVoided = calculateCustomerStats(
+  sampleCustomer,
+  [...sampleOrders, mkOrder({ id: 'o-void', customer_id: 'c-test', product_id: 'veg', qty: 4, litres: 120, amount: 20000, payment_method: 'credit', container_mode: 'taken', date: '2026-09-02T00:00:00Z', due_date: '2026-09-16T00:00:00Z', voided: true })],
+  sampleKegReturns,
+  refDate
+);
+assert(withVoided.currentBalance === 72000, 'Voided line: excluded from customer balance');
+assert(withVoided.totalCompanyKegsOut === 12, 'Voided line: excluded from kegs out');
 
 // 5. FIFO PAYMENT APPLICATION
 const paymentResult = applyFifoPayment(sampleOrders, 'c-test', 50000);
@@ -187,7 +213,6 @@ assert(paymentResult.appliedOrders[0].orderId === 'o-1' && paymentResult.applied
 assert(paymentResult.appliedOrders[1].orderId === 'o-2' && paymentResult.appliedOrders[1].amountApplied === 2000, 'FIFO Payment: remainder ₦2,000 applied to o-2');
 assert(paymentResult.unappliedLeftover === 0, 'FIFO Payment: 0 leftover');
 
-// Test overpayment with unapplied leftover
 const overPaymentResult = applyFifoPayment(sampleOrders, 'c-test', 100000);
 assert(overPaymentResult.totalApplied === 72000, 'FIFO Overpayment: total applied is exactly open balance ₦72,000');
 assert(overPaymentResult.unappliedLeftover === 28000, 'FIFO Overpayment: reported ₦28,000 unapplied leftover');
@@ -195,7 +220,7 @@ assert(overPaymentResult.unappliedLeftover === 28000, 'FIFO Overpayment: reporte
 // 6. KEG INVENTORY SUMMARY
 const kegSummary = calculateKegInventory(500, sampleOrders, sampleKegReturns);
 assert(kegSummary.totalCompanyKegs === 500, 'Keg Inventory: total fleet = 500');
-assert(kegSummary.totalKegsOut === 12, 'Keg Inventory: total out = 12');
+assert(kegSummary.totalKegsOut === 12, 'Keg Inventory: total out = 12 (15 taken - 3 returned)');
 assert(kegSummary.kegsAtDepot === 488, 'Keg Inventory: depot stock = 488');
 assert(kegSummary.isDepotStockCritical === false, 'Keg Inventory: not critical (>20)');
 
@@ -211,25 +236,21 @@ const mockReadings = [
   { id: 'pr-2', pump_id: 'p-test', reading: 10500, recorded_at: '2026-09-08T18:00:00Z' }
 ];
 
-// Case A: Exact Match (450L dispensed and logged in orders -> 500L meter delta - 450L orders = 50L variance > 20L alert)
 const pumpOrdersVariance: Order[] = [
-  {
+  mkOrder({
     id: 'po-1',
     customer_id: 'c-test',
     product_id: 'veg',
-    unit: 'keg',
     qty: 15,
     litres: 450,
-    rate: 4800,
     amount: 72000,
     paid_amount: 72000,
     payment_method: 'transfer',
-    keg_source: 'own',
+    container_mode: 'none',
     date: '2026-09-08T10:00:00Z',
-    due_date: null,
     source_tank_id: 'tank-1',
     pump_id: 'p-test'
-  }
+  })
 ];
 
 const auditA = calculatePumpMeterVariance(mockPump, mockReadings, pumpOrdersVariance, 20);
@@ -239,43 +260,104 @@ assert(auditA[0].expectedLitres === 450, 'Pump Reconciliation: expected litres f
 assert(auditA[0].variance === 50, 'Pump Reconciliation: variance is +50L');
 assert(auditA[0].isOverThreshold === true, 'Pump Reconciliation: flagged alert for 50L variance > 20L threshold');
 
-// Case B: Accurate Match (500L meter delta with 500L in orders -> 0 variance)
 const pumpOrdersExact: Order[] = [
   ...pumpOrdersVariance,
-  {
+  mkOrder({
     id: 'po-2',
     customer_id: 'c-test',
     product_id: 'veg',
-    unit: 'litre',
     qty: 50,
     litres: 50,
-    rate: 4800,
     amount: 240000,
     paid_amount: 240000,
     payment_method: 'cash',
-    keg_source: null,
     date: '2026-09-08T14:00:00Z',
-    due_date: null,
     source_tank_id: 'tank-1',
     pump_id: 'p-test'
-  }
+  })
 ];
 
 const auditB = calculatePumpMeterVariance(mockPump, mockReadings, pumpOrdersExact, 20);
 assert(auditB[0].variance === 0, 'Pump Reconciliation: variance is exactly 0L');
 assert(auditB[0].isOverThreshold === false, 'Pump Reconciliation: no alert for 0L variance');
 
-// Monotonic validation
 assert(validateNewPumpReading(10600, 10500).isValid === true, 'Pump Validation: higher reading passes');
 assert(validateNewPumpReading(10400, 10500).isValid === false, 'Pump Validation: lower reading fails (meters only count up)');
 
-// 10. TONNAGE WHOLESALE UNIT CONVERSION & PRICING
-const tonLitres = calculateLitres('ton', 5, 30, 1090);
-assert(tonLitres === 5450, 'Unit conversion: 5 tons = 5,450L (5 * 1090)');
-const tonPricing = calculateOrderPricing('ton', 2, 4800, 30, 1090);
-// 2 tons = 2180L * 4800 = 10,464,000
-assert(tonPricing.litres === 2180, 'Tonnage pricing: 2 tons = 2,180L');
-assert(tonPricing.amount === 10464000, 'Tonnage pricing: 2 tons at ₦4,800/L = ₦10,464,000');
+// 10. PACK-SIZE PRICING
+const vegProduct: Product = {
+  id: 'veg',
+  name: 'Golden Vegetable Oil',
+  supply_model: 'bulk_truck',
+  litres_per_ton: 1075,
+  litres_per_keg: 30,
+  keg_sell_price: 3500,
+  varieties: [{ id: 'veg-soya', name: 'Pure Soya' }],
+  pack_config: [
+    { pack_size_id: 'sz_25', returnable: true, container_buy_price: 3500 },
+    { pack_size_id: 'sz_1', returnable: false, container_buy_price: 0 }
+  ],
+  color_light: '#fff',
+  color_dark: '#000'
+};
+const testPackPrices: PackPrice[] = [
+  { product_id: 'veg', variety_id: 'veg-soya', pack_size_id: 'sz_25', tier: 'agent', price: 125000 },
+  { product_id: 'veg', variety_id: 'veg-soya', pack_size_id: 'sz_1', tier: 'retail', price: 6000 }
+];
+
+assert(lookupPackPrice(testPackPrices, 'veg', 'veg-soya', 'sz_25', 'agent') === 125000, 'lookupPackPrice: 25L agent price is ₦125,000');
+assert(lookupPackPrice(testPackPrices, 'veg', 'veg-soya', 'sz_1', 'agent') === null, 'lookupPackPrice: unpriced combination returns null');
+
+const priceTaken = priceSaleLine({
+  product: vegProduct,
+  varietyId: 'veg-soya',
+  packSizeId: 'sz_25',
+  tier: 'agent',
+  qty: 10,
+  containerMode: 'taken',
+  packPrices: testPackPrices
+});
+assert(priceTaken.litres === 250, 'priceSaleLine: 10 x 25L = 250L');
+assert(priceTaken.oilAmount === 1250000, 'priceSaleLine: 10 packs at ₦125,000 = ₦1,250,000');
+assert(priceTaken.containerAmount === 0, 'priceSaleLine: taken containers add nothing');
+assert(priceTaken.lineAmount === 1250000, 'priceSaleLine: line total is ₦1,250,000');
+assert(priceTaken.returnable === true, 'priceSaleLine: 25L pack is returnable');
+
+const priceBought = priceSaleLine({
+  product: vegProduct,
+  varietyId: 'veg-soya',
+  packSizeId: 'sz_25',
+  tier: 'agent',
+  qty: 10,
+  containerMode: 'bought',
+  packPrices: testPackPrices
+});
+assert(priceBought.containerAmount === 35000, 'priceSaleLine: 10 bought containers at ₦3,500 = ₦35,000');
+assert(priceBought.lineAmount === 1285000, 'priceSaleLine: oil + containers = ₦1,285,000');
+
+const priceUnpriced = priceSaleLine({
+  product: vegProduct,
+  varietyId: 'veg-soya',
+  packSizeId: 'sz_1',
+  tier: 'agent',
+  qty: 5,
+  containerMode: 'none',
+  packPrices: testPackPrices
+});
+assert(priceUnpriced.unpriced === true, 'priceSaleLine: flags an unpriced line');
+
+const priceOverride = priceSaleLine({
+  product: vegProduct,
+  varietyId: 'veg-soya',
+  packSizeId: 'sz_25',
+  tier: 'agent',
+  qty: 1,
+  containerMode: 'none',
+  overrideUnitPrice: 130000,
+  packPrices: testPackPrices
+});
+assert(priceOverride.priceAdjusted === true, 'priceSaleLine: an override away from the matrix flags price_adjusted');
+assert(priceOverride.unitPrice === 130000, 'priceSaleLine: override price is used');
 
 // 11. INTER-CUSTOMER / INTER-AGENT TRANSFERS
 const transferSender: Customer = {
@@ -296,23 +378,20 @@ const transferReceiver: Customer = {
 };
 
 const senderOrders: Order[] = [
-  {
+  mkOrder({
     id: 'ord-s1',
     customer_id: 'c-sender',
     product_id: 'veg',
-    unit: 'keg',
+    pack_size_id: 'sz_30',
     qty: 20,
     litres: 600,
-    rate: 4800,
     amount: 96000,
     paid_amount: 96000,
     payment_method: 'cash',
-    keg_source: 'company',
+    container_mode: 'taken',
     date: '2026-09-01T10:00:00Z',
-    due_date: null,
-    source_tank_id: 'tank-1',
-    pump_id: null
-  }
+    source_tank_id: 'tank-1'
+  })
 ];
 
 const mockTransfers: Transfer[] = [
@@ -322,70 +401,59 @@ const mockTransfers: Transfer[] = [
     to_customer_id: 'c-receiver',
     item_type: 'keg',
     qty: 6,
+    product_id: 'veg',
+    pack_size_id: 'sz_30',
     date: '2026-09-05T12:00:00Z',
     note: 'Yard transfer from Sender to Receiver'
   }
 ];
 
 const senderStats = calculateCustomerStats(transferSender, senderOrders, [], mockTransfers);
-// Sender started with 20 company kegs, transferred 6 to receiver -> 14 remaining out
 assert(senderStats.totalCompanyKegsOut === 14, 'Customer Transfers: Sender kegs out reduced by 6 (20 - 6 = 14)');
 
 const receiverStats = calculateCustomerStats(transferReceiver, [], [], mockTransfers);
-// Receiver started with 0 company kegs, received 6 from sender -> 6 out
 assert(receiverStats.totalCompanyKegsOut === 6, 'Customer Transfers: Receiver kegs out increased by 6 (0 + 6 = 6)');
 
 // 12. PER-ORDER PUMP METER RECONCILIATION
 const sampleOrdersForPump: Order[] = [
-  {
+  mkOrder({
     id: 'ord-p1',
     customer_id: 'c-sender',
     product_id: 'veg',
-    unit: 'litre',
     qty: 300,
     litres: 300,
-    rate: 4800,
     amount: 1440000,
     paid_amount: 1440000,
     payment_method: 'cash',
-    keg_source: null,
     date: '2026-09-08T09:00:00Z',
-    due_date: null,
     source_tank_id: 'tank-1',
     pump_id: 'pump-1',
     meter_reading: 10300
-  }
+  })
 ];
 
-// Order 1 was at 10300 on pump-1 (started at 10000)
-// Now order 2 is dispensed: 200L, meter reads 10500
 const perOrderAudit1 = calculatePerOrderMeterVariance('pump-1', 10500, 200, sampleOrdersForPump, 10000, 20);
 assert(perOrderAudit1.previousReading === 10300, 'Per-order meter: detects previous reading 10300 from prior order');
 assert(perOrderAudit1.meterDelta === 200, 'Per-order meter: delta is 200L (10500 - 10300)');
 assert(perOrderAudit1.variance === 0, 'Per-order meter: variance is 0L (200 - 200)');
 assert(perOrderAudit1.isOverThreshold === false, 'Per-order meter: no alert for 0L variance');
 
-// Order 3 is dispensed: 100L, but meter reads 10650 (+150L delta -> +50L variance > 20L threshold!)
 const ordersWithP2: Order[] = [
   ...sampleOrdersForPump,
-  {
+  mkOrder({
     id: 'ord-p2',
     customer_id: 'c-receiver',
     product_id: 'veg',
-    unit: 'litre',
     qty: 200,
     litres: 200,
-    rate: 4800,
     amount: 960000,
     paid_amount: 960000,
     payment_method: 'cash',
-    keg_source: null,
     date: '2026-09-08T11:00:00Z',
-    due_date: null,
     source_tank_id: 'tank-1',
     pump_id: 'pump-1',
     meter_reading: 10500
-  }
+  })
 ];
 const perOrderAudit2 = calculatePerOrderMeterVariance('pump-1', 10650, 100, ordersWithP2, 10000, 20);
 assert(perOrderAudit2.previousReading === 10500, 'Per-order meter: detects latest prior order reading 10500');
@@ -403,8 +471,6 @@ assert(dipstickHigh.variance === -60, 'Dipstick verification: variance is -60L')
 assert(dipstickHigh.isOverThreshold === true, 'Dipstick verification: -60L exceeds 30L threshold');
 
 // 14. SHIFT RECONCILIATION & CLOSEOUT
-// Opening float: ₦20,000, Cash sales: ₦180,000, Cash expenses: ₦30,000
-// Expected cash = 20,000 + 180,000 - 30,000 = ₦170,000
 const shiftBalanced = calculateShiftSummary(20000, 180000, 30000, 170000);
 assert(shiftBalanced.expectedCash === 170000, 'Shift summary: expected cash is ₦170,000');
 assert(shiftBalanced.cashVariance === 0, 'Shift summary: balanced cash variance is 0');
@@ -416,7 +482,6 @@ assert(shiftDiscrepancy.cashVariance === -5000, 'Shift summary: cash variance is
 assert(shiftDiscrepancy.hasVariance === true, 'Shift summary: hasVariance is true for ₦5,000 discrepancy');
 
 // 15. DEPOT TIMEZONE DAY BUCKETS (Africa/Lagos, UTC+1)
-// 2026-09-08T23:30:00Z is 2026-09-09 00:30 in Lagos -> should bucket to the 9th.
 assert(depotDateKey('2026-09-08T23:30:00Z') === '2026-09-09', 'Depot day: late-UTC evening rolls into next Lagos day');
 assert(depotDateKey('2026-09-08T10:00:00Z') === '2026-09-08', 'Depot day: daytime stays on same Lagos day');
 assert(/^\d{4}-\d{2}-\d{2}$/.test(getDepotToday()), 'Depot day: getDepotToday returns YYYY-MM-DD');
@@ -424,13 +489,14 @@ assert(/^\d{4}-\d{2}-\d{2}$/.test(getDepotToday()), 'Depot day: getDepotToday re
 // 16. SHIFT CASH — single source of truth
 const scShift = { start_time: '2026-09-08T07:00:00Z', end_time: null, opening_float: 20000 };
 const scOrders: Order[] = [
-  { id: 'sc-1', customer_id: 'c-test', product_id: 'veg', unit: 'litre', qty: 100, litres: 100, rate: 4800, amount: 480000, paid_amount: 480000, payment_method: 'cash', keg_source: null, date: '2026-09-08T09:00:00Z', due_date: null, source_tank_id: null, pump_id: null },
-  { id: 'sc-2', customer_id: 'c-test', product_id: 'veg', unit: 'litre', qty: 50, litres: 50, rate: 4800, amount: 240000, paid_amount: 240000, payment_method: 'transfer', keg_source: null, date: '2026-09-08T10:00:00Z', due_date: null, source_tank_id: null, pump_id: null },
-  { id: 'sc-3', customer_id: 'c-test', product_id: 'veg', unit: 'litre', qty: 10, litres: 10, rate: 4800, amount: 48000, paid_amount: 48000, payment_method: 'cash', keg_source: null, date: '2026-09-08T06:00:00Z', due_date: null, source_tank_id: null, pump_id: null }
+  mkOrder({ id: 'sc-1', customer_id: 'c-test', product_id: 'veg', qty: 100, litres: 100, amount: 480000, paid_amount: 480000, payment_method: 'cash', date: '2026-09-08T09:00:00Z' }),
+  mkOrder({ id: 'sc-2', customer_id: 'c-test', product_id: 'veg', qty: 50, litres: 50, amount: 240000, paid_amount: 240000, payment_method: 'transfer', date: '2026-09-08T10:00:00Z' }),
+  mkOrder({ id: 'sc-3', customer_id: 'c-test', product_id: 'veg', qty: 10, litres: 10, amount: 48000, paid_amount: 48000, payment_method: 'cash', date: '2026-09-08T06:00:00Z' }),
+  mkOrder({ id: 'sc-4', customer_id: 'c-test', product_id: 'veg', qty: 20, litres: 20, amount: 96000, paid_amount: 96000, payment_method: 'cash', date: '2026-09-08T12:00:00Z', voided: true })
 ];
 const scExpenses = [{ date: '2026-09-08T08:00:00Z', amount: 5000 }, { date: '2026-09-08T06:00:00Z', amount: 9999 }];
 const sc = computeShiftCash(scShift, scOrders, scExpenses, new Date('2026-09-08T18:00:00Z'));
-assert(sc.cashSales === 480000, 'Shift cash: only in-window cash orders counted (transfer & pre-shift excluded)');
+assert(sc.cashSales === 480000, 'Shift cash: only in-window non-voided cash orders counted');
 assert(sc.cashExpenses === 5000, 'Shift cash: only in-window expenses counted');
 assert(sc.expectedCash === 495000, 'Shift cash: expected = 20000 + 480000 - 5000');
 
@@ -449,36 +515,25 @@ const preKegged = calculatePreKeggedIntakeMetrics(100, 25);
 assert(preKegged.exactLitres === 2500, 'Pre-kegged intake: 100 kegs * 25L = 2,500L exact volume');
 assert(preKegged.kegsReceived === 100, 'Pre-kegged intake: kegs received preserved as 100');
 
-// 19. OUTRIGHT KEG CONTAINER PURCHASE
-// Pricing line item: 10 kegs * 25L = 250L * ₦5,000 = ₦1,250,000 oil + (10 * ₦3,500) = ₦1,285,000 total
-const pricingPurchased = calculateOrderPricing('keg', 10, 5000, 25, null, 'purchased', 3500);
-assert(pricingPurchased.oilAmount === 1250000, 'Outright keg pricing: oil amount is ₦1,250,000');
-assert(pricingPurchased.kegAmount === 35000, 'Outright keg pricing: keg container amount is ₦35,000');
-assert(pricingPurchased.amount === 1285000, 'Outright keg pricing: total sale is ₦1,285,000');
-
-// Keg Inventory: outright purchased keg permanently leaves depot but creates NO return debt
+// 19. OUTRIGHT CONTAINER PURCHASE + KEG INVENTORY
 const purchasedOrders: Order[] = [
-  {
+  mkOrder({
     id: 'ord-pur-1',
     customer_id: 'c-test',
     product_id: 'veg',
-    unit: 'keg',
+    pack_size_id: 'sz_30',
     qty: 15,
     litres: 450,
-    rate: 5000,
     amount: 2250000,
     paid_amount: 2250000,
     payment_method: 'cash',
-    keg_source: 'purchased',
-    date: '2026-09-09T10:00:00Z',
-    due_date: null,
-    source_tank_id: null,
-    pump_id: null
-  }
+    container_mode: 'bought',
+    date: '2026-09-09T10:00:00Z'
+  })
 ];
 const invWithPurchased = calculateKegInventory(500, purchasedOrders, []);
-assert(invWithPurchased.totalKegsOut === 0, 'Outright keg inventory: zero kegs out debt created');
-assert(invWithPurchased.kegsAtDepot === 485, 'Outright keg inventory: depot stock reduced by 15 (500 - 15 = 485)');
+assert(invWithPurchased.totalKegsOut === 0, 'Outright container inventory: zero return debt created');
+assert(invWithPurchased.kegsAtDepot === 485, 'Outright container inventory: depot stock reduced by 15 (500 - 15 = 485)');
 
 // 20. SHIFT-START METER HARD GATE (Bulk pumps only; pre-kegged palm never blocks the gate)
 const testPumps: Pump[] = [
@@ -487,7 +542,6 @@ const testPumps: Pump[] = [
   { id: 'pump-3', label: 'Legacy Pump (Palm Line)', last_meter_reading: 3000, product_id: 'red' }
 ];
 
-// Incomplete: only pump-1 logged (pump-2 bulk pump is missing)
 const shiftMissing: Shift = {
   id: 'shift-test-1',
   status: 'open',
@@ -501,7 +555,6 @@ const gateCheckFail = checkShiftOpeningMetersGate(shiftMissing, testPumps);
 assert(gateCheckFail.isPassed === false, 'Shift meter gate: blocked when bulk pump-2 is missing');
 assert(gateCheckFail.missingPumps.length === 1 && gateCheckFail.missingPumps[0].id === 'pump-2', 'Shift meter gate: accurately identifies pump-2 as missing (and ignores pre-kegged palm)');
 
-// Complete: both bulk pumps logged; palm pump-3 not logged but ignored
 const shiftComplete: Shift = {
   ...shiftMissing,
   opening_readings: { 'pump-1': 1000, 'pump-2': 2000 }
@@ -514,22 +567,6 @@ assert(gateCheckPass.missingPumps.length === 0, 'Shift meter gate: zero missing 
 assert(calculateLitres('keg', 10, 30) === 300, 'Per-product capacity: 10 veg kegs (30L) = 300L');
 assert(calculateLitres('keg', 10, 25) === 250, 'Per-product capacity: 10 palm kegs (25L) = 250L');
 
-// 22. VARIETY RATE DELTA + TIER OVERRIDE (rate resolution, as done in createNewOrder)
-// Golden Oil agent rate ₦4,800/L; "Groundnut" variety +₦250 => ₦5,050/L base for that tier+spec.
-const vegAgentRate = lookupRatePerLitre(
-  [{ product_id: 'veg', tier: 'agent', rate_per_litre: 4800 }] as RateCard[], 'veg', 'agent'
-);
-assert(vegAgentRate === 4800, 'Rate lookup: veg agent tier is ₦4,800/L');
-assert(vegAgentRate + 250 === 5050, 'Variety delta: groundnut spec (+₦250) lifts agent rate to ₦5,050/L');
-// Overriding a retail customer down to agent tier lowers the standard rate (would need a discount reason).
-const retailStd = lookupRatePerLitre(
-  [
-    { product_id: 'veg', tier: 'retail', rate_per_litre: 5200 },
-    { product_id: 'veg', tier: 'agent', rate_per_litre: 4800 }
-  ] as RateCard[], 'veg', 'retail'
-);
-assert(retailStd === 5200 && retailStd > vegAgentRate, 'Tier override: agent rate is below retail, so overriding trips the discount-reason guard');
-
 // 23. AMOUNT IN WORDS (receipt spell-out)
 assert(formatNairaWords(0) === 'Zero naira only', 'Amount words: zero');
 assert(formatNairaWords(1385000) === 'One million, three hundred and eighty-five thousand naira only', 'Amount words: 1,385,000');
@@ -539,5 +576,3 @@ assert(formatNairaWords(215) === 'Two hundred and fifteen naira only', 'Amount w
 console.log('====================================================');
 console.log(`TEST SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);
 console.log('====================================================');
-
-

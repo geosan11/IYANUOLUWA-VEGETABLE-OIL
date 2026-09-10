@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useStore } from '../services/store';
-import { BottomSheet } from '../components/common/BottomSheet';
-import { useIsDesktopSplit } from '../hooks/useBreakpoint';
+import { usePermissions } from '../services/permissions';
+import { Modal } from '../components/common/Modal';
 import {
   formatNaira,
   formatDepotDate,
@@ -9,19 +9,22 @@ import {
   getDepotToday,
   depotDateKey
 } from '../services/businessLogic';
-import { Order, PaymentMethod } from '../types';
+import { packShort } from '../constants/config';
+import { Sale, Order, Payment, Expense, Tank, ReceiptData, ContainerMode } from '../types';
 import {
   ScrollText,
   Search,
   Printer,
   PlusCircle,
-  MessageSquare,
-  Droplet,
+  ChevronDown,
+  ChevronRight,
+  Pencil,
+  Ban,
+  History,
   CreditCard,
   Banknote,
-  Fuel,
-  CheckCircle2,
-  ChevronRight
+  Truck,
+  Undo2
 } from 'lucide-react';
 
 interface Props {
@@ -29,593 +32,729 @@ interface Props {
 }
 
 type Scope = 'shift' | 'today' | 'all';
+type Kind = 'sale' | 'payment' | 'expense' | 'intake';
+type KindFilter = 'all' | Kind;
 
-const PAYMENT_LABEL: Record<PaymentMethod, string> = {
-  cash: 'Cash',
-  transfer: 'Transfer',
-  pos: 'Card / POS',
-  credit: 'Credit'
+interface TxnRow {
+  id: string;
+  kind: Kind;
+  entityId: string;
+  auditIds: string[];
+  date: string;
+  title: string;
+  subtitle: string;
+  amount: number;
+  amountLabel: string;
+  tone: 'in' | 'out' | 'neutral';
+  voided: boolean;
+  sale?: Sale;
+  lines?: Order[];
+  payment?: Payment;
+  expense?: Expense;
+  tank?: Tank;
+}
+
+const KIND_META: Record<Kind, { label: string; Icon: typeof CreditCard; badge: string }> = {
+  sale: { label: 'Sale', Icon: Banknote, badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' },
+  payment: { label: 'Payment', Icon: CreditCard, badge: 'bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300' },
+  expense: { label: 'Expense', Icon: Undo2, badge: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' },
+  intake: { label: 'Intake', Icon: Truck, badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300' }
 };
 
-const slipNo = (o: Order) => o.id.replace(/^ord-/, '');
-const outstanding = (o: Order) => Math.max(0, o.amount - (o.paid_amount || 0));
-
 export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
-  const { orders, customers, products, pumps, tanks, settings, activeShift, setActiveReceipt } = useStore();
-  const isDesktop = useIsDesktopSplit();
+  const {
+    sales,
+    orders,
+    payments,
+    expenses,
+    tanks,
+    customers,
+    products,
+    suppliers,
+    auditLog,
+    customerStatsMap,
+    activeShift,
+    setActiveReceipt,
+    voidSale,
+    voidPayment,
+    updateOrderLine,
+    updateExpense,
+    voidExpense,
+    updateTankIntake
+  } = useStore();
+  const { isOwner } = usePermissions();
 
   const [scope, setScope] = useState<Scope>(activeShift ? 'shift' : 'today');
   const [search, setSearch] = useState('');
-  const [productFilter, setProductFilter] = useState<'all' | string>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'credit'>('all');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [sheetOrder, setSheetOrder] = useState<Order | null>(null);
+  const [kindFilter, setKindFilter] = useState<KindFilter>('all');
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [auditFor, setAuditFor] = useState<string | null>(null);
+  const [voidTarget, setVoidTarget] = useState<TxnRow | null>(null);
+  const [editTarget, setEditTarget] = useState<TxnRow | null>(null);
 
-  const lookup = useMemo(
-    () => ({
-      cust: (id: string) => customers.find(c => c.id === id),
-      prod: (id: string) => products.find(p => p.id === id),
-      pump: (id: string | null) => (id ? pumps.find(p => p.id === id) : undefined)
-    }),
-    [customers, products, pumps]
-  );
+  const custName = (id: string) => customers.find(c => c.id === id)?.name || 'Walk-in';
+  const prodName = (id: string) => products.find(p => p.id === id)?.name || 'Oil';
 
-  // FIFO tank provenance for a slip: multi-entry when the sale spanned 2+ tanks,
-  // else the single primary tank (kept as a one-line label).
-  const tankSources = (o: Order): { label: string; litres: number }[] => {
-    const allocs =
-      o.tank_allocations && o.tank_allocations.length
-        ? o.tank_allocations
-        : o.source_tank_id
-        ? [{ tank_id: o.source_tank_id, litres: o.litres }]
-        : [];
-    return allocs.map(a => ({
-      label: tanks.find(t => t.id === a.tank_id)?.truck_label || a.tank_id,
-      litres: a.litres
-    }));
-  };
+  const allRows = useMemo<TxnRow[]>(() => {
+    const rows: TxnRow[] = [];
 
-  // 1. Scope the orders
-  const scoped = useMemo(() => {
-    const today = getDepotToday();
-    return orders.filter(o => {
-      if (scope === 'all') return true;
-      if (scope === 'today') return depotDateKey(o.date) === today;
-      // shift
-      if (!activeShift) return depotDateKey(o.date) === today;
-      return new Date(o.date).getTime() >= new Date(activeShift.start_time).getTime();
-    });
-  }, [orders, scope, activeShift]);
-
-  // 2. Filter + search
-  const rows = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return scoped
-      .filter(o => {
-        if (productFilter !== 'all' && o.product_id !== productFilter) return false;
-        if (statusFilter === 'paid' && (o.payment_method === 'credit' && outstanding(o) > 0.01)) return false;
-        if (statusFilter === 'credit' && !(o.payment_method === 'credit' && outstanding(o) > 0.01)) return false;
-        if (!q) return true;
-        const c = lookup.cust(o.customer_id);
-        const p = lookup.prod(o.product_id);
-        return (
-          slipNo(o).toLowerCase().includes(q) ||
-          (c?.name || '').toLowerCase().includes(q) ||
-          (p?.name || '').toLowerCase().includes(q) ||
-          (o.variety_name || '').toLowerCase().includes(q) ||
-          (o.note || '').toLowerCase().includes(q)
-        );
-      })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [scoped, productFilter, statusFilter, search, lookup]);
-
-  // 3. KPIs over the scoped set
-  const kpi = useMemo(() => {
-    let gross = 0,
-      settled = 0,
-      creditOutstanding = 0,
-      litres = 0;
-    const perProduct: Record<string, number> = {};
-    scoped.forEach(o => {
-      gross += o.amount;
-      litres += o.litres;
-      perProduct[o.product_id] = (perProduct[o.product_id] || 0) + o.litres;
-      if (o.payment_method === 'credit') creditOutstanding += outstanding(o);
-      else settled += o.paid_amount || 0;
-    });
-    return { gross, settled, creditOutstanding, litres, perProduct, count: scoped.length };
-  }, [scoped]);
-
-  const selected = rows.find(o => o.id === selectedId) || rows[0] || null;
-
-  const reprint = (o: Order) => {
-    const customer = lookup.cust(o.customer_id);
-    if (!customer) return;
-    setActiveReceipt({
-      receiptNumber: `REC-${slipNo(o)}`,
-      type: 'order',
-      date: o.date,
-      customer,
-      order: o,
-      product: lookup.prod(o.product_id),
-      pumpLabel: lookup.pump(o.pump_id)?.label,
-      kegPrice: o.keg_price ?? null,
-      kegAmount: o.keg_amount ?? null,
-      discountReason: o.discount_reason ?? null,
-      varietyName: o.variety_name ?? null,
-      pricingTier: o.pricing_tier ?? null,
-      paymentMethod: o.payment_method,
-      // Reprint copy — balances shown "as of now", not at time of sale.
-      previousBalance: 0,
-      newBalance: o.payment_method === 'credit' ? outstanding(o) : 0,
-      cashierName: activeShift?.cashier_name || 'Depot Cashier'
-    });
-  };
-
-  const whatsappHref = (o: Order) => {
-    const c = lookup.cust(o.customer_id);
-    const phone = (c?.phone || '').replace(/[^0-9]/g, '');
-    const text = encodeURIComponent(
-      `${settings.company_name}\nSlip #${slipNo(o)} · ${formatDepotDate(o.date)} ${formatDepotTime(o.date)}\n` +
-        `${lookup.prod(o.product_id)?.name || 'Oil'} — ${o.litres.toLocaleString()} L\n` +
-        `Total: ${formatNaira(o.amount)} · ${PAYMENT_LABEL[o.payment_method]}` +
-        (o.payment_method === 'credit' && outstanding(o) > 0 ? `\nOutstanding: ${formatNaira(outstanding(o))}` : '')
-    );
-    return `https://wa.me/${phone}?text=${text}`;
-  };
-
-  const statusFor = (o: Order) => {
-    if (o.payment_method === 'credit' && outstanding(o) > 0.01) {
-      return { label: `Credit · ${outstanding(o) < o.amount ? 'part-paid' : 'unpaid'}`, tone: 'amber' as const };
+    for (const sale of sales) {
+      const lines = orders.filter(o => o.sale_id === sale.id);
+      if (lines.length === 0) continue;
+      const total = lines.reduce((s, l) => s + l.line_amount, 0);
+      const outstanding = lines.reduce((s, l) => s + Math.max(0, l.line_amount - (l.paid_amount || 0)), 0);
+      rows.push({
+        id: `sale:${sale.id}`,
+        kind: 'sale',
+        entityId: sale.id,
+        auditIds: [sale.id, ...lines.map(l => l.id)],
+        date: sale.date,
+        title: custName(sale.customer_id),
+        subtitle: `${lines.length} item${lines.length === 1 ? '' : 's'} · ${sale.payment_method}${
+          sale.payment_method === 'credit' && outstanding > 0.01 ? ` · owes ${formatNaira(outstanding)}` : ''
+        }`,
+        amount: total,
+        amountLabel: formatNaira(total),
+        tone: 'in',
+        voided: !!sale.voided,
+        sale,
+        lines
+      });
     }
-    return { label: `Paid · ${PAYMENT_LABEL[o.payment_method]}`, tone: 'emerald' as const };
+
+    for (const p of payments) {
+      rows.push({
+        id: `pay:${p.id}`,
+        kind: 'payment',
+        entityId: p.id,
+        auditIds: [p.id],
+        date: p.date,
+        title: custName(p.customer_id),
+        subtitle: p.source === 'credit_redeem' ? 'Store credit applied' : `${p.method} settlement`,
+        amount: p.amount,
+        amountLabel: formatNaira(p.amount),
+        tone: 'in',
+        voided: !!p.voided,
+        payment: p
+      });
+    }
+
+    for (const e of expenses) {
+      rows.push({
+        id: `exp:${e.id}`,
+        kind: 'expense',
+        entityId: e.id,
+        auditIds: [e.id],
+        date: e.date,
+        title: e.category,
+        subtitle: e.note || '—',
+        amount: -e.amount,
+        amountLabel: `-${formatNaira(e.amount)}`,
+        tone: 'out',
+        voided: !!e.voided,
+        expense: e
+      });
+    }
+
+    for (const t of tanks) {
+      const supplier = suppliers.find(s => s.id === t.supplier_id)?.name;
+      rows.push({
+        id: `tank:${t.id}`,
+        kind: 'intake',
+        entityId: t.id,
+        auditIds: [t.id],
+        date: t.date,
+        title: t.truck_label,
+        subtitle: `${prodName(t.product_id)}${supplier ? ` · ${supplier}` : ''}`,
+        amount: 0,
+        amountLabel: `+${t.received_litres.toLocaleString()} L`,
+        tone: 'neutral',
+        voided: false,
+        tank: t
+      });
+    }
+
+    return rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [sales, orders, payments, expenses, tanks, customers, products, suppliers]);
+
+  const scopedRows = useMemo(() => {
+    const today = getDepotToday();
+    return allRows.filter(r => {
+      if (kindFilter !== 'all' && r.kind !== kindFilter) return false;
+      if (scope === 'today' && depotDateKey(r.date) !== today) return false;
+      if (scope === 'shift') {
+        if (!activeShift) {
+          if (depotDateKey(r.date) !== today) return false;
+        } else if (new Date(r.date).getTime() < new Date(activeShift.start_time).getTime()) {
+          return false;
+        }
+      }
+      const q = search.trim().toLowerCase();
+      if (q && !(`${r.title} ${r.subtitle}`.toLowerCase().includes(q))) return false;
+      return true;
+    });
+  }, [allRows, kindFilter, scope, activeShift, search]);
+
+  const kpi = useMemo(() => {
+    let gross = 0;
+    let received = 0;
+    let spent = 0;
+    for (const r of scopedRows) {
+      if (r.voided) continue;
+      if (r.kind === 'sale') gross += r.amount;
+      if (r.kind === 'payment') received += r.amount;
+      if (r.kind === 'expense') spent += -r.amount;
+    }
+    const creditOwed = Object.values(customerStatsMap).reduce((s, c) => s + c.currentBalance, 0);
+    return { gross, received, spent, creditOwed };
+  }, [scopedRows, customerStatsMap]);
+
+  const reprintSale = (sale: Sale, lines: Order[]) => {
+    const customer = customers.find(c => c.id === sale.customer_id);
+    if (!customer) return;
+    const first = lines[0];
+    const receipt: ReceiptData = {
+      receiptNumber: `REC-${sale.id.replace(/^sale-/, '')}`,
+      type: 'order',
+      date: sale.date,
+      customer,
+      sale,
+      lines,
+      order: first,
+      product: products.find(p => p.id === first.product_id),
+      packLabel: packShort(first.pack_size_id),
+      varietyName: first.variety_name,
+      pricingTier: first.pricing_tier,
+      amountTendered: sale.amount_tendered ?? null,
+      changeDue: sale.change_due ?? null,
+      paymentMethod: sale.payment_method,
+      previousBalance: 0,
+      newBalance: lines.reduce((s, l) => s + Math.max(0, l.line_amount - (l.paid_amount || 0)), 0),
+      cashierName: sale.cashier_name || 'Depot Cashier'
+    };
+    setActiveReceipt(receipt);
   };
 
-  const openRow = (o: Order) => {
-    if (isDesktop) setSelectedId(o.id);
-    else setSheetOrder(o);
-  };
-
-  const scopeLabel = scope === 'shift' ? 'This shift' : scope === 'today' ? 'Today' : 'All time';
+  const SCOPES: { id: Scope; label: string }[] = [
+    { id: 'shift', label: activeShift ? 'This shift' : 'Today' },
+    { id: 'today', label: 'Today' },
+    { id: 'all', label: 'All' }
+  ];
+  const KIND_CHIPS: { id: KindFilter; label: string }[] = [
+    { id: 'all', label: 'All' },
+    { id: 'sale', label: 'Sales' },
+    { id: 'payment', label: 'Payments' },
+    { id: 'expense', label: 'Expenses' },
+    { id: 'intake', label: 'Intake' }
+  ];
 
   return (
-    <div className="space-y-5 pb-24">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div>
-          <h2 className="text-[22px] font-heading font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+    <div className="space-y-5 pb-20">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800 flex items-center justify-center">
             <ScrollText className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-            <span>Sales log</span>
-          </h2>
-          <p className="text-[13px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-            Every dispense slip — search, reprint, or resend by WhatsApp.
-            {activeShift?.cashier_name && ` · Shift: ${activeShift.cashier_name}`}
-          </p>
+          </div>
+          <div>
+            <h1 className="text-lg font-heading font-bold text-slate-900 dark:text-white leading-tight">Transactions</h1>
+            <p className="text-[12px] text-slate-500 dark:text-slate-400">
+              Everything in and out, newest first — with date, time and an edit trail.
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex gap-2">
           <button
-            type="button"
             onClick={() => window.print()}
-            className="h-11 px-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[13px] font-sans font-semibold flex items-center gap-1.5 border border-slate-200 dark:border-slate-700"
+            className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-[12px] font-sans font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5"
           >
-            <Printer className="w-4 h-4" />
-            <span className="hidden sm:inline">Print list</span>
+            <Printer className="w-3.5 h-3.5" /> Print
           </button>
           <button
-            type="button"
             onClick={() => onNavigate('order')}
-            className="h-11 px-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-[13px] font-sans font-bold flex items-center gap-1.5 shadow-sm active:scale-95"
+            className="px-3 py-2 rounded-xl bg-brand-500 text-slate-950 text-[12px] font-sans font-bold flex items-center gap-1.5"
           >
-            <PlusCircle className="w-4 h-4" />
-            <span>New sale</span>
+            <PlusCircle className="w-3.5 h-3.5" /> New sale
           </button>
         </div>
       </div>
 
-      {/* Scope toggle */}
-      <div className="inline-flex rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 text-[12px] font-sans font-bold">
-        {(['shift', 'today', 'all'] as Scope[]).map(s => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setScope(s)}
-            disabled={s === 'shift' && !activeShift}
-            className={`px-3.5 py-1.5 rounded-lg capitalize transition-all disabled:opacity-40 ${
-              scope === s ? 'bg-brand-500 text-slate-950 shadow-sm' : 'text-slate-600 dark:text-slate-400'
-            }`}
-          >
-            {s === 'shift' ? 'This shift' : s === 'today' ? 'Today' : 'All time'}
-          </button>
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        {[
+          ['Gross sales', formatNaira(kpi.gross), 'text-slate-900 dark:text-white'],
+          ['Payments in', formatNaira(kpi.received), 'text-sky-600 dark:text-sky-400'],
+          ['Expenses', formatNaira(kpi.spent), 'text-rose-600 dark:text-rose-400'],
+          ['Credit owed', formatNaira(kpi.creditOwed), 'text-amber-600 dark:text-amber-400']
+        ].map(([label, val, cls]) => (
+          <div key={label} className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+            <div className="text-[10px] font-sans uppercase tracking-wider text-slate-500">{label}</div>
+            <div className={`text-[15px] font-mono font-extrabold tabular-nums mt-0.5 ${cls}`}>{val}</div>
+          </div>
         ))}
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        <KpiCard label={`Gross sales (${scopeLabel})`} value={formatNaira(kpi.gross)} icon={Banknote} sub={`${kpi.count} sale${kpi.count === 1 ? '' : 's'}`}>
-          {kpi.gross > 0 && (
-            <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden flex mt-2">
-              <div className="h-full bg-brand-500" style={{ width: `${(kpi.settled / kpi.gross) * 100}%` }} title="Settled" />
-              <div className="h-full bg-amber-400" style={{ width: `${(kpi.creditOutstanding / kpi.gross) * 100}%` }} title="Credit outstanding" />
-            </div>
-          )}
-        </KpiCard>
-
-        <KpiCard label="Money in (cash / transfer / card)" value={formatNaira(kpi.settled)} icon={CheckCircle2} tone="emerald" sub={kpi.gross > 0 ? `${Math.round((kpi.settled / kpi.gross) * 100)}% collected` : '—'} />
-
-        <KpiCard label="Credit still owed" value={formatNaira(kpi.creditOutstanding)} icon={CreditCard} tone={kpi.creditOutstanding > 0 ? 'amber' : 'slate'} sub={kpi.creditOutstanding > 0 ? 'From credit sales in view' : 'Nothing outstanding'} />
-
-        <KpiCard label="Oil dispensed" value={`${kpi.litres.toLocaleString()} L`} icon={Droplet} sub={`≈ ${Math.round(kpi.litres / (settings.litres_per_keg || 30))} kegs`}>
-          <div className="flex flex-wrap gap-1 mt-2">
-            {Object.entries(kpi.perProduct).map(([pid, l]) => (
-              <span key={pid} className="text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                {lookup.prod(pid)?.name?.split(' ')[0] || pid}: {l.toLocaleString()}L
-              </span>
-            ))}
-          </div>
-        </KpiCard>
-      </div>
-
-      {/* Search + filters */}
-      <div className="p-3 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col lg:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+      {/* Controls */}
+      <div className="space-y-2.5">
+        <div className="relative">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search slip #, customer, product, note…"
-            className="w-full h-12 pl-10 pr-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-sans text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-500"
+            placeholder="Search customer, category, truck…"
+            className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px] focus:outline-none focus:border-brand-500"
           />
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Pill active={productFilter === 'all'} onClick={() => setProductFilter('all')}>All ({scoped.length})</Pill>
-          {products.map(p => {
-            const n = scoped.filter(o => o.product_id === p.id).length;
-            return (
-              <Pill key={p.id} active={productFilter === p.id} onClick={() => setProductFilter(p.id)}>
-                {p.name.split(' ')[0]} ({n})
-              </Pill>
-            );
-          })}
-          <Pill active={statusFilter === 'paid'} onClick={() => setStatusFilter(statusFilter === 'paid' ? 'all' : 'paid')} tone="emerald">
-            Paid
-          </Pill>
-          <Pill active={statusFilter === 'credit'} onClick={() => setStatusFilter(statusFilter === 'credit' ? 'all' : 'credit')} tone="amber">
-            Credit owed
-          </Pill>
+        <div className="flex flex-wrap gap-1.5">
+          {SCOPES.map(s => (
+            <button
+              key={s.id}
+              onClick={() => setScope(s.id)}
+              className={`px-3 py-1.5 rounded-lg text-[12px] font-sans font-semibold border ${
+                scope === s.id
+                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
+                  : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800'
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+          <span className="w-px bg-slate-200 dark:bg-slate-800 mx-1" />
+          {KIND_CHIPS.map(k => (
+            <button
+              key={k.id}
+              onClick={() => setKindFilter(k.id)}
+              className={`px-3 py-1.5 rounded-lg text-[12px] font-sans font-semibold border ${
+                kindFilter === k.id
+                  ? 'bg-brand-500 text-slate-950 border-brand-500'
+                  : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800'
+              }`}
+            >
+              {k.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Grid: list + inspector */}
-      <div className="grid grid-cols-1 split:grid-cols-3 gap-5 items-start">
-        <div className="split:col-span-2 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-          <div className="px-4 py-3 bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-            <span className="text-[13px] font-heading font-semibold text-slate-900 dark:text-white">Dispense slips</span>
-            <span className="text-[11px] font-sans text-slate-500">{rows.length} shown</span>
-          </div>
-
-          {rows.length === 0 ? (
-            <div className="p-10 text-center text-[13px] font-sans text-slate-500 dark:text-slate-400">
-              No sales match this view.
-            </div>
-          ) : (
-            <>
-              {/* Desktop table */}
-              <div className="hidden split:block overflow-x-auto">
-                <table className="w-full text-left text-[13px]">
-                  <thead className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-500 bg-slate-50 dark:bg-slate-950/40 border-b border-slate-200 dark:border-slate-800">
-                    <tr>
-                      <th className="px-4 py-2.5">Slip / time</th>
-                      <th className="px-4 py-2.5">Customer</th>
-                      <th className="px-4 py-2.5">Product</th>
-                      <th className="px-4 py-2.5 text-right">Volume</th>
-                      <th className="px-4 py-2.5 text-right">Amount</th>
-                      <th className="px-4 py-2.5 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/70 font-mono tabular-nums">
-                    {rows.map(o => {
-                      const c = lookup.cust(o.customer_id);
-                      const p = lookup.prod(o.product_id);
-                      const st = statusFor(o);
-                      const isSel = selected?.id === o.id;
-                      return (
-                        <tr
-                          key={o.id}
-                          onClick={() => setSelectedId(o.id)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              setSelectedId(o.id);
-                            }
-                          }}
-                          role="button"
-                          tabIndex={0}
-                          aria-pressed={isSel}
-                          aria-label={`Slip ${slipNo(o)}, ${lookup.cust(o.customer_id)?.name || 'walk-in'}, ${formatNaira(o.amount)}`}
-                          className={`cursor-pointer transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 ${isSel ? 'bg-brand-50/60 dark:bg-brand-950/25' : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'}`}
-                        >
-                          <td className="px-4 py-3 align-top">
-                            <div className="font-bold text-brand-700 dark:text-brand-400">#{slipNo(o)}</div>
-                            <div className="text-[11px] text-slate-500 font-sans">{formatDepotTime(o.date)}</div>
-                            {o.pump_id && (
-                              <div className="text-[10px] text-slate-400 font-sans uppercase mt-0.5 flex items-center gap-0.5">
-                                <Fuel className="w-3 h-3" />
-                                {lookup.pump(o.pump_id)?.label}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 align-top font-sans">
-                            <div className="font-bold text-slate-900 dark:text-white">{c?.name || 'Walk-in'}</div>
-                            <span className="inline-block mt-0.5 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                              {(o.pricing_tier || c?.type || 'retail')} tier
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 align-top font-sans">
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: o.product_id === 'veg' ? '#F59E0B' : '#EF4444' }} />
-                              <span className="font-semibold text-slate-800 dark:text-slate-200">{p?.name}</span>
-                            </div>
-                            {o.variety_name && <div className="text-[11px] text-slate-500">{o.variety_name}</div>}
-                          </td>
-                          <td className="px-4 py-3 align-top text-right">
-                            <div className="font-bold text-slate-900 dark:text-white">{o.litres.toLocaleString()} L</div>
-                            <div className="text-[11px] text-slate-500 font-sans">{o.qty} {o.unit}{o.qty === 1 ? '' : 's'}</div>
-                          </td>
-                          <td className="px-4 py-3 align-top text-right">
-                            <div className="font-bold text-slate-900 dark:text-white">{formatNaira(o.amount)}</div>
-                            <span className={`inline-block mt-0.5 text-[10px] font-sans font-bold px-1.5 py-0.5 rounded ${
-                              st.tone === 'emerald'
-                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
-                                : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
-                            }`}>
-                              {st.label}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 align-top text-right">
-                            <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
-                              <button type="button" onClick={() => reprint(o)} title="Reprint slip" className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700">
-                                <Printer className="w-4 h-4" />
-                              </button>
-                              <a href={whatsappHref(o)} target="_blank" rel="noopener noreferrer" title="Send by WhatsApp" className="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center">
-                                <MessageSquare className="w-4 h-4" />
-                              </a>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+      {/* Feed */}
+      <div className="space-y-2">
+        {scopedRows.length === 0 && (
+          <div className="py-12 text-center text-[13px] text-slate-400">Nothing in this window.</div>
+        )}
+        {scopedRows.map(row => {
+          const { Icon, badge, label } = KIND_META[row.kind];
+          const isOpen = expanded === row.id;
+          const showAudit = auditFor === row.id;
+          const rowAudits = auditLog.filter(a => row.auditIds.includes(a.entity_id));
+          return (
+            <div
+              key={row.id}
+              className={`rounded-2xl border bg-white dark:bg-slate-900 ${
+                row.voided ? 'border-slate-200 dark:border-slate-800 opacity-60' : 'border-slate-200 dark:border-slate-800'
+              }`}
+            >
+              <div className="p-3.5 flex items-start gap-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${badge}`}>
+                  <Icon className="w-4 h-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[13px] font-sans font-bold text-slate-900 dark:text-white truncate ${row.voided ? 'line-through' : ''}`}>
+                      {row.title}
+                    </span>
+                    <span className={`text-[9px] font-sans font-black uppercase tracking-wide px-1.5 py-0.5 rounded ${badge}`}>{label}</span>
+                    {row.voided && (
+                      <span className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
+                        Voided
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{row.subtitle}</div>
+                  <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                    {formatDepotDate(row.date)} · {formatDepotTime(row.date)}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div
+                    className={`text-[14px] font-mono font-extrabold tabular-nums ${
+                      row.voided
+                        ? 'text-slate-400 line-through'
+                        : row.tone === 'out'
+                        ? 'text-rose-600 dark:text-rose-400'
+                        : row.tone === 'neutral'
+                        ? 'text-slate-500'
+                        : 'text-slate-900 dark:text-white'
+                    }`}
+                  >
+                    {row.amountLabel}
+                  </div>
+                  <div className="flex items-center justify-end gap-1 mt-1">
+                    {row.kind === 'sale' && (
+                      <button
+                        onClick={() => setExpanded(isOpen ? null : row.id)}
+                        className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                        aria-label="Expand"
+                      >
+                        {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      </button>
+                    )}
+                    {rowAudits.length > 0 && (
+                      <button
+                        onClick={() => setAuditFor(showAudit ? null : row.id)}
+                        className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                        title="Edit history"
+                      >
+                        <History className="w-4 h-4" />
+                      </button>
+                    )}
+                    {row.kind === 'sale' && row.sale && row.lines && !row.voided && (
+                      <button
+                        onClick={() => reprintSale(row.sale!, row.lines!)}
+                        className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                        title="Reprint"
+                      >
+                        <Printer className="w-4 h-4" />
+                      </button>
+                    )}
+                    {isOwner && !row.voided && row.kind !== 'intake' && (
+                      <button
+                        onClick={() => setEditTarget(row)}
+                        className="p-1 rounded text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
+                        title="Edit"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    )}
+                    {isOwner && !row.voided && row.kind === 'intake' && (
+                      <button
+                        onClick={() => setEditTarget(row)}
+                        className="p-1 rounded text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
+                        title="Correct date / details"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    )}
+                    {isOwner && !row.voided && (row.kind === 'sale' || row.kind === 'payment' || row.kind === 'expense') && (
+                      <button
+                        onClick={() => setVoidTarget(row)}
+                        className="p-1 rounded text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
+                        title="Void"
+                      >
+                        <Ban className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {/* Mobile cards */}
-              <div className="split:hidden divide-y divide-slate-100 dark:divide-slate-800/70">
-                {rows.map(o => {
-                  const c = lookup.cust(o.customer_id);
-                  const p = lookup.prod(o.product_id);
-                  const st = statusFor(o);
-                  return (
-                    <button key={o.id} type="button" onClick={() => openRow(o)} className="w-full text-left p-4 flex items-center gap-3 active:bg-slate-50 dark:active:bg-slate-800/40">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-brand-700 dark:text-brand-400 text-[13px]">#{slipNo(o)}</span>
-                          <span className="text-[11px] text-slate-500">{formatDepotTime(o.date)}</span>
-                        </div>
-                        <div className="font-heading font-semibold text-[14px] text-slate-900 dark:text-white truncate">{c?.name || 'Walk-in'}</div>
-                        <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: o.product_id === 'veg' ? '#F59E0B' : '#EF4444' }} />
-                          {p?.name} · {o.litres.toLocaleString()} L
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="font-mono tabular-nums font-bold text-slate-900 dark:text-white text-[14px]">{formatNaira(o.amount)}</div>
-                        <span className={`text-[10px] font-bold ${st.tone === 'emerald' ? 'text-emerald-600' : 'text-amber-600'}`}>{st.label}</span>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </div>
+              {isOpen && row.lines && (
+                <div className="px-3.5 pb-3 space-y-1.5 border-t border-slate-100 dark:border-slate-800 pt-2">
+                  {row.lines.map(l => (
+                    <div key={l.id} className="flex items-center justify-between text-[12px]">
+                      <span className="text-slate-600 dark:text-slate-300 truncate">
+                        {l.qty} × {packShort(l.pack_size_id)} · {prodName(l.product_id)} / {l.variety_name}
+                        {l.container_mode === 'taken' && ' · keg taken'}
+                        {l.container_mode === 'bought' && ' · keg bought'}
+                        {l.price_adjusted && ` · adj: ${l.price_adjust_reason || 'price changed'}`}
+                      </span>
+                      <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 shrink-0 ml-2">
+                        {formatNaira(l.line_amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-        {/* Inspector (desktop) */}
-        <div className="hidden split:block split:col-span-1 split:sticky split:top-4">
-          {selected ? (
-            <SlipInspector
-              order={selected}
-              customerName={lookup.cust(selected.customer_id)?.name || 'Walk-in'}
-              productName={lookup.prod(selected.product_id)?.name || ''}
-              pumpLabel={lookup.pump(selected.pump_id)?.label}
-              sources={tankSources(selected)}
-              cashier={activeShift?.cashier_name || 'Counter'}
-              companyName={settings.company_name}
-              status={statusFor(selected)}
-              onPrint={() => reprint(selected)}
-              whatsappHref={whatsappHref(selected)}
-            />
-          ) : (
-            <div className="rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-8 text-center text-[13px] text-slate-500">
-              Select a slip to inspect it.
+              {showAudit && (
+                <div className="px-3.5 pb-3 border-t border-slate-100 dark:border-slate-800 pt-2 space-y-1.5">
+                  <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400">Edit history</div>
+                  {rowAudits.map(a => (
+                    <div key={a.id} className="text-[11px] text-slate-500 dark:text-slate-400">
+                      <span className="font-semibold capitalize text-slate-700 dark:text-slate-300">{a.action}</span>
+                      {' · '}
+                      {formatDepotDate(a.at)} {formatDepotTime(a.at)} · {a.actor_name || a.actor_role}
+                      {a.reason ? ` · “${a.reason}”` : ''}
+                      {a.changes.length > 0 && (
+                        <div className="pl-3 text-[10px] font-mono text-slate-400">
+                          {a.changes.map((c, i) => (
+                            <div key={i}>
+                              {c.field}: {String(c.old)} → {String(c.new)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          );
+        })}
       </div>
 
-      {/* Inspector (mobile sheet) */}
-      {sheetOrder && (
-        <BottomSheet
-          isOpen={!!sheetOrder}
-          onClose={() => setSheetOrder(null)}
-          title={`Slip #${slipNo(sheetOrder)}`}
-          subtitle={`${lookup.cust(sheetOrder.customer_id)?.name || 'Walk-in'} · ${formatDepotDate(sheetOrder.date)}`}
-        >
-          <SlipInspector
-            order={sheetOrder}
-            customerName={lookup.cust(sheetOrder.customer_id)?.name || 'Walk-in'}
-            productName={lookup.prod(sheetOrder.product_id)?.name || ''}
-            pumpLabel={lookup.pump(sheetOrder.pump_id)?.label}
-            sources={tankSources(sheetOrder)}
-            cashier={activeShift?.cashier_name || 'Counter'}
-            companyName={settings.company_name}
-            status={statusFor(sheetOrder)}
-            bare
-            onPrint={() => { reprint(sheetOrder); setSheetOrder(null); }}
-            whatsappHref={whatsappHref(sheetOrder)}
-          />
-        </BottomSheet>
+      {voidTarget && (
+        <VoidModal
+          row={voidTarget}
+          onClose={() => setVoidTarget(null)}
+          onConfirm={reason => {
+            const r =
+              voidTarget.kind === 'sale'
+                ? voidSale(voidTarget.entityId, reason)
+                : voidTarget.kind === 'payment'
+                ? voidPayment(voidTarget.entityId, reason)
+                : voidExpense(voidTarget.entityId, reason);
+            return r;
+          }}
+        />
+      )}
+
+      {editTarget && (
+        <EditModal
+          row={editTarget}
+          suppliers={suppliers}
+          onClose={() => setEditTarget(null)}
+          onSaveLine={(lineId, patch, reason) => updateOrderLine(lineId, patch, reason)}
+          onSaveExpense={(id, patch, reason) => updateExpense(id, patch, reason)}
+          onSaveIntake={(id, patch, reason) => updateTankIntake(id, patch, reason)}
+        />
       )}
     </div>
   );
 };
 
-// ---------------------------------------------------------------------------
+/* ------------------------------------------------------------------ */
 
-const KpiCard: React.FC<{
-  label: string;
-  value: string;
-  icon: React.ElementType;
-  sub?: string;
-  tone?: 'slate' | 'emerald' | 'amber';
-  children?: React.ReactNode;
-}> = ({ label, value, icon: Icon, sub, tone = 'slate', children }) => {
-  const valueColor =
-    tone === 'emerald' ? 'text-emerald-600 dark:text-emerald-400' : tone === 'amber' ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white';
+const VoidModal: React.FC<{
+  row: TxnRow;
+  onClose: () => void;
+  onConfirm: (reason: string) => { success: boolean; error?: string };
+}> = ({ row, onClose, onConfirm }) => {
+  const [reason, setReason] = useState('');
+  const [err, setErr] = useState<string | null>(null);
   return (
-    <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
-      <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-        <span className="text-[11px] font-sans font-medium uppercase tracking-wider">{label}</span>
-        <Icon className="w-4 h-4" />
+    <Modal isOpen onClose={onClose} title={<span className="flex items-center gap-2"><Ban className="w-4 h-4 text-rose-500" /> Void {KIND_META[row.kind].label.toLowerCase()}</span>}>
+      <div className="space-y-3">
+        <p className="text-[13px] text-slate-600 dark:text-slate-300">
+          <b>{row.title}</b> · {row.amountLabel} · {formatDepotDate(row.date)}. Voiding removes it from every balance and
+          restores stock. It stays visible with an audit note.
+        </p>
+        <textarea
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          rows={3}
+          placeholder="Reason (required)"
+          className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]"
+        />
+        {err && <div className="text-[12px] text-rose-600 dark:text-rose-400">{err}</div>}
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-[13px] font-sans font-semibold">
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              if (!reason.trim()) return setErr('A reason is required.');
+              const res = onConfirm(reason.trim());
+              if (res.success) onClose();
+              else setErr(res.error || 'Could not void.');
+            }}
+            className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[13px] font-sans font-bold"
+          >
+            Void it
+          </button>
+        </div>
       </div>
-      <div className={`text-[24px] font-mono tabular-nums font-bold leading-tight mt-1.5 ${valueColor}`}>{value}</div>
-      {sub && <div className="text-[11px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">{sub}</div>}
-      {children}
-    </div>
+    </Modal>
   );
 };
 
-const Pill: React.FC<{ active: boolean; onClick: () => void; tone?: 'brand' | 'emerald' | 'amber'; children: React.ReactNode }> = ({
-  active,
-  onClick,
-  tone = 'brand',
-  children
-}) => {
-  const activeCls =
-    tone === 'emerald' ? 'bg-emerald-500 text-white' : tone === 'amber' ? 'bg-amber-500 text-slate-950' : 'bg-brand-500 text-slate-950';
+/* ------------------------------------------------------------------ */
+
+const EditModal: React.FC<{
+  row: TxnRow;
+  suppliers: { id: string; name: string }[];
+  onClose: () => void;
+  onSaveLine: (
+    lineId: string,
+    patch: { qty?: number; unitPrice?: number; containerMode?: ContainerMode; date?: string },
+    reason: string
+  ) => { success: boolean; error?: string };
+  onSaveExpense: (
+    id: string,
+    patch: { category?: string; amount?: number; note?: string; date?: string },
+    reason: string
+  ) => { success: boolean; error?: string };
+  onSaveIntake: (
+    id: string,
+    patch: { date?: string; truck_label?: string; supplier_id?: string | null; space_note?: string },
+    reason: string
+  ) => { success: boolean; error?: string };
+}> = ({ row, suppliers, onClose, onSaveLine, onSaveExpense, onSaveIntake }) => {
+  const [reason, setReason] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+
+  // sale: edit the first line (Phase 3 covers single-line edits inline; multi-line lands later)
+  const line = row.lines?.[0];
+  const [qty, setQty] = useState(line ? String(line.qty) : '');
+  const [unitPrice, setUnitPrice] = useState(line ? String(line.unit_price) : '');
+  const [containerMode, setContainerMode] = useState<ContainerMode>(line?.container_mode || 'none');
+
+  const [expCategory, setExpCategory] = useState(row.expense?.category || '');
+  const [expAmount, setExpAmount] = useState(row.expense ? String(row.expense.amount) : '');
+  const [expNote, setExpNote] = useState(row.expense?.note || '');
+
+  const [tkLabel, setTkLabel] = useState(row.tank?.truck_label || '');
+  const [tkSupplier, setTkSupplier] = useState(row.tank?.supplier_id || '');
+  const [tkNote, setTkNote] = useState(row.tank?.space_note || '');
+
+  const toLocalDate = (iso: string) => {
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  const [dateStr, setDateStr] = useState(toLocalDate(row.date));
+
+  const submit = () => {
+    if (!reason.trim()) return setErr('A reason is required.');
+    const isoDate = new Date(dateStr).toISOString();
+    let res: { success: boolean; error?: string };
+    if (row.kind === 'sale' && line) {
+      res = onSaveLine(
+        line.id,
+        {
+          qty: Number(qty) || line.qty,
+          unitPrice: Number(unitPrice) || undefined,
+          containerMode,
+          date: isoDate
+        },
+        reason.trim()
+      );
+    } else if (row.kind === 'expense' && row.expense) {
+      res = onSaveExpense(
+        row.expense.id,
+        { category: expCategory.trim(), amount: Number(expAmount) || undefined, note: expNote, date: isoDate },
+        reason.trim()
+      );
+    } else if (row.kind === 'intake' && row.tank) {
+      res = onSaveIntake(
+        row.tank.id,
+        { truck_label: tkLabel.trim(), supplier_id: tkSupplier || null, space_note: tkNote, date: isoDate },
+        reason.trim()
+      );
+    } else {
+      res = { success: false, error: 'Nothing to edit' };
+    }
+    if (res.success) onClose();
+    else setErr(res.error || 'Could not save.');
+  };
+
+  const field = 'w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]';
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`h-9 px-3 rounded-lg text-[12px] font-sans font-bold whitespace-nowrap transition-all ${
-        active ? `${activeCls} shadow-sm` : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-      }`}
-    >
-      {children}
-    </button>
+    <Modal isOpen onClose={onClose} title={<span className="flex items-center gap-2"><Pencil className="w-4 h-4 text-brand-500" /> Edit {KIND_META[row.kind].label.toLowerCase()}</span>}>
+      <div className="space-y-3">
+        {row.kind === 'sale' && !line && (
+          <p className="text-[13px] text-rose-600 dark:text-rose-400">This sale has no editable line.</p>
+        )}
+
+        {row.kind === 'sale' && line && (
+          <>
+            {row.lines && row.lines.length > 1 && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                Multi-line sale — editing the first line ({packShort(line.pack_size_id)}). Void &amp; re-enter for bigger changes.
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-[11px] font-sans font-semibold text-slate-500">
+                Packs
+                <input type="number" min={1} value={qty} onChange={e => setQty(e.target.value)} className={field} />
+              </label>
+              <label className="text-[11px] font-sans font-semibold text-slate-500">
+                Unit price (₦)
+                <input type="number" value={unitPrice} onChange={e => setUnitPrice(e.target.value)} className={field} />
+              </label>
+            </div>
+            {line.returnable && (
+              <div className="flex gap-1.5">
+                {(['taken', 'bought', 'none'] as ContainerMode[]).map(m => (
+                  <button
+                    key={m}
+                    onClick={() => setContainerMode(m)}
+                    className={`px-3 py-1.5 rounded-lg text-[12px] font-sans font-bold border capitalize ${
+                      containerMode === m
+                        ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
+                        : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {row.kind === 'expense' && (
+          <>
+            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+              Category
+              <input value={expCategory} onChange={e => setExpCategory(e.target.value)} className={field} />
+            </label>
+            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+              Amount (₦)
+              <input type="number" value={expAmount} onChange={e => setExpAmount(e.target.value)} className={field} />
+            </label>
+            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+              Note
+              <input value={expNote} onChange={e => setExpNote(e.target.value)} className={field} />
+            </label>
+          </>
+        )}
+
+        {row.kind === 'intake' && (
+          <>
+            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+              Truck / label
+              <input value={tkLabel} onChange={e => setTkLabel(e.target.value)} className={field} />
+            </label>
+            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+              Supplier
+              <select value={tkSupplier} onChange={e => setTkSupplier(e.target.value)} className={field}>
+                <option value="">—</option>
+                {suppliers.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+              Note
+              <input value={tkNote} onChange={e => setTkNote(e.target.value)} className={field} />
+            </label>
+          </>
+        )}
+
+        <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+          Date &amp; time
+          <input type="datetime-local" value={dateStr} onChange={e => setDateStr(e.target.value)} className={field} />
+        </label>
+
+        <textarea
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          rows={2}
+          placeholder="Reason for this change (required)"
+          className={field}
+        />
+        {err && <div className="text-[12px] text-rose-600 dark:text-rose-400">{err}</div>}
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-[13px] font-sans font-semibold">
+            Cancel
+          </button>
+          <button onClick={submit} className="px-4 py-2 rounded-xl bg-brand-500 text-slate-950 text-[13px] font-sans font-bold">
+            Save change
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 };
-
-const SlipInspector: React.FC<{
-  order: Order;
-  customerName: string;
-  productName: string;
-  pumpLabel?: string;
-  sources?: { label: string; litres: number }[];
-  cashier: string;
-  companyName: string;
-  status: { label: string; tone: 'emerald' | 'amber' };
-  bare?: boolean;
-  onPrint: () => void;
-  whatsappHref: string;
-}> = ({ order: o, customerName, productName, pumpLabel, sources = [], cashier, companyName, status, bare, onPrint, whatsappHref }) => {
-  const oilAmount = o.amount - (o.keg_amount || 0);
-  const body = (
-    <>
-      <div className="flex items-center justify-between pb-2.5 border-b border-slate-200 dark:border-slate-800">
-        <span className="text-[13px] font-heading font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-          <ScrollText className="w-4 h-4 text-brand-600 dark:text-brand-400" /> Slip inspector
-        </span>
-        <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded ${
-          status.tone === 'emerald' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400' : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
-        }`}>
-          {status.label}
-        </span>
-      </div>
-
-      <div className="mt-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono tabular-nums text-[12px] text-slate-800 dark:text-slate-200">
-        <div className="text-center pb-2 border-b border-dashed border-slate-300 dark:border-slate-700">
-          <div className="font-heading font-black text-[13px] text-slate-900 dark:text-white">{companyName}</div>
-          <div className="text-[10px] text-slate-500 uppercase tracking-wide mt-0.5">Slip #{slipNo(o)} · {formatDepotDate(o.date)} {formatDepotTime(o.date)}</div>
-        </div>
-        <div className="py-2 border-b border-dashed border-slate-300 dark:border-slate-700 space-y-1">
-          <Row k="Customer" v={customerName} />
-          <Row k="Price tier" v={(o.pricing_tier || 'retail') as string} cap />
-          {pumpLabel && <Row k="Pump" v={pumpLabel} />}
-          {sources.length === 1 && <Row k="Source" v={sources[0].label} />}
-          {sources.length > 1 && (
-            <div className="flex justify-between gap-3">
-              <span className="font-sans text-slate-500 dark:text-slate-400 shrink-0">Source</span>
-              <span className="font-bold text-slate-900 dark:text-white text-right">
-                {sources.map(s => `${s.label} × ${s.litres.toLocaleString()} L`).join(', ')}
-              </span>
-            </div>
-          )}
-          <Row k="Cashier" v={cashier} />
-        </div>
-        <div className="py-2 border-b border-dashed border-slate-300 dark:border-slate-700 space-y-1">
-          <div className="flex justify-between font-bold">
-            <span className="font-sans">{productName}{o.variety_name ? ` — ${o.variety_name}` : ''}</span>
-            <span>{formatNaira(oilAmount)}</span>
-          </div>
-          <div className="text-[10px] text-slate-500">{o.litres.toLocaleString()} L @ ₦{o.rate.toLocaleString()}/L · {o.qty} {o.unit}{o.qty === 1 ? '' : 's'}</div>
-          {o.keg_source === 'purchased' && o.keg_amount ? (
-            <div className="flex justify-between text-amber-700 dark:text-amber-400">
-              <span className="font-sans">Kegs bought outright</span>
-              <span>+{formatNaira(o.keg_amount)}</span>
-            </div>
-          ) : null}
-        </div>
-        <div className="pt-2 space-y-0.5">
-          <div className="flex justify-between font-bold text-[14px] text-slate-900 dark:text-white">
-            <span className="font-sans">Total</span>
-            <span>{formatNaira(o.amount)}</span>
-          </div>
-          <Row k="Paid" v={formatNaira(o.paid_amount || 0)} />
-          {o.payment_method === 'credit' && outstanding(o) > 0 && <Row k="Outstanding" v={formatNaira(outstanding(o))} />}
-          {o.due_date && <Row k="Due" v={formatDepotDate(o.due_date)} />}
-        </div>
-        {o.note && <div className="mt-2 text-[10px] text-slate-500 font-sans">Note: {o.note}</div>}
-      </div>
-
-      {o.meter_reading != null && (
-        <div className="mt-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] font-sans text-slate-600 dark:text-slate-400 flex items-start gap-1.5">
-          <CheckCircle2 className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400 shrink-0 mt-0.5" />
-          <span>
-            Meter read {Number(o.meter_reading).toLocaleString()} L
-            {o.meter_variance != null && ` · variance ${o.meter_variance > 0 ? '+' : ''}${o.meter_variance} L`}
-          </span>
-        </div>
-      )}
-
-      <div className="mt-3 flex flex-col gap-2">
-        <button type="button" onClick={onPrint} className="h-12 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[14px] flex items-center justify-center gap-2 shadow-sm active:scale-[0.99]">
-          <Printer className="w-5 h-5" /> Reprint slip
-        </button>
-        <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className="h-11 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-sans font-bold text-[13px] flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-700">
-          <MessageSquare className="w-4 h-4 text-emerald-600" /> Send by WhatsApp
-        </a>
-      </div>
-    </>
-  );
-
-  if (bare) return <div>{body}</div>;
-  return <div className="rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm p-4">{body}</div>;
-};
-
-const Row: React.FC<{ k: string; v: string; cap?: boolean }> = ({ k, v, cap }) => (
-  <div className="flex justify-between">
-    <span className="font-sans text-slate-500 dark:text-slate-400">{k}</span>
-    <span className={`font-bold text-slate-900 dark:text-white ${cap ? 'capitalize' : ''}`}>{v}</span>
-  </div>
-);

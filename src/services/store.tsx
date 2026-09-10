@@ -1,21 +1,24 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import {
   Product,
-  RateCard,
+  ProductPackConfig,
+  PackPrice,
   Customer,
   CustomerType,
   Tank,
+  Sale,
   Order,
   KegReturn,
+  Payment,
+  AuditEntry,
   Expense,
   AppSettings,
   UserRole,
   CustomerCalculatedStats,
   KegInventorySummary,
   ReceiptData,
-  UnitType,
+  ContainerMode,
   PaymentMethod,
-  KegSource,
   Pump,
   PumpReading,
   PumpVarianceAudit,
@@ -28,7 +31,7 @@ import {
 } from '../types';
 import {
   DEFAULT_PRODUCTS,
-  DEFAULT_RATE_CARDS,
+  DEFAULT_PACK_PRICES,
   DEFAULT_CUSTOMERS,
   DEFAULT_SETTINGS,
   DEFAULT_PUMPS,
@@ -36,42 +39,47 @@ import {
   DEFAULT_PHYSICAL_TANKS,
   SEED_PUMP_READINGS,
   SEED_TANKS,
+  SEED_SALES,
   SEED_ORDERS,
   SEED_KEG_RETURNS,
+  SEED_PAYMENTS,
+  SEED_AUDIT_LOG,
   SEED_EXPENSES,
   SEED_TRANSFERS,
   SEED_DIPSTICK_READINGS,
-  SEED_SHIFTS
+  SEED_SHIFTS,
+  packLabel as packLabelFor
 } from '../constants/config';
 import {
   calculateCustomerStats,
   calculateKegInventory,
   executeFifoTankDraw,
   applyFifoPayment,
-  lookupRatePerLitre,
-  calculateOrderPricing,
   calculateIntakeMetrics,
   calculatePreKeggedIntakeMetrics,
   checkShiftOpeningMetersGate,
   ShiftOpeningGateStatus,
   calculatePumpMeterVariance,
   validateNewPumpReading,
-  calculatePerOrderMeterVariance,
   calculateDipstickVariance,
   calculateShiftSummary,
   computeShiftCash,
   getDepotToday,
   depotDateKey
 } from './businessLogic';
+import { priceSaleLine } from './pricing';
 
 interface StoreContextType {
   products: Product[];
-  rateCards: RateCard[];
+  packPrices: PackPrice[];
   customers: Customer[];
   suppliers: Supplier[];
   physicalTanks: PhysicalTank[];
   tanks: Tank[];
+  sales: Sale[];
   orders: Order[];
+  payments: Payment[];
+  auditLog: AuditEntry[];
   kegReturns: KegReturn[];
   expenses: Expense[];
   settings: AppSettings;
@@ -93,6 +101,8 @@ interface StoreContextType {
   customerStatsMap: Record<string, CustomerCalculatedStats>;
   kegInventory: KegInventorySummary;
   tankStockByProduct: Record<string, { totalLitres: number; tanks: Tank[] }>;
+  /** Read-only per-product snapshot for the Inventory tab. */
+  stockView: Record<string, { tankLitres: number; kegsOut: number }>;
   pumpVarianceAudits: PumpVarianceAudit[];
   activeAlerts: {
     overdueCredit: { customer: Customer; overdueDays: number; amount: number }[];
@@ -137,23 +147,22 @@ interface StoreContextType {
     spaceNote?: string;
   }) => { success: boolean; tank?: Tank; error?: string };
   
-  createNewOrder: (data: {
+  createSale: (data: {
     customerId: string;
-    productId: string;
-    unit: UnitType;
-    qty: number;
     paymentMethod: PaymentMethod;
-    kegSource: KegSource;
-    pumpId?: string | null;
-    meterReading?: number | null;
-    deliveredQty?: number | null;
-    note?: string;
-    customRate?: number;
-    discountReason?: string;
-    pricingTier?: CustomerType;
-    varietyId?: string | null;
     amountTendered?: number | null;
-  }) => { success: boolean; order?: Order; receipt?: ReceiptData; error?: string };
+    note?: string;
+    pricingTier?: CustomerType;
+    lines: {
+      productId: string;
+      varietyId: string;
+      packSizeId: string;
+      qty: number;
+      containerMode: ContainerMode;
+      overrideUnitPrice?: number | null;
+      priceAdjustReason?: string;
+    }[];
+  }) => { success: boolean; sale?: Sale; lines?: Order[]; receipt?: ReceiptData; error?: string };
 
   recordCustomerPayment: (
     customerId: string,
@@ -166,9 +175,34 @@ interface StoreContextType {
     amount: number
   ) => { success: boolean; receipt?: ReceiptData; error?: string };
 
+  /** Void a whole sale — its lines drop out of every balance, tank litres are restored, audited. */
+  voidSale: (saleId: string, reason: string) => { success: boolean; error?: string };
+  /** Void a recorded payment — reverses paid_amount on its lines and any overpayment credit, audited. */
+  voidPayment: (paymentId: string, reason: string) => { success: boolean; error?: string };
+  /** Edit one sale line (qty / unit price / container / date). Recomputes money and the tank draw. */
+  updateOrderLine: (
+    lineId: string,
+    patch: { qty?: number; unitPrice?: number; containerMode?: ContainerMode; date?: string },
+    reason: string
+  ) => { success: boolean; error?: string };
+  updateExpense: (
+    expenseId: string,
+    patch: { category?: string; amount?: number; note?: string; date?: string },
+    reason: string
+  ) => { success: boolean; error?: string };
+  voidExpense: (expenseId: string, reason: string) => { success: boolean; error?: string };
+  updateTankIntake: (
+    tankId: string,
+    patch: { date?: string; truck_label?: string; supplier_id?: string | null; space_note?: string },
+    reason: string
+  ) => { success: boolean; error?: string };
+
   logKegReturn: (
     customerId: string,
-    qty: number
+    qty: number,
+    productId: string,
+    packSizeId: string,
+    note?: string
   ) => { success: boolean; kegReturn?: KegReturn; error?: string };
 
   logTransfer: (data: {
@@ -176,6 +210,8 @@ interface StoreContextType {
     toCustomerId: string;
     itemType: 'keg';
     qty: number;
+    productId?: string | null;
+    packSizeId?: string | null;
     notes?: string;
   }) => { success: boolean; transfer?: Transfer; error?: string };
 
@@ -216,7 +252,15 @@ interface StoreContextType {
   addProduct: (productData: Omit<Product, 'id'>) => Product;
   updateProduct: (productId: string, updates: Partial<Product>) => void;
   deleteProduct: (productId: string) => { success: boolean; error?: string };
-  updateRateCard: (productId: string, tier: string, ratePerLitre: number) => void;
+  setPackPrice: (
+    productId: string,
+    varietyId: string,
+    packSizeId: string,
+    tier: CustomerType,
+    price: number
+  ) => void;
+  bulkSetPackPrices: (rows: PackPrice[]) => void;
+  updateProductPackConfig: (productId: string, config: ProductPackConfig[]) => void;
   updateSettings: (newSettings: Partial<AppSettings>) => void;
   addCustomer: (customerData: Omit<Customer, 'id'>) => Customer;
   updateCustomer: (id: string, customerData: Partial<Customer>) => void;
@@ -240,24 +284,27 @@ interface StoreContextType {
 const StoreContext = createContext<StoreContextType | null>(null);
 
 const STORAGE_KEYS = {
-  PRODUCTS: 'iyanu_products_v2',
-  RATE_CARDS: 'iyanu_rate_cards_v2',
-  CUSTOMERS: 'iyanu_customers_v2',
-  SUPPLIERS: 'iyanu_suppliers_v2',
-  PHYSICAL_TANKS: 'iyanu_physical_tanks_v2',
-  TANKS: 'iyanu_tanks_v2',
-  ORDERS: 'iyanu_orders_v2',
-  KEG_RETURNS: 'iyanu_keg_returns_v2',
-  EXPENSES: 'iyanu_expenses_v2',
-  SETTINGS: 'iyanu_settings_v2',
-  PUMPS: 'iyanu_pumps_v2',
-  PUMP_READINGS: 'iyanu_pump_readings_v2',
-  TRANSFERS: 'iyanu_transfers_v2',
-  CUSTOMER_CREDITS: 'iyanu_customer_credits_v2',
-  DIPSTICK_READINGS: 'iyanu_dipstick_readings_v2',
-  SHIFTS: 'iyanu_shifts_v2',
-  USER_ROLE: 'iyanu_user_role_v2',
-  THEME: 'iyanu_theme_v2'
+  PRODUCTS: 'iyanu_products_v3',
+  PACK_PRICES: 'iyanu_pack_prices_v3',
+  CUSTOMERS: 'iyanu_customers_v3',
+  SUPPLIERS: 'iyanu_suppliers_v3',
+  PHYSICAL_TANKS: 'iyanu_physical_tanks_v3',
+  TANKS: 'iyanu_tanks_v3',
+  SALES: 'iyanu_sales_v3',
+  ORDERS: 'iyanu_orders_v3',
+  PAYMENTS: 'iyanu_payments_v3',
+  AUDIT_LOG: 'iyanu_audit_log_v3',
+  KEG_RETURNS: 'iyanu_keg_returns_v3',
+  EXPENSES: 'iyanu_expenses_v3',
+  SETTINGS: 'iyanu_settings_v3',
+  PUMPS: 'iyanu_pumps_v3',
+  PUMP_READINGS: 'iyanu_pump_readings_v3',
+  TRANSFERS: 'iyanu_transfers_v3',
+  CUSTOMER_CREDITS: 'iyanu_customer_credits_v3',
+  DIPSTICK_READINGS: 'iyanu_dipstick_readings_v3',
+  SHIFTS: 'iyanu_shifts_v3',
+  USER_ROLE: 'iyanu_user_role_v3',
+  THEME: 'iyanu_theme_v3'
 };
 
 /**
@@ -304,7 +351,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Load state from LocalStorage or seed defaults
   const [products, setProducts] = useState<Product[]>(() => loadPersisted(STORAGE_KEYS.PRODUCTS, DEFAULT_PRODUCTS));
 
-  const [rateCards, setRateCards] = useState<RateCard[]>(() => loadPersisted(STORAGE_KEYS.RATE_CARDS, DEFAULT_RATE_CARDS));
+  const [packPrices, setPackPrices] = useState<PackPrice[]>(() => loadPersisted(STORAGE_KEYS.PACK_PRICES, DEFAULT_PACK_PRICES));
 
   const [customers, setCustomers] = useState<Customer[]>(() => loadPersisted(STORAGE_KEYS.CUSTOMERS, DEFAULT_CUSTOMERS));
 
@@ -314,7 +361,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [tanks, setTanks] = useState<Tank[]>(() => loadPersisted(STORAGE_KEYS.TANKS, SEED_TANKS));
 
+  const [sales, setSales] = useState<Sale[]>(() => loadPersisted(STORAGE_KEYS.SALES, SEED_SALES));
+
   const [orders, setOrders] = useState<Order[]>(() => loadPersisted(STORAGE_KEYS.ORDERS, SEED_ORDERS));
+
+  const [payments, setPayments] = useState<Payment[]>(() => loadPersisted(STORAGE_KEYS.PAYMENTS, SEED_PAYMENTS));
+
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>(() => loadPersisted(STORAGE_KEYS.AUDIT_LOG, SEED_AUDIT_LOG));
 
   const [kegReturns, setKegReturns] = useState<KegReturn[]>(() => loadPersisted(STORAGE_KEYS.KEG_RETURNS, SEED_KEG_RETURNS));
 
@@ -325,11 +378,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     ...loadPersisted<Partial<AppSettings>>(STORAGE_KEYS.SETTINGS, {})
   }));
 
-  const [pumps, setPumps] = useState<Pump[]>(() => {
-    const loaded = loadPersisted<Pump[]>(STORAGE_KEYS.PUMPS, DEFAULT_PUMPS);
-    // Palm oil is strictly pre-kegged, so exclude any palm pump from active pumps
-    return loaded.filter(p => p.product_id !== 'red' && p.product_id !== 'red_oil_25l' && !p.label.toLowerCase().includes('palm'));
-  });
+  const [pumps, setPumps] = useState<Pump[]>(() => loadPersisted<Pump[]>(STORAGE_KEYS.PUMPS, DEFAULT_PUMPS));
 
   const [pumpReadings, setPumpReadings] = useState<PumpReading[]>(() => loadPersisted(STORAGE_KEYS.PUMP_READINGS, SEED_PUMP_READINGS));
 
@@ -354,8 +403,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [products]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.RATE_CARDS, JSON.stringify(rateCards));
-  }, [rateCards]);
+    localStorage.setItem(STORAGE_KEYS.PACK_PRICES, JSON.stringify(packPrices));
+  }, [packPrices]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
@@ -374,8 +423,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [tanks]);
 
   useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.SALES, JSON.stringify(sales));
+  }, [sales]);
+
+  useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
   }, [orders]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.PAYMENTS, JSON.stringify(payments));
+  }, [payments]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.AUDIT_LOG, JSON.stringify(auditLog));
+  }, [auditLog]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.KEG_RETURNS, JSON.stringify(kegReturns));
@@ -463,6 +524,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
     return result;
   }, [products, tanks]);
+
+  // 3b. Read-only per-product snapshot for the Inventory tab (tank litres + containers on loan)
+  const stockView = useMemo(() => {
+    const result: Record<string, { tankLitres: number; kegsOut: number }> = {};
+    products.forEach(p => {
+      result[p.id] = { tankLitres: tankStockByProduct[p.id]?.totalLitres || 0, kegsOut: 0 };
+    });
+    Object.values(customerStatsMap).forEach(stats => {
+      Object.entries(stats.kegsOutByPack).forEach(([key, qty]) => {
+        const productId = key.split('|')[0];
+        if (result[productId]) result[productId].kegsOut += qty;
+      });
+    });
+    return result;
+  }, [products, tankStockByProduct, customerStatsMap]);
 
   // 4. Pump variance audits
   const pumpVarianceAudits = useMemo(() => {
@@ -575,7 +651,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // 6. Today's operational stats
   const todayStats = useMemo(() => {
     const todayStr = getDepotToday();
-    const todayOrders = orders.filter(o => depotDateKey(o.date) === todayStr);
+    const todayOrders = orders.filter(o => !o.voided && depotDateKey(o.date) === todayStr);
 
     // Money collected today that isn't credit (cash, bank transfer, POS card)
     const cashTransferSales = todayOrders
@@ -588,24 +664,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       0
     );
 
-    // Total Kegs sold today (all orders with unit === 'keg')
-    const kegsSoldToday = todayOrders
-      .filter(o => o.unit === 'keg')
-      .reduce((sum, o) => sum + Number(o.qty || 0), 0);
+    // Total packs sold today
+    const kegsSoldToday = todayOrders.reduce((sum, o) => sum + Number(o.qty || 0), 0);
 
-    // Customer-purchased keg containers today (outright sale of company container)
+    // Containers bought outright today
     const purchasedKegsToday = todayOrders
-      .filter(o => o.unit === 'keg' && o.keg_source === 'purchased')
+      .filter(o => o.container_mode === 'bought')
       .reduce((sum, o) => sum + Number(o.qty || 0), 0);
 
-    // Customer-owned kegs filled today
+    // Sales into the customer's own containers today
     const customerKegsFilledToday = todayOrders
-      .filter(o => o.unit === 'keg' && o.keg_source === 'own')
+      .filter(o => o.container_mode === 'none')
       .reduce((sum, o) => sum + Number(o.qty || 0), 0);
 
     // Expenses today
     const expensesToday = expenses
-      .filter(e => depotDateKey(e.date) === todayStr)
+      .filter(e => !e.voided && depotDateKey(e.date) === todayStr)
       .reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
     const dailyFloatRemaining = Math.max(0, settings.daily_float - expensesToday);
@@ -709,201 +783,197 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true, tank: newTank };
   };
 
-  // 2. Create New Order with FIFO Tank Draw, Shift Meter Gate & Keg Outright Purchase
-  const createNewOrder = (data: {
+  // Append one row to the immutable audit trail.
+  const logAudit = (entry: Omit<AuditEntry, 'id' | 'at' | 'actor_role' | 'actor_name'>) => {
+    setAuditLog(prev => [
+      {
+        ...entry,
+        id: `aud-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        at: new Date().toISOString(),
+        actor_role: userRole,
+        actor_name: userRole === 'owner' ? 'Managing Director' : 'Depot Cashier'
+      },
+      ...prev
+    ]);
+  };
+
+  // 2. Create a multi-line sale: price each line off the matrix, draw litres FIFO
+  //    across all lines, settle under one payment.
+  const createSale = (data: {
     customerId: string;
-    productId: string;
-    unit: UnitType;
-    qty: number;
     paymentMethod: PaymentMethod;
-    kegSource: KegSource;
-    pumpId?: string | null;
-    meterReading?: number | null;
-    deliveredQty?: number | null;
-    note?: string;
-    customRate?: number;
-    discountReason?: string;
-    pricingTier?: CustomerType;
-    varietyId?: string | null;
     amountTendered?: number | null;
+    note?: string;
+    pricingTier?: CustomerType;
+    lines: {
+      productId: string;
+      varietyId: string;
+      packSizeId: string;
+      qty: number;
+      containerMode: ContainerMode;
+      overrideUnitPrice?: number | null;
+      priceAdjustReason?: string;
+    }[];
   }) => {
     const customer = customers.find(c => c.id === data.customerId);
     if (!customer) return { success: false, error: 'Customer not found' };
+    if (!data.lines || data.lines.length === 0) {
+      return { success: false, error: 'A sale needs at least one line' };
+    }
 
-    const product = products.find(p => p.id === data.productId);
-    if (!product) return { success: false, error: 'Product not found' };
+    const tier: CustomerType = data.pricingTier || customer.type;
 
-    const isPreKegged = product.supply_model === 'pre_kegged' || product.id === 'red';
-
-    // 0. Hard Gate: Shift opening meter readings required ONLY for bulk dispensed products
-    if (!isPreKegged) {
+    // Shift opening-meter gate applies while any line dispenses a bulk product.
+    const anyBulk = data.lines.some(l => {
+      const p = products.find(pr => pr.id === l.productId);
+      return p ? p.supply_model === 'bulk_truck' : false;
+    });
+    if (anyBulk) {
       const gateCheck = checkShiftOpeningMetersGate(activeShift, pumps, pumpReadings);
       if (!gateCheck.isPassed) {
         return {
           success: false,
-          error: 'Shift opening meter gate active: Please record opening meter readings for all bulk dispensing pumps before recording vegetable oil sales.'
+          error: 'Shift opening meter gate active: record opening meter readings for all bulk dispensing pumps before recording sales.'
         };
       }
     }
 
-    // Pricing tier: defaults to the customer's own tier, but the counter can override it
-    // (e.g. a walk-in agent buying at agent rate). The chosen tier is what "standard" means here.
-    const pricingTier: CustomerType = data.pricingTier || customer.type;
-    const variety = data.varietyId
-      ? (product.varieties || []).find(v => v.id === data.varietyId) || null
-      : null;
-    const varietyDelta = variety ? Number(variety.rate_delta_per_litre || 0) : 0;
-    const standardRate = lookupRatePerLitre(rateCards, data.productId, pricingTier) + varietyDelta;
-    const effectiveRate = data.customRate !== undefined && data.customRate !== null && !isNaN(Number(data.customRate)) && Number(data.customRate) > 0
-      ? Number(data.customRate)
-      : standardRate;
-
-    const isDiscounted = effectiveRate < standardRate;
-    if (isDiscounted && !data.discountReason?.trim()) {
-      return {
-        success: false,
-        error: `Discount reason required: Entered rate (₦${effectiveRate.toLocaleString()}/L) is below the standard rate card (₦${standardRate.toLocaleString()}/L). Please enter an authorized discount reason.`
-      };
-    }
-
-    const pricing = calculateOrderPricing(
-      data.unit,
-      data.qty,
-      effectiveRate,
-      product.litres_per_keg,
-      product.litres_per_ton,
-      data.kegSource,
-      product.keg_sell_price
-    );
-
-    // 1. Execute FIFO Tank Draw
-    const drawResult = executeFifoTankDraw(tanks, data.productId, pricing.litres);
-    if (!drawResult.success) {
-      return { success: false, error: drawResult.errorMessage || 'Failed to draw from tanks' };
-    }
-
-    // 2. Compute due date and payment status
-    const orderDate = new Date();
+    const now = new Date();
+    const saleId = `sale-${now.getTime()}`;
     let dueDate: string | null = null;
-    let paidAmount = 0;
-
     if (data.paymentMethod === 'credit') {
-      const due = new Date(orderDate);
+      const due = new Date(now);
       due.setDate(due.getDate() + customer.credit_term_days);
       dueDate = due.toISOString();
-      paidAmount = 0;
-    } else {
-      paidAmount = pricing.amount; // Cash / Transfer paid immediately
     }
 
-    const assignedPump = (!isPreKegged && data.pumpId) ? pumps.find(p => p.id === data.pumpId) : null;
+    let workingTanks = tanks;
+    const newLines: Order[] = [];
 
-    // Handle per-order meter reading (only for bulk pump dispense)
-    let meterDelta: number | undefined;
-    let meterVariance: number | undefined;
-    if (!isPreKegged && data.pumpId && data.meterReading !== undefined && data.meterReading !== null) {
-      const meterAudit = calculatePerOrderMeterVariance(
-        data.pumpId,
-        Number(data.meterReading),
-        pricing.litres,
-        orders,
-        assignedPump?.last_meter_reading || 0,
-        settings.pump_variance_threshold
-      );
-
-      const guard = validateNewPumpReading(Number(data.meterReading), meterAudit.previousReading);
-      if (!guard.isValid) {
-        return { success: false, error: guard.error };
+    for (let i = 0; i < data.lines.length; i++) {
+      const line = data.lines[i];
+      const product = products.find(p => p.id === line.productId);
+      if (!product) return { success: false, error: `Product not found for line ${i + 1}` };
+      const variety = product.varieties.find(v => v.id === line.varietyId);
+      if (!variety) return { success: false, error: `Variety not selected for line ${i + 1}` };
+      if (!(Number(line.qty) > 0)) {
+        return { success: false, error: `Line ${i + 1}: quantity must be greater than zero` };
       }
 
-      meterDelta = meterAudit.meterDelta;
-      meterVariance = meterAudit.variance;
+      const priced = priceSaleLine({
+        product,
+        varietyId: line.varietyId,
+        packSizeId: line.packSizeId,
+        tier,
+        qty: Number(line.qty),
+        containerMode: line.containerMode,
+        overrideUnitPrice: line.overrideUnitPrice ?? null,
+        packPrices
+      });
 
-      setPumps(prev => prev.map(p => p.id === data.pumpId ? { ...p, last_meter_reading: Number(data.meterReading) } : p));
+      if (priced.unpriced) {
+        return {
+          success: false,
+          error: `Line ${i + 1}: ${product.name} / ${variety.name} / ${packLabelFor(line.packSizeId)} has no price for the ${tier} tier. Set it in Inventory.`
+        };
+      }
+      if (priced.priceAdjusted && !line.priceAdjustReason?.trim()) {
+        return {
+          success: false,
+          error: `Line ${i + 1}: the price was changed from the standard ₦${(priced.matrixUnitPrice ?? 0).toLocaleString()} — a reason is required.`
+        };
+      }
+
+      const draw = executeFifoTankDraw(workingTanks, line.productId, priced.litres);
+      if (!draw.success) {
+        return { success: false, error: `Line ${i + 1}: ${draw.errorMessage || 'insufficient tank stock'}` };
+      }
+      workingTanks = draw.updatedTanks;
+
+      const lineAmount = priced.lineAmount;
+      newLines.push({
+        id: `line-${now.getTime()}-${i + 1}`,
+        sale_id: saleId,
+        customer_id: data.customerId,
+        product_id: line.productId,
+        variety_id: variety.id,
+        variety_name: variety.name,
+        pack_size_id: line.packSizeId,
+        qty: Number(line.qty),
+        litres: priced.litres,
+        unit_price: priced.unitPrice,
+        original_unit_price: priced.matrixUnitPrice,
+        price_adjusted: priced.priceAdjusted,
+        price_adjust_reason: priced.priceAdjusted ? line.priceAdjustReason?.trim() || null : null,
+        oil_amount: priced.oilAmount,
+        container_mode: line.containerMode,
+        returnable: priced.returnable,
+        container_unit_price: line.containerMode === 'bought' ? priced.containerUnitPrice : null,
+        container_amount: line.containerMode === 'bought' ? priced.containerAmount : null,
+        line_amount: lineAmount,
+        amount: lineAmount,
+        pricing_tier: tier,
+        payment_method: data.paymentMethod,
+        paid_amount: data.paymentMethod === 'credit' ? 0 : lineAmount,
+        due_date: data.paymentMethod === 'credit' ? dueDate : null,
+        date: now.toISOString(),
+        source_tank_id: draw.primaryTankId,
+        tank_allocations: draw.allocations.map(a => ({ tank_id: a.tankId, litres: a.drawnLitres })),
+        voided: false,
+        note: i === 0 ? data.note?.trim() || undefined : undefined
+      });
     }
 
-    let deliveredQty: number | undefined;
-    let shortfall: number | undefined;
-    if (data.deliveredQty !== undefined && data.deliveredQty !== null) {
-      deliveredQty = Number(data.deliveredQty);
-      shortfall = Number(data.qty) - deliveredQty;
-    }
+    const total = Number(newLines.reduce((s, l) => s + l.line_amount, 0).toFixed(2));
+    const tendered =
+      data.paymentMethod === 'cash' && data.amountTendered != null ? Number(data.amountTendered) : null;
+    const changeDue = tendered != null ? Number(Math.max(0, tendered - total).toFixed(2)) : null;
 
-    const newOrder: Order = {
-      id: `ord-${Date.now()}`,
+    const sale: Sale = {
+      id: saleId,
       customer_id: data.customerId,
-      product_id: data.productId,
-      unit: data.unit,
-      qty: Number(data.qty),
-      litres: pricing.litres,
-      rate: effectiveRate,
-      amount: pricing.amount,
-      paid_amount: paidAmount,
+      date: now.toISOString(),
       payment_method: data.paymentMethod,
-      keg_source: data.unit === 'keg' ? data.kegSource : null,
-      keg_price: data.unit === 'keg' && data.kegSource === 'purchased' ? product.keg_sell_price : null,
-      keg_amount: pricing.kegAmount > 0 ? pricing.kegAmount : null,
-      discount_reason: isDiscounted ? data.discountReason?.trim() : null,
-      pricing_tier: pricingTier,
-      variety_id: variety?.id || null,
-      variety_name: variety?.name || null,
-      date: orderDate.toISOString(),
-      due_date: dueDate,
-      source_tank_id: drawResult.primaryTankId,
-      tank_allocations: drawResult.allocations.map(a => ({ tank_id: a.tankId, litres: a.drawnLitres })),
-      pump_id: isPreKegged ? null : (data.pumpId || null),
-      meter_reading: isPreKegged ? null : (data.meterReading ?? null),
-      meter_delta: isPreKegged ? null : (meterDelta ?? null),
-      meter_variance: isPreKegged ? null : (meterVariance ?? null),
-      delivered_qty: deliveredQty,
-      shortfall: shortfall,
-      note: data.note?.trim() || undefined
+      amount_tendered: tendered,
+      change_due: changeDue,
+      cashier_name: userRole === 'owner' ? 'Managing Director' : 'Depot Cashier',
+      note: data.note?.trim() || undefined,
+      voided: false
     };
 
-    // 3. Commit state updates
-    setTanks(drawResult.updatedTanks);
-    setOrders(prev => [newOrder, ...prev]);
+    setTanks(workingTanks);
+    setSales(prev => [sale, ...prev]);
+    setOrders(prev => [...newLines, ...prev]);
+    logAudit({ entity_type: 'sale', entity_id: saleId, action: 'create', changes: [] });
 
-    // 4. Generate Official Receipt
     const prevStats = customerStatsMap[customer.id];
     const previousBalance = prevStats ? prevStats.currentBalance : 0;
-    const newBalance = data.paymentMethod === 'credit'
-      ? previousBalance + pricing.amount
-      : previousBalance;
+    const creditPortion = data.paymentMethod === 'credit' ? total : 0;
 
-    const primaryAlloc = drawResult.allocations[0];
-
+    const firstLine = newLines[0];
+    const firstProduct = products.find(p => p.id === firstLine.product_id);
     const receipt: ReceiptData = {
-      receiptNumber: `REC-${Date.now().toString().slice(-6)}`,
+      receiptNumber: `REC-${now.getTime().toString().slice(-6)}`,
       type: 'order',
-      date: orderDate.toISOString(),
+      date: now.toISOString(),
       customer,
-      order: newOrder,
-      product,
-      tankLabel: primaryAlloc ? primaryAlloc.truckLabel : undefined,
-      pumpLabel: assignedPump ? assignedPump.label : undefined,
-      kegPrice: newOrder.keg_price,
-      kegAmount: newOrder.keg_amount,
-      discountReason: newOrder.discount_reason,
-      varietyName: newOrder.variety_name,
-      pricingTier: newOrder.pricing_tier,
-      amountTendered: data.paymentMethod === 'cash' && data.amountTendered != null ? Number(data.amountTendered) : null,
-      changeDue: data.paymentMethod === 'cash' && data.amountTendered != null
-        ? Number(Math.max(0, Number(data.amountTendered) - pricing.amount).toFixed(2))
-        : null,
+      sale,
+      lines: newLines,
+      order: firstLine,
+      product: firstProduct,
+      packLabel: packLabelFor(firstLine.pack_size_id),
+      varietyName: firstLine.variety_name,
+      pricingTier: tier,
+      amountTendered: tendered,
+      changeDue,
       paymentMethod: data.paymentMethod,
       previousBalance,
-      newBalance,
-      cashierName: userRole === 'owner' ? 'Managing Director' : 'Depot Cashier'
+      newBalance: previousBalance + creditPortion,
+      cashierName: sale.cashier_name
     };
 
     setActiveReceipt(receipt);
-
-    return {
-      success: true,
-      order: newOrder,
-      receipt
-    };
+    return { success: true, sale, lines: newLines, receipt };
   };
 
   // 3. Record Customer Credit Payment (FIFO allocation)
@@ -929,15 +999,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const newBalance = Math.max(0, previousBalance - paymentResult.totalApplied);
     const receiptNumber = `PAY-${Date.now().toString().slice(-6)}`;
+    const overpayment = paymentResult.unappliedLeftover > 0.01 ? Number(paymentResult.unappliedLeftover.toFixed(2)) : 0;
 
     // Any amount beyond what the open invoices needed becomes store credit,
     // recorded on the customer's credit ledger instead of being discarded.
-    if (paymentResult.unappliedLeftover > 0.01) {
+    if (overpayment > 0) {
       setCustomerCredits(prev => [
         {
           id: `cc-${Date.now()}`,
           customer_id: customerId,
-          amount: Number(paymentResult.unappliedLeftover.toFixed(2)),
+          amount: overpayment,
           source_payment_id: receiptNumber,
           created_at: new Date().toISOString(),
           note: 'Overpayment added to store credit'
@@ -945,6 +1016,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         ...prev
       ]);
     }
+
+    // Persist the payment event itself so a fully-applied settlement still leaves a trace.
+    const payment: Payment = {
+      id: `pay-${Date.now()}`,
+      customer_id: customerId,
+      amount: numericAmount,
+      method: paymentMethod === 'credit' ? 'transfer' : paymentMethod,
+      date: new Date().toISOString(),
+      applied_to: paymentResult.appliedOrders.map(a => ({ order_id: a.orderId, amount: a.amountApplied })),
+      overpayment_to_credit: overpayment,
+      source: 'payment',
+      recorded_by: userRole === 'owner' ? 'Managing Director' : 'Depot Cashier'
+    };
+    setPayments(prev => [payment, ...prev]);
+    logAudit({ entity_type: 'payment', entity_id: payment.id, action: 'create', changes: [] });
 
     const receipt: ReceiptData = {
       receiptNumber,
@@ -1002,6 +1088,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         },
         ...prev
       ]);
+
+      const payment: Payment = {
+        id: `pay-${Date.now()}`,
+        customer_id: customerId,
+        amount: Number(redeemed.toFixed(2)),
+        method: 'transfer',
+        date: new Date().toISOString(),
+        applied_to: paymentResult.appliedOrders.map(a => ({ order_id: a.orderId, amount: a.amountApplied })),
+        overpayment_to_credit: 0,
+        source: 'credit_redeem',
+        recorded_by: userRole === 'owner' ? 'Managing Director' : 'Depot Cashier',
+        note: 'Store credit applied to invoices'
+      };
+      setPayments(prev => [payment, ...prev]);
+      logAudit({ entity_type: 'payment', entity_id: payment.id, action: 'create', changes: [] });
     }
 
     const receipt: ReceiptData = {
@@ -1021,8 +1122,287 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true, receipt };
   };
 
-  // 4. Log Keg Return (Audit Log)
-  const logKegReturn = (customerId: string, qty: number) => {
+  // 3c. Void a whole sale.
+  const voidSale = (saleId: string, reason: string) => {
+    const sale = sales.find(s => s.id === saleId);
+    if (!sale) return { success: false, error: 'Sale not found' };
+    if (sale.voided) return { success: false, error: 'This sale is already voided' };
+    if (!reason.trim()) return { success: false, error: 'A reason is required to void a sale' };
+
+    const saleLines = orders.filter(o => o.sale_id === saleId);
+    const lineIds = new Set(saleLines.map(l => l.id));
+    const blockingPayment = payments.find(
+      p => !p.voided && p.applied_to.some(a => lineIds.has(a.order_id))
+    );
+    if (blockingPayment) {
+      return {
+        success: false,
+        error: 'A recorded payment is applied to this sale. Void the payment first, then the sale.'
+      };
+    }
+
+    // Restore drawn litres to their source tanks.
+    const restore: Record<string, number> = {};
+    for (const line of saleLines) {
+      for (const alloc of line.tank_allocations || []) {
+        restore[alloc.tank_id] = (restore[alloc.tank_id] || 0) + alloc.litres;
+      }
+    }
+    setTanks(prev =>
+      prev.map(t => (restore[t.id] ? { ...t, remaining_litres: t.remaining_litres + restore[t.id] } : t))
+    );
+    setOrders(prev => prev.map(o => (o.sale_id === saleId ? { ...o, voided: true } : o)));
+    setSales(prev =>
+      prev.map(s =>
+        s.id === saleId
+          ? { ...s, voided: true, voided_at: new Date().toISOString(), voided_by: userRole, void_reason: reason.trim() }
+          : s
+      )
+    );
+    logAudit({
+      entity_type: 'sale',
+      entity_id: saleId,
+      action: 'void',
+      changes: [{ field: 'voided', old: false, new: true }],
+      reason: reason.trim()
+    });
+    return { success: true };
+  };
+
+  // 3d. Void a recorded payment.
+  const voidPayment = (paymentId: string, reason: string) => {
+    const payment = payments.find(p => p.id === paymentId);
+    if (!payment) return { success: false, error: 'Payment not found' };
+    if (payment.voided) return { success: false, error: 'This payment is already voided' };
+    if (!reason.trim()) return { success: false, error: 'A reason is required to void a payment' };
+
+    setOrders(prev =>
+      prev.map(o => {
+        const applied = payment.applied_to.find(a => a.order_id === o.id);
+        if (!applied) return o;
+        return { ...o, paid_amount: Math.max(0, Number(((o.paid_amount || 0) - applied.amount).toFixed(2))) };
+      })
+    );
+    if (payment.overpayment_to_credit > 0) {
+      setCustomerCredits(prev => [
+        {
+          id: `cc-${Date.now()}`,
+          customer_id: payment.customer_id,
+          amount: -Number(payment.overpayment_to_credit.toFixed(2)),
+          source_payment_id: payment.id,
+          created_at: new Date().toISOString(),
+          note: 'Reversal of voided overpayment credit'
+        },
+        ...prev
+      ]);
+    }
+    setPayments(prev =>
+      prev.map(p =>
+        p.id === paymentId
+          ? { ...p, voided: true, voided_at: new Date().toISOString(), void_reason: reason.trim() }
+          : p
+      )
+    );
+    logAudit({
+      entity_type: 'payment',
+      entity_id: paymentId,
+      action: 'void',
+      changes: [{ field: 'voided', old: false, new: true }],
+      reason: reason.trim()
+    });
+    return { success: true };
+  };
+
+  // 3e. Edit one sale line and keep every derived figure correct.
+  const updateOrderLine = (
+    lineId: string,
+    patch: { qty?: number; unitPrice?: number; containerMode?: ContainerMode; date?: string },
+    reason: string
+  ) => {
+    const line = orders.find(o => o.id === lineId);
+    if (!line) return { success: false, error: 'Sale line not found' };
+    if (line.voided) return { success: false, error: 'This line is voided' };
+    if (!reason.trim()) return { success: false, error: 'A reason is required to edit a line' };
+    const product = products.find(p => p.id === line.product_id);
+    if (!product) return { success: false, error: 'Product not found' };
+
+    const nextQty = patch.qty != null ? Math.max(1, Math.floor(patch.qty)) : line.qty;
+    const nextMode: ContainerMode = patch.containerMode ?? line.container_mode;
+    const nextUnitOverride =
+      patch.unitPrice != null ? patch.unitPrice : line.price_adjusted ? line.unit_price : null;
+
+    const priced = priceSaleLine({
+      product,
+      varietyId: line.variety_id,
+      packSizeId: line.pack_size_id,
+      tier: line.pricing_tier,
+      qty: nextQty,
+      containerMode: nextMode,
+      overrideUnitPrice: nextUnitOverride,
+      packPrices
+    });
+    if (priced.unpriced) return { success: false, error: 'That combination has no price' };
+
+    // Reconcile the tank draw for the change in litres.
+    const litresDelta = Number((priced.litres - line.litres).toFixed(2));
+    let nextAllocations = line.tank_allocations || [];
+    if (litresDelta > 0.001) {
+      const draw = executeFifoTankDraw(tanks, line.product_id, litresDelta);
+      if (!draw.success) return { success: false, error: draw.errorMessage || 'Not enough tank stock for the increase' };
+      setTanks(draw.updatedTanks);
+      const merged: Record<string, number> = {};
+      for (const a of nextAllocations) merged[a.tank_id] = (merged[a.tank_id] || 0) + a.litres;
+      for (const a of draw.allocations) merged[a.tankId] = (merged[a.tankId] || 0) + a.drawnLitres;
+      nextAllocations = Object.entries(merged).map(([tank_id, litres]) => ({ tank_id, litres }));
+    } else if (litresDelta < -0.001) {
+      let giveBack = -litresDelta;
+      const restore: Record<string, number> = {};
+      const kept: { tank_id: string; litres: number }[] = [];
+      for (const a of nextAllocations) {
+        const take = Math.min(a.litres, giveBack);
+        if (take > 0) {
+          restore[a.tank_id] = (restore[a.tank_id] || 0) + take;
+          giveBack -= take;
+        }
+        if (a.litres - take > 0.001) kept.push({ tank_id: a.tank_id, litres: Number((a.litres - take).toFixed(2)) });
+      }
+      setTanks(prev =>
+        prev.map(t => (restore[t.id] ? { ...t, remaining_litres: t.remaining_litres + restore[t.id] } : t))
+      );
+      nextAllocations = kept;
+    }
+
+    const changes: { field: string; old: unknown; new: unknown }[] = [];
+    if (nextQty !== line.qty) changes.push({ field: 'qty', old: line.qty, new: nextQty });
+    if (Math.abs(priced.unitPrice - line.unit_price) > 0.001)
+      changes.push({ field: 'unit_price', old: line.unit_price, new: priced.unitPrice });
+    if (nextMode !== line.container_mode) changes.push({ field: 'container_mode', old: line.container_mode, new: nextMode });
+    if (patch.date && patch.date !== line.date) changes.push({ field: 'date', old: line.date, new: patch.date });
+
+    setOrders(prev =>
+      prev.map(o =>
+        o.id === lineId
+          ? {
+              ...o,
+              qty: nextQty,
+              litres: priced.litres,
+              unit_price: priced.unitPrice,
+              price_adjusted: priced.priceAdjusted,
+              oil_amount: priced.oilAmount,
+              container_mode: nextMode,
+              returnable: priced.returnable,
+              container_unit_price: nextMode === 'bought' ? priced.containerUnitPrice : null,
+              container_amount: nextMode === 'bought' ? priced.containerAmount : null,
+              line_amount: priced.lineAmount,
+              amount: priced.lineAmount,
+              paid_amount: o.payment_method === 'credit' ? Math.min(o.paid_amount || 0, priced.lineAmount) : priced.lineAmount,
+              tank_allocations: nextAllocations,
+              source_tank_id: nextAllocations[0]?.tank_id ?? o.source_tank_id,
+              date: patch.date || o.date
+            }
+          : o
+      )
+    );
+    logAudit({ entity_type: 'order_line', entity_id: lineId, action: 'edit', changes, reason: reason.trim() });
+    return { success: true };
+  };
+
+  // 3f. Expense edit / void.
+  const updateExpense = (
+    expenseId: string,
+    patch: { category?: string; amount?: number; note?: string; date?: string },
+    reason: string
+  ) => {
+    const exp = expenses.find(e => e.id === expenseId);
+    if (!exp) return { success: false, error: 'Expense not found' };
+    if (!reason.trim()) return { success: false, error: 'A reason is required to edit an expense' };
+    const expRec = exp as unknown as Record<string, unknown>;
+    const changes: { field: string; old: unknown; new: unknown }[] = [];
+    (['category', 'amount', 'note', 'date'] as const).forEach(k => {
+      if (patch[k] != null && patch[k] !== expRec[k]) {
+        changes.push({ field: k, old: expRec[k], new: patch[k] });
+      }
+    });
+    setExpenses(prev =>
+      prev.map(e =>
+        e.id === expenseId
+          ? {
+              ...e,
+              category: patch.category?.trim() || e.category,
+              amount: patch.amount != null && patch.amount > 0 ? Number(patch.amount) : e.amount,
+              note: patch.note != null ? patch.note.trim() || undefined : e.note,
+              date: patch.date || e.date
+            }
+          : e
+      )
+    );
+    logAudit({ entity_type: 'expense', entity_id: expenseId, action: 'edit', changes, reason: reason.trim() });
+    return { success: true };
+  };
+
+  const voidExpense = (expenseId: string, reason: string) => {
+    const exp = expenses.find(e => e.id === expenseId);
+    if (!exp) return { success: false, error: 'Expense not found' };
+    if (exp.voided) return { success: false, error: 'This expense is already voided' };
+    if (!reason.trim()) return { success: false, error: 'A reason is required to void an expense' };
+    setExpenses(prev =>
+      prev.map(e =>
+        e.id === expenseId
+          ? { ...e, voided: true, voided_at: new Date().toISOString(), void_reason: reason.trim() }
+          : e
+      )
+    );
+    logAudit({
+      entity_type: 'expense',
+      entity_id: expenseId,
+      action: 'void',
+      changes: [{ field: 'voided', old: false, new: true }],
+      reason: reason.trim()
+    });
+    return { success: true };
+  };
+
+  // 3g. Truck-intake correction (date / label / supplier / note only — never litres).
+  const updateTankIntake = (
+    tankId: string,
+    patch: { date?: string; truck_label?: string; supplier_id?: string | null; space_note?: string },
+    reason: string
+  ) => {
+    const tank = tanks.find(t => t.id === tankId);
+    if (!tank) return { success: false, error: 'Intake record not found' };
+    if (!reason.trim()) return { success: false, error: 'A reason is required to edit an intake' };
+    const tankRec = tank as unknown as Record<string, unknown>;
+    const changes: { field: string; old: unknown; new: unknown }[] = [];
+    (['date', 'truck_label', 'supplier_id', 'space_note'] as const).forEach(k => {
+      if (patch[k] !== undefined && patch[k] !== tankRec[k]) {
+        changes.push({ field: k, old: tankRec[k], new: patch[k] });
+      }
+    });
+    setTanks(prev =>
+      prev.map(t =>
+        t.id === tankId
+          ? {
+              ...t,
+              date: patch.date || t.date,
+              truck_label: patch.truck_label?.trim() || t.truck_label,
+              supplier_id: patch.supplier_id !== undefined ? patch.supplier_id : t.supplier_id,
+              space_note: patch.space_note !== undefined ? patch.space_note : t.space_note
+            }
+          : t
+      )
+    );
+    logAudit({ entity_type: 'tank_intake', entity_id: tankId, action: 'edit', changes, reason: reason.trim() });
+    return { success: true };
+  };
+
+  // 4. Log Keg Return — counted against the (product, pack size) the container was taken in.
+  const logKegReturn = (
+    customerId: string,
+    qty: number,
+    productId: string,
+    packSizeId: string,
+    note?: string
+  ) => {
     const customer = customers.find(c => c.id === customerId);
     if (!customer) return { success: false, error: 'Customer not found' };
 
@@ -1030,28 +1410,37 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!Number.isFinite(numericQty) || numericQty <= 0) {
       return { success: false, error: 'Keg return quantity must be greater than zero' };
     }
-    const kegsOut = customerStatsMap[customerId]?.totalCompanyKegsOut ?? 0;
-    if (numericQty > kegsOut) {
-      return { success: false, error: `${customer.name} only has ${kegsOut} company keg(s) out` };
+    const stats = customerStatsMap[customerId];
+    const outForPack = stats?.kegsOutByPack?.[`${productId}|${packSizeId}`] ?? 0;
+    if (numericQty > outForPack) {
+      return {
+        success: false,
+        error: `${customer.name} has only ${outForPack} ${packLabelFor(packSizeId)} container(s) out for this product`
+      };
     }
 
     const newReturn: KegReturn = {
       id: `ret-${Date.now()}`,
       customer_id: customerId,
+      product_id: productId,
+      pack_size_id: packSizeId,
       qty: numericQty,
-      date: new Date().toISOString()
+      date: new Date().toISOString(),
+      note: note?.trim() || undefined
     };
 
     setKegReturns(prev => [newReturn, ...prev]);
     return { success: true, kegReturn: newReturn };
   };
 
-  // 5. Inter-Customer / Inter-Agent Transfer (company kegs only)
+  // 5. Inter-Customer / Inter-Agent Transfer (company containers only)
   const logTransfer = (data: {
     fromCustomerId: string;
     toCustomerId: string;
     itemType: 'keg';
     qty: number;
+    productId?: string | null;
+    packSizeId?: string | null;
     notes?: string;
   }) => {
     if (data.fromCustomerId === data.toCustomerId) {
@@ -1062,7 +1451,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     const senderKegs = customerStatsMap[data.fromCustomerId]?.totalCompanyKegsOut ?? 0;
     if (Number(data.qty) > senderKegs) {
-      return { success: false, error: `Sender only has ${senderKegs} company keg(s) to transfer` };
+      return { success: false, error: `Sender only has ${senderKegs} company container(s) to transfer` };
     }
 
     const newTransfer: Transfer = {
@@ -1071,6 +1460,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       to_customer_id: data.toCustomerId,
       item_type: 'keg',
       qty: Number(data.qty),
+      product_id: data.productId ?? null,
+      pack_size_id: data.packSizeId ?? null,
       date: new Date().toISOString(),
       note: data.notes?.trim() || undefined
     };
@@ -1262,24 +1653,24 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true, expense: newExpense };
   };
 
-  // 11. Add Product
+  // 11. Add Product — starts with one "Standard" variety, no pack sizes and no
+  //     prices; the owner configures those in the Inventory tab.
   const addProduct = (productData: Omit<Product, 'id'>) => {
+    const id = `prod-${Date.now()}`;
+    const varieties = productData.varieties && productData.varieties.length
+      ? productData.varieties
+      : [{ id: `${id}-standard`, name: 'Standard' }];
     const newProduct: Product = {
       ...productData,
-      id: `prod-${Date.now()}`
+      id,
+      varieties,
+      pack_config: productData.pack_config ?? []
     };
     setProducts(prev => [...prev, newProduct]);
-    // Seed default rate card tiers for newly created product
-    const newRateCards: RateCard[] = [
-      { product_id: newProduct.id, tier: 'retail', rate_per_litre: 5200 },
-      { product_id: newProduct.id, tier: 'agent', rate_per_litre: 4800 },
-      { product_id: newProduct.id, tier: 'corporate', rate_per_litre: 4500 }
-    ];
-    setRateCards(prev => [...prev, ...newRateCards]);
     return newProduct;
   };
 
-  // 11b. Update Product (e.g. litres_per_ton, supply_model, litres_per_keg)
+  // 11b. Update Product (name, supply_model, varieties, pack_config, …)
   const updateProduct = (productId: string, updates: Partial<Product>) => {
     setProducts(prev => prev.map(p => (p.id === productId ? { ...p, ...updates } : p)));
   };
@@ -1291,20 +1682,54 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return { success: false, error: 'Cannot remove product with active stock in storage tanks.' };
     }
     setProducts(prev => prev.filter(p => p.id !== productId));
-    setRateCards(prev => prev.filter(r => r.product_id !== productId));
+    setPackPrices(prev => prev.filter(pp => pp.product_id !== productId));
     return { success: true };
   };
 
-  // 12. Update Rate Card
-  const updateRateCard = (productId: string, tier: string, ratePerLitre: number) => {
-    setRateCards(prev => {
-      const exists = prev.some(r => r.product_id === productId && r.tier === tier);
-      if (exists) {
-        return prev.map(r => (r.product_id === productId && r.tier === tier ? { ...r, rate_per_litre: Number(ratePerLitre) } : r));
-      } else {
-        return [...prev, { product_id: productId, tier: tier as any, rate_per_litre: Number(ratePerLitre) }];
-      }
+  // 12. Price matrix — upsert one cell keyed by (product, variety, pack size, tier).
+  const setPackPrice = (
+    productId: string,
+    varietyId: string,
+    packSizeId: string,
+    tier: CustomerType,
+    price: number
+  ) => {
+    setPackPrices(prev => {
+      const idx = prev.findIndex(
+        p =>
+          p.product_id === productId &&
+          p.variety_id === varietyId &&
+          p.pack_size_id === packSizeId &&
+          p.tier === tier
+      );
+      const row: PackPrice = { product_id: productId, variety_id: varietyId, pack_size_id: packSizeId, tier, price: Number(price) };
+      if (idx === -1) return [...prev, row];
+      const next = prev.slice();
+      next[idx] = row;
+      return next;
     });
+  };
+
+  // 12b. Price matrix — bulk upsert (the Inventory "Save prices" action).
+  const bulkSetPackPrices = (rows: PackPrice[]) => {
+    setPackPrices(prev => {
+      const map = new Map<string, PackPrice>();
+      for (const p of prev) {
+        map.set(`${p.product_id}|${p.variety_id}|${p.pack_size_id}|${p.tier}`, p);
+      }
+      for (const r of rows) {
+        map.set(`${r.product_id}|${r.variety_id}|${r.pack_size_id}|${r.tier}`, {
+          ...r,
+          price: Number(r.price)
+        });
+      }
+      return Array.from(map.values());
+    });
+  };
+
+  // 12c. Per-product pack-size list + returnable / container-price config.
+  const updateProductPackConfig = (productId: string, config: ProductPackConfig[]) => {
+    setProducts(prev => prev.map(p => (p.id === productId ? { ...p, pack_config: config } : p)));
   };
 
   // 13. Update Settings
@@ -1366,12 +1791,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // 18. Reset to default demo seed data
   const resetToSeedData = () => {
     setProducts(DEFAULT_PRODUCTS);
-    setRateCards(DEFAULT_RATE_CARDS);
+    setPackPrices(DEFAULT_PACK_PRICES);
     setCustomers(DEFAULT_CUSTOMERS);
     setSuppliers(DEFAULT_SUPPLIERS);
     setPhysicalTanks(DEFAULT_PHYSICAL_TANKS);
     setTanks(SEED_TANKS);
+    setSales(SEED_SALES);
     setOrders(SEED_ORDERS);
+    setPayments(SEED_PAYMENTS);
+    setAuditLog(SEED_AUDIT_LOG);
     setKegReturns(SEED_KEG_RETURNS);
     setExpenses(SEED_EXPENSES);
     setSettings(DEFAULT_SETTINGS);
@@ -1388,12 +1816,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <StoreContext.Provider
       value={{
         products,
-        rateCards,
+        packPrices,
         customers,
         suppliers,
         physicalTanks,
         tanks,
+        sales,
         orders,
+        payments,
+        auditLog,
         kegReturns,
         expenses,
         settings,
@@ -1413,14 +1844,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         customerStatsMap,
         kegInventory,
         tankStockByProduct,
+        stockView,
         pumpVarianceAudits,
         activeAlerts,
         todayStats,
         logTruckIntake,
         logPreKeggedIntake,
-        createNewOrder,
+        createSale,
         recordCustomerPayment,
         redeemCustomerCredit,
+        voidSale,
+        voidPayment,
+        updateOrderLine,
+        updateExpense,
+        voidExpense,
+        updateTankIntake,
         logKegReturn,
         logTransfer,
         recordDipstickReading,
@@ -1432,7 +1870,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         addProduct,
         updateProduct,
         deleteProduct,
-        updateRateCard,
+        setPackPrice,
+        bulkSetPackPrices,
+        updateProductPackConfig,
         updateSettings,
         addCustomer,
         updateCustomer,

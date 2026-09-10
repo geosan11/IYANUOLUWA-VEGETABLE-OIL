@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
+import { usePermissions } from '../services/permissions';
 import { TankGauge } from '../components/common/TankGauge';
 import { BottomSheet } from '../components/common/BottomSheet';
 import { SlideOverDrawer } from '../components/common/SlideOverDrawer';
+import { Modal } from '../components/common/Modal';
 import { useIsDesktopSplit } from '../hooks/useBreakpoint';
 import { formatNaira, formatDepotDate, formatDepotTime, computeShiftCash, getDepotToday, depotDateKey } from '../services/businessLogic';
 import {
@@ -48,9 +50,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     closeShift,
     customers,
     customerStatsMap,
-    products,
-    userRole
+    products
   } = useStore();
+  const { can } = usePermissions();
 
   const vegStock = tankStockByProduct['veg']?.totalLitres || 0;
   const redStock = tankStockByProduct['red']?.totalLitres || 0;
@@ -65,11 +67,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   const redLitresPerKeg = redProduct?.litres_per_keg || 25;
 
   const vegKegsSoldToday = orders
-    .filter(o => depotDateKey(o.date) === todayStr && o.product_id === 'veg' && o.unit === 'keg')
+    .filter(o => !o.voided && depotDateKey(o.date) === todayStr && o.product_id === 'veg')
     .reduce((sum, o) => sum + Number(o.qty || 0), 0);
 
   const redKegsSoldToday = orders
-    .filter(o => depotDateKey(o.date) === todayStr && o.product_id === 'red' && o.unit === 'keg')
+    .filter(o => !o.voided && depotDateKey(o.date) === todayStr && o.product_id === 'red')
     .reduce((sum, o) => sum + Number(o.qty || 0), 0);
 
   // Progressive Disclosure States (Side Drawer on Desktop ≥900px, Bottom Sheet on Mobile)
@@ -273,7 +275,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   return (
     <div className="space-y-6 pb-20">
       {/* EXECUTIVE AI INTELLIGENCE BANNER (OWNER ONLY) */}
-      {userRole === 'owner' && (
+      {can('viewAIAdvisor') && (
         <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-brand-950 text-white border border-slate-800 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <div className="w-10 h-10 rounded-xl bg-brand-500/20 text-brand-400 border border-brand-500/30 flex items-center justify-center flex-shrink-0">
@@ -772,7 +774,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 ≈ {(vegStock / vegLitresPerKeg).toFixed(0)} Kegs ({vegLitresPerKeg}L)
               </span>
               <span className="text-[11px] font-mono tabular-nums text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
-                Sold Today: {vegKegsSoldToday} kegs
+                Sold Today: {vegKegsSoldToday} packs
               </span>
             </div>
           </div>
@@ -849,7 +851,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 ≈ {(redStock / redLitresPerKeg).toFixed(0)} Kegs ({redLitresPerKeg}L)
               </span>
               <span className="text-[11px] font-mono tabular-nums text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
-                Sold Today: {redKegsSoldToday} kegs
+                Sold Today: {redKegsSoldToday} packs
               </span>
             </div>
           </div>
@@ -1314,37 +1316,26 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
       {/* Modal: Start New Shift */}
       {isStartShiftModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col">
-            <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/40">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-800">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-heading font-bold text-[16px] text-slate-900 dark:text-white">
-                    Start Counter Cash Shift
-                  </h3>
-                  <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400">
-                    Open daily ledger cash reconciliation
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsStartShiftModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleStartShiftSubmit} className="p-5 space-y-4">
+        <Modal
+          isOpen
+          onClose={() => setIsStartShiftModalOpen(false)}
+          title={
+            <span className="flex items-center gap-2.5">
+              <span className="p-2 rounded-xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-800">
+                <ShieldCheck className="w-5 h-5" />
+              </span>
+              <span>Start Counter Cash Shift</span>
+            </span>
+          }
+          subtitle="Open daily ledger cash reconciliation"
+        >
+            <form onSubmit={handleStartShiftSubmit} className="space-y-4">
               <div>
-                <label className="block text-[12px] font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label htmlFor="shift-cashier-name" className="block text-[12px] font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Cashier Name / On-Duty Staff *
                 </label>
                 <input
+                  id="shift-cashier-name"
                   type="text"
                   required
                   value={cashierInput}
@@ -1355,11 +1346,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
               </div>
 
               <div>
-                <label className="block text-[12px] font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label htmlFor="shift-opening-float" className="block text-[12px] font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Opening Cash Float (NGN) *
                 </label>
                 <div className="relative">
                   <input
+                    id="shift-opening-float"
                     type="number"
                     step="100"
                     min="0"
@@ -1379,10 +1371,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
               </div>
 
               <div>
-                <label className="block text-[12px] font-sans font-medium text-slate-700 dark:text-slate-300 mb-1">
+                <label htmlFor="shift-start-notes" className="block text-[12px] font-sans font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Shift Notes / Handover Details (Optional)
                 </label>
                 <input
+                  id="shift-start-notes"
                   type="text"
                   value={startNotesInput}
                   onChange={e => setStartNotesInput(e.target.value)}
@@ -1408,38 +1401,26 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Modal: Reconcile and Close Shift */}
       {isCloseShiftModalOpen && activeShift && shiftMetrics && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/40">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-800">
-                  <Banknote className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-heading font-bold text-[16px] text-slate-900 dark:text-white">
-                    Count cash & end shift
-                  </h3>
-                  <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400">
-                    Cashier: {activeShift.cashier_name || 'Counter Staff'} · Started at {formatDepotTime(activeShift.start_time)}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCloseShiftModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleCloseShiftSubmit} className="p-5 space-y-4 overflow-y-auto">
+        <Modal
+          isOpen
+          onClose={() => setIsCloseShiftModalOpen(false)}
+          size="lg"
+          title={
+            <span className="flex items-center gap-2.5">
+              <span className="p-2 rounded-xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-800">
+                <Banknote className="w-5 h-5" />
+              </span>
+              <span>Count cash & end shift</span>
+            </span>
+          }
+          subtitle={`Cashier: ${activeShift.cashier_name || 'Counter Staff'} · Started at ${formatDepotTime(activeShift.start_time)}`}
+        >
+            <form onSubmit={handleCloseShiftSubmit} className="space-y-4">
               {/* Shift Cash Reconciliation Breakdown */}
               <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2 text-[13px] font-mono tabular-nums">
                 <div className="flex justify-between text-slate-600 dark:text-slate-400">
@@ -1469,11 +1450,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
               </div>
 
               <div>
-                <label className="block text-[12px] font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label htmlFor="shift-cash-counted" className="block text-[12px] font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Physical Cash Counted in Drawer (NGN) *
                 </label>
                 <div className="relative">
                   <input
+                    id="shift-cash-counted"
                     type="number"
                     step="100"
                     min="0"
@@ -1549,10 +1531,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
               )}
 
               <div>
-                <label className="block text-[12px] font-sans font-medium text-slate-700 dark:text-slate-300 mb-1">
+                <label htmlFor="shift-close-notes" className="block text-[12px] font-sans font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Handover Notes / Supervisor Sign-off (Optional)
                 </label>
                 <input
+                  id="shift-close-notes"
                   type="text"
                   value={closeNotesInput}
                   onChange={e => setCloseNotesInput(e.target.value)}
@@ -1578,8 +1561,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
       {/* STAT BREAKDOWN PROGRESSIVE DISCLOSURE (Side Drawer on Desktop ≥900px, Bottom Sheet on Mobile) */}
       <DisclosureContainer
@@ -1877,7 +1859,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
               {orders
                 .filter(o => {
-                  return depotDateKey(o.date) === todayStr && o.keg_source === 'own';
+                  return !o.voided && depotDateKey(o.date) === todayStr && o.container_mode === 'none';
                 })
                 .map(order => {
                   const cust = customers.find(c => c.id === order.customer_id);

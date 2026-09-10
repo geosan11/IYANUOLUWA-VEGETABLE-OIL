@@ -1,6 +1,57 @@
-import { Product, RateCard, Customer, AppSettings, Tank, Order, KegReturn, Expense, Pump, PumpReading, Transfer, TankDipstickReading, Shift, Supplier, PhysicalTank } from '../types';
+import {
+  Product,
+  PackSize,
+  PackPrice,
+  Customer,
+  AppSettings,
+  Tank,
+  Sale,
+  Order,
+  KegReturn,
+  Payment,
+  AuditEntry,
+  Expense,
+  Pump,
+  PumpReading,
+  Transfer,
+  TankDipstickReading,
+  Shift,
+  Supplier,
+  PhysicalTank,
+  CustomerType
+} from '../types';
 
 export const LITRES_PER_KEG = 30;
+
+/* ------------------------------------------------------------------ *
+ * PACK SIZES — the fixed set of containers the depot sells oil in.
+ * Frozen constant, referenced by id everywhere.
+ * ------------------------------------------------------------------ */
+
+export const PACK_SIZES: readonly PackSize[] = Object.freeze([
+  { id: 'sz_1', litres: 1, short: '1L', label: '1 L' },
+  { id: 'sz_12_5', litres: 12.5, short: '12.5L', label: '12.5 L' },
+  { id: 'sz_14', litres: 14, short: '14L', label: '14 L' },
+  { id: 'sz_25', litres: 25, short: '25L', label: '25 L' },
+  { id: 'sz_28', litres: 28, short: '28L', label: '28 L' },
+  { id: 'sz_30', litres: 30, short: '30L', label: '30 L' },
+  { id: 'sz_56', litres: 56, short: '56L', label: '56 L (¼ drum)' },
+  { id: 'sz_112_5', litres: 112.5, short: '112.5L', label: '112.5 L (½ drum)' },
+  { id: 'sz_256', litres: 256, short: '256L', label: '256 L (1 drum)' }
+]);
+
+export const packSizeById = (id: string): PackSize | null =>
+  PACK_SIZES.find(s => s.id === id) ?? null;
+
+export const packLitres = (id: string): number => packSizeById(id)?.litres ?? 0;
+
+export const packLabel = (id: string): string => packSizeById(id)?.label ?? id;
+
+export const packShort = (id: string): string => packSizeById(id)?.short ?? id;
+
+/* ------------------------------------------------------------------ *
+ * PRODUCTS + varieties + per-product pack config
+ * ------------------------------------------------------------------ */
 
 export const DEFAULT_PRODUCTS: Product[] = [
   {
@@ -11,10 +62,18 @@ export const DEFAULT_PRODUCTS: Product[] = [
     litres_per_keg: 30,
     keg_sell_price: 3500,
     varieties: [
-      { id: 'veg-soya', name: 'Pure Soya (Grade A)', rate_delta_per_litre: 0 },
-      { id: 'veg-olein', name: 'Triple-Refined Palm Olein', rate_delta_per_litre: -100 },
-      { id: 'veg-groundnut', name: 'Groundnut / Peanut Blend', rate_delta_per_litre: 250 },
-      { id: 'veg-corn', name: 'Refined Corn / Maize Oil', rate_delta_per_litre: 150 }
+      { id: 'veg-soya', name: 'Pure Soya (Grade A)' },
+      { id: 'veg-olein', name: 'Triple-Refined Palm Olein' },
+      { id: 'veg-groundnut', name: 'Groundnut / Peanut Blend' },
+      { id: 'veg-corn', name: 'Refined Corn / Maize Oil' }
+    ],
+    pack_config: [
+      { pack_size_id: 'sz_1', returnable: false, container_buy_price: 0, sort: 0 },
+      { pack_size_id: 'sz_25', returnable: true, container_buy_price: 3500, sort: 1 },
+      { pack_size_id: 'sz_30', returnable: true, container_buy_price: 3800, sort: 2 },
+      { pack_size_id: 'sz_56', returnable: true, container_buy_price: 6000, sort: 3 },
+      { pack_size_id: 'sz_112_5', returnable: true, container_buy_price: 11000, sort: 4 },
+      { pack_size_id: 'sz_256', returnable: true, container_buy_price: 22000, sort: 5 }
     ],
     color_light: '#FCD34D',
     color_dark: '#B45309'
@@ -24,16 +83,109 @@ export const DEFAULT_PRODUCTS: Product[] = [
     name: 'Red / Palm Oil',
     supply_model: 'pre_kegged',
     litres_per_ton: null,
-    litres_per_keg: 25, // Note: confirm actual capacity with client
+    litres_per_keg: 25,
     keg_sell_price: 3000,
     varieties: [
-      { id: 'red-edo', name: 'Grade-A Edo Spec', rate_delta_per_litre: 0 },
-      { id: 'red-ondo', name: 'Ondo Local Producer', rate_delta_per_litre: -150 }
+      { id: 'red-edo', name: 'Grade-A Edo Spec' },
+      { id: 'red-ondo', name: 'Ondo Local Producer' }
+    ],
+    pack_config: [
+      { pack_size_id: 'sz_25', returnable: true, container_buy_price: 3000, sort: 0 },
+      { pack_size_id: 'sz_56', returnable: true, container_buy_price: 5500, sort: 1 },
+      { pack_size_id: 'sz_112_5', returnable: true, container_buy_price: 10500, sort: 2 },
+      { pack_size_id: 'sz_256', returnable: true, container_buy_price: 21000, sort: 3 }
     ],
     color_light: '#F87171',
     color_dark: '#7F1D1D'
   }
 ];
+
+/* ------------------------------------------------------------------ *
+ * PRICE MATRIX — one absolute price per (product, variety, pack size, tier).
+ * Seeded from a small model so ~100 rows aren't hand-written; the owner
+ * tunes every cell in the Inventory tab.
+ * ------------------------------------------------------------------ */
+
+const TIER_BASE_PER_LITRE: Record<string, Record<CustomerType, number>> = {
+  veg: { retail: 5200, agent: 4800, corporate: 4500 },
+  red: { retail: 5600, agent: 5100, corporate: 4800 }
+};
+
+// A litre in a small pack costs a little more; a drum a little less.
+const SIZE_FACTOR: Record<string, number> = {
+  sz_1: 1.15,
+  sz_12_5: 1.05,
+  sz_14: 1.04,
+  sz_25: 1.0,
+  sz_28: 0.99,
+  sz_30: 0.985,
+  sz_56: 0.97,
+  sz_112_5: 0.955,
+  sz_256: 0.94
+};
+
+// Per-litre premium/discount for each variety, applied on top of the tier base.
+const VARIETY_PREMIUM_PER_LITRE: Record<string, number> = {
+  'veg-soya': 0,
+  'veg-olein': -100,
+  'veg-groundnut': 250,
+  'veg-corn': 150,
+  'red-edo': 0,
+  'red-ondo': -150
+};
+
+const round50 = (n: number) => Math.round(n / 50) * 50;
+
+function buildDefaultPackPrices(products: Product[]): PackPrice[] {
+  const tiers: CustomerType[] = ['retail', 'agent', 'corporate'];
+  const rows: PackPrice[] = [];
+  for (const product of products) {
+    const base = TIER_BASE_PER_LITRE[product.id] ?? TIER_BASE_PER_LITRE.veg;
+    for (const variety of product.varieties) {
+      const varietyPremium = VARIETY_PREMIUM_PER_LITRE[variety.id] ?? 0;
+      for (const cfg of product.pack_config) {
+        const litres = packLitres(cfg.pack_size_id);
+        const factor = SIZE_FACTOR[cfg.pack_size_id] ?? 1;
+        for (const tier of tiers) {
+          const perLitre = (base[tier] + varietyPremium) * factor;
+          rows.push({
+            product_id: product.id,
+            variety_id: variety.id,
+            pack_size_id: cfg.pack_size_id,
+            tier,
+            price: round50(litres * perLitre)
+          });
+        }
+      }
+    }
+  }
+  return rows;
+}
+
+export const DEFAULT_PACK_PRICES: PackPrice[] = buildDefaultPackPrices(DEFAULT_PRODUCTS);
+
+const seedPrice = (
+  productId: string,
+  varietyId: string,
+  packSizeId: string,
+  tier: CustomerType
+): number =>
+  DEFAULT_PACK_PRICES.find(
+    p =>
+      p.product_id === productId &&
+      p.variety_id === varietyId &&
+      p.pack_size_id === packSizeId &&
+      p.tier === tier
+  )?.price ?? 0;
+
+const containerBuyPrice = (productId: string, packSizeId: string): number =>
+  DEFAULT_PRODUCTS.find(p => p.id === productId)?.pack_config.find(
+    c => c.pack_size_id === packSizeId
+  )?.container_buy_price ?? 0;
+
+/* ------------------------------------------------------------------ *
+ * OTHER CATALOG DATA (unchanged)
+ * ------------------------------------------------------------------ */
 
 export const DEFAULT_SUPPLIERS: Supplier[] = [
   { id: 'sup-1', name: 'Presco Oil Plc', phone: '+234 803 100 2000' },
@@ -46,15 +198,6 @@ export const DEFAULT_PHYSICAL_TANKS: PhysicalTank[] = [
   { id: 'pt-1', label: 'Yard Tank 1 (Bulk Veg - 30,000L)', product_id: 'veg', capacity_litres: 30000, notes: 'Main East yard bulk vertical tank' },
   { id: 'pt-2', label: 'Yard Tank 2 (Reserve Veg - 20,000L)', product_id: 'veg', capacity_litres: 20000, notes: 'Secondary West yard tank' },
   { id: 'pt-3', label: 'Yard Tank 3 (Palm Decanting - 15,000L)', product_id: 'red', capacity_litres: 15000, notes: 'Dedicated decanting vessel for palm deliveries' }
-];
-
-export const DEFAULT_RATE_CARDS: RateCard[] = [
-  { product_id: 'veg', tier: 'retail', rate_per_litre: 5200 },
-  { product_id: 'veg', tier: 'agent', rate_per_litre: 4800 },
-  { product_id: 'veg', tier: 'corporate', rate_per_litre: 4500 },
-  { product_id: 'red', tier: 'retail', rate_per_litre: 5600 },
-  { product_id: 'red', tier: 'agent', rate_per_litre: 5100 },
-  { product_id: 'red', tier: 'corporate', rate_per_litre: 4800 }
 ];
 
 export const DEFAULT_PUMPS: Pump[] = [
@@ -197,96 +340,202 @@ export const SEED_TANKS: Tank[] = [
   }
 ];
 
-// Seed initial orders showing credit aging variety (Current, Due in 2d, Overdue)
-export const SEED_ORDERS: Order[] = [
+/* ------------------------------------------------------------------ *
+ * SEED SALES + LINES — pack-size model
+ * ------------------------------------------------------------------ */
+
+/** Build one seed sale line, computing money from the seeded price matrix. */
+function seedLine(args: {
+  id: string;
+  saleId: string;
+  customerId: string;
+  productId: string;
+  varietyId: string;
+  varietyName: string;
+  packSizeId: string;
+  qty: number;
+  tier: CustomerType;
+  containerMode: 'taken' | 'bought' | 'none';
+  paymentMethod: Order['payment_method'];
+  paidAmount: number;
+  dueDate: string | null;
+  date: string;
+  sourceTankId: string | null;
+}): Order {
+  const litres = Number((args.qty * packLitres(args.packSizeId)).toFixed(2));
+  const unitPrice = seedPrice(args.productId, args.varietyId, args.packSizeId, args.tier);
+  const oilAmount = Number((args.qty * unitPrice).toFixed(2));
+  const cfg = DEFAULT_PRODUCTS.find(p => p.id === args.productId)?.pack_config.find(
+    c => c.pack_size_id === args.packSizeId
+  );
+  const returnable = cfg?.returnable ?? false;
+  const containerUnitPrice =
+    args.containerMode === 'bought' ? containerBuyPrice(args.productId, args.packSizeId) : null;
+  const containerAmount =
+    args.containerMode === 'bought'
+      ? Number((args.qty * (containerUnitPrice ?? 0)).toFixed(2))
+      : 0;
+  const lineAmount = Number((oilAmount + containerAmount).toFixed(2));
+  return {
+    id: args.id,
+    sale_id: args.saleId,
+    customer_id: args.customerId,
+    product_id: args.productId,
+    variety_id: args.varietyId,
+    variety_name: args.varietyName,
+    pack_size_id: args.packSizeId,
+    qty: args.qty,
+    litres,
+    unit_price: unitPrice,
+    original_unit_price: unitPrice,
+    price_adjusted: false,
+    price_adjust_reason: null,
+    oil_amount: oilAmount,
+    container_mode: args.containerMode,
+    returnable,
+    container_unit_price: containerUnitPrice,
+    container_amount: args.containerMode === 'bought' ? containerAmount : null,
+    line_amount: lineAmount,
+    amount: lineAmount,
+    pricing_tier: args.tier,
+    payment_method: args.paymentMethod,
+    paid_amount: args.paidAmount,
+    due_date: args.dueDate,
+    date: args.date,
+    source_tank_id: args.sourceTankId,
+    tank_allocations: args.sourceTankId ? [{ tank_id: args.sourceTankId, litres }] : null,
+    voided: false
+  };
+}
+
+export const SEED_SALES: Sale[] = [
   {
-    id: 'ord-101',
-    customer_id: 'cust-1', // Mr Samson (Corporate, 30 days)
-    product_id: 'veg',
-    unit: 'keg',
-    qty: 15,
-    litres: 450,
-    rate: 4500,
-    amount: 67500,
-    paid_amount: 0,
-    payment_method: 'credit',
-    keg_source: 'company',
+    id: 'sale-101',
+    customer_id: 'cust-1',
     date: '2026-08-05T10:00:00Z',
-    due_date: '2026-09-04T10:00:00Z', // Overdue
-    source_tank_id: 'tank-v1',
-    pump_id: 'p-1',
-    meter_reading: 11610,
-    note: 'Initial supply'
+    payment_method: 'credit',
+    cashier_name: 'Depot Cashier',
+    note: 'Initial supply',
+    voided: false
   },
   {
-    id: 'ord-102',
-    customer_id: 'cust-2', // Arena (Agent, 14 days)
-    product_id: 'veg',
-    unit: 'keg',
-    qty: 15,
-    litres: 450,
-    rate: 4800,
-    amount: 72000,
-    paid_amount: 0,
-    payment_method: 'credit',
-    keg_source: 'company',
+    id: 'sale-102',
+    customer_id: 'cust-2',
     date: '2026-08-28T14:30:00Z',
-    due_date: '2026-09-11T14:30:00Z', // Due in 3 days
-    source_tank_id: 'tank-v1',
-    pump_id: 'p-1',
-    meter_reading: 12060,
-    note: 'Depot dispatch'
-  },
-  {
-    id: 'ord-103',
-    customer_id: 'cust-3', // Iya Aige (Agent, 14 days)
-    product_id: 'red',
-    unit: 'keg',
-    qty: 10,
-    litres: 300,
-    rate: 5100,
-    amount: 51000,
-    paid_amount: 51000,
-    payment_method: 'transfer',
-    keg_source: 'own',
-    date: '2026-09-07T09:15:00Z',
-    due_date: null,
-    source_tank_id: 'tank-r1',
-    pump_id: 'p-3',
-    meter_reading: 5340,
-    note: 'Customer brought own yellow jerrycans'
-  },
-  {
-    id: 'ord-104',
-    customer_id: 'cust-4', // Lekki Agent
-    product_id: 'veg',
-    unit: 'keg',
-    qty: 8,
-    litres: 240,
-    rate: 4800,
-    amount: 38400,
-    paid_amount: 0,
     payment_method: 'credit',
-    keg_source: 'company',
+    cashier_name: 'Depot Cashier',
+    note: 'Depot dispatch',
+    voided: false
+  },
+  {
+    id: 'sale-103',
+    customer_id: 'cust-3',
+    date: '2026-09-07T09:15:00Z',
+    payment_method: 'transfer',
+    cashier_name: 'Depot Cashier',
+    note: 'Customer brought own jerrycans',
+    voided: false
+  },
+  {
+    id: 'sale-104',
+    customer_id: 'cust-4',
     date: '2026-09-04T12:00:00Z',
-    due_date: '2026-09-18T12:00:00Z', // Current
-    source_tank_id: 'tank-v1',
-    pump_id: 'p-1',
-    meter_reading: 12300,
-    note: 'Fast agent restock'
+    payment_method: 'credit',
+    cashier_name: 'Depot Cashier',
+    note: 'Fast agent restock',
+    voided: false
   }
 ];
+
+export const SEED_ORDERS: Order[] = [
+  seedLine({
+    id: 'line-101-1',
+    saleId: 'sale-101',
+    customerId: 'cust-1',
+    productId: 'veg',
+    varietyId: 'veg-soya',
+    varietyName: 'Pure Soya (Grade A)',
+    packSizeId: 'sz_30',
+    qty: 15,
+    tier: 'corporate',
+    containerMode: 'taken',
+    paymentMethod: 'credit',
+    paidAmount: 0,
+    dueDate: '2026-09-04T10:00:00Z', // overdue
+    date: '2026-08-05T10:00:00Z',
+    sourceTankId: 'tank-v1'
+  }),
+  seedLine({
+    id: 'line-102-1',
+    saleId: 'sale-102',
+    customerId: 'cust-2',
+    productId: 'veg',
+    varietyId: 'veg-soya',
+    varietyName: 'Pure Soya (Grade A)',
+    packSizeId: 'sz_30',
+    qty: 15,
+    tier: 'agent',
+    containerMode: 'taken',
+    paymentMethod: 'credit',
+    paidAmount: 0,
+    dueDate: '2026-09-11T14:30:00Z', // due soon
+    date: '2026-08-28T14:30:00Z',
+    sourceTankId: 'tank-v1'
+  }),
+  seedLine({
+    id: 'line-103-1',
+    saleId: 'sale-103',
+    customerId: 'cust-3',
+    productId: 'red',
+    varietyId: 'red-edo',
+    varietyName: 'Grade-A Edo Spec',
+    packSizeId: 'sz_25',
+    qty: 12,
+    tier: 'agent',
+    containerMode: 'none',
+    paymentMethod: 'transfer',
+    paidAmount: 0, // set below from line_amount
+    dueDate: null,
+    date: '2026-09-07T09:15:00Z',
+    sourceTankId: 'tank-r1'
+  }),
+  seedLine({
+    id: 'line-104-1',
+    saleId: 'sale-104',
+    customerId: 'cust-4',
+    productId: 'veg',
+    varietyId: 'veg-soya',
+    varietyName: 'Pure Soya (Grade A)',
+    packSizeId: 'sz_30',
+    qty: 8,
+    tier: 'agent',
+    containerMode: 'taken',
+    paymentMethod: 'credit',
+    paidAmount: 0,
+    dueDate: '2026-09-18T12:00:00Z', // current
+    date: '2026-09-04T12:00:00Z',
+    sourceTankId: 'tank-v1'
+  })
+];
+
+// sale-103 was paid in full on the spot — mark its line settled.
+const paidLine = SEED_ORDERS.find(o => o.id === 'line-103-1');
+if (paidLine) paidLine.paid_amount = paidLine.line_amount;
 
 export const SEED_KEG_RETURNS: KegReturn[] = [
   {
     id: 'ret-1',
     customer_id: 'cust-1',
+    product_id: 'veg',
+    pack_size_id: 'sz_30',
     qty: 5,
     date: '2026-08-15T15:20:00Z'
   },
   {
     id: 'ret-2',
     customer_id: 'cust-2',
+    product_id: 'veg',
+    pack_size_id: 'sz_30',
     qty: 3,
     date: '2026-09-02T11:00:00Z'
   }
@@ -296,13 +545,19 @@ export const SEED_TRANSFERS: Transfer[] = [
   {
     id: 'trf-1',
     from_customer_id: 'cust-1', // Mr Samson
-    to_customer_id: 'cust-2',   // Arena
+    to_customer_id: 'cust-2', // Arena
     item_type: 'keg',
     qty: 2,
+    product_id: 'veg',
+    pack_size_id: 'sz_30',
     date: '2026-09-03T14:00:00Z',
     note: 'Direct market transfer from Samson to Arena'
   }
 ];
+
+export const SEED_PAYMENTS: Payment[] = [];
+
+export const SEED_AUDIT_LOG: AuditEntry[] = [];
 
 export const SEED_DIPSTICK_READINGS: TankDipstickReading[] = [
   {

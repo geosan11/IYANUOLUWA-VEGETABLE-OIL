@@ -247,7 +247,7 @@ export const ExpensesScreen: React.FC = () => {
 
           {/* Amount Field */}
           <div className="space-y-1.5">
-            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+            <label htmlFor="expense-amount" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
               Voucher Amount (₦)
             </label>
             <div className="relative">
@@ -255,6 +255,7 @@ export const ExpensesScreen: React.FC = () => {
                 ₦
               </span>
               <input
+                id="expense-amount"
                 type="number"
                 step="100"
                 min="1"
@@ -269,10 +270,11 @@ export const ExpensesScreen: React.FC = () => {
 
           {/* Note Field */}
           <div className="space-y-1.5">
-            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+            <label htmlFor="expense-note" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
               Description / Reason
             </label>
             <input
+              id="expense-note"
               type="text"
               value={note}
               onChange={e => setNote(e.target.value)}

@@ -5,19 +5,18 @@ import {
   Transfer,
   CustomerCredit,
   Tank,
-  RateCard,
-  CustomerType,
   CustomerCalculatedStats,
   KegInventorySummary,
   TankDrawResult,
   PaymentApplicationResult,
   UnitType,
-  KegSource,
   Pump,
   PumpReading,
   Shift
 } from '../types';
-import { LITRES_PER_KEG } from '../constants/config';
+import { LITRES_PER_KEG, packLitres } from '../constants/config';
+
+export { packLitres };
 
 /**
  * 1. UNIT CONVERSION
@@ -103,58 +102,10 @@ export function calculatePreKeggedIntakeMetrics(
 }
 
 /**
- * 8. RATE LOOKUP
- * rate_per_litre = rate_cards[product_id][customer.type]
- * keg price = rate_per_litre * litres_per_keg
+ * 8. PACK-SIZE PRICING lives in `src/services/pricing.ts`
+ * (`lookupPackPrice` / `priceSaleLine`). The old per-litre `lookupRatePerLitre`
+ * and `calculateOrderPricing` have been removed — sales are priced per pack.
  */
-export function lookupRatePerLitre(
-  rateCards: RateCard[],
-  productId: string,
-  customerType: CustomerType
-): number {
-  const card = rateCards.find(r => r.product_id === productId && r.tier === customerType);
-  if (card) return card.rate_per_litre;
-  // Fallbacks if not seeded
-  if (productId === 'veg') {
-    if (customerType === 'retail') return 5200;
-    if (customerType === 'agent') return 4800;
-    return 4500;
-  } else {
-    if (customerType === 'retail') return 5600;
-    if (customerType === 'agent') return 5100;
-    return 4800;
-  }
-}
-
-export function calculateOrderPricing(
-  unit: UnitType,
-  qty: number,
-  ratePerLitre: number,
-  litresPerKeg = LITRES_PER_KEG,
-  litresPerTon: number | null = 1075,
-  kegSource: KegSource = null,
-  kegSellPrice: number | null = null
-): {
-  litres: number;
-  oilAmount: number;
-  kegAmount: number;
-  amount: number;
-  ratePerKeg: number;
-} {
-  const litres = calculateLitres(unit, qty, litresPerKeg, litresPerTon);
-  const ratePerKeg = ratePerLitre * litresPerKeg;
-  const oilAmount = Number((litres * ratePerLitre).toFixed(2));
-  const isPurchasedKeg = unit === 'keg' && kegSource === 'purchased' && kegSellPrice !== null && kegSellPrice !== undefined;
-  const kegAmount = isPurchasedKeg ? Number(((Number(qty) || 0) * (kegSellPrice || 0)).toFixed(2)) : 0;
-  const amount = Number((oilAmount + kegAmount).toFixed(2));
-  return {
-    litres: Number(litres.toFixed(2)),
-    oilAmount,
-    kegAmount,
-    amount,
-    ratePerKeg
-  };
-}
 
 /**
  * 5. CREDIT BALANCE & AGING COMPUTATION
@@ -182,7 +133,7 @@ export function calculateCustomerStats(
     transfers = transfersOrRefDate;
   }
 
-  const customerOrders = orders.filter(o => o.customer_id === customer.id);
+  const customerOrders = orders.filter(o => o.customer_id === customer.id && !o.voided);
 
   // Store credit the depot owes this customer (overpayments, minus what has been redeemed).
   const creditBalance = Math.max(
@@ -203,27 +154,33 @@ export function calculateCustomerStats(
     0
   );
 
-  // Kegs out = sum(orders where keg_source='company', qty) - sum(keg_returns.qty) - transfers_out + transfers_in
-  const totalCompanyKegsSupplied = customerOrders
-    .filter(o => o.keg_source === 'company' && o.unit === 'keg')
-    .reduce((sum, o) => sum + Number(o.qty || 0), 0);
+  // Returnable containers out on loan, tracked per (product, pack size).
+  //   taken lines (+qty) - matching returns (-qty) - transfers out (+/-)
+  const kegsOutByPack: Record<string, number> = {};
+  const bump = (productId: string | undefined | null, packSizeId: string | undefined | null, delta: number) => {
+    const key = `${productId || 'unknown'}|${packSizeId || 'unknown'}`;
+    kegsOutByPack[key] = (kegsOutByPack[key] || 0) + delta;
+  };
 
-  const customerReturns = kegReturns
-    .filter(r => r.customer_id === customer.id)
-    .reduce((sum, r) => sum + Number(r.qty || 0), 0);
+  for (const o of customerOrders) {
+    if (o.container_mode === 'taken') bump(o.product_id, o.pack_size_id, Number(o.qty || 0));
+  }
+  for (const r of kegReturns) {
+    if (r.customer_id === customer.id) bump(r.product_id, r.pack_size_id, -Number(r.qty || 0));
+  }
+  for (const t of transfers) {
+    if (t.item_type !== 'keg') continue;
+    if (t.from_customer_id === customer.id) bump(t.product_id, t.pack_size_id, -Number(t.qty || 0));
+    if (t.to_customer_id === customer.id) bump(t.product_id, t.pack_size_id, Number(t.qty || 0));
+  }
 
-  const kegsTransferredOut = transfers
-    .filter(t => t.from_customer_id === customer.id && t.item_type === 'keg')
-    .reduce((sum, t) => sum + Number(t.qty || 0), 0);
-
-  const kegsTransferredIn = transfers
-    .filter(t => t.to_customer_id === customer.id && t.item_type === 'keg')
-    .reduce((sum, t) => sum + Number(t.qty || 0), 0);
-
-  const totalCompanyKegsOut = Math.max(
-    0,
-    totalCompanyKegsSupplied - customerReturns - kegsTransferredOut + kegsTransferredIn
-  );
+  // Clamp each bucket at zero and total up.
+  let totalCompanyKegsOut = 0;
+  for (const key of Object.keys(kegsOutByPack)) {
+    const clamped = Math.max(0, kegsOutByPack[key]);
+    kegsOutByPack[key] = clamped;
+    totalCompanyKegsOut += clamped;
+  }
 
   // Compute Aging
   let worstOverdueDays = -Infinity; // Days past due (positive = overdue, negative = days remaining)
@@ -273,6 +230,7 @@ export function calculateCustomerStats(
     currentBalance: Number(currentBalance.toFixed(2)),
     creditBalance: Number(creditBalance.toFixed(2)),
     totalCompanyKegsOut,
+    kegsOutByPack,
     agingBadge: {
       status,
       label,
@@ -300,14 +258,14 @@ export function calculateKegInventory(
   kegReturns: KegReturn[],
   criticalThreshold = 20
 ): KegInventorySummary {
-  // Company loan obligations: kegs loaned to customers that are expected back
+  // Company loan obligations: containers loaned to customers that are expected back
   const totalCompanySupplied = orders
-    .filter(o => o.keg_source === 'company' && o.unit === 'keg')
+    .filter(o => !o.voided && o.container_mode === 'taken')
     .reduce((sum, o) => sum + Number(o.qty || 0), 0);
 
-  // Outright purchased kegs: physical company keg permanently sold to customer (no return obligation)
+  // Outright purchased containers: permanently sold to customer (no return obligation)
   const totalPurchased = orders
-    .filter(o => o.keg_source === 'purchased' && o.unit === 'keg')
+    .filter(o => !o.voided && o.container_mode === 'bought')
     .reduce((sum, o) => sum + Number(o.qty || 0), 0);
 
   const totalReturned = kegReturns.reduce((sum, r) => sum + Number(r.qty || 0), 0);
@@ -404,7 +362,7 @@ export function applyFifoPayment(
 
   // Get this customer's open credit orders sorted by due_date ascending (oldest due first)
   const customerCreditOrders = updatedOrders
-    .filter(o => o.customer_id === customerId && o.payment_method === 'credit' && (o.amount - (o.paid_amount || 0)) > 0.001)
+    .filter(o => o.customer_id === customerId && !o.voided && o.payment_method === 'credit' && (o.amount - (o.paid_amount || 0)) > 0.001)
     .sort((a, b) => {
       const timeA = a.due_date ? new Date(a.due_date).getTime() : new Date(a.date).getTime();
       const timeB = b.due_date ? new Date(b.due_date).getTime() : new Date(b.date).getTime();
@@ -778,7 +736,7 @@ export function calculateShiftSummary(
 export function computeShiftCash(
   shift: { start_time: string; end_time?: string | null; opening_float: number },
   orders: Order[],
-  expenses: { date: string; amount: number }[],
+  expenses: { date: string; amount: number; voided?: boolean }[],
   now: Date = new Date()
 ): { cashSales: number; cashExpenses: number; expectedCash: number } {
   const startMs = new Date(shift.start_time).getTime();
@@ -787,14 +745,14 @@ export function computeShiftCash(
   const cashSales = orders
     .filter(o => {
       const t = new Date(o.date).getTime();
-      return t >= startMs && t <= endMs && o.payment_method === 'cash';
+      return t >= startMs && t <= endMs && !o.voided && o.payment_method === 'cash';
     })
     .reduce((sum, o) => sum + (o.paid_amount || 0), 0);
 
   const cashExpenses = expenses
     .filter(e => {
       const t = new Date(e.date).getTime();
-      return t >= startMs && t <= endMs;
+      return t >= startMs && t <= endMs && !e.voided;
     })
     .reduce((sum, e) => sum + Number(e.amount || 0), 0);
 

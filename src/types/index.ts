@@ -5,12 +5,29 @@ export type KegSource = 'company' | 'own' | 'purchased' | null;
 export type UserRole = 'owner' | 'staff' | 'driver';
 export type SupplyModel = 'bulk_truck' | 'pre_kegged';
 
-/** A grade / spec of a product actually in the tank (e.g. "Pure Soya", "Groundnut Blend"). */
+/** How a returnable container leaves the depot on a sale line. */
+export type ContainerMode = 'taken' | 'bought' | 'none';
+
+/** A fixed pack size the depot sells oil in (1L, 25L, 256L drum, …). */
+export interface PackSize {
+  id: string; // stable key, e.g. 'sz_25'
+  litres: number; // 25
+  short: string; // '25L'
+  label: string; // '25 L' or '256 L (1 drum)'
+}
+
+/** A grade / spec of a product (e.g. "Pure Soya", "Groundnut Blend"). Now a full SKU with its own price rows. */
 export interface ProductVariety {
   id: string;
   name: string;
-  /** Added to the tier rate/litre for this variety (0 = standard). May be negative. */
-  rate_delta_per_litre: number;
+}
+
+/** Which pack sizes a product sells, and the returnable-container rules for each. */
+export interface ProductPackConfig {
+  pack_size_id: string; // FK -> PACK_SIZES; presence in the array = "product sells this size"
+  returnable: boolean; // regulars return the keg/drum
+  container_buy_price: number; // charged when the container is bought outright; 0 when n/a
+  sort?: number;
 }
 
 export interface Product {
@@ -18,11 +35,21 @@ export interface Product {
   name: string;
   supply_model: SupplyModel;
   litres_per_ton: number | null; // null for pre_kegged
-  litres_per_keg: number; // now PER-PRODUCT
-  keg_sell_price: number | null; // price to sell physical container outright
-  varieties?: ProductVariety[]; // selectable specs; first entry is the default
+  litres_per_keg: number; // KEPT — intake maths only
+  keg_sell_price: number | null; // KEPT — fallback container price
+  varieties: ProductVariety[]; // REQUIRED, length >= 1; first entry is the default
+  pack_config: ProductPackConfig[]; // which sizes this product sells + container rules
   color_light: string;
   color_dark: string;
+}
+
+/** Absolute price for ONE pack, keyed by variety x pack size x customer tier. */
+export interface PackPrice {
+  product_id: string;
+  variety_id: string;
+  pack_size_id: string;
+  tier: CustomerType;
+  price: number; // absolute price for one pack at this tier (NOT per-litre)
 }
 
 export interface Supplier {
@@ -37,12 +64,6 @@ export interface PhysicalTank {
   product_id: string;
   capacity_litres: number;
   notes?: string;
-}
-
-export interface RateCard {
-  product_id: string;
-  tier: CustomerType;
-  rate_per_litre: number;
 }
 
 export interface Customer {
@@ -85,6 +106,7 @@ export interface PumpReading {
   reading: number;
   recorded_at: string;
   note?: string;
+  recorded_by?: string;
 }
 
 export interface PumpVarianceAudit {
@@ -101,43 +123,82 @@ export interface PumpVarianceAudit {
   note?: string;
 }
 
-export interface Order {
-  id: string;
+/** A single sale can carry several line items ({@link Order}) settled by one payment. */
+export interface Sale {
+  id: string; // 'sale-<ts>'
   customer_id: string;
-  product_id: string;
-  unit: UnitType;
-  qty: number;
-  litres: number;
-  rate: number;
-  amount: number;
-  paid_amount: number;
+  date: string; // ISO — stamped "now"
   payment_method: PaymentMethod;
-  keg_source: KegSource;
-  keg_price?: number | null;
-  keg_amount?: number | null;
-  discount_reason?: string | null;
-  pricing_tier?: CustomerType | null; // tier the rate was drawn from (may be overridden at the counter)
-  variety_id?: string | null;
-  variety_name?: string | null;
-  date: string;
+  amount_tendered?: number | null;
+  change_due?: number | null;
+  cashier_name?: string;
+  note?: string;
+  voided?: boolean;
+  voided_at?: string | null;
+  voided_by?: string | null;
+  void_reason?: string | null;
+}
+
+/** One sale line. Grouped under a {@link Sale} by `sale_id`. */
+export interface Order {
+  id: string; // 'line-<ts>-<n>'
+  sale_id: string;
+  customer_id: string; // denormalised — existing filters use it
+  product_id: string;
+  variety_id: string;
+  variety_name: string;
+  pack_size_id: string;
+  qty: number; // number of packs (integer)
+  litres: number; // qty * packLitres(pack_size_id)
+
+  unit_price: number; // matrix price for ONE pack at the tier (replaces `rate`)
+  original_unit_price: number | null; // matrix price before any override
+  price_adjusted: boolean; // true when staff overrode the price (up OR down)
+  price_adjust_reason: string | null; // REQUIRED when price_adjusted
+  oil_amount: number; // qty * unit_price
+
+  container_mode: ContainerMode; // replaces keg_source
+  returnable: boolean; // snapshot from pack_config at sale time
+  container_unit_price: number | null; // snapshot of container_buy_price
+  container_amount: number | null; // qty * container_unit_price when 'bought'
+  line_amount: number; // oil_amount + (container_amount ?? 0)
+  amount: number; // alias === line_amount (back-compat for reducers)
+
+  pricing_tier: CustomerType;
+  payment_method: PaymentMethod; // mirrors Sale — FIFO/aging reducers read it
+  paid_amount: number;
   due_date: string | null;
+  date: string; // === Sale.date
+
   source_tank_id: string | null;
-  /** Per-tank FIFO draw breakdown. Present when a sale spans one or more tanks; `source_tank_id` stays the primary (first) tank for back-compat. */
+  /** Per-tank FIFO draw breakdown. */
   tank_allocations?: { tank_id: string; litres: number }[] | null;
-  pump_id: string | null;
-  meter_reading?: number | null;
-  meter_delta?: number | null;
-  meter_variance?: number | null;
-  delivered_qty?: number | null;
-  shortfall?: number | null;
+  voided?: boolean; // mirrors Sale.voided
+
+  // ---- LEGACY, optional, @deprecated; removed in Phase 5 ----
+  /** @deprecated */ unit?: UnitType;
+  /** @deprecated */ rate?: number;
+  /** @deprecated */ keg_source?: KegSource;
+  /** @deprecated */ keg_price?: number | null;
+  /** @deprecated */ keg_amount?: number | null;
+  /** @deprecated */ discount_reason?: string | null;
+  /** @deprecated */ pump_id?: string | null;
+  /** @deprecated */ meter_reading?: number | null;
+  /** @deprecated */ meter_delta?: number | null;
+  /** @deprecated */ meter_variance?: number | null;
+  /** @deprecated */ delivered_qty?: number | null;
+  /** @deprecated */ shortfall?: number | null;
   note?: string;
 }
 
 export interface KegReturn {
   id: string;
   customer_id: string;
+  product_id: string;
+  pack_size_id: string; // returns are counted against the size taken
   qty: number;
   date: string;
+  note?: string;
 }
 
 export interface Transfer {
@@ -147,8 +208,26 @@ export interface Transfer {
   item_type: 'keg';
   qty: number;
   product_id?: string | null;
+  pack_size_id?: string | null;
   date: string;
   note?: string;
+}
+
+/** A recorded customer payment. Persisted so a fully-applied settlement still leaves a trace. */
+export interface Payment {
+  id: string; // 'pay-<ts>'
+  customer_id: string;
+  amount: number;
+  method: PaymentMethod; // cash | transfer | pos (never 'credit')
+  date: string; // stamped "now"
+  applied_to: { order_id: string; amount: number }[];
+  overpayment_to_credit: number; // amount pushed to CustomerCredit (0 if none)
+  source: 'payment' | 'credit_redeem';
+  recorded_by?: string;
+  note?: string;
+  voided?: boolean;
+  voided_at?: string | null;
+  void_reason?: string | null;
 }
 
 export interface CustomerCredit {
@@ -158,6 +237,19 @@ export interface CustomerCredit {
   source_payment_id?: string | null;
   created_at: string;
   note?: string;
+}
+
+/** One recorded edit / void of a financial record, for dispute history. */
+export interface AuditEntry {
+  id: string;
+  entity_type: 'sale' | 'order_line' | 'payment' | 'expense' | 'tank_intake';
+  entity_id: string;
+  action: 'create' | 'edit' | 'void' | 'unvoid';
+  changes: { field: string; old: unknown; new: unknown }[];
+  actor_role: UserRole;
+  actor_name?: string;
+  at: string; // ISO
+  reason?: string;
 }
 
 export interface TankDipstickReading {
@@ -194,6 +286,9 @@ export interface Expense {
   category: string;
   amount: number;
   note?: string;
+  voided?: boolean;
+  voided_at?: string | null;
+  void_reason?: string | null;
 }
 
 export interface AppSettings {
@@ -224,6 +319,8 @@ export interface CustomerCalculatedStats {
   currentBalance: number;
   creditBalance: number; // store credit the depot owes this customer (from overpayments)
   totalCompanyKegsOut: number;
+  /** Company containers out on loan, keyed `${product_id}|${pack_size_id}`. */
+  kegsOutByPack: Record<string, number>;
   agingBadge: {
     status: 'overdue' | 'due_soon' | 'current';
     label: string;
@@ -267,8 +364,11 @@ export interface ReceiptData {
   type: 'order' | 'payment';
   date: string;
   customer: Customer;
+  sale?: Sale;
+  lines?: Order[];
   order?: Order;
   product?: Product;
+  packLabel?: string;
   tankLabel?: string;
   pumpLabel?: string;
   kegPrice?: number | null;

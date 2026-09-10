@@ -65,6 +65,7 @@ const mockCustomerStatsMap: Record<string, CustomerCalculatedStats> = {
     currentBalance: 72000, // over limit & overdue
     creditBalance: 0,
     totalCompanyKegsOut: 15,
+    kegsOutByPack: { 'veg|sz_30': 15 },
     agingBadge: {
       status: 'overdue',
       label: '24d Overdue',

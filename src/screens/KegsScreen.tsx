@@ -28,8 +28,26 @@ export const KegsScreen: React.FC = () => {
     transfers,
     settings,
     kegInventory,
+    customerStatsMap,
     logKegReturn
   } = useStore();
+
+  // Phase 1: keg returns are recorded against a (product, pack size). Pick the
+  // customer's largest outstanding bucket as the default target.
+  const dominantPack = (custId: string): { productId: string; packSizeId: string } | null => {
+    const buckets = customerStatsMap[custId]?.kegsOutByPack || {};
+    let best: string | null = null;
+    let bestQty = 0;
+    for (const [key, qty] of Object.entries(buckets)) {
+      if (qty > bestQty) {
+        best = key;
+        bestQty = qty;
+      }
+    }
+    if (!best) return null;
+    const [productId, packSizeId] = best.split('|');
+    return { productId, packSizeId };
+  };
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,12 +72,12 @@ export const KegsScreen: React.FC = () => {
   // Helper to compute stats for any customer
   const getCustStats = (custId: string) => {
     const custOrders = orders.filter(
-      o => o.customer_id === custId && o.keg_source === 'company' && o.unit === 'keg'
+      o => o.customer_id === custId && !o.voided && o.container_mode === 'taken'
     );
     const supplied = custOrders.reduce((sum, o) => sum + Number(o.qty || 0), 0);
     const custReturns = kegReturns.filter(r => r.customer_id === custId);
     const returned = custReturns.reduce((sum, r) => sum + Number(r.qty || 0), 0);
-    const balance = Math.max(0, supplied - returned);
+    const balance = customerStatsMap[custId]?.totalCompanyKegsOut ?? Math.max(0, supplied - returned);
     return { supplied, returned, balance };
   };
 
@@ -167,7 +185,12 @@ export const KegsScreen: React.FC = () => {
     if (qty <= 0) return;
 
     setLogErrorMsg(null);
-    const result = logKegReturn(customerId, qty);
+    const target = dominantPack(customerId);
+    if (!target) {
+      setLogErrorMsg('This customer has no returnable containers out.');
+      return;
+    }
+    const result = logKegReturn(customerId, qty, target.productId, target.packSizeId);
     if (result.success) {
       setReturnCustomerInputs(prev => ({ ...prev, [customerId]: '' }));
       const cust = customers.find(c => c.id === customerId);
@@ -185,7 +208,12 @@ export const KegsScreen: React.FC = () => {
     if (qty <= 0) return;
 
     setLogErrorMsg(null);
-    const result = logKegReturn(activeCustomer.id, qty);
+    const target = dominantPack(activeCustomer.id);
+    if (!target) {
+      setLogErrorMsg('This customer has no returnable containers out.');
+      return;
+    }
+    const result = logKegReturn(activeCustomer.id, qty, target.productId, target.packSizeId, detailReturnNotes);
     if (result.success) {
       setDetailReturnFeedback(`Logged ${qty} keg returns from ${activeCustomer.name}`);
       setTimeout(() => setDetailReturnFeedback(null), 4000);
@@ -394,26 +422,38 @@ export const KegsScreen: React.FC = () => {
               <thead className="bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 uppercase font-semibold text-[11px] tracking-wider border-b border-slate-200 dark:border-slate-800 font-sans">
                 <tr>
                   <th
+                    role="button"
+                    tabIndex={0}
                     onClick={() => handleSort('customer')}
-                    className="px-4 py-3 cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors select-none"
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSort('customer'); } }}
+                    className="px-4 py-3 cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors select-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
                   >
                     Customer {renderSortIcon('customer')}
                   </th>
                   <th
+                    role="button"
+                    tabIndex={0}
                     onClick={() => handleSort('supplied')}
-                    className="px-3 py-3 text-center cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors select-none"
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSort('supplied'); } }}
+                    className="px-3 py-3 text-center cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors select-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
                   >
                     Supplied {renderSortIcon('supplied')}
                   </th>
                   <th
+                    role="button"
+                    tabIndex={0}
                     onClick={() => handleSort('returned')}
-                    className="px-3 py-3 text-center cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors select-none"
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSort('returned'); } }}
+                    className="px-3 py-3 text-center cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors select-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
                   >
                     Returned {renderSortIcon('returned')}
                   </th>
                   <th
+                    role="button"
+                    tabIndex={0}
                     onClick={() => handleSort('balance')}
-                    className="px-3 py-3 text-center cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors select-none"
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSort('balance'); } }}
+                    className="px-3 py-3 text-center cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors select-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
                   >
                     Unreturned {renderSortIcon('balance')}
                   </th>
@@ -427,8 +467,13 @@ export const KegsScreen: React.FC = () => {
                   return (
                     <tr
                       key={cust.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={isSelected}
+                      aria-label={`${cust.name}, ${cust.balance} unreturned kegs`}
                       onClick={() => setSelectedCustomerId(cust.id)}
-                      className={`cursor-pointer transition-all ${
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedCustomerId(cust.id); } }}
+                      className={`cursor-pointer transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 ${
                         isSelected
                           ? 'bg-brand-50/70 dark:bg-brand-950/30 border-l-4 border-brand-500 font-medium'
                           : 'hover:bg-slate-50/80 dark:hover:bg-slate-900/50 border-l-4 border-transparent'
@@ -484,8 +529,12 @@ export const KegsScreen: React.FC = () => {
             {sortedCustomers.map(cust => (
               <div
                 key={cust.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`${cust.name}, ${cust.balance} kegs out`}
                 onClick={() => setSelectedCustomerForReturn(cust)}
-                className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 active:scale-98 transition-all cursor-pointer shadow-sm"
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedCustomerForReturn(cust); } }}
+                className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 active:scale-98 transition-all cursor-pointer shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
               >
                 <div>
                   <div className="font-heading font-semibold text-[14px] text-slate-900 dark:text-white">
@@ -577,11 +626,12 @@ export const KegsScreen: React.FC = () => {
 
                 <form onSubmit={handleDetailPanelReturn} className="space-y-3">
                   <div>
-                    <label className="block text-[11px] font-sans text-slate-600 dark:text-slate-400 mb-1">
+                    <label htmlFor="detail-return-qty" className="block text-[11px] font-sans text-slate-600 dark:text-slate-400 mb-1">
                       Kegs Returned to Yard
                     </label>
                     <div className="flex items-center gap-2">
                       <input
+                        id="detail-return-qty"
                         type="number"
                         min="1"
                         max={activeStats.balance || undefined}
@@ -744,11 +794,12 @@ export const KegsScreen: React.FC = () => {
                 className="space-y-3"
               >
                 <div>
-                  <label className="block text-[12px] font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label htmlFor="mobile-return-qty" className="block text-[12px] font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     Number of Company Kegs Returning *
                   </label>
                   <div className="flex items-center gap-2">
                     <input
+                      id="mobile-return-qty"
                       type="number"
                       min="1"
                       max={stats.balance || undefined}

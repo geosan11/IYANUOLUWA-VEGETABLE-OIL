@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '../services/store';
+import { usePermissions } from '../services/permissions';
 import { extractSystemSnapshot } from '../services/ai/dataExtractor';
 import {
   requestOperationsAudit,
@@ -29,8 +30,9 @@ export const AIAdvisorScreen: React.FC = () => {
   const store = useStore();
   const { userRole, setUserRole } = store;
 
-  // Strict Admin Gate: Only Managing Director / Owner allowed
-  const isAdmin = userRole === 'owner';
+  // Strict Admin Gate: only the owner may view AI Operations Intelligence.
+  const { can } = usePermissions();
+  const isAdmin = can('viewAIAdvisor');
 
   const [provider, setProvider] = useState<AIProviderType>(() => getProviderPreference().provider);
   const [report, setReport] = useState<AIAnalysisReport | null>(() => getCachedReport());

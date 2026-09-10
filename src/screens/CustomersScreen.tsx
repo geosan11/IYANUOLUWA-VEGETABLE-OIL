@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
 import { Customer, CustomerType, PaymentMethod } from '../types';
 import { BottomSheet } from '../components/common/BottomSheet';
+import { Modal } from '../components/common/Modal';
 import { useIsDesktopSplit } from '../hooks/useBreakpoint';
 import { formatNaira, formatDepotDate } from '../services/businessLogic';
 import {
@@ -308,7 +309,11 @@ export const CustomersScreen: React.FC = () => {
               return (
                 <div
                   key={customer.id}
-                  className={`rounded-2xl transition-all overflow-hidden shadow-sm cursor-pointer ${
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isSelected}
+                  aria-label={`${customer.name}, ${customer.type}, balance ${formatNaira(currentBal)}`}
+                  className={`rounded-2xl transition-all overflow-hidden shadow-sm cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 ${
                     isSelected
                       ? 'border-2 border-brand-500 bg-brand-50/30 dark:bg-brand-950/20 ring-1 ring-brand-500/30'
                       : 'border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 hover:border-slate-300 dark:hover:border-slate-700'
@@ -318,6 +323,16 @@ export const CustomersScreen: React.FC = () => {
                       setSelectedCustomerId(customer.id);
                     } else {
                       setSelectedCustomerForSheet(customer);
+                    }
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      if (isDesktop) {
+                        setSelectedCustomerId(customer.id);
+                      } else {
+                        setSelectedCustomerForSheet(customer);
+                      }
                     }
                   }}
                 >
@@ -761,21 +776,17 @@ export const CustomersScreen: React.FC = () => {
 
       {/* Record Payment Modal */}
       {paymentCustomerId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden p-6 space-y-5 animate-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-                <span>Record Credit Settlement</span>
-              </h3>
-              <button
-                onClick={() => setPaymentCustomerId(null)}
-                className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white text-[12px] font-sans font-semibold"
-              >
-                Cancel
-              </button>
-            </div>
-
+        <Modal
+          isOpen
+          onClose={() => setPaymentCustomerId(null)}
+          title={
+            <span className="flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+              <span>Record Credit Settlement</span>
+            </span>
+          }
+        >
+          <div className="space-y-5">
             {paymentError && (
               <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-300 text-[12px] font-sans flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />
@@ -817,12 +828,13 @@ export const CustomersScreen: React.FC = () => {
 
               {/* Manual Amount Input */}
               <div className="space-y-1.5">
-                <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">Settlement Amount (₦)</label>
+                <label htmlFor="payment-amount" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">Settlement Amount (₦)</label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[14px] font-bold text-slate-400">
                     ₦
                   </span>
                   <input
+                    id="payment-amount"
                     type="number"
                     step="100"
                     min="1"
@@ -877,30 +889,26 @@ export const CustomersScreen: React.FC = () => {
               </button>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* Add Customer Modal */}
       {isAddCustomerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4 animate-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                <Users className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-                <span>Create Customer Profile</span>
-              </h3>
-              <button
-                onClick={() => setIsAddCustomerOpen(false)}
-                className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white text-[12px] font-sans font-semibold"
-              >
-                Cancel
-              </button>
-            </div>
-
+        <Modal
+          isOpen
+          onClose={() => setIsAddCustomerOpen(false)}
+          title={
+            <span className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+              <span>Create Customer Profile</span>
+            </span>
+          }
+        >
             <form onSubmit={handleAddCustomerSubmit} className="space-y-4 text-[12px]">
               <div className="space-y-1">
-                <label className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Customer / Business Name</label>
+                <label htmlFor="new-customer-name" className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Customer / Business Name</label>
                 <input
+                  id="new-customer-name"
                   type="text"
                   value={newCustName}
                   onChange={e => setNewCustName(e.target.value)}
@@ -911,8 +919,9 @@ export const CustomersScreen: React.FC = () => {
               </div>
 
               <div className="space-y-1">
-                <label className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Customer Tier</label>
+                <label htmlFor="new-customer-tier" className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Customer Tier</label>
                 <select
+                  id="new-customer-tier"
                   value={newCustType}
                   onChange={e => setNewCustType(e.target.value as CustomerType)}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-sans font-semibold focus:outline-none focus:border-brand-500 capitalize"
@@ -925,8 +934,9 @@ export const CustomersScreen: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Credit Limit (₦)</label>
+                  <label htmlFor="new-customer-credit-limit" className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Credit Limit (₦)</label>
                   <input
+                    id="new-customer-credit-limit"
                     type="number"
                     value={newCustLimit}
                     onChange={e => setNewCustLimit(e.target.value)}
@@ -937,8 +947,9 @@ export const CustomersScreen: React.FC = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Credit Terms (Days)</label>
+                  <label htmlFor="new-customer-credit-terms" className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Credit Terms (Days)</label>
                   <input
+                    id="new-customer-credit-terms"
                     type="number"
                     value={newCustTerms}
                     onChange={e => setNewCustTerms(e.target.value)}
@@ -950,8 +961,9 @@ export const CustomersScreen: React.FC = () => {
               </div>
 
               <div className="space-y-1">
-                <label className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Phone Number (with WhatsApp)</label>
+                <label htmlFor="new-customer-phone" className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Phone Number (with WhatsApp)</label>
                 <input
+                  id="new-customer-phone"
                   type="text"
                   value={newCustPhone}
                   onChange={e => setNewCustPhone(e.target.value)}
@@ -968,8 +980,7 @@ export const CustomersScreen: React.FC = () => {
                 Save Customer Profile
               </button>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Inter-Customer Transfer Modal */}
@@ -978,21 +989,18 @@ export const CustomersScreen: React.FC = () => {
         const fromStats = fromCustomer ? customerStatsMap[fromCustomer.id] : null;
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
-            <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden p-6 space-y-5 animate-in zoom-in-95">
-              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-                <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                  <ArrowRightLeft className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                  <span>Inter-Customer / Inter-Agent Transfer</span>
-                </h3>
-                <button
-                  onClick={() => setTransferFromCustomerId(null)}
-                  className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white text-[12px] font-sans font-semibold"
-                >
-                  Cancel
-                </button>
-              </div>
-
+          <Modal
+            isOpen
+            onClose={() => setTransferFromCustomerId(null)}
+            size="lg"
+            title={
+              <span className="flex items-center gap-2">
+                <ArrowRightLeft className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                <span>Inter-Customer / Inter-Agent Transfer</span>
+              </span>
+            }
+          >
+            <div className="space-y-5">
               {transferError && (
                 <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-300 text-[12px] font-sans flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />
@@ -1013,10 +1021,11 @@ export const CustomersScreen: React.FC = () => {
               <form onSubmit={handleRecordTransferSubmit} className="space-y-4 text-[12px]">
                 {/* Sender Account */}
                 <div className="space-y-1">
-                  <label className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  <label htmlFor="transfer-from-customer" className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
                     Transferring From (Sender)
                   </label>
                   <select
+                    id="transfer-from-customer"
                     value={transferFromCustomerId}
                     onChange={e => setTransferFromCustomerId(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-sans font-semibold text-[14px] focus:outline-none focus:border-purple-500"
@@ -1036,10 +1045,11 @@ export const CustomersScreen: React.FC = () => {
 
                 {/* Receiver Account */}
                 <div className="space-y-1">
-                  <label className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  <label htmlFor="transfer-to-customer" className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
                     Transferring To (Receiver)
                   </label>
                   <select
+                    id="transfer-to-customer"
                     value={transferToCustomerId}
                     onChange={e => setTransferToCustomerId(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-sans font-semibold text-[14px] focus:outline-none focus:border-purple-500"
@@ -1058,10 +1068,11 @@ export const CustomersScreen: React.FC = () => {
 
                 {/* Quantity */}
                 <div className="space-y-1">
-                  <label className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  <label htmlFor="transfer-qty" className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
                     Quantity (Company Kegs)
                   </label>
                   <input
+                    id="transfer-qty"
                     type="number"
                     step="1"
                     min="1"
@@ -1075,10 +1086,11 @@ export const CustomersScreen: React.FC = () => {
 
                 {/* Transfer Notes */}
                 <div className="space-y-1">
-                  <label className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  <label htmlFor="transfer-notes" className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
                     Handover Notes / Reference (Optional)
                   </label>
                   <input
+                    id="transfer-notes"
                     type="text"
                     value={transferNotes}
                     onChange={e => setTransferNotes(e.target.value)}
@@ -1095,7 +1107,7 @@ export const CustomersScreen: React.FC = () => {
                 </button>
               </form>
             </div>
-          </div>
+          </Modal>
         );
       })()}
 

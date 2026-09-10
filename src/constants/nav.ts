@@ -4,6 +4,7 @@ import {
   PlusCircle,
   Users,
   Package,
+  Boxes,
   ReceiptText,
   Settings,
   Sparkles,
@@ -23,9 +24,10 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'ai-advisor', label: 'AI Operations Advisor', icon: Sparkles, adminOnly: true },
   { id: 'intake', label: 'Truck Intake', icon: Truck },
   { id: 'order', label: 'New Sale', icon: PlusCircle },
-  { id: 'ledger', label: 'Sales Log', icon: ScrollText },
+  { id: 'ledger', label: 'Transactions', icon: ScrollText },
   { id: 'customers', label: 'Customers & Credit', icon: Users },
   { id: 'kegs', label: 'Kegs Ledger', icon: Package },
+  { id: 'inventory', label: 'Inventory', icon: Boxes, adminOnly: true },
   { id: 'expenses', label: 'Expenses & Float', icon: ReceiptText },
   { id: 'settings', label: 'Settings', icon: Settings }
 ];

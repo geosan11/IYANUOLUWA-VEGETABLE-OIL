@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ReceiptData } from '../../types';
 import { useStore } from '../../services/store';
 import { formatNaira, formatNairaWords, formatDepotDate, formatDepotTime } from '../../services/businessLogic';
+import { packShort } from '../../constants/config';
 import { Printer, X, CheckCircle2, ShieldCheck, Receipt, PackageCheck, Truck } from 'lucide-react';
 
 interface ReceiptModalProps {
@@ -12,7 +13,7 @@ interface ReceiptModalProps {
 export type ReceiptFormat = 'commercial' | 'dispatch';
 
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) => {
-  const { settings, tanks } = useStore();
+  const { settings, tanks, products } = useStore();
   const [receiptFormat, setReceiptFormat] = useState<ReceiptFormat>('commercial');
 
   if (!receipt) return null;
@@ -36,6 +37,15 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
 
   const isOrder = receipt.type === 'order';
   const order = receipt.order;
+
+  const receiptLines = receipt.lines && receipt.lines.length > 0 ? receipt.lines : order ? [order] : [];
+  const containerLabelFor = (mode: string | undefined) =>
+    mode === 'bought'
+      ? 'Purchased Outright'
+      : mode === 'taken'
+      ? 'Company Container (Returnable Loan)'
+      : 'Bulk / Customer Container';
+  const productName = (id: string) => products.find(p => p.id === id)?.name || 'Oil';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
@@ -183,62 +193,60 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {/* Oil Dispense Row */}
-                        <tr>
-                          <td className="py-2 text-left">
-                            <div className="font-heading font-bold text-slate-900 text-[13px]">{receipt.product?.name}</div>
-                            <div className="text-[11px] text-slate-500">
-                              {order.litres.toLocaleString()} Litres ({order.qty} {order.unit}s)
-                            </div>
-                            <div className="text-[11px] text-slate-600 font-sans font-medium">
-                              Container:{' '}
-                              {order.keg_source === 'purchased'
-                                ? 'Purchased Outright (Customer Owns Container)'
-                                : order.keg_source === 'company'
-                                ? 'Company Keg (Returnable Loan)'
-                                : order.keg_source === 'own'
-                                ? 'Customer-Owned Keg'
-                                : 'Bulk Dispense'}
-                            </div>
-                            {sourceLine && (
-                              <div className="text-[11px] text-slate-500 font-sans">
-                                Source: {sourceLine}
-                              </div>
-                            )}
-                          </td>
-                          <td className="py-2 text-center align-top font-bold">
-                            {order.qty} {order.unit}
-                          </td>
-                          <td className="py-2 text-right align-top">
-                            ₦{order.rate.toLocaleString()}/L
-                          </td>
-                          <td className="py-2 text-right align-top font-bold text-slate-900">
-                            {formatNaira(order.amount - (order.keg_amount || 0))}
-                          </td>
-                        </tr>
-
-                        {/* Outright Keg Container Row (if purchased) */}
-                        {order.keg_source === 'purchased' && order.keg_amount && (
-                          <tr className="bg-amber-50/50">
-                            <td className="py-2 text-left">
-                              <div className="font-heading font-bold text-amber-900 text-[12px]">
-                                Physical Keg Container Outright Purchase
-                              </div>
-                              <div className="text-[10px] text-amber-700 font-sans">
-                                Permanent sale of company keg container (no return obligation)
-                              </div>
-                            </td>
-                            <td className="py-2 text-center align-top font-bold text-amber-900">
-                              {order.qty}
-                            </td>
-                            <td className="py-2 text-right align-top text-amber-900">
-                              {formatNaira(order.keg_price || 0)}/keg
-                            </td>
-                            <td className="py-2 text-right align-top font-bold text-amber-950">
-                              {formatNaira(order.keg_amount)}
-                            </td>
-                          </tr>
-                        )}
+                        {receiptLines.map((l, li) => (
+                          <React.Fragment key={l.id}>
+                            <tr>
+                              <td className="py-2 text-left">
+                                <div className="font-heading font-bold text-slate-900 text-[13px]">
+                                  {productName(l.product_id)}
+                                  {l.variety_name ? ` — ${l.variety_name}` : ''}
+                                </div>
+                                <div className="text-[11px] text-slate-500">
+                                  {l.litres.toLocaleString()} Litres ({l.qty} × {packShort(l.pack_size_id)})
+                                </div>
+                                <div className="text-[11px] text-slate-600 font-sans font-medium">
+                                  Container: {containerLabelFor(l.container_mode)}
+                                </div>
+                                {l.price_adjusted && l.price_adjust_reason && (
+                                  <div className="text-[10px] text-amber-800 font-sans">
+                                    Price adjusted — {l.price_adjust_reason}
+                                  </div>
+                                )}
+                                {li === 0 && sourceLine && (
+                                  <div className="text-[11px] text-slate-500 font-sans">Source: {sourceLine}</div>
+                                )}
+                              </td>
+                              <td className="py-2 text-center align-top font-bold">
+                                {l.qty} × {packShort(l.pack_size_id)}
+                              </td>
+                              <td className="py-2 text-right align-top">
+                                ₦{l.unit_price.toLocaleString()}/{packShort(l.pack_size_id)}
+                              </td>
+                              <td className="py-2 text-right align-top font-bold text-slate-900">
+                                {formatNaira(l.oil_amount)}
+                              </td>
+                            </tr>
+                            {l.container_mode === 'bought' && l.container_amount ? (
+                              <tr className="bg-amber-50/50">
+                                <td className="py-2 text-left">
+                                  <div className="font-heading font-bold text-amber-900 text-[12px]">
+                                    Container bought outright
+                                  </div>
+                                  <div className="text-[10px] text-amber-700 font-sans">
+                                    {packShort(l.pack_size_id)} × {l.qty} · no return obligation
+                                  </div>
+                                </td>
+                                <td className="py-2 text-center align-top font-bold text-amber-900">{l.qty}</td>
+                                <td className="py-2 text-right align-top text-amber-900">
+                                  {formatNaira(l.container_unit_price || 0)}/unit
+                                </td>
+                                <td className="py-2 text-right align-top font-bold text-amber-950">
+                                  {formatNaira(l.container_amount || 0)}
+                                </td>
+                              </tr>
+                            ) : null}
+                          </React.Fragment>
+                        ))}
                       </tbody>
                     </table>
 
@@ -253,9 +261,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                       </div>
                     )}
 
-                    {order.discount_reason && (
+                    {order.price_adjust_reason && (
                       <div className="mt-2 text-[11px] font-sans text-amber-900 bg-amber-50 p-2 rounded border border-amber-200">
-                        <span className="font-bold">Authorized Discount:</span> {order.discount_reason}
+                        <span className="font-bold">Price adjustment:</span> {order.price_adjust_reason}
                       </div>
                     )}
 
@@ -290,18 +298,21 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
 
                 {/* Balances & Totals */}
                 <div className="space-y-1 text-[13px] font-mono tabular-nums border-b border-slate-200 pb-3 mb-3">
-                  {isOrder && order && (
+                  {isOrder && order && (() => {
+                    const grandTotal = receiptLines.reduce((s, l) => s + l.line_amount, 0);
+                    const paidTotal = receiptLines.reduce((s, l) => s + (l.paid_amount || 0), 0);
+                    return (
                     <>
                       <div className="flex justify-between font-bold text-[15px] text-slate-950 pt-1">
                         <span className="font-sans">Grand Total:</span>
-                        <span>{formatNaira(order.amount)}</span>
+                        <span>{formatNaira(grandTotal)}</span>
                       </div>
                       <div className="text-[10px] font-sans text-slate-500 text-right -mt-0.5">
-                        {formatNairaWords(order.amount)}
+                        {formatNairaWords(grandTotal)}
                       </div>
                       <div className="flex justify-between text-slate-600 text-[12px]">
                         <span className="font-sans">Paid Amount:</span>
-                        <span className="font-bold">{formatNaira(order.paid_amount)}</span>
+                        <span className="font-bold">{formatNaira(paidTotal)}</span>
                       </div>
                       {receipt.amountTendered != null && (
                         <>
@@ -316,7 +327,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                         </>
                       )}
                     </>
-                  )}
+                    );
+                  })()}
 
                   <div className="flex justify-between text-slate-600 pt-1 border-t border-slate-100 text-[12px]">
                     <span className="font-sans">Previous Balance:</span>
@@ -368,61 +380,46 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        <tr>
-                          <td className="py-2 text-left">
-                            <div className="font-heading font-bold text-slate-950 text-[13px]">
-                              {receipt.product?.name}
-                            </div>
-                            {(order.variety_name || receipt.varietyName) && (
-                              <div className="text-[11px] font-sans font-semibold text-slate-700">
-                                Spec: {order.variety_name || receipt.varietyName}
-                              </div>
+                        {receiptLines.map((l, li) => (
+                          <React.Fragment key={l.id}>
+                            <tr>
+                              <td className="py-2 text-left">
+                                <div className="font-heading font-bold text-slate-950 text-[13px]">
+                                  {productName(l.product_id)}
+                                </div>
+                                {l.variety_name && (
+                                  <div className="text-[11px] font-sans font-semibold text-slate-700">Spec: {l.variety_name}</div>
+                                )}
+                                <div className="text-[11px] text-slate-600 font-sans mt-0.5">
+                                  Packaging: <span className="font-semibold text-slate-800">{containerLabelFor(l.container_mode)}</span>
+                                </div>
+                                {li === 0 && sourceLine && (
+                                  <div className="text-[11px] text-slate-500 font-sans">Dispensed from: {sourceLine}</div>
+                                )}
+                              </td>
+                              <td className="py-2 text-center align-top font-bold text-slate-900">
+                                {l.qty} × {packShort(l.pack_size_id)}
+                              </td>
+                              <td className="py-2 text-right align-top font-bold text-slate-950">
+                                {l.litres.toLocaleString()} Litres
+                              </td>
+                            </tr>
+                            {l.container_mode === 'bought' && (
+                              <tr className="bg-amber-50/50">
+                                <td className="py-2 text-left">
+                                  <div className="font-heading font-bold text-amber-950 text-[12px]">Empty containers released</div>
+                                  <div className="text-[10px] text-amber-800 font-sans">
+                                    {packShort(l.pack_size_id)} · customer owns outright (no return)
+                                  </div>
+                                </td>
+                                <td className="py-2 text-center align-top font-bold text-amber-950">{l.qty}</td>
+                                <td className="py-2 text-right align-top font-sans text-[11px] text-amber-900 font-medium">
+                                  {l.qty} Units
+                                </td>
+                              </tr>
                             )}
-                            <div className="text-[11px] text-slate-600 font-sans mt-0.5">
-                              Packaging:{' '}
-                              <span className="font-semibold text-slate-800">
-                                {order.keg_source === 'purchased'
-                                  ? 'Physical Keg Purchased Outright (Customer Property)'
-                                  : order.keg_source === 'company'
-                                  ? 'Company Keg (Returnable Loan)'
-                                  : order.keg_source === 'own'
-                                  ? 'Customer-Owned Keg'
-                                  : 'Bulk Dispense Tanker'}
-                              </span>
-                            </div>
-                            {sourceLine && (
-                              <div className="text-[11px] text-slate-500 font-sans">
-                                Dispensed from: {sourceLine}
-                              </div>
-                            )}
-                          </td>
-                          <td className="py-2 text-center align-top font-bold text-slate-900">
-                            {order.qty} {order.unit}
-                          </td>
-                          <td className="py-2 text-right align-top font-bold text-slate-950">
-                            {order.litres.toLocaleString()} Litres
-                          </td>
-                        </tr>
-
-                        {/* Physical Keg Container Manifest (if purchased) */}
-                        {order.keg_source === 'purchased' && (
-                          <tr className="bg-amber-50/50">
-                            <td className="py-2 text-left">
-                              <div className="font-heading font-bold text-amber-950 text-[12px]">
-                                Empty Physical Keg Containers
-                              </div>
-                              <div className="text-[10px] text-amber-800 font-sans">
-                                Outright physical sale · Customer owns container outright (no return required)
-                              </div>
-                            </td>
-                            <td className="py-2 text-center align-top font-bold text-amber-950">
-                              {order.qty}
-                            </td>
-                            <td className="py-2 text-right align-top font-sans text-[11px] text-amber-900 font-medium">
-                              {order.qty} Units Released
-                            </td>
-                          </tr>
-                        )}
+                          </React.Fragment>
+                        ))}
                       </tbody>
                     </table>
 
@@ -433,22 +430,22 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                       </div>
                       <div className="flex justify-between font-medium">
                         <span className="text-slate-600">Total Packaged Units:</span>
-                        <span className="font-mono font-bold text-slate-950">{order.qty} {order.unit}s</span>
+                        <span className="font-mono font-bold text-slate-950">
+                          {receiptLines.reduce((s, l) => s + l.qty, 0)} packs
+                        </span>
                       </div>
                       <div className="flex justify-between font-medium">
                         <span className="text-slate-600">Total Net Volume:</span>
-                        <span className="font-mono font-bold text-slate-950">{order.litres.toLocaleString()} Litres</span>
+                        <span className="font-mono font-bold text-slate-950">
+                          {receiptLines.reduce((s, l) => s + l.litres, 0).toLocaleString()} Litres
+                        </span>
                       </div>
                       <div className="flex justify-between font-medium">
                         <span className="text-slate-600">Container Custody:</span>
                         <span className="font-semibold text-slate-900">
-                          {order.keg_source === 'purchased'
-                            ? 'Customer Owned (Outright)'
-                            : order.keg_source === 'company'
-                            ? 'Depot Loan (Returnable)'
-                            : order.keg_source === 'own'
-                            ? 'Customer Own Kegs'
-                            : 'Bulk Dispense'}
+                          {receiptLines.some(l => l.container_mode === 'taken')
+                            ? 'Includes returnable company containers'
+                            : 'No returnable containers'}
                         </span>
                       </div>
                       <div className="flex justify-between font-medium pt-1 border-t border-slate-200">
