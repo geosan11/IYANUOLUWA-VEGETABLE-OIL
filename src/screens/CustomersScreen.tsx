@@ -4,7 +4,8 @@ import { Customer, CustomerType, PaymentMethod } from '../types';
 import { BottomSheet } from '../components/common/BottomSheet';
 import { Modal } from '../components/common/Modal';
 import { useIsDesktopSplit } from '../hooks/useBreakpoint';
-import { formatNaira, formatDepotDate } from '../services/businessLogic';
+import { formatNaira, formatDepotDate, formatDepotTime, buildCustomerStatement } from '../services/businessLogic';
+import { CustomerStatementModal } from '../components/common/CustomerStatementModal';
 import {
   Users,
   Search,
@@ -16,7 +17,9 @@ import {
   AlertCircle,
   Receipt,
   ArrowRightLeft,
-  CheckCircle2
+  CheckCircle2,
+  FileText,
+  Send
 } from 'lucide-react';
 
 type FilterChip = 'all' | 'overdue' | 'high_balance' | 'corporate' | 'agent';
@@ -26,11 +29,19 @@ export const CustomersScreen: React.FC = () => {
     customers,
     customerStatsMap,
     transfers,
+    orders,
+    payments,
+    customerCredits,
+    kegReturns,
+    settings,
     recordCustomerPayment,
     redeemCustomerCredit,
     logTransfer,
     addCustomer
   } = useStore();
+
+  const [panelTab, setPanelTab] = useState<'overview' | 'ledger'>('overview');
+  const [statementCustomer, setStatementCustomer] = useState<Customer | null>(null);
 
   const isDesktop = useIsDesktopSplit();
 
@@ -463,6 +474,33 @@ export const CustomersScreen: React.FC = () => {
         <div className="hidden split:block split:col-span-5 space-y-4 sticky top-4 max-h-[calc(100vh-120px)] overflow-y-auto pr-1">
           {activeCustomer ? (
             <div className="space-y-4">
+              {/* Panel tabs */}
+              <div className="flex gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+                {(['overview', 'ledger'] as const).map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setPanelTab(t)}
+                    className={`flex-1 py-2 rounded-lg text-[12px] font-sans font-bold capitalize transition-colors ${
+                      panelTab === t
+                        ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                        : 'text-slate-500 dark:text-slate-400'
+                    }`}
+                  >
+                    {t === 'ledger' ? 'Ledger / History' : 'Overview'}
+                  </button>
+                ))}
+              </div>
+
+              {panelTab === 'ledger' && (
+                <CustomerLedgerPanel
+                  rows={buildCustomerStatement(activeCustomer, orders, payments, customerCredits, kegReturns)}
+                  balance={activeStats?.currentBalance || 0}
+                  kegsOut={activeStats?.totalCompanyKegsOut || 0}
+                  onSend={() => setStatementCustomer(activeCustomer)}
+                />
+              )}
+
+              {panelTab === 'overview' && (<>
               {/* Customer Profile & Financial Summary Card */}
               <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
                 <div className="flex items-start justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
@@ -765,10 +803,11 @@ export const CustomersScreen: React.FC = () => {
                   </div>
                 </div>
               )}
+              </>)}
             </div>
           ) : (
             <div className="p-8 text-center rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-slate-400 text-sm">
-              Select a customer from the left list to view their ledger & history.
+              Select a customer from the left list to view their ledger &amp; history.
             </div>
           )}
         </div>
@@ -1208,6 +1247,19 @@ export const CustomersScreen: React.FC = () => {
                   <ArrowRightLeft className="w-4 h-4" />
                   <span>Transfer Stock</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cust = selectedCustomerForSheet;
+                    setSelectedCustomerForSheet(null);
+                    setStatementCustomer(cust);
+                  }}
+                  className="col-span-2 py-2.5 px-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 flex items-center justify-center gap-1.5 active:scale-95"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>View / send statement</span>
+                </button>
               </div>
 
               {/* Communication Strip */}
@@ -1291,6 +1343,92 @@ export const CustomersScreen: React.FC = () => {
           </BottomSheet>
         );
       })()}
+
+      {statementCustomer && (
+        <CustomerStatementModal
+          customer={statementCustomer}
+          rows={buildCustomerStatement(statementCustomer, orders, payments, customerCredits, kegReturns)}
+          balance={customerStatsMap[statementCustomer.id]?.currentBalance || 0}
+          kegsOut={customerStatsMap[statementCustomer.id]?.totalCompanyKegsOut || 0}
+          company={{ name: settings.company_name, phone: settings.company_phone, address: settings.company_address }}
+          onClose={() => setStatementCustomer(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+const CustomerLedgerPanel: React.FC<{
+  rows: import('../types').CustomerStatementRow[];
+  balance: number;
+  kegsOut: number;
+  onSend: () => void;
+}> = ({ rows, balance, kegsOut, onSend }) => {
+  return (
+    <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+        <span className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-900 dark:text-slate-200 flex items-center gap-1.5">
+          <FileText className="w-4 h-4 text-brand-600 dark:text-brand-400" /> Statement
+        </span>
+        <button
+          onClick={onSend}
+          className="text-[11px] font-sans font-bold text-brand-600 dark:text-brand-400 flex items-center gap-1"
+        >
+          <Send className="w-3.5 h-3.5" /> Send statement
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 text-[12px] font-mono tabular-nums">
+        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+          <span className="text-[10px] font-sans text-slate-500 uppercase block">Balance owed</span>
+          <span className={`text-[15px] font-bold ${balance > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+            {formatNaira(balance)}
+          </span>
+        </div>
+        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+          <span className="text-[10px] font-sans text-slate-500 uppercase block">Kegs on loan</span>
+          <span className="text-[15px] font-bold text-slate-900 dark:text-white">{kegsOut}</span>
+        </div>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="py-6 text-center text-[12px] text-slate-400">No history yet.</div>
+      ) : (
+        <div className="space-y-1.5 max-h-[420px] overflow-y-auto pr-1">
+          {rows.map((r, i) => (
+            <div key={i} className="flex items-start justify-between gap-2 text-[12px] py-1.5 border-b border-slate-100 dark:border-slate-800/70 last:border-0">
+              <div className="min-w-0">
+                <div className="text-slate-700 dark:text-slate-200 truncate">
+                  {r.label}
+                  {r.paidStatus && r.kind === 'sale' && (
+                    <span
+                      className={`ml-1.5 text-[9px] font-sans font-black uppercase px-1 py-0.5 rounded ${
+                        r.paidStatus === 'paid'
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                          : r.paidStatus === 'part'
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                          : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                      }`}
+                    >
+                      {r.paidStatus}
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] text-slate-400 font-mono">
+                  {formatDepotDate(r.date)} {formatDepotTime(r.date)}
+                  {r.note ? ` · ${r.note}` : ''}
+                  {` · ${r.kegBalance} keg(s)`}
+                </div>
+              </div>
+              <div className="text-right shrink-0 font-mono tabular-nums">
+                {r.debit > 0 && <div className="text-rose-600 dark:text-rose-400 font-bold">+{formatNaira(r.debit)}</div>}
+                {r.credit > 0 && <div className="text-emerald-600 dark:text-emerald-400 font-bold">−{formatNaira(r.credit)}</div>}
+                <div className="text-[10px] text-slate-400">bal {formatNaira(r.runningBalance)}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

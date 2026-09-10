@@ -4,8 +4,10 @@ import {
   KegReturn,
   Transfer,
   CustomerCredit,
+  Payment,
   Tank,
   CustomerCalculatedStats,
+  CustomerStatementRow,
   KegInventorySummary,
   TankDrawResult,
   PaymentApplicationResult,
@@ -243,6 +245,133 @@ export function calculateCustomerStats(
       return dateA - dateB; // Oldest due first
     })
   };
+}
+
+/**
+ * 5b. CUSTOMER RUNNING STATEMENT
+ * A dated debit/credit ledger for one customer: credit sales add to what they
+ * owe, payments reduce it, and a running company-container count is carried
+ * alongside. Voided sales/payments are excluded.
+ */
+export function buildCustomerStatement(
+  customer: Customer,
+  orders: Order[],
+  payments: Payment[],
+  credits: CustomerCredit[],
+  kegReturns: KegReturn[]
+): CustomerStatementRow[] {
+  type Event =
+    | { t: number; date: string; kind: 'sale'; saleId: string }
+    | { t: number; date: string; kind: 'payment'; payment: Payment }
+    | { t: number; date: string; kind: 'credit_note'; amount: number; note: string }
+    | { t: number; date: string; kind: 'keg_return'; qty: number };
+
+  const ms = (d: string) => new Date(d).getTime();
+  const round2 = (n: number) => Number((n || 0).toFixed(2));
+  const events: Event[] = [];
+
+  // Group this customer's non-voided lines by sale.
+  const saleGroups = new Map<string, Order[]>();
+  for (const o of orders) {
+    if (o.customer_id !== customer.id || o.voided) continue;
+    const arr = saleGroups.get(o.sale_id) || [];
+    arr.push(o);
+    saleGroups.set(o.sale_id, arr);
+  }
+  for (const [saleId, lines] of saleGroups) {
+    events.push({ t: ms(lines[0].date), date: lines[0].date, kind: 'sale', saleId });
+  }
+
+  for (const p of payments) {
+    if (p.customer_id !== customer.id || p.voided) continue;
+    events.push({ t: ms(p.date), date: p.date, kind: 'payment', payment: p });
+  }
+
+  for (const c of credits) {
+    if (c.customer_id !== customer.id) continue;
+    if (c.amount > 0) {
+      events.push({
+        t: ms(c.created_at),
+        date: c.created_at,
+        kind: 'credit_note',
+        amount: c.amount,
+        note: c.note || 'Store credit added'
+      });
+    }
+  }
+
+  for (const r of kegReturns) {
+    if (r.customer_id !== customer.id) continue;
+    events.push({ t: ms(r.date), date: r.date, kind: 'keg_return', qty: Number(r.qty || 0) });
+  }
+
+  events.sort((a, b) => a.t - b.t);
+
+  const rows: CustomerStatementRow[] = [];
+  let balance = 0;
+  let kegBalance = 0;
+
+  for (const ev of events) {
+    if (ev.kind === 'sale') {
+      const lines = saleGroups.get(ev.saleId) || [];
+      const total = round2(lines.reduce((s, l) => s + l.line_amount, 0));
+      const paid = round2(lines.reduce((s, l) => s + (l.paid_amount || 0), 0));
+      const isCredit = lines[0].payment_method === 'credit';
+      const kegsTaken = lines.reduce((s, l) => s + (l.container_mode === 'taken' ? Number(l.qty || 0) : 0), 0);
+      kegBalance += kegsTaken;
+      if (isCredit) balance = round2(balance + (total - paid));
+      const paidStatus: CustomerStatementRow['paidStatus'] =
+        paid >= total - 0.01 ? 'paid' : paid > 0.01 ? 'part' : 'unpaid';
+      const kegNote = kegsTaken > 0 ? ` · ${kegsTaken} keg(s) taken` : '';
+      rows.push({
+        date: ev.date,
+        kind: 'sale',
+        label: `${lines.length} item${lines.length === 1 ? '' : 's'}${isCredit ? ' (credit)' : ` (${lines[0].payment_method})`}${kegNote}`,
+        debit: isCredit ? round2(total - paid) : 0,
+        credit: 0,
+        runningBalance: balance,
+        paidStatus: isCredit ? paidStatus : 'paid',
+        kegBalance
+      });
+    } else if (ev.kind === 'payment') {
+      const applied = round2(ev.payment.amount - ev.payment.overpayment_to_credit);
+      balance = round2(Math.max(0, balance - applied));
+      rows.push({
+        date: ev.date,
+        kind: 'payment',
+        label: ev.payment.source === 'credit_redeem' ? 'Store credit applied' : `Payment (${ev.payment.method})`,
+        debit: 0,
+        credit: applied,
+        runningBalance: balance,
+        kegBalance,
+        note: ev.payment.overpayment_to_credit > 0 ? `+${ev.payment.overpayment_to_credit.toFixed(2)} to store credit` : undefined
+      });
+    } else if (ev.kind === 'credit_note') {
+      rows.push({
+        date: ev.date,
+        kind: 'credit_note',
+        label: ev.note,
+        debit: 0,
+        credit: 0,
+        runningBalance: balance,
+        kegBalance,
+        note: `Store credit ${ev.amount > 0 ? '+' : ''}${ev.amount.toFixed(2)}`
+      });
+    } else {
+      kegBalance = Math.max(0, kegBalance - ev.qty);
+      rows.push({
+        date: ev.date,
+        kind: 'keg_return',
+        label: `${ev.qty} keg(s) returned`,
+        debit: 0,
+        credit: 0,
+        runningBalance: balance,
+        kegBalance
+      });
+    }
+  }
+
+  return rows.reverse(); // newest first for display
 }
 
 /**

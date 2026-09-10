@@ -2,6 +2,7 @@ import {
   calculateLitres,
   calculateIntakeMetrics,
   calculateCustomerStats,
+  buildCustomerStatement,
   calculateKegInventory,
   executeFifoTankDraw,
   applyFifoPayment,
@@ -24,6 +25,7 @@ import {
   KegReturn,
   Tank,
   Transfer,
+  Payment,
   Pump,
   Product,
   PackPrice,
@@ -566,6 +568,36 @@ assert(gateCheckPass.missingPumps.length === 0, 'Shift meter gate: zero missing 
 // 21. PER-PRODUCT LITRES PER KEG (Veg 30L vs Palm 25L)
 assert(calculateLitres('keg', 10, 30) === 300, 'Per-product capacity: 10 veg kegs (30L) = 300L');
 assert(calculateLitres('keg', 10, 25) === 250, 'Per-product capacity: 10 palm kegs (25L) = 250L');
+
+// 22b. CUSTOMER RUNNING STATEMENT
+const stmtCustomer: Customer = { id: 'c-stmt', name: 'Statement Cust', type: 'agent', credit_limit: 200000, credit_term_days: 14, phone: '0800' };
+const stmtOrders: Order[] = [
+  mkOrder({
+    id: 'st-1', sale_id: 'sale-st-1', customer_id: 'c-stmt', product_id: 'veg', pack_size_id: 'sz_25',
+    qty: 4, litres: 100, amount: 100000, line_amount: 100000, oil_amount: 100000, paid_amount: 0,
+    payment_method: 'credit', container_mode: 'taken', date: '2026-09-01T09:00:00Z', due_date: '2026-09-15T09:00:00Z'
+  }),
+  mkOrder({
+    id: 'st-2', sale_id: 'sale-st-2', customer_id: 'c-stmt', product_id: 'veg', pack_size_id: 'sz_25',
+    qty: 2, litres: 50, amount: 50000, line_amount: 50000, oil_amount: 50000, paid_amount: 50000,
+    payment_method: 'cash', container_mode: 'none', date: '2026-09-03T09:00:00Z'
+  })
+];
+const stmtPayments: Payment[] = [
+  { id: 'pay-st-1', customer_id: 'c-stmt', amount: 30000, method: 'transfer', date: '2026-09-05T10:00:00Z', applied_to: [{ order_id: 'st-1', amount: 30000 }], overpayment_to_credit: 0, source: 'payment' }
+];
+const stmtReturns: KegReturn[] = [
+  { id: 'kr-st-1', customer_id: 'c-stmt', product_id: 'veg', pack_size_id: 'sz_25', qty: 1, date: '2026-09-06T10:00:00Z' }
+];
+const statement = buildCustomerStatement(stmtCustomer, stmtOrders, stmtPayments, [], stmtReturns);
+assert(statement.length === 4, 'Statement: 2 sales + 1 payment + 1 keg return = 4 rows');
+assert(statement[0].kind === 'keg_return' && statement[0].kegBalance === 3, 'Statement: newest first; 4 taken - 1 returned = 3 kegs on loan');
+const oldest = statement[statement.length - 1];
+assert(oldest.kind === 'sale' && oldest.debit === 100000 && oldest.runningBalance === 100000, 'Statement: first credit sale owes ₦100,000');
+const paymentRow = statement.find(r => r.kind === 'payment');
+assert(!!paymentRow && paymentRow.credit === 30000 && paymentRow.runningBalance === 70000, 'Statement: ₦30,000 payment leaves ₦70,000 owed');
+const cashSaleRow = statement.find(r => r.label.includes('(cash)'));
+assert(!!cashSaleRow && cashSaleRow.debit === 0, 'Statement: a cash sale does not add to the owed balance');
 
 // 23. AMOUNT IN WORDS (receipt spell-out)
 assert(formatNairaWords(0) === 'Zero naira only', 'Amount words: zero');

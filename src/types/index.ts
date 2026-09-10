@@ -330,6 +330,19 @@ export interface CustomerCalculatedStats {
   openOrders: Order[];
 }
 
+/** One line of a customer's running credit statement. */
+export interface CustomerStatementRow {
+  date: string;
+  kind: 'sale' | 'payment' | 'credit_note' | 'keg_return';
+  label: string;
+  debit: number; // increases what they owe
+  credit: number; // reduces what they owe
+  runningBalance: number; // outstanding credit balance after this row
+  paidStatus?: 'paid' | 'part' | 'unpaid';
+  kegBalance: number; // company containers on loan after this row
+  note?: string;
+}
+
 export interface TankDrawAllocation {
   tankId: string;
   truckLabel: string;

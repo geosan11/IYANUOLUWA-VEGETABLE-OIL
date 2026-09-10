@@ -3,6 +3,7 @@ import { useStore } from '../services/store';
 import { Customer } from '../types';
 import { BottomSheet } from '../components/common/BottomSheet';
 import { formatDepotDate, formatDepotTime } from '../services/businessLogic';
+import { packLabel } from '../constants/config';
 import {
   Package,
   Boxes,
@@ -61,6 +62,16 @@ export const KegsScreen: React.FC = () => {
   const [detailReturnQty, setDetailReturnQty] = useState<string>('5');
   const [detailReturnNotes, setDetailReturnNotes] = useState<string>('');
   const [detailReturnFeedback, setDetailReturnFeedback] = useState<string | null>(null);
+  const [detailReturnPack, setDetailReturnPack] = useState<string>('');
+
+  // Company containers on loan for the active customer, per (product, pack size).
+  const packBuckets = (custId: string): { key: string; productId: string; packSizeId: string; qty: number }[] =>
+    Object.entries(customerStatsMap[custId]?.kegsOutByPack || {})
+      .filter(([, qty]) => qty > 0)
+      .map(([key, qty]) => {
+        const [productId, packSizeId] = key.split('|');
+        return { key, productId, packSizeId, qty };
+      });
 
   // Mobile Sheet States
   const [selectedCustomerForReturn, setSelectedCustomerForReturn] = useState<Customer | null>(null);
@@ -208,12 +219,13 @@ export const KegsScreen: React.FC = () => {
     if (qty <= 0) return;
 
     setLogErrorMsg(null);
-    const target = dominantPack(activeCustomer.id);
-    if (!target) {
+    const buckets = packBuckets(activeCustomer.id);
+    const chosen = buckets.find(b => b.key === detailReturnPack) || buckets[0];
+    if (!chosen) {
       setLogErrorMsg('This customer has no returnable containers out.');
       return;
     }
-    const result = logKegReturn(activeCustomer.id, qty, target.productId, target.packSizeId, detailReturnNotes);
+    const result = logKegReturn(activeCustomer.id, qty, chosen.productId, chosen.packSizeId, detailReturnNotes);
     if (result.success) {
       setDetailReturnFeedback(`Logged ${qty} keg returns from ${activeCustomer.name}`);
       setTimeout(() => setDetailReturnFeedback(null), 4000);
@@ -625,6 +637,25 @@ export const KegsScreen: React.FC = () => {
                 </h4>
 
                 <form onSubmit={handleDetailPanelReturn} className="space-y-3">
+                  {packBuckets(activeCustomer.id).length > 0 && (
+                    <div>
+                      <label htmlFor="detail-return-pack" className="block text-[11px] font-sans text-slate-600 dark:text-slate-400 mb-1">
+                        Which container size
+                      </label>
+                      <select
+                        id="detail-return-pack"
+                        value={detailReturnPack || packBuckets(activeCustomer.id)[0]?.key || ''}
+                        onChange={e => setDetailReturnPack(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[13px] font-sans focus:outline-none focus:border-brand-500"
+                      >
+                        {packBuckets(activeCustomer.id).map(b => (
+                          <option key={b.key} value={b.key}>
+                            {packLabel(b.packSizeId)} — {b.qty} out
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div>
                     <label htmlFor="detail-return-qty" className="block text-[11px] font-sans text-slate-600 dark:text-slate-400 mb-1">
                       Kegs Returned to Yard

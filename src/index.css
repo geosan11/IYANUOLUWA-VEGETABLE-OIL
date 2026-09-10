@@ -55,11 +55,15 @@
 }
 
 /* Thermal / Standard Receipt Printing */
+@page {
+  size: 80mm auto;
+  margin: 0;
+}
 @media print {
   body * {
     visibility: hidden !important;
   }
-  
+
   #receipt-print-area, #receipt-print-area * {
     visibility: visible !important;
   }
