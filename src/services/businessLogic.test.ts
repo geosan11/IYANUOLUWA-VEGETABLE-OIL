@@ -8,7 +8,6 @@ import {
   applyFifoPayment,
   calculatePumpMeterVariance,
   validateNewPumpReading,
-  calculatePerOrderMeterVariance,
   calculateDipstickVariance,
   calculateShiftSummary,
   computeShiftCash,
@@ -226,11 +225,11 @@ assert(kegSummary.totalKegsOut === 12, 'Keg Inventory: total out = 12 (15 taken 
 assert(kegSummary.kegsAtDepot === 488, 'Keg Inventory: depot stock = 488');
 assert(kegSummary.isDepotStockCritical === false, 'Keg Inventory: not critical (>20)');
 
-// 7. PUMP METER VARIANCE RECONCILIATION
+// 7. PUMP METER VARIANCE RECONCILIATION (per depot day, per product)
 const mockPump = {
   id: 'p-test',
   label: 'Test Pump 1',
-  last_meter_reading: 10500
+  product_id: 'veg'
 };
 
 const mockReadings = [
@@ -250,13 +249,12 @@ const pumpOrdersVariance: Order[] = [
     payment_method: 'transfer',
     container_mode: 'none',
     date: '2026-09-08T10:00:00Z',
-    source_tank_id: 'tank-1',
-    pump_id: 'p-test'
+    source_tank_id: 'tank-1'
   })
 ];
 
 const auditA = calculatePumpMeterVariance(mockPump, mockReadings, pumpOrdersVariance, 20);
-assert(auditA.length === 1, 'Pump Reconciliation: produced 1 audit interval');
+assert(auditA.length === 1, 'Pump Reconciliation: produced 1 day of reconciliation');
 assert(auditA[0].meterDelta === 500, 'Pump Reconciliation: meter delta is 500L (10500 - 10000)');
 assert(auditA[0].expectedLitres === 450, 'Pump Reconciliation: expected litres from logged orders is 450L');
 assert(auditA[0].variance === 50, 'Pump Reconciliation: variance is +50L');
@@ -274,14 +272,34 @@ const pumpOrdersExact: Order[] = [
     paid_amount: 240000,
     payment_method: 'cash',
     date: '2026-09-08T14:00:00Z',
-    source_tank_id: 'tank-1',
-    pump_id: 'p-test'
+    source_tank_id: 'tank-1'
   })
 ];
 
 const auditB = calculatePumpMeterVariance(mockPump, mockReadings, pumpOrdersExact, 20);
 assert(auditB[0].variance === 0, 'Pump Reconciliation: variance is exactly 0L');
 assert(auditB[0].isOverThreshold === false, 'Pump Reconciliation: no alert for 0L variance');
+assert(auditB[0].day === '2026-09-08', 'Pump Reconciliation: tagged with the depot day it covers');
+
+// A reading with no prior reading at all produces no audit row (nothing to compare against yet).
+const soleReading = [{ id: 'pr-solo', pump_id: 'p-test', reading: 9000, recorded_at: '2026-09-07T06:00:00Z' }];
+assert(calculatePumpMeterVariance(mockPump, soleReading, [], 20).length === 0, 'Pump Reconciliation: a single first-ever reading yields no audit row');
+
+// A second day's readings carry the previous day's close as their baseline.
+const twoDayReadings = [
+  ...mockReadings,
+  { id: 'pr-3', pump_id: 'p-test', reading: 10800, recorded_at: '2026-09-09T18:00:00Z' }
+];
+const dayTwoOrders: Order[] = [
+  mkOrder({
+    id: 'po-3', customer_id: 'c-test', product_id: 'veg', qty: 10, litres: 300, amount: 48000,
+    paid_amount: 48000, payment_method: 'cash', date: '2026-09-09T12:00:00Z', source_tank_id: 'tank-1'
+  })
+];
+const auditC = calculatePumpMeterVariance(mockPump, twoDayReadings, [...pumpOrdersExact, ...dayTwoOrders], 20);
+assert(auditC.length === 2, 'Pump Reconciliation: two distinct days produce two audit rows');
+assert(auditC[1].day === '2026-09-09' && auditC[1].meterDelta === 300, "Pump Reconciliation: day 2's delta carries day 1's close (10800 - 10500) as its baseline");
+assert(auditC[1].expectedLitres === 300 && auditC[1].variance === 0, 'Pump Reconciliation: day 2 reconciles clean against that day\'s sales only');
 
 assert(validateNewPumpReading(10600, 10500).isValid === true, 'Pump Validation: higher reading passes');
 assert(validateNewPumpReading(10400, 10500).isValid === false, 'Pump Validation: lower reading fails (meters only count up)');
@@ -416,53 +434,6 @@ assert(senderStats.totalCompanyKegsOut === 14, 'Customer Transfers: Sender kegs 
 const receiverStats = calculateCustomerStats(transferReceiver, [], [], mockTransfers);
 assert(receiverStats.totalCompanyKegsOut === 6, 'Customer Transfers: Receiver kegs out increased by 6 (0 + 6 = 6)');
 
-// 12. PER-ORDER PUMP METER RECONCILIATION
-const sampleOrdersForPump: Order[] = [
-  mkOrder({
-    id: 'ord-p1',
-    customer_id: 'c-sender',
-    product_id: 'veg',
-    qty: 300,
-    litres: 300,
-    amount: 1440000,
-    paid_amount: 1440000,
-    payment_method: 'cash',
-    date: '2026-09-08T09:00:00Z',
-    source_tank_id: 'tank-1',
-    pump_id: 'pump-1',
-    meter_reading: 10300
-  })
-];
-
-const perOrderAudit1 = calculatePerOrderMeterVariance('pump-1', 10500, 200, sampleOrdersForPump, 10000, 20);
-assert(perOrderAudit1.previousReading === 10300, 'Per-order meter: detects previous reading 10300 from prior order');
-assert(perOrderAudit1.meterDelta === 200, 'Per-order meter: delta is 200L (10500 - 10300)');
-assert(perOrderAudit1.variance === 0, 'Per-order meter: variance is 0L (200 - 200)');
-assert(perOrderAudit1.isOverThreshold === false, 'Per-order meter: no alert for 0L variance');
-
-const ordersWithP2: Order[] = [
-  ...sampleOrdersForPump,
-  mkOrder({
-    id: 'ord-p2',
-    customer_id: 'c-receiver',
-    product_id: 'veg',
-    qty: 200,
-    litres: 200,
-    amount: 960000,
-    paid_amount: 960000,
-    payment_method: 'cash',
-    date: '2026-09-08T11:00:00Z',
-    source_tank_id: 'tank-1',
-    pump_id: 'pump-1',
-    meter_reading: 10500
-  })
-];
-const perOrderAudit2 = calculatePerOrderMeterVariance('pump-1', 10650, 100, ordersWithP2, 10000, 20);
-assert(perOrderAudit2.previousReading === 10500, 'Per-order meter: detects latest prior order reading 10500');
-assert(perOrderAudit2.meterDelta === 150, 'Per-order meter: delta is 150L (10650 - 10500)');
-assert(perOrderAudit2.variance === 50, 'Per-order meter: variance is +50L (150 - 100)');
-assert(perOrderAudit2.isOverThreshold === true, 'Per-order meter: correctly flags variance > 20L');
-
 // 13. TANK DIPSTICK PHYSICAL VERIFICATION
 const dipstickValid = calculateDipstickVariance(5015, 5000, 30);
 assert(dipstickValid.variance === 15, 'Dipstick verification: variance is +15L');
@@ -543,6 +514,10 @@ const testPumps: Pump[] = [
   { id: 'pump-2', label: 'Pump 2 (Veg Line 2)', last_meter_reading: 2000, product_id: 'veg' },
   { id: 'pump-3', label: 'Legacy Pump (Palm Line)', last_meter_reading: 3000, product_id: 'red' }
 ];
+const gateProducts = [
+  { id: 'veg', supply_model: 'bulk_truck' as const },
+  { id: 'red', supply_model: 'pre_kegged' as const }
+];
 
 const shiftMissing: Shift = {
   id: 'shift-test-1',
@@ -553,7 +528,7 @@ const shiftMissing: Shift = {
   opening_float: 50000,
   opening_readings: { 'pump-1': 1000 }
 };
-const gateCheckFail = checkShiftOpeningMetersGate(shiftMissing, testPumps);
+const gateCheckFail = checkShiftOpeningMetersGate(shiftMissing, testPumps, [], gateProducts);
 assert(gateCheckFail.isPassed === false, 'Shift meter gate: blocked when bulk pump-2 is missing');
 assert(gateCheckFail.missingPumps.length === 1 && gateCheckFail.missingPumps[0].id === 'pump-2', 'Shift meter gate: accurately identifies pump-2 as missing (and ignores pre-kegged palm)');
 
@@ -561,7 +536,7 @@ const shiftComplete: Shift = {
   ...shiftMissing,
   opening_readings: { 'pump-1': 1000, 'pump-2': 2000 }
 };
-const gateCheckPass = checkShiftOpeningMetersGate(shiftComplete, testPumps);
+const gateCheckPass = checkShiftOpeningMetersGate(shiftComplete, testPumps, [], gateProducts);
 assert(gateCheckPass.isPassed === true, 'Shift meter gate: unlocked when all bulk pumps logged without requiring palm oil');
 assert(gateCheckPass.missingPumps.length === 0, 'Shift meter gate: zero missing pumps on pass');
 

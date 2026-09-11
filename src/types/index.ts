@@ -120,6 +120,8 @@ export interface PumpVarianceAudit {
   isOverThreshold: boolean;
   startDate: string;
   endDate: string;
+  /** Depot-local calendar day (YYYY-MM-DD) this reconciliation covers. */
+  day: string;
   note?: string;
 }
 
@@ -174,20 +176,6 @@ export interface Order {
   /** Per-tank FIFO draw breakdown. */
   tank_allocations?: { tank_id: string; litres: number }[] | null;
   voided?: boolean; // mirrors Sale.voided
-
-  // ---- LEGACY, optional, @deprecated; removed in Phase 5 ----
-  /** @deprecated */ unit?: UnitType;
-  /** @deprecated */ rate?: number;
-  /** @deprecated */ keg_source?: KegSource;
-  /** @deprecated */ keg_price?: number | null;
-  /** @deprecated */ keg_amount?: number | null;
-  /** @deprecated */ discount_reason?: string | null;
-  /** @deprecated */ pump_id?: string | null;
-  /** @deprecated */ meter_reading?: number | null;
-  /** @deprecated */ meter_delta?: number | null;
-  /** @deprecated */ meter_variance?: number | null;
-  /** @deprecated */ delivered_qty?: number | null;
-  /** @deprecated */ shortfall?: number | null;
   note?: string;
 }
 

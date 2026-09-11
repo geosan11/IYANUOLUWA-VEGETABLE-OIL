@@ -12,6 +12,7 @@ import { NewOrderScreen } from './screens/NewOrderScreen';
 import { CustomersScreen } from './screens/CustomersScreen';
 import { KegsScreen } from './screens/KegsScreen';
 import { InventoryScreen } from './screens/InventoryScreen';
+import { PumpsScreen } from './screens/PumpsScreen';
 import { ExpensesScreen } from './screens/ExpensesScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { AIAdvisorScreen } from './screens/AIAdvisorScreen';
@@ -34,6 +35,8 @@ const MainLayout: React.FC = () => {
         return <AIAdvisorScreen />;
       case 'intake':
         return <TruckIntakeScreen />;
+      case 'pumps':
+        return <PumpsScreen />;
       case 'order':
         return <NewOrderScreen />;
       case 'ledger':

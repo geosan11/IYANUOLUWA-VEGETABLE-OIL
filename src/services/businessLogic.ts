@@ -9,11 +9,13 @@ import {
   CustomerCalculatedStats,
   CustomerStatementRow,
   KegInventorySummary,
+  PumpVarianceAudit,
   TankDrawResult,
   PaymentApplicationResult,
   UnitType,
   Pump,
   PumpReading,
+  Product,
   Shift
 } from '../types';
 import { LITRES_PER_KEG, packLitres } from '../constants/config';
@@ -531,60 +533,59 @@ export function applyFifoPayment(
 }
 
 /**
- * 9. PUMP METER VARIANCE RECONCILIATION
- * Each pump's meter only counts up (like an odometer, never resets).
- * Between any two consecutive readings for the same pump (sorted by recorded_at ascending):
- *   meter_delta = reading_2 - reading_1
- *   expected_litres = sum of litres from all orders on that pump_id between the two recorded_at timestamps
- *   variance = meter_delta - expected_litres
+ * 9. PUMP METER VARIANCE RECONCILIATION — per depot day, per product.
+ * Each pump's meter only counts up (like an odometer, never resets). Readings
+ * are bucketed into depot-local calendar days; for each day that closes with
+ * a reading:
+ *   meterDelta = (day's last reading) - (last known reading before that day)
+ *   expectedLitres = sum of litres sold that day for the pump's product
+ *   variance = meterDelta - expectedLitres
+ * Sales are no longer attributed to a specific pump (Phase 2+), so the
+ * comparison is against every non-voided sale of the pump's product that day
+ * — if two pumps share a product, reconcile them together in the UI.
  * Flag a variance alert when |variance| > thresholdLitres (default 20L).
  */
 export function calculatePumpMeterVariance(
-  pump: { id: string; label: string; last_meter_reading: number },
+  pump: { id: string; label: string; product_id?: string },
   readings: { id: string; pump_id: string; reading: number; recorded_at: string; note?: string }[],
   orders: Order[],
   thresholdLitres = 20
-): {
-  pumpId: string;
-  pumpLabel: string;
-  startReading: number;
-  endReading: number;
-  meterDelta: number;
-  expectedLitres: number;
-  variance: number;
-  isOverThreshold: boolean;
-  startDate: string;
-  endDate: string;
-  note?: string;
-}[] {
+): PumpVarianceAudit[] {
   const pumpReadings = readings
     .filter(r => r.pump_id === pump.id)
     .sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime());
 
-  if (pumpReadings.length < 2) {
-    return [];
+  const days: string[] = [];
+  const byDay = new Map<string, typeof pumpReadings>();
+  for (const r of pumpReadings) {
+    const day = depotDateKey(r.recorded_at);
+    if (!byDay.has(day)) {
+      byDay.set(day, []);
+      days.push(day);
+    }
+    byDay.get(day)!.push(r);
   }
 
-  const audits = [];
+  const audits: PumpVarianceAudit[] = [];
+  let baseline: (typeof pumpReadings)[number] | null = null;
 
-  for (let i = 0; i < pumpReadings.length - 1; i++) {
-    const r1 = pumpReadings[i];
-    const r2 = pumpReadings[i + 1];
+  for (const day of days) {
+    const dayReadings = byDay.get(day)!;
+    if (!baseline && dayReadings.length === 1) {
+      // First reading ever logged for this pump — nothing to compare it to yet.
+      baseline = dayReadings[0];
+      continue;
+    }
 
-    const time1 = new Date(r1.recorded_at).getTime();
-    const time2 = new Date(r2.recorded_at).getTime();
-
-    const meterDelta = Number((r2.reading - r1.reading).toFixed(2));
-
-    // Sum litres from orders on this pump within the reading interval
-    const matchingOrders = orders.filter(o => {
-      if (o.pump_id !== pump.id) return false;
-      const orderTime = new Date(o.date).getTime();
-      return orderTime >= time1 && orderTime <= time2;
-    });
+    const startReadingObj = baseline || dayReadings[0];
+    const endReadingObj = dayReadings[dayReadings.length - 1];
+    const meterDelta = Number((endReadingObj.reading - startReadingObj.reading).toFixed(2));
 
     const expectedLitres = Number(
-      matchingOrders.reduce((sum, o) => sum + Number(o.litres || 0), 0).toFixed(2)
+      orders
+        .filter(o => !o.voided && o.product_id === pump.product_id && depotDateKey(o.date) === day)
+        .reduce((sum, o) => sum + Number(o.litres || 0), 0)
+        .toFixed(2)
     );
 
     const variance = Number((meterDelta - expectedLitres).toFixed(2));
@@ -593,16 +594,19 @@ export function calculatePumpMeterVariance(
     audits.push({
       pumpId: pump.id,
       pumpLabel: pump.label,
-      startReading: r1.reading,
-      endReading: r2.reading,
+      startReading: startReadingObj.reading,
+      endReading: endReadingObj.reading,
       meterDelta,
       expectedLitres,
       variance,
       isOverThreshold,
-      startDate: r1.recorded_at,
-      endDate: r2.recorded_at,
-      note: r2.note
+      startDate: startReadingObj.recorded_at,
+      endDate: endReadingObj.recorded_at,
+      day,
+      note: dayReadings[dayReadings.length - 1].note
     });
+
+    baseline = endReadingObj;
   }
 
   return audits;
@@ -744,54 +748,6 @@ export function formatDepotTime(dateStr: string | null | undefined): string {
 }
 
 /**
- * 10. PER-ORDER PUMP METER VARIANCE
- * On submit, if pump_id and meter_reading are provided:
- * previous_reading = last recorded meter_reading on that pump (from prior order with meter_reading, or pump.last_meter_reading)
- * delta = meter_reading - previous_reading
- * expected = order's litres
- * variance = delta - expected
- * flag if |variance| > thresholdLitres (default 20L)
- */
-export function calculatePerOrderMeterVariance(
-  pumpId: string,
-  currentReading: number,
-  orderLitres: number,
-  allOrders: Order[],
-  pumpLastReading = 0,
-  thresholdLitres = 20
-): {
-  previousReading: number;
-  meterDelta: number;
-  expectedLitres: number;
-  variance: number;
-  isOverThreshold: boolean;
-} {
-  const current = Number(currentReading) || 0;
-  const expected = Number(orderLitres) || 0;
-
-  // Find prior orders on this pump that have a valid meter_reading, sorted descending by date
-  const priorOrdersWithMeter = allOrders
-    .filter(o => o.pump_id === pumpId && o.meter_reading !== undefined && o.meter_reading !== null)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-  const previousReading = priorOrdersWithMeter.length > 0
-    ? Number(priorOrdersWithMeter[0].meter_reading)
-    : Number(pumpLastReading) || 0;
-
-  const meterDelta = Number((current - previousReading).toFixed(2));
-  const variance = Number((meterDelta - expected).toFixed(2));
-  const isOverThreshold = Math.abs(variance) > thresholdLitres;
-
-  return {
-    previousReading,
-    meterDelta,
-    expectedLitres: expected,
-    variance,
-    isOverThreshold
-  };
-}
-
-/**
  * 11. TANK DIPSTICK VERIFICATION
  * Physical stick measurement for depot bulk storage tanks.
  * variance = reading_litres - tank.remaining_litres
@@ -908,13 +864,16 @@ export interface ShiftOpeningGateStatus {
 export function checkShiftOpeningMetersGate(
   shift: Shift | null,
   pumps: Pump[],
-  pumpReadings: PumpReading[] = []
+  pumpReadings: PumpReading[] = [],
+  products: Pick<Product, 'id' | 'supply_model'>[] = []
 ): ShiftOpeningGateStatus {
-  // Only actual bulk liquid dispensing pumps require meter readings.
-  // Palm oil is supplied in pre-kegged containers and has no dispensing pumps.
-  const activeBulkPumps = pumps.filter(
-    p => p.product_id !== 'red' && p.product_id !== 'red_oil_25l' && !p.label.toLowerCase().includes('palm')
-  );
+  // Only actual bulk liquid dispensing pumps require meter readings — a
+  // pre-kegged product (e.g. palm oil) has no pump to read. A pump whose
+  // product isn't recognised is treated as bulk (safer default: gate it).
+  const activeBulkPumps = pumps.filter(p => {
+    const product = products.find(pr => pr.id === p.product_id);
+    return product ? product.supply_model === 'bulk_truck' : true;
+  });
 
   const isShiftOpen = !!shift && (!shift.end_time || shift.status === 'open') && shift.status !== 'closed';
   if (!isShiftOpen) {

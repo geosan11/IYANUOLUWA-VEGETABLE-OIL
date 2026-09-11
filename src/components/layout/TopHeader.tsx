@@ -50,6 +50,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         return 'Executive AI Operations Advisor';
       case 'intake':
         return 'Receive oil deliveries';
+      case 'pumps':
+        return 'Pumps & meter readings';
       case 'order':
         return 'New sale';
       case 'ledger':

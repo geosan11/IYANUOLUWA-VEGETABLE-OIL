@@ -680,7 +680,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           </div>
 
           <button
-            onClick={() => onNavigate('order')}
+            onClick={() => onNavigate('pumps')}
             className="text-[12px] font-sans font-semibold text-purple-700 dark:text-purple-400 hover:underline flex items-center gap-1 self-start sm:self-auto"
           >
             <span>Record Pump Reading</span>
@@ -692,11 +692,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           {pumps.map(pump => {
             const isVeg = pump.product_id === 'veg';
             
-            // Calculate total litres dispensed today on this pump
+            // Sales no longer attribute to one specific pump — this is litres
+            // sold today for the pump's product (reconciled per-day in the Pumps tab).
             const todayPumpLitres = orders
-              .filter(o => {
-                return depotDateKey(o.date) === todayStr && o.pump_id === pump.id;
-              })
+              .filter(o => !o.voided && depotDateKey(o.date) === todayStr && o.product_id === pump.product_id)
               .reduce((sum, o) => sum + Number(o.litres || 0), 0);
 
             // Check if there is any active variance alert on this pump
@@ -1145,8 +1144,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                       key={idx}
                       role="button"
                       tabIndex={0}
-                      onClick={() => onNavigate('order')}
-                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate('order'); } }}
+                      onClick={() => onNavigate('pumps')}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate('pumps'); } }}
                       className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-[12px]"
                     >
                       <div>

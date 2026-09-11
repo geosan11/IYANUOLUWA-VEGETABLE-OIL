@@ -243,6 +243,10 @@ interface StoreContextType {
     note?: string
   ) => { success: boolean; pumpReading?: PumpReading; error?: string };
 
+  addPump: (data: { label: string; productId?: string; openingReading?: number }) => Pump;
+  updatePump: (pumpId: string, updates: { label?: string; product_id?: string | null }) => void;
+  deletePump: (pumpId: string) => { success: boolean; error?: string };
+
   addExpense: (
     category: string,
     amount: number,
@@ -498,8 +502,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Active shift gate status (all pumps must have opening meter readings)
   const shiftGateStatus = useMemo(() => {
-    return checkShiftOpeningMetersGate(activeShift, pumps, pumpReadings);
-  }, [activeShift, pumps, pumpReadings]);
+    return checkShiftOpeningMetersGate(activeShift, pumps, pumpReadings, products);
+  }, [activeShift, pumps, pumpReadings, products]);
 
   // 2. Keg inventory summary (total company kegs, out, at depot)
   const kegInventory = useMemo(() => {
@@ -829,7 +833,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return p ? p.supply_model === 'bulk_truck' : false;
     });
     if (anyBulk) {
-      const gateCheck = checkShiftOpeningMetersGate(activeShift, pumps, pumpReadings);
+      const gateCheck = checkShiftOpeningMetersGate(activeShift, pumps, pumpReadings, products);
       if (!gateCheck.isPassed) {
         return {
           success: false,
@@ -1622,7 +1626,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       pump_id: pumpId,
       reading: Number(reading),
       recorded_at: new Date().toISOString(),
-      note: note?.trim() || undefined
+      note: note?.trim() || undefined,
+      recorded_by: userRole === 'owner' ? 'Managing Director' : 'Depot Cashier'
     };
 
     // Update pump's last_meter_reading
@@ -1630,6 +1635,41 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setPumpReadings(prev => [...prev, newReading]);
 
     return { success: true, pumpReading: newReading };
+  };
+
+  // 9b. Pumps CRUD (named register)
+  const addPump = (data: { label: string; productId?: string; openingReading?: number }) => {
+    const newPump: Pump = {
+      id: `p-${Date.now()}`,
+      label: data.label.trim(),
+      product_id: data.productId || undefined,
+      last_meter_reading: Number(data.openingReading) || 0
+    };
+    setPumps(prev => [...prev, newPump]);
+    return newPump;
+  };
+
+  const updatePump = (pumpId: string, updates: { label?: string; product_id?: string | null }) => {
+    setPumps(prev =>
+      prev.map(p =>
+        p.id === pumpId
+          ? {
+              ...p,
+              label: updates.label !== undefined ? updates.label.trim() || p.label : p.label,
+              product_id: updates.product_id !== undefined ? updates.product_id || undefined : p.product_id
+            }
+          : p
+      )
+    );
+  };
+
+  const deletePump = (pumpId: string) => {
+    const hasReadings = pumpReadings.some(r => r.pump_id === pumpId);
+    if (hasReadings) {
+      return { success: false, error: 'Cannot remove a pump with logged readings — its history would be lost.' };
+    }
+    setPumps(prev => prev.filter(p => p.id !== pumpId));
+    return { success: true };
   };
 
   // 10. Add Expense
@@ -1866,6 +1906,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         closeShift,
         recordShiftOpeningReadings,
         recordPumpReading,
+        addPump,
+        updatePump,
+        deletePump,
         addExpense,
         addProduct,
         updateProduct,

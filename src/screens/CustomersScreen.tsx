@@ -6,6 +6,7 @@ import { Modal } from '../components/common/Modal';
 import { useIsDesktopSplit } from '../hooks/useBreakpoint';
 import { formatNaira, formatDepotDate, formatDepotTime, buildCustomerStatement } from '../services/businessLogic';
 import { CustomerStatementModal } from '../components/common/CustomerStatementModal';
+import { packShort } from '../constants/config';
 import {
   Users,
   Search,
@@ -730,7 +731,7 @@ export const CustomersScreen: React.FC = () => {
                         >
                           <div className="space-y-0.5">
                             <div className="font-sans font-semibold text-slate-900 dark:text-slate-200">
-                              {order.qty} {order.unit}s · {order.product_id === 'veg' ? 'Veg Oil' : 'Palm Oil'}
+                              {order.qty} × {packShort(order.pack_size_id)} · {order.product_id === 'veg' ? 'Veg Oil' : 'Palm Oil'}
                             </div>
                             <div className="text-[11px] text-slate-500">
                               Due: {formatDepotDate(order.due_date)}
@@ -1314,7 +1315,7 @@ export const CustomersScreen: React.FC = () => {
                                 className="w-2 h-2 rounded-full"
                                 style={{ backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }}
                               />
-                              <span>{order.qty} {order.unit}s ({isVeg ? 'Veg Oil' : 'Palm Oil'})</span>
+                              <span>{order.qty} × {packShort(order.pack_size_id)} ({isVeg ? 'Veg Oil' : 'Palm Oil'})</span>
                             </span>
                             <span
                               className={`px-1.5 py-0.2 rounded text-[10px] font-mono tabular-nums font-bold ${

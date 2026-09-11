@@ -8,7 +8,8 @@ import {
   ReceiptText,
   Settings,
   Sparkles,
-  ScrollText
+  ScrollText,
+  Fuel
 } from 'lucide-react';
 
 export interface NavItem {
@@ -23,6 +24,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'ai-advisor', label: 'AI Operations Advisor', icon: Sparkles, adminOnly: true },
   { id: 'intake', label: 'Truck Intake', icon: Truck },
+  { id: 'pumps', label: 'Pumps', icon: Fuel },
   { id: 'order', label: 'New Sale', icon: PlusCircle },
   { id: 'ledger', label: 'Transactions', icon: ScrollText },
   { id: 'customers', label: 'Customers & Credit', icon: Users },

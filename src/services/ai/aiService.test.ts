@@ -94,7 +94,8 @@ const mockPumpVarianceAudits: PumpVarianceAudit[] = [
     variance: 50, // +50L variance over 20L threshold
     isOverThreshold: true,
     startDate: '2026-09-09',
-    endDate: '2026-09-09'
+    endDate: '2026-09-09',
+    day: '2026-09-09'
   }
 ];
 
