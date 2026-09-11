@@ -4,7 +4,14 @@ import { Customer, CustomerType, PaymentMethod } from '../types';
 import { BottomSheet } from '../components/common/BottomSheet';
 import { Modal } from '../components/common/Modal';
 import { useIsDesktopSplit } from '../hooks/useBreakpoint';
-import { formatNaira, formatDepotDate, formatDepotTime, buildCustomerStatement } from '../services/businessLogic';
+import {
+  formatNaira,
+  formatDepotDate,
+  formatDepotTime,
+  buildCustomerStatement,
+  toDatetimeLocalValue,
+  fromDatetimeLocalValue
+} from '../services/businessLogic';
 import { CustomerStatementModal } from '../components/common/CustomerStatementModal';
 import { packShort } from '../constants/config';
 import {
@@ -64,6 +71,8 @@ export const CustomersScreen: React.FC = () => {
   const [paymentAmount, setPaymentAmount] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer');
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [showPaymentBackdate, setShowPaymentBackdate] = useState(false);
+  const [paymentDateInput, setPaymentDateInput] = useState<string>('');
 
   // New Customer Modal State
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
@@ -181,6 +190,8 @@ export const CustomersScreen: React.FC = () => {
     setPaymentCustomerId(customer.id);
     setPaymentAmount(fullBalance > 0 ? fullBalance.toString() : '');
     setPaymentError(null);
+    setShowPaymentBackdate(false);
+    setPaymentDateInput(toDatetimeLocalValue());
   };
 
   const handleRecordPaymentSubmit = (e: React.FormEvent) => {
@@ -193,7 +204,12 @@ export const CustomersScreen: React.FC = () => {
       return;
     }
 
-    const result = recordCustomerPayment(paymentCustomerId, numericAmount, paymentMethod);
+    const result = recordCustomerPayment(
+      paymentCustomerId,
+      numericAmount,
+      paymentMethod,
+      showPaymentBackdate ? fromDatetimeLocalValue(paymentDateInput) : undefined
+    );
     if (result.success) {
       setPaymentCustomerId(null);
       setPaymentAmount('');
@@ -918,6 +934,24 @@ export const CustomersScreen: React.FC = () => {
 
               <div className="text-[11px] font-sans text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
                 The payment clears the oldest unpaid invoices first.
+              </div>
+
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentBackdate(v => !v)}
+                  className="text-[11px] font-sans font-semibold text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
+                >
+                  {showPaymentBackdate ? 'Using a specific date & time' : 'Not now? Backdate this payment'}
+                </button>
+                {showPaymentBackdate && (
+                  <input
+                    type="datetime-local"
+                    value={paymentDateInput}
+                    onChange={e => setPaymentDateInput(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-[13px]"
+                  />
+                )}
               </div>
 
               <button

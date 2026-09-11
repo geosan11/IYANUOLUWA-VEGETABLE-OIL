@@ -748,6 +748,22 @@ export function formatDepotTime(dateStr: string | null | undefined): string {
 }
 
 /**
+ * Convert an ISO timestamp (default now) into the value a `<input type="datetime-local">`
+ * expects, in the viewer's own local time (that's what the input renders in).
+ */
+export function toDatetimeLocalValue(iso?: string | null): string {
+  const d = iso ? new Date(iso) : new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Reverse of {@link toDatetimeLocalValue} — a datetime-local field's value back to an ISO string. */
+export function fromDatetimeLocalValue(value: string): string {
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+}
+
+/**
  * 11. TANK DIPSTICK VERIFICATION
  * Physical stick measurement for depot bulk storage tanks.
  * variance = reading_litres - tank.remaining_litres

@@ -7,7 +7,9 @@ import {
   formatDepotDate,
   formatDepotTime,
   getDepotToday,
-  depotDateKey
+  depotDateKey,
+  toDatetimeLocalValue,
+  fromDatetimeLocalValue
 } from '../services/businessLogic';
 import { packShort } from '../constants/config';
 import { Sale, Order, Payment, Expense, Tank, ReceiptData, ContainerMode } from '../types';
@@ -77,6 +79,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
     setActiveReceipt,
     voidSale,
     voidPayment,
+    updatePaymentDate,
     updateOrderLine,
     updateExpense,
     voidExpense,
@@ -515,6 +518,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
           onSaveLine={(lineId, patch, reason) => updateOrderLine(lineId, patch, reason)}
           onSaveExpense={(id, patch, reason) => updateExpense(id, patch, reason)}
           onSaveIntake={(id, patch, reason) => updateTankIntake(id, patch, reason)}
+          onSavePaymentDate={(id, date, reason) => updatePaymentDate(id, date, reason)}
         />
       )}
     </div>
@@ -587,7 +591,8 @@ const EditModal: React.FC<{
     patch: { date?: string; truck_label?: string; supplier_id?: string | null; space_note?: string },
     reason: string
   ) => { success: boolean; error?: string };
-}> = ({ row, suppliers, onClose, onSaveLine, onSaveExpense, onSaveIntake }) => {
+  onSavePaymentDate: (id: string, date: string, reason: string) => { success: boolean; error?: string };
+}> = ({ row, suppliers, onClose, onSaveLine, onSaveExpense, onSaveIntake, onSavePaymentDate }) => {
   const [reason, setReason] = useState('');
   const [err, setErr] = useState<string | null>(null);
 
@@ -605,16 +610,11 @@ const EditModal: React.FC<{
   const [tkSupplier, setTkSupplier] = useState(row.tank?.supplier_id || '');
   const [tkNote, setTkNote] = useState(row.tank?.space_note || '');
 
-  const toLocalDate = (iso: string) => {
-    const d = new Date(iso);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
-  const [dateStr, setDateStr] = useState(toLocalDate(row.date));
+  const [dateStr, setDateStr] = useState(toDatetimeLocalValue(row.date));
 
   const submit = () => {
     if (!reason.trim()) return setErr('A reason is required.');
-    const isoDate = new Date(dateStr).toISOString();
+    const isoDate = fromDatetimeLocalValue(dateStr);
     let res: { success: boolean; error?: string };
     if (row.kind === 'sale' && line) {
       res = onSaveLine(
@@ -639,6 +639,8 @@ const EditModal: React.FC<{
         { truck_label: tkLabel.trim(), supplier_id: tkSupplier || null, space_note: tkNote, date: isoDate },
         reason.trim()
       );
+    } else if (row.kind === 'payment' && row.payment) {
+      res = onSavePaymentDate(row.payment.id, isoDate, reason.trim());
     } else {
       res = { success: false, error: 'Nothing to edit' };
     }
@@ -731,6 +733,12 @@ const EditModal: React.FC<{
               <input value={tkNote} onChange={e => setTkNote(e.target.value)} className={field} />
             </label>
           </>
+        )}
+
+        {row.kind === 'payment' && (
+          <p className="text-[12px] text-slate-500 dark:text-slate-400">
+            Only the recorded date &amp; time can be corrected here — to change the amount, void this payment and record it again.
+          </p>
         )}
 
         <label className="text-[11px] font-sans font-semibold text-slate-500 block">

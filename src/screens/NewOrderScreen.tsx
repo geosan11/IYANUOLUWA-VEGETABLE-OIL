@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../services/store';
 import { usePermissions } from '../services/permissions';
-import { formatNaira, formatDepotDate } from '../services/businessLogic';
+import { formatNaira, formatDepotDate, toDatetimeLocalValue, fromDatetimeLocalValue } from '../services/businessLogic';
 import { priceSaleLine } from '../services/pricing';
 import { PACK_SIZES, packLabel, packShort } from '../constants/config';
 import { ContainerMode, CustomerType, PaymentMethod } from '../types';
@@ -82,6 +82,8 @@ export const NewOrderScreen: React.FC = () => {
   const [amountTendered, setAmountTendered] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [showBackdate, setShowBackdate] = useState(false);
+  const [saleDateInput, setSaleDateInput] = useState(() => toDatetimeLocalValue());
 
   // ---- shift gate ----
   const [gateInputs, setGateInputs] = useState<Record<string, string>>({});
@@ -192,6 +194,7 @@ export const NewOrderScreen: React.FC = () => {
       amountTendered: paymentMethod === 'cash' && tenderedNum > 0 ? tenderedNum : null,
       note: note.trim() || undefined,
       pricingTier: tierOverride || undefined,
+      date: showBackdate ? fromDatetimeLocalValue(saleDateInput) : undefined,
       lines: lines.map(l => ({
         productId: l.productId,
         varietyId: l.varietyId,
@@ -211,6 +214,8 @@ export const NewOrderScreen: React.FC = () => {
     setAmountTendered('');
     setNote('');
     setTierOverride(null);
+    setShowBackdate(false);
+    setSaleDateInput(toDatetimeLocalValue());
   };
 
   const submitGate = () => {
@@ -649,7 +654,13 @@ export const NewOrderScreen: React.FC = () => {
               {paymentMethod === 'credit' && (
                 <div className="text-[12px] space-y-1">
                   <div className="text-slate-500">
-                    Due {formatDepotDate(new Date(Date.now() + customer.credit_term_days * 86400000).toISOString())}
+                    Due{' '}
+                    {formatDepotDate(
+                      new Date(
+                        (showBackdate ? new Date(fromDatetimeLocalValue(saleDateInput)).getTime() : Date.now()) +
+                          customer.credit_term_days * 86400000
+                      ).toISOString()
+                    )}
                     {' · '}new balance {formatNaira(projectedBalance)}
                   </div>
                   {overLimit && (
@@ -668,6 +679,24 @@ export const NewOrderScreen: React.FC = () => {
                 placeholder="Note (optional)"
                 className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]"
               />
+
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowBackdate(v => !v)}
+                  className="text-[11px] font-sans font-semibold text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
+                >
+                  {showBackdate ? 'Using a specific date & time' : 'Not now? Backdate this sale'}
+                </button>
+                {showBackdate && (
+                  <input
+                    type="datetime-local"
+                    value={saleDateInput}
+                    onChange={e => setSaleDateInput(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-[13px]"
+                  />
+                )}
+              </div>
 
               {error && (
                 <div className="text-[12px] text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-lg px-3 py-2">

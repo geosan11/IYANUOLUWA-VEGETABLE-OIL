@@ -9,7 +9,10 @@ import {
   calculateIntakeMetrics,
   calculatePreKeggedIntakeMetrics,
   calculateDipstickVariance,
-  formatDepotDate
+  formatDepotDate,
+  formatDepotTime,
+  toDatetimeLocalValue,
+  fromDatetimeLocalValue
 } from '../services/businessLogic';
 import {
   CheckCircle2,
@@ -52,6 +55,7 @@ export const TruckIntakeScreen: React.FC = () => {
   const [truckLabel, setTruckLabel] = useState<string>('');
   const [driverName, setDriverName] = useState<string>('');
   const [spaceNote, setSpaceNote] = useState<string>('');
+  const [intakeDateInput, setIntakeDateInput] = useState<string>(() => toDatetimeLocalValue());
 
   // Bulk truck state
   const [tons, setTons] = useState<string>('');
@@ -172,7 +176,8 @@ export const TruckIntakeScreen: React.FC = () => {
         spaceNote: spaceNote.trim() || undefined,
         tons: parseFloat(tons) || 0,
         actualKegs: parseFloat(actualKegs) || 0,
-        leftoverLitres: parseFloat(leftoverLitres) || 0
+        leftoverLitres: parseFloat(leftoverLitres) || 0,
+        date: fromDatetimeLocalValue(intakeDateInput)
       });
 
       if (result.success && result.tank) {
@@ -184,6 +189,7 @@ export const TruckIntakeScreen: React.FC = () => {
         setActualKegs('');
         setLeftoverLitres('');
         setSpaceNote('');
+        setIntakeDateInput(toDatetimeLocalValue());
         setTimeout(() => setSuccessMessage(null), 5000);
       } else {
         setErrorMessage(result.error || 'Failed to record truck intake.');
@@ -202,7 +208,8 @@ export const TruckIntakeScreen: React.FC = () => {
         supplierId,
         physicalTankId: physicalTankId || undefined,
         spaceNote: spaceNote.trim() || undefined,
-        kegsReceived: numKegs
+        kegsReceived: numKegs,
+        date: fromDatetimeLocalValue(intakeDateInput)
       });
 
       if (result.success && result.tank) {
@@ -212,6 +219,7 @@ export const TruckIntakeScreen: React.FC = () => {
         setDriverName('');
         setKegsReceived('');
         setSpaceNote('');
+        setIntakeDateInput(toDatetimeLocalValue());
         setTimeout(() => setSuccessMessage(null), 5000);
       } else {
         setErrorMessage(result.error || 'Failed to record pre-kegged delivery.');
@@ -363,6 +371,20 @@ export const TruckIntakeScreen: React.FC = () => {
                 className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 text-[15px] font-sans font-medium focus:outline-none focus:border-brand-500"
               />
             </div>
+          </div>
+
+          {/* Delivery date & time — defaults to now, editable to catch up a late entry */}
+          <div className="space-y-1">
+            <label htmlFor="intake-datetime" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+              Delivery Date &amp; Time
+            </label>
+            <input
+              id="intake-datetime"
+              type="datetime-local"
+              value={intakeDateInput}
+              onChange={e => setIntakeDateInput(e.target.value)}
+              className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-mono focus:outline-none focus:border-brand-500"
+            />
           </div>
 
           {/* DUAL FLOW CONDITIONAL SECTIONS */}
@@ -871,7 +893,7 @@ export const TruckIntakeScreen: React.FC = () => {
                       </div>
                       <div className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400">
                         {latestReading
-                          ? `Stick: ${latestReading.reading_litres.toLocaleString()} L · System: ${(latestReading.system_litres ?? t.remaining_litres).toLocaleString()} L · ${formatDepotDate(latestReading.recorded_at)}`
+                          ? `Stick: ${latestReading.reading_litres.toLocaleString()} L · System: ${(latestReading.system_litres ?? t.remaining_litres).toLocaleString()} L · ${formatDepotDate(latestReading.recorded_at)} ${formatDepotTime(latestReading.recorded_at)}`
                           : `System volume: ${t.remaining_litres.toLocaleString()} L`}
                       </div>
                     </div>
@@ -1169,7 +1191,7 @@ export const TruckIntakeScreen: React.FC = () => {
                       <div className="flex justify-between">
                         <span>Last Physical Stick:</span>
                         <span className="font-bold text-slate-900 dark:text-slate-100">
-                          {latestDipstick.reading_litres.toLocaleString()} L ({formatDepotDate(latestDipstick.recorded_at)})
+                          {latestDipstick.reading_litres.toLocaleString()} L ({formatDepotDate(latestDipstick.recorded_at)} {formatDepotTime(latestDipstick.recorded_at)})
                         </span>
                       </div>
                     )}
@@ -1215,7 +1237,7 @@ export const TruckIntakeScreen: React.FC = () => {
                                 {cust?.name || 'Customer'}
                               </div>
                               <div className="text-[11px] text-slate-500 font-mono">
-                                {formatDepotDate(order.date)} · {order.qty} pack{order.qty === 1 ? '' : 's'} · {order.payment_method}
+                                {formatDepotDate(order.date)} {formatDepotTime(order.date)} · {order.qty} pack{order.qty === 1 ? '' : 's'} · {order.payment_method}
                               </div>
                             </div>
                             <div className="text-right font-mono">

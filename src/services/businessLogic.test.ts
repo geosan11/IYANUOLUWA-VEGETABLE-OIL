@@ -15,7 +15,9 @@ import {
   checkShiftOpeningMetersGate,
   depotDateKey,
   getDepotToday,
-  formatNairaWords
+  formatNairaWords,
+  toDatetimeLocalValue,
+  fromDatetimeLocalValue
 } from './businessLogic';
 import { lookupPackPrice, priceSaleLine } from './pricing';
 import {
@@ -573,6 +575,16 @@ const paymentRow = statement.find(r => r.kind === 'payment');
 assert(!!paymentRow && paymentRow.credit === 30000 && paymentRow.runningBalance === 70000, 'Statement: ₦30,000 payment leaves ₦70,000 owed');
 const cashSaleRow = statement.find(r => r.label.includes('(cash)'));
 assert(!!cashSaleRow && cashSaleRow.debit === 0, 'Statement: a cash sale does not add to the owed balance');
+
+// 22c. DATETIME-LOCAL FIELD HELPERS (backdating truck intake / expenses / sales / payments)
+const sampleIso = '2026-09-08T14:30:00.000Z';
+assert(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(toDatetimeLocalValue(sampleIso)), 'toDatetimeLocalValue: matches the <input type=datetime-local> value shape');
+assert(
+  fromDatetimeLocalValue(toDatetimeLocalValue(sampleIso)) === new Date(toDatetimeLocalValue(sampleIso)).toISOString(),
+  'fromDatetimeLocalValue: round-trips a datetime-local value back to a real ISO timestamp'
+);
+assert(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(toDatetimeLocalValue()), 'toDatetimeLocalValue: defaults to now when no timestamp is given');
+assert(!isNaN(new Date(fromDatetimeLocalValue('not-a-date')).getTime()), 'fromDatetimeLocalValue: falls back to now instead of an Invalid Date on bad input');
 
 // 23. AMOUNT IN WORDS (receipt spell-out)
 assert(formatNairaWords(0) === 'Zero naira only', 'Amount words: zero');

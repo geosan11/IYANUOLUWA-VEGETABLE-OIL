@@ -1,6 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
-import { formatNaira, formatDepotTime, formatDepotDate, getDepotToday, depotDateKey } from '../services/businessLogic';
+import {
+  formatNaira,
+  formatDepotTime,
+  formatDepotDate,
+  getDepotToday,
+  depotDateKey,
+  toDatetimeLocalValue,
+  fromDatetimeLocalValue
+} from '../services/businessLogic';
 import { EXPENSE_CATEGORIES } from '../constants/config';
 import {
   ReceiptText,
@@ -20,6 +28,8 @@ export const ExpensesScreen: React.FC = () => {
   const [customCategory, setCustomCategory] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
   const [note, setNote] = useState<string>('');
+  const [expenseDateInput, setExpenseDateInput] = useState<string>(() => toDatetimeLocalValue());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const currentFloat = settings.default_daily_float ?? settings.daily_float ?? 150000;
   const [isEditingFloat, setIsEditingFloat] = useState(false);
   const [editableFloat, setEditableFloat] = useState(currentFloat.toString());
@@ -53,12 +63,14 @@ export const ExpensesScreen: React.FC = () => {
 
     const finalCategory = customCategory.trim() ? customCategory.trim() : category;
 
-    const result = addExpense(finalCategory, numAmount, note.trim() || undefined);
+    const result = addExpense(finalCategory, numAmount, note.trim() || undefined, fromDatetimeLocalValue(expenseDateInput));
     if (result.success) {
       setSuccessMsg(`Logged expense: ${formatNaira(numAmount)} for ${finalCategory}`);
       setAmount('');
       setNote('');
       setCustomCategory('');
+      setExpenseDateInput(toDatetimeLocalValue());
+      setShowDatePicker(false);
       setTimeout(() => setSuccessMsg(null), 4000);
     } else {
       setErrorMsg(result.error || 'Could not log the expense.');
@@ -281,6 +293,25 @@ export const ExpensesScreen: React.FC = () => {
               placeholder="e.g. Fuel for generator, gate security tip"
               className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 text-[14px] font-sans font-medium focus:outline-none focus:border-brand-500"
             />
+          </div>
+
+          {/* Backdate (optional) — defaults to now */}
+          <div className="space-y-1.5">
+            <button
+              type="button"
+              onClick={() => setShowDatePicker(v => !v)}
+              className="text-[11px] font-sans font-semibold text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
+            >
+              {showDatePicker ? 'Using a specific date & time' : "Not now? Backdate this voucher"}
+            </button>
+            {showDatePicker && (
+              <input
+                type="datetime-local"
+                value={expenseDateInput}
+                onChange={e => setExpenseDateInput(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-mono focus:outline-none focus:border-brand-500"
+              />
+            )}
           </div>
 
           {/* Submit */}

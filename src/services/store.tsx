@@ -136,6 +136,7 @@ interface StoreContextType {
     leftoverLitres: number;
     physicalTankId?: string;
     spaceNote?: string;
+    date?: string;
   }) => { success: boolean; tank?: Tank; error?: string };
 
   logPreKeggedIntake: (data: {
@@ -145,6 +146,7 @@ interface StoreContextType {
     truckLabel?: string;
     physicalTankId?: string;
     spaceNote?: string;
+    date?: string;
   }) => { success: boolean; tank?: Tank; error?: string };
   
   createSale: (data: {
@@ -153,6 +155,8 @@ interface StoreContextType {
     amountTendered?: number | null;
     note?: string;
     pricingTier?: CustomerType;
+    /** Back-date the sale (defaults to now). */
+    date?: string;
     lines: {
       productId: string;
       varietyId: string;
@@ -167,7 +171,8 @@ interface StoreContextType {
   recordCustomerPayment: (
     customerId: string,
     amount: number,
-    paymentMethod: PaymentMethod
+    paymentMethod: PaymentMethod,
+    date?: string
   ) => { success: boolean; receipt?: ReceiptData; error?: string };
 
   redeemCustomerCredit: (
@@ -179,6 +184,7 @@ interface StoreContextType {
   voidSale: (saleId: string, reason: string) => { success: boolean; error?: string };
   /** Void a recorded payment — reverses paid_amount on its lines and any overpayment credit, audited. */
   voidPayment: (paymentId: string, reason: string) => { success: boolean; error?: string };
+  updatePaymentDate: (paymentId: string, date: string, reason: string) => { success: boolean; error?: string };
   /** Edit one sale line (qty / unit price / container / date). Recomputes money and the tank draw. */
   updateOrderLine: (
     lineId: string,
@@ -250,7 +256,8 @@ interface StoreContextType {
   addExpense: (
     category: string,
     amount: number,
-    note?: string
+    note?: string,
+    date?: string
   ) => { success: boolean; expense?: Expense; error?: string };
 
   addProduct: (productData: Omit<Product, 'id'>) => Product;
@@ -715,6 +722,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     leftoverLitres: number;
     physicalTankId?: string;
     spaceNote?: string;
+    date?: string;
   }) => {
     const product = products.find(p => p.id === data.productId);
     if (!product) return { success: false, error: 'Product not found' };
@@ -737,7 +745,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       tons: Number(data.tons),
       received_litres: metrics.recoveredLitres,
       remaining_litres: metrics.recoveredLitres,
-      date: new Date().toISOString(),
+      date: data.date || new Date().toISOString(),
       shortfall: metrics.shortfall,
       supplier_id: data.supplierId,
       physical_tank_id: data.physicalTankId || null,
@@ -757,6 +765,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     truckLabel?: string;
     physicalTankId?: string;
     spaceNote?: string;
+    date?: string;
   }) => {
     const product = products.find(p => p.id === data.productId);
     if (!product) return { success: false, error: 'Product not found' };
@@ -775,7 +784,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       tons: 0,
       received_litres: metrics.exactLitres,
       remaining_litres: metrics.exactLitres,
-      date: new Date().toISOString(),
+      date: data.date || new Date().toISOString(),
       shortfall: 0,
       supplier_id: data.supplierId,
       physical_tank_id: data.physicalTankId || null,
@@ -809,6 +818,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     amountTendered?: number | null;
     note?: string;
     pricingTier?: CustomerType;
+    date?: string;
     lines: {
       productId: string;
       varietyId: string;
@@ -842,8 +852,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     }
 
-    const now = new Date();
-    const saleId = `sale-${now.getTime()}`;
+    const creationTime = new Date();
+    const now = data.date ? new Date(data.date) : creationTime;
+    const saleId = `sale-${creationTime.getTime()}`;
     let dueDate: string | null = null;
     if (data.paymentMethod === 'credit') {
       const due = new Date(now);
@@ -896,7 +907,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const lineAmount = priced.lineAmount;
       newLines.push({
-        id: `line-${now.getTime()}-${i + 1}`,
+        id: `line-${creationTime.getTime()}-${i + 1}`,
         sale_id: saleId,
         customer_id: data.customerId,
         product_id: line.productId,
@@ -957,7 +968,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const firstLine = newLines[0];
     const firstProduct = products.find(p => p.id === firstLine.product_id);
     const receipt: ReceiptData = {
-      receiptNumber: `REC-${now.getTime().toString().slice(-6)}`,
+      receiptNumber: `REC-${creationTime.getTime().toString().slice(-6)}`,
       type: 'order',
       date: now.toISOString(),
       customer,
@@ -984,7 +995,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const recordCustomerPayment = (
     customerId: string,
     amount: number,
-    paymentMethod: PaymentMethod
+    paymentMethod: PaymentMethod,
+    date?: string
   ) => {
     const customer = customers.find(c => c.id === customerId);
     if (!customer) return { success: false, error: 'Customer not found' };
@@ -994,6 +1006,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return { success: false, error: 'Payment amount must be greater than zero' };
     }
 
+    const effectiveDate = date || new Date().toISOString();
     const prevStats = customerStatsMap[customer.id];
     const previousBalance = prevStats ? prevStats.currentBalance : 0;
 
@@ -1014,7 +1027,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           customer_id: customerId,
           amount: overpayment,
           source_payment_id: receiptNumber,
-          created_at: new Date().toISOString(),
+          created_at: effectiveDate,
           note: 'Overpayment added to store credit'
         },
         ...prev
@@ -1027,7 +1040,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       customer_id: customerId,
       amount: numericAmount,
       method: paymentMethod === 'credit' ? 'transfer' : paymentMethod,
-      date: new Date().toISOString(),
+      date: effectiveDate,
       applied_to: paymentResult.appliedOrders.map(a => ({ order_id: a.orderId, amount: a.amountApplied })),
       overpayment_to_credit: overpayment,
       source: 'payment',
@@ -1039,7 +1052,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const receipt: ReceiptData = {
       receiptNumber,
       type: 'payment',
-      date: new Date().toISOString(),
+      date: effectiveDate,
       customer,
       paymentAmount: numericAmount,
       paymentMethod,
@@ -1212,6 +1225,27 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       entity_id: paymentId,
       action: 'void',
       changes: [{ field: 'voided', old: false, new: true }],
+      reason: reason.trim()
+    });
+    return { success: true };
+  };
+
+  // Correct a payment's recorded date/time — the amount and allocation are
+  // untouched (void + re-record the payment for anything bigger than a date fix).
+  const updatePaymentDate = (paymentId: string, date: string, reason: string) => {
+    const payment = payments.find(p => p.id === paymentId);
+    if (!payment) return { success: false, error: 'Payment not found' };
+    if (payment.voided) return { success: false, error: 'This payment is voided' };
+    if (!reason.trim()) return { success: false, error: 'A reason is required to edit a payment' };
+    if (!date || date === payment.date) return { success: true };
+
+    const oldDate = payment.date;
+    setPayments(prev => prev.map(p => (p.id === paymentId ? { ...p, date } : p)));
+    logAudit({
+      entity_type: 'payment',
+      entity_id: paymentId,
+      action: 'edit',
+      changes: [{ field: 'date', old: oldDate, new: date }],
       reason: reason.trim()
     });
     return { success: true };
@@ -1673,7 +1707,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // 10. Add Expense
-  const addExpense = (category: string, amount: number, note?: string) => {
+  const addExpense = (category: string, amount: number, note?: string, date?: string) => {
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       return { success: false, error: 'Expense amount must be greater than zero' };
@@ -1683,7 +1717,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     const newExpense: Expense = {
       id: `exp-${Date.now()}`,
-      date: new Date().toISOString(),
+      date: date || new Date().toISOString(),
       category: category.trim(),
       amount: numericAmount,
       note
@@ -1895,6 +1929,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         redeemCustomerCredit,
         voidSale,
         voidPayment,
+        updatePaymentDate,
         updateOrderLine,
         updateExpense,
         voidExpense,
