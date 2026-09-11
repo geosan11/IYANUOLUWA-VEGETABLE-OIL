@@ -73,7 +73,7 @@ export default defineConfig({
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],
           'supabase-vendor': ['@supabase/supabase-js'],
-          'icons-vendor': ['lucide-react']
+          'icons-vendor': ['@phosphor-icons/react']
         }
       }
     }

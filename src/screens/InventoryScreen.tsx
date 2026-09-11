@@ -4,7 +4,7 @@ import { usePermissions } from '../services/permissions';
 import { lookupPackPrice } from '../services/pricing';
 import { PACK_SIZES, packLitres } from '../constants/config';
 import { CustomerType, PackPrice, ProductPackConfig } from '../types';
-import { Boxes, Tags, Package, Warehouse, Lock, Save, Check } from 'lucide-react';
+import { Stack as Boxes, Tag as Tags, Package, Warehouse, Lock, FloppyDisk as Save, Check } from '@phosphor-icons/react';
 
 const TIERS: CustomerType[] = ['retail', 'agent', 'corporate'];
 type Tab = 'prices' | 'packs' | 'stock';
@@ -114,7 +114,7 @@ export const InventoryScreen: React.FC = () => {
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
             }`}
           >
-            <Icon className="w-3.5 h-3.5" /> {label}
+            <Icon className="w-3.5 h-3.5" weight={tab === id ? 'bold' : 'thin'} /> {label}
           </button>
         ))}
       </div>
@@ -282,7 +282,7 @@ const PriceMatrix: React.FC<{
           disabled={!dirty}
           className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-sans font-bold text-[13px] flex items-center gap-2 shadow-sm"
         >
-          <Save className="w-4 h-4" /> Save prices
+          <Save className="w-4 h-4" weight="bold" /> Save prices
         </button>
       </div>
     </div>
@@ -397,7 +397,7 @@ const PackConfigEditor: React.FC<{
           disabled={!dirty}
           className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-sans font-bold text-[13px] flex items-center gap-2 shadow-sm"
         >
-          <Save className="w-4 h-4" /> Save configuration
+          <Save className="w-4 h-4" weight="bold" /> Save configuration
         </button>
       </div>
     </div>

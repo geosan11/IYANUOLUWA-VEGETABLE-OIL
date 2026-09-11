@@ -6,18 +6,18 @@ import { formatDepotDate, formatDepotTime } from '../services/businessLogic';
 import { packLabel } from '../constants/config';
 import {
   Package,
-  Boxes,
+  Stack as Boxes,
   ArrowDownLeft,
-  RotateCcw,
-  CheckCircle2,
-  History,
+  ArrowCounterClockwise as RotateCcw,
+  CheckCircle as CheckCircle2,
+  ClockCounterClockwise as History,
   Plus,
-  ArrowRightLeft,
-  ChevronRight,
-  ArrowUpDown,
+  ArrowsLeftRight as ArrowRightLeft,
+  CaretRight as ChevronRight,
+  ArrowsDownUp as ArrowUpDown,
   ArrowUp,
   ArrowDown
-} from 'lucide-react';
+} from '@phosphor-icons/react';
 
 type SortField = 'customer' | 'supplied' | 'returned' | 'balance';
 
@@ -184,9 +184,9 @@ export const KegsScreen: React.FC = () => {
       return <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-50 ml-1 inline" />;
     }
     return sortAsc ? (
-      <ArrowUp className="w-3 h-3 text-brand-600 dark:text-brand-400 ml-1 inline" />
+      <ArrowUp className="w-3 h-3 text-brand-600 dark:text-brand-400 ml-1 inline" weight="bold" />
     ) : (
-      <ArrowDown className="w-3 h-3 text-brand-600 dark:text-brand-400 ml-1 inline" />
+      <ArrowDown className="w-3 h-3 text-brand-600 dark:text-brand-400 ml-1 inline" weight="bold" />
     );
   };
 
@@ -703,7 +703,7 @@ export const KegsScreen: React.FC = () => {
                     type="submit"
                     className="w-full py-2.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-sm transition-all flex items-center justify-center gap-2 active:scale-98"
                   >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-4 h-4" weight="bold" />
                     <span>Confirm Gate Return & Restock Yard</span>
                   </button>
                 </form>
@@ -872,7 +872,7 @@ export const KegsScreen: React.FC = () => {
                   type="submit"
                   className="w-full py-3 px-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[14px] shadow-sm transition-all flex items-center justify-center gap-2 mt-2 active:scale-98"
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className="w-4 h-4" weight="bold" />
                   <span>Confirm Gate Return & Restock Depot</span>
                 </button>
               </form>

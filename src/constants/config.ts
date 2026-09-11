@@ -204,13 +204,22 @@ export const DEFAULT_PUMPS: Pump[] = [
     id: 'p-1',
     label: 'Pump 1 (Golden Vegetable Oil)',
     product_id: 'veg',
-    last_meter_reading: 12450
+    last_meter_reading: 12450,
+    physical_tank_id: 'pt-1'
   },
   {
     id: 'p-2',
     label: 'Pump 2 (Golden Vegetable Oil)',
     product_id: 'veg',
-    last_meter_reading: 8920
+    last_meter_reading: 8920,
+    physical_tank_id: 'pt-1'
+  },
+  {
+    id: 'p-3',
+    label: 'Pump 3 (Golden Vegetable Oil)',
+    product_id: 'veg',
+    last_meter_reading: 5310,
+    physical_tank_id: 'pt-2'
   }
 ];
 
@@ -233,6 +242,13 @@ export const SEED_PUMP_READINGS: PumpReading[] = [
     id: 'pr-3',
     pump_id: 'p-2',
     reading: 8920,
+    recorded_at: '2026-09-08T07:00:00Z',
+    note: 'Morning shift meter verification'
+  },
+  {
+    id: 'pr-4',
+    pump_id: 'p-3',
+    reading: 5310,
     recorded_at: '2026-09-08T07:00:00Z',
     note: 'Morning shift meter verification'
   }

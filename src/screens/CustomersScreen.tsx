@@ -16,19 +16,19 @@ import { CustomerStatementModal } from '../components/common/CustomerStatementMo
 import { packShort } from '../constants/config';
 import {
   Users,
-  Search,
+  MagnifyingGlass as Search,
   Phone,
-  MessageSquare,
+  ChatCircle as MessageSquare,
   CreditCard,
   Plus,
-  ChevronRight,
-  AlertCircle,
+  CaretRight as ChevronRight,
+  WarningCircle as AlertCircle,
   Receipt,
-  ArrowRightLeft,
-  CheckCircle2,
+  ArrowsLeftRight as ArrowRightLeft,
+  CheckCircle as CheckCircle2,
   FileText,
-  Send
-} from 'lucide-react';
+  PaperPlaneTilt as Send
+} from '@phosphor-icons/react';
 
 type FilterChip = 'all' | 'overdue' | 'high_balance' | 'corporate' | 'agent';
 
@@ -263,7 +263,7 @@ export const CustomersScreen: React.FC = () => {
             onClick={() => setIsAddCustomerOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 active:scale-95 text-slate-950 text-[14px] font-sans font-bold shadow-lg shadow-brand-500/20 transition-all"
           >
-            <Plus className="w-[18px] h-[18px] text-slate-950" />
+            <Plus className="w-[18px] h-[18px] text-slate-950" weight="bold" />
             <span>Add New Customer</span>
           </button>
         </div>

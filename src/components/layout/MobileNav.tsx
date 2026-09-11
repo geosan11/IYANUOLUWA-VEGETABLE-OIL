@@ -1,7 +1,7 @@
 import React from 'react';
 import { useStore } from '../../services/store';
 import { NAV_ITEMS } from '../../constants/nav';
-import { X, Sun, Moon } from 'lucide-react';
+import { X, Sun, Moon } from '@phosphor-icons/react';
 
 /** Fixed 5-slot bottom bar — a curated subset of NAV_ITEMS. `order` is the raised centre button. */
 const BOTTOM_BAR_IDS = ['dashboard', 'intake', 'order', 'customers', 'kegs'] as const;
@@ -67,7 +67,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
                   onClick={toggleTheme}
                   className="p-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900"
                 >
-                  {theme === 'dark' ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-slate-600" />}
+                  {theme === 'dark' ? <Sun className="w-5 h-5 text-amber-400" weight="bold" /> : <Moon className="w-5 h-5 text-slate-600" weight="bold" />}
                 </button>
                 <button
                   onClick={onCloseMenu}
@@ -96,7 +96,10 @@ export const MobileNav: React.FC<MobileNavProps> = ({
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <Icon className={`w-5 h-5 ${isActive ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400'}`} />
+                      <Icon
+                        className={`w-5 h-5 ${isActive ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400'}`}
+                        weight={isActive ? 'bold' : 'thin'}
+                      />
                       <span>{item.label}</span>
                     </div>
                     {item.badge ? (
@@ -148,7 +151,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
                 className="flex flex-col items-center justify-center -mt-5"
               >
                 <div className="w-12 h-12 rounded-full bg-brand-500 text-slate-950 flex items-center justify-center shadow-lg shadow-brand-500/30 border-2 border-white dark:border-slate-950 active:scale-95 transition-transform">
-                  <Icon className="w-6 h-6 stroke-[2.5]" />
+                  <Icon className="w-6 h-6" weight="bold" />
                 </div>
                 <span className="text-[11px] font-sans font-bold text-brand-600 dark:text-brand-400 mt-0.5">Dispense</span>
               </button>
@@ -164,7 +167,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
               }`}
             >
               <div className="relative">
-                <Icon className={`w-6 h-6 ${isActive ? 'stroke-[2.5]' : 'stroke-2'}`} />
+                <Icon className="w-6 h-6" weight={isActive ? 'bold' : 'thin'} />
                 {item.badge ? (
                   <span className="absolute -top-1 -right-2 px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[11px] font-mono tabular-nums font-bold flex items-center justify-center min-w-[18px]">
                     {item.badge}

@@ -16,15 +16,15 @@ import {
 } from '../services/ai/types';
 import { formatNaira } from '../services/businessLogic';
 import {
-  Sparkles,
+  Sparkle as Sparkles,
   ShieldCheck,
-  RefreshCw,
+  ArrowsClockwise as RefreshCw,
   Lock,
-  Send,
+  PaperPlaneTilt as Send,
   Copy,
   Check,
-  MessageSquare
-} from 'lucide-react';
+  ChatCircle as MessageSquare
+} from '@phosphor-icons/react';
 
 export const AIAdvisorScreen: React.FC = () => {
   const store = useStore();
@@ -535,7 +535,7 @@ export const AIAdvisorScreen: React.FC = () => {
             className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-bold text-xs transition-all disabled:opacity-40 flex items-center gap-1.5"
           >
             <span>Ask</span>
-            <Send className="w-3.5 h-3.5" />
+            <Send className="w-3.5 h-3.5" weight="bold" />
           </button>
         </form>
       </div>

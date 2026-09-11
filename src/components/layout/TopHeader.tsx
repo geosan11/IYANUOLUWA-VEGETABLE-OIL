@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../services/store';
-import { PlusCircle, Droplets, Package, Menu, Sun, Moon, ChevronDown } from 'lucide-react';
+import { PlusCircle, Drop, Package, List, Sun, Moon, CaretDown } from '@phosphor-icons/react';
 import { NAV_ITEMS } from '../../constants/nav';
 
 interface TopHeaderProps {
@@ -82,7 +82,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             className="split:hidden p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800"
             aria-label="Open menu"
           >
-            <Menu className="w-5 h-5" />
+            <List className="w-5 h-5" />
           </button>
         )}
 
@@ -101,7 +101,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                 <span className="block text-[9px] text-brand-500 uppercase font-black tracking-wider">Iyanuoluwa Depot</span>
                 <span className="block capitalize">{NAV_ITEMS.find(n => n.id === currentTab)?.label || currentTab}</span>
               </span>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${switcherOpen ? 'rotate-180' : ''}`} />
+              <CaretDown className={`w-3.5 h-3.5 transition-transform ${switcherOpen ? 'rotate-180' : ''}`} />
             </button>
             {switcherOpen && (
               <>
@@ -123,7 +123,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                             : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                         }`}
                       >
-                        <Icon className="w-4 h-4" />
+                        <Icon className="w-4 h-4" weight={active ? 'bold' : 'thin'} />
                         <span>{item.label}</span>
                         {active && <span className="ml-auto text-[9px] bg-brand-500 text-white font-black px-1.5 py-0.5 rounded">NOW</span>}
                       </button>
@@ -177,7 +177,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       <div className="flex items-center gap-2.5 lg:gap-4">
         {/* Depot Oil Volume Pill (Desktop) */}
         <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 text-[12px] font-mono tabular-nums">
-          <Droplets className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+          <Drop className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           <span className="text-slate-500 dark:text-slate-400 font-sans">Total Stock:</span>
           <span className="font-bold text-slate-800 dark:text-slate-200">
             {totalDepotLitres.toLocaleString('en-US', { maximumFractionDigits: 0 })} L
@@ -216,9 +216,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           aria-label="Toggle theme"
         >
           {theme === 'dark' ? (
-            <Sun className="w-4 h-4 text-amber-400" />
+            <Sun className="w-4 h-4 text-amber-400" weight="bold" />
           ) : (
-            <Moon className="w-4 h-4 text-slate-700" />
+            <Moon className="w-4 h-4 text-slate-700" weight="bold" />
           )}
         </button>
 
@@ -227,7 +227,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           onClick={() => onTabChange('order')}
           className="flex items-center gap-2 px-3.5 lg:px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-400 active:scale-95 text-slate-950 font-sans font-bold text-[14px] shadow-lg shadow-brand-500/20 transition-all"
         >
-          <PlusCircle className="w-[18px] h-[18px] text-slate-950" />
+          <PlusCircle className="w-[18px] h-[18px] text-slate-950" weight="bold" />
           <span className="whitespace-nowrap">New sale</span>
         </button>
       </div>

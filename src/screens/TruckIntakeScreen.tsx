@@ -13,19 +13,19 @@ import {
   fromDatetimeLocalValue
 } from '../services/businessLogic';
 import {
-  CheckCircle2,
-  Scale,
-  ArrowDownToLine,
+  CheckCircle as CheckCircle2,
+  Scales as Scale,
+  ArrowLineDown as ArrowDownToLine,
   Info,
-  AlertTriangle,
-  History,
-  AlertCircle,
-  ChevronRight,
+  Warning as AlertTriangle,
+  ClockCounterClockwise as History,
+  WarningCircle as AlertCircle,
+  CaretRight as ChevronRight,
   ShoppingCart,
-  Building2,
+  Buildings as Building2,
   Warehouse,
   FileText
-} from 'lucide-react';
+} from '@phosphor-icons/react';
 
 export const TruckIntakeScreen: React.FC = () => {
   const {
@@ -515,7 +515,7 @@ export const TruckIntakeScreen: React.FC = () => {
             type="submit"
             className="w-full py-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[14px] uppercase tracking-wider shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2 active:scale-98"
           >
-            <ArrowDownToLine className="w-[18px] h-[18px] text-slate-950" />
+            <ArrowDownToLine className="w-[18px] h-[18px] text-slate-950" weight="bold" />
             <span>
               {isBulkTruck ? 'Save this tanker delivery' : 'Save this keg delivery'}
             </span>

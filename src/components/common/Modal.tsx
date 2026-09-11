@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef } from 'react';
-import { X } from 'lucide-react';
+import { X } from '@phosphor-icons/react';
 
 interface ModalProps {
   isOpen: boolean;
@@ -11,6 +11,13 @@ interface ModalProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   /** Optional extra controls rendered next to the close button. */
   headerActions?: React.ReactNode;
+  /**
+   * Hide the header's `X` button — for a modal that's meant to be a hard
+   * stop (e.g. a gate the user must complete), so there's no dead-looking
+   * control sitting next to a no-op `onClose`. ESC and backdrop click still
+   * call `onClose` as normal; pass a no-op there too if it must stay open.
+   */
+  hideCloseButton?: boolean;
 }
 
 const SIZE_CLASS: Record<NonNullable<ModalProps['size']>, string> = {
@@ -35,7 +42,8 @@ export const Modal: React.FC<ModalProps> = ({
   subtitle,
   children,
   size = 'md',
-  headerActions
+  headerActions,
+  hideCloseButton = false
 }) => {
   const panelRef = useRef<HTMLDivElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
@@ -136,14 +144,16 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {headerActions}
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            {!hideCloseButton && (
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
           </div>
         </div>
 

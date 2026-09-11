@@ -8,25 +8,25 @@ import { Modal } from '../components/common/Modal';
 import { useIsDesktopSplit } from '../hooks/useBreakpoint';
 import { formatNaira, formatDepotDate, formatDepotTime, computeShiftCash, getDepotToday, depotDateKey } from '../services/businessLogic';
 import {
-  DollarSign,
+  CurrencyDollar as DollarSign,
   CreditCard,
   Package,
-  Boxes,
+  Stack as Boxes,
   Truck,
-  AlertTriangle,
+  Warning as AlertTriangle,
   Clock,
-  ShieldAlert,
+  ShieldWarning as ShieldAlert,
   ArrowRight,
-  Droplet,
-  Fuel,
+  Drop as Droplet,
+  GasPump as Fuel,
   Gauge,
-  CheckCircle2,
-  Banknote,
+  CheckCircle as CheckCircle2,
+  Money as Banknote,
   ShieldCheck,
-  ChevronRight,
-  Sparkles,
+  CaretRight as ChevronRight,
+  Sparkle as Sparkles,
   PlusCircle
-} from 'lucide-react';
+} from '@phosphor-icons/react';
 
 interface DashboardScreenProps {
   onNavigate: (tab: string) => void;
@@ -408,7 +408,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 }}
                 className="px-4 py-2 text-[12px] font-sans font-semibold rounded-xl bg-brand-600 hover:bg-brand-500 text-white shadow-sm flex items-center gap-1.5 transition-all"
               >
-                <PlusCircle className="w-3.5 h-3.5" />
+                <PlusCircle className="w-3.5 h-3.5" weight="bold" />
                 <span>Start New Shift</span>
               </button>
             )}

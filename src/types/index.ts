@@ -96,6 +96,8 @@ export interface Pump {
   label: string;
   product_id?: string;
   last_meter_reading: number;
+  /** Yard {@link PhysicalTank} this pump draws from — the pump's "source". */
+  physical_tank_id?: string | null;
 }
 
 export interface PumpReading {

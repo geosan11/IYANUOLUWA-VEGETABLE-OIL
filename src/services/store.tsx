@@ -238,8 +238,8 @@ interface StoreContextType {
     note?: string
   ) => { success: boolean; pumpReading?: PumpReading; error?: string };
 
-  addPump: (data: { label: string; productId?: string; openingReading?: number }) => Pump;
-  updatePump: (pumpId: string, updates: { label?: string; product_id?: string | null }) => void;
+  addPump: (data: { label: string; productId?: string; openingReading?: number; physicalTankId?: string | null }) => Pump;
+  updatePump: (pumpId: string, updates: { label?: string; product_id?: string | null; physical_tank_id?: string | null }) => void;
   deletePump: (pumpId: string) => { success: boolean; error?: string };
 
   addExpense: (
@@ -1604,25 +1604,27 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // 9b. Pumps CRUD (named register)
-  const addPump = (data: { label: string; productId?: string; openingReading?: number }) => {
+  const addPump = (data: { label: string; productId?: string; openingReading?: number; physicalTankId?: string | null }) => {
     const newPump: Pump = {
       id: `p-${Date.now()}`,
       label: data.label.trim(),
       product_id: data.productId || undefined,
-      last_meter_reading: Number(data.openingReading) || 0
+      last_meter_reading: Number(data.openingReading) || 0,
+      physical_tank_id: data.physicalTankId || null
     };
     setPumps(prev => [...prev, newPump]);
     return newPump;
   };
 
-  const updatePump = (pumpId: string, updates: { label?: string; product_id?: string | null }) => {
+  const updatePump = (pumpId: string, updates: { label?: string; product_id?: string | null; physical_tank_id?: string | null }) => {
     setPumps(prev =>
       prev.map(p =>
         p.id === pumpId
           ? {
               ...p,
               label: updates.label !== undefined ? updates.label.trim() || p.label : p.label,
-              product_id: updates.product_id !== undefined ? updates.product_id || undefined : p.product_id
+              product_id: updates.product_id !== undefined ? updates.product_id || undefined : p.product_id,
+              physical_tank_id: updates.physical_tank_id !== undefined ? updates.physical_tank_id || null : p.physical_tank_id
             }
           : p
       )

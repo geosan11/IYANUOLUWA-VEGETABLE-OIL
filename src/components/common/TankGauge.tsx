@@ -1,4 +1,6 @@
 import React from 'react';
+import { useStore } from '../../services/store';
+import { hexToRgba } from '../../services/color';
 
 interface TankGaugeProps {
   productId: string;
@@ -24,7 +26,13 @@ export const TankGauge: React.FC<TankGaugeProps> = ({
   size = 'md',
   showLabels = true
 }) => {
-  const isVeg = productId === 'veg';
+  // The product's own colors are the single source of truth for its tank
+  // visuals — an owner recoloring a product in Settings should change this.
+  const { products } = useStore();
+  const product = products.find(p => p.id === productId);
+  const colorLight = product?.color_light || '#FCD34D';
+  const colorDark = product?.color_dark || '#B45309';
+
   const percentage = Math.min(100, Math.max(0, (remainingLitres / (totalCapacityLitres || 1)) * 100));
 
   // Height configurations
@@ -34,25 +42,16 @@ export const TankGauge: React.FC<TankGaugeProps> = ({
     lg: 'h-64 w-full max-w-[260px]'
   }[size];
 
-  // Gradients and liquid styling
-  const liquidGradient = isVeg
-    ? 'from-amber-400 via-amber-500 to-amber-600 dark:to-amber-700'
-    : 'from-rose-400 via-red-500 to-red-700 dark:to-red-900';
-
-  const liquidBg = isVeg ? 'rgba(245, 158, 11, 0.12)' : 'rgba(239, 68, 68, 0.12)';
-  const borderGlow = isVeg
-    ? 'border-amber-400/50 dark:border-amber-500/40 shadow-amber-500/10'
-    : 'border-rose-400/50 dark:border-rose-500/40 shadow-rose-500/10';
-
   return (
     <div className="flex flex-col items-center select-none">
       {/* Tank Container Structure */}
       <div
-        className={`relative ${heightClasses} rounded-2xl border-2 ${borderGlow} shadow-xl bg-slate-100 dark:bg-slate-900/90 overflow-hidden backdrop-blur-md flex flex-col justify-end p-1 transition-colors duration-200`}
+        className={`relative ${heightClasses} rounded-2xl border-2 shadow-xl bg-slate-100 dark:bg-slate-900/90 overflow-hidden backdrop-blur-md flex flex-col justify-end p-1 transition-colors duration-200`}
+        style={{ borderColor: hexToRgba(colorLight, 0.5) }}
       >
         {/* Top Rim Indicator */}
         <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700/60 z-20" />
-        
+
         {/* Fill Percentage Overlay badge */}
         <div className="absolute top-3 right-3 z-20 bg-white/90 dark:bg-slate-950/80 backdrop-blur-md px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 text-[11px] font-mono tabular-nums font-bold text-slate-800 dark:text-slate-200 shadow-sm">
           {percentage.toFixed(0)}%
@@ -76,7 +75,7 @@ export const TankGauge: React.FC<TankGaugeProps> = ({
           <div className="absolute -top-3 left-0 right-0 w-full h-4 overflow-hidden">
             <svg
               className="w-[200%] h-full animate-liquid-wave fill-current text-opacity-95"
-              style={{ color: isVeg ? '#F59E0B' : '#EF4444' }}
+              style={{ color: colorDark }}
               viewBox="0 0 1200 120"
               preserveAspectRatio="none"
             >
@@ -86,7 +85,8 @@ export const TankGauge: React.FC<TankGaugeProps> = ({
 
           {/* Liquid Body */}
           <div
-            className={`w-full h-full bg-gradient-to-t ${liquidGradient} opacity-95 rounded-b-xl relative overflow-hidden`}
+            className="w-full h-full opacity-95 rounded-b-xl relative overflow-hidden"
+            style={{ background: `linear-gradient(to top, ${colorLight}, ${colorDark})` }}
           >
             {/* Shimmer / light reflection effect */}
             <div className="absolute top-0 right-2 w-1.5 h-full bg-white/30 blur-[1px] rounded-full" />
@@ -97,7 +97,7 @@ export const TankGauge: React.FC<TankGaugeProps> = ({
         {/* Empty Space Background Tint */}
         <div
           className="absolute inset-0 z-0 pointer-events-none"
-          style={{ backgroundColor: liquidBg }}
+          style={{ backgroundColor: hexToRgba(colorDark, 0.12) }}
         />
       </div>
 
@@ -105,7 +105,7 @@ export const TankGauge: React.FC<TankGaugeProps> = ({
       {showLabels && (
         <div className="mt-3 text-center w-full">
           <div className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            {productName || (isVeg ? 'Golden Vegetable Oil' : 'Red / Palm Oil')}
+            {productName || product?.name || 'Oil'}
           </div>
           <div className="text-[16px] font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100 mt-0.5">
             {remainingLitres.toLocaleString('en-US', { maximumFractionDigits: 0 })} <span className="text-[12px] font-sans font-normal text-slate-500 dark:text-slate-400">Litres</span>

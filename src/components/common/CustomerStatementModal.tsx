@@ -1,7 +1,7 @@
 import React from 'react';
 import { Customer, CustomerStatementRow } from '../../types';
 import { formatNaira, formatDepotDate, formatDepotTime } from '../../services/businessLogic';
-import { Printer, X, Send, Share2 } from 'lucide-react';
+import { Printer, X, PaperPlaneTilt, ShareNetwork } from '@phosphor-icons/react';
 
 interface Props {
   customer: Customer;
@@ -134,7 +134,7 @@ export const CustomerStatementModal: React.FC<Props> = ({ customer, rows, balanc
             onClick={() => window.print()}
             className="flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-100 font-sans font-bold text-[13px] flex items-center justify-center gap-2"
           >
-            <Printer className="w-4 h-4" /> Print 80mm
+            <Printer className="w-4 h-4" weight="bold" /> Print 80mm
           </button>
           <a
             href={waHref}
@@ -142,14 +142,14 @@ export const CustomerStatementModal: React.FC<Props> = ({ customer, rows, balanc
             rel="noreferrer"
             className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-sans font-bold text-[13px] flex items-center justify-center gap-2"
           >
-            <Send className="w-4 h-4" /> WhatsApp
+            <PaperPlaneTilt className="w-4 h-4" weight="bold" /> WhatsApp
           </a>
           <button
             onClick={nativeShare}
             className="px-3 py-2.5 rounded-xl border border-slate-700 text-slate-300"
             title="Share / copy"
           >
-            <Share2 className="w-4 h-4" />
+            <ShareNetwork className="w-4 h-4" />
           </button>
         </div>
       </div>

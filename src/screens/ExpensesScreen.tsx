@@ -11,15 +11,15 @@ import {
 } from '../services/businessLogic';
 import { EXPENSE_CATEGORIES } from '../constants/config';
 import {
-  ReceiptText,
+  Invoice as ReceiptText,
   Wallet,
   Plus,
-  TrendingDown,
-  Edit2,
+  TrendDown as TrendingDown,
+  PencilSimple as Edit2,
   Check,
-  CheckCircle2,
-  DollarSign
-} from 'lucide-react';
+  CheckCircle as CheckCircle2,
+  CurrencyDollar as DollarSign
+} from '@phosphor-icons/react';
 
 export const ExpensesScreen: React.FC = () => {
   const { expenses, settings, todayStats, addExpense, updateSettings } = useStore();
@@ -319,7 +319,7 @@ export const ExpensesScreen: React.FC = () => {
             type="submit"
             className="w-full py-3.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] uppercase tracking-wider shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2"
           >
-            <Plus className="w-[18px] h-[18px]" />
+            <Plus className="w-[18px] h-[18px]" weight="bold" />
             <span>Record Expense & Deduct from Float</span>
           </button>
         </form>

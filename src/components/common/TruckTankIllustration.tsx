@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Product, Tank } from '../../types';
 import { formatDepotDate } from '../../services/businessLogic';
+import { hexToRgba } from '../../services/color';
 
 interface TruckTankIllustrationProps {
   tank: Tank;
@@ -11,10 +12,16 @@ interface TruckTankIllustrationProps {
 
 export const TruckTankIllustration: React.FC<TruckTankIllustrationProps> = ({
   tank,
+  product,
   connectedPumpLabel,
   animateOnMount = false
 }) => {
   const isVeg = tank.product_id === 'veg';
+  // The product's own colors are the single source of truth for this tank's
+  // visuals; fall back to a sane isVeg-based default for the rare caller
+  // (the live intake preview) that hasn't resolved a Product yet.
+  const colorLight = product?.color_light || (isVeg ? '#F59E0B' : '#F87171');
+  const colorDark = product?.color_dark || (isVeg ? '#B45309' : '#991B1B');
   const received = tank.received_litres || 1;
   const remaining = Math.max(0, tank.remaining_litres);
   const targetPercentage = Math.min(100, Math.max(0, (remaining / received) * 100));
@@ -65,11 +72,12 @@ export const TruckTankIllustration: React.FC<TruckTankIllustrationProps> = ({
             {tank.truck_label}
           </span>
           <span
-            className={`px-2 py-0.5 rounded text-[11px] font-sans font-bold uppercase tracking-wider ${
-              isVeg
-                ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60'
-                : 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-700/60'
-            }`}
+            className="px-2 py-0.5 rounded text-[11px] font-sans font-bold uppercase tracking-wider border"
+            style={{
+              backgroundColor: hexToRgba(colorLight, 0.14),
+              color: colorDark,
+              borderColor: hexToRgba(colorDark, 0.4)
+            }}
           >
             {isVeg ? 'Golden Oil' : 'Palm Oil'}
           </span>
@@ -101,19 +109,9 @@ export const TruckTankIllustration: React.FC<TruckTankIllustrationProps> = ({
           <defs>
             {/* Liquid Fill Horizontal Gradient */}
             <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
-              {isVeg ? (
-                <>
-                  <stop offset="0%" stopColor="#F59E0B" />
-                  <stop offset="50%" stopColor="#D97706" />
-                  <stop offset="100%" stopColor="#B45309" />
-                </>
-              ) : (
-                <>
-                  <stop offset="0%" stopColor="#F87171" />
-                  <stop offset="50%" stopColor="#DC2626" />
-                  <stop offset="100%" stopColor="#991B1B" />
-                </>
-              )}
+              <stop offset="0%" stopColor={colorLight} />
+              <stop offset="50%" stopColor={colorLight} />
+              <stop offset="100%" stopColor={colorDark} />
             </linearGradient>
 
             {/* Tank Capsule Clip Path */}
@@ -243,7 +241,7 @@ export const TruckTankIllustration: React.FC<TruckTankIllustrationProps> = ({
                 y="28"
                 width="365"
                 height="96"
-                fill={isVeg ? '#F59E0B' : '#EF4444'}
+                fill={colorLight}
                 fillOpacity="0.10"
               />
 
@@ -328,7 +326,7 @@ export const TruckTankIllustration: React.FC<TruckTankIllustrationProps> = ({
                 width="74"
                 height="32"
                 rx="4"
-                fill={isVeg ? '#F59E0B' : '#DC2626'}
+                fill={colorDark}
                 stroke="#FFFFFF"
                 strokeWidth="1.5"
               />

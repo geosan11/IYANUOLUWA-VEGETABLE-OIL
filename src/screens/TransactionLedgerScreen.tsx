@@ -14,20 +14,20 @@ import {
 import { packShort } from '../constants/config';
 import { Sale, Order, Payment, Expense, Tank, ReceiptData, ContainerMode } from '../types';
 import {
-  ScrollText,
-  Search,
+  Scroll as ScrollText,
+  MagnifyingGlass as Search,
   Printer,
   PlusCircle,
-  ChevronDown,
-  ChevronRight,
+  CaretDown as ChevronDown,
+  CaretRight as ChevronRight,
   Pencil,
-  Ban,
-  History,
+  Prohibit as Ban,
+  ClockCounterClockwise as History,
   CreditCard,
-  Banknote,
+  Money as Banknote,
   Truck,
-  Undo2
-} from 'lucide-react';
+  ArrowUUpLeft as Undo2
+} from '@phosphor-icons/react';
 
 interface Props {
   onNavigate: (tab: string) => void;

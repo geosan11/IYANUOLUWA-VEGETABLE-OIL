@@ -5,18 +5,29 @@ import { formatNaira, formatDepotDate, toDatetimeLocalValue, fromDatetimeLocalVa
 import { priceSaleLine } from '../services/pricing';
 import { PACK_SIZES, packLabel, packShort } from '../constants/config';
 import { ContainerMode, CustomerType, PaymentMethod } from '../types';
+import { Modal } from '../components/common/Modal';
 import {
   PlusCircle,
-  Search,
+  MagnifyingGlass as Search,
   Minus,
   Plus,
-  Trash2,
+  Trash as Trash2,
   X,
-  ShieldAlert,
+  ShieldWarning as ShieldAlert,
   Check,
-  ChevronRight,
+  CaretRight as ChevronRight,
   Package
-} from 'lucide-react';
+} from '@phosphor-icons/react';
+
+/** Small numbered step marker for the 4 section headers, echoing a terminal-style flow. */
+const StepBadge: React.FC<{ n: number; label: string }> = ({ n, label }) => (
+  <div className="flex items-center gap-2">
+    <span className="w-5 h-5 rounded bg-brand-500/20 text-brand-700 dark:text-brand-400 font-mono tabular-nums font-bold text-[11px] flex items-center justify-center shrink-0">
+      {n}
+    </span>
+    <span className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-500">{label}</span>
+  </div>
+);
 
 const TIERS: CustomerType[] = ['retail', 'agent', 'corporate'];
 const PAYMENT_METHODS: { id: PaymentMethod; label: string }[] = [
@@ -51,7 +62,8 @@ export const NewOrderScreen: React.FC = () => {
     customerStatsMap,
     shiftGateStatus,
     recordShiftOpeningReadings,
-    createSale
+    createSale,
+    physicalTanks
   } = useStore();
   const { can } = usePermissions();
 
@@ -253,42 +265,53 @@ export const NewOrderScreen: React.FC = () => {
         </div>
       </div>
 
-      {gateBlocked && (
-        <div className="mb-5 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 space-y-3">
-          <div className="flex items-center gap-2 text-[13px] font-sans font-bold text-amber-800 dark:text-amber-300">
-            <ShieldAlert className="w-4 h-4" /> Record opening pump readings to start selling
-          </div>
+      <Modal
+        isOpen={gateBlocked}
+        onClose={() => {}}
+        hideCloseButton
+        title={
+          <span className="flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-amber-500" weight="bold" /> Record opening pump readings
+          </span>
+        }
+        subtitle="Every bulk pump needs today's opening meter reading before the counter unlocks."
+      >
+        <div className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {shiftGateStatus.missingPumps.map(p => (
-              <label key={p.id} className="text-[12px] font-sans text-amber-800 dark:text-amber-300">
-                {p.label}
-                <input
-                  type="number"
-                  value={gateInputs[p.id] || ''}
-                  onChange={e => setGateInputs(prev => ({ ...prev, [p.id]: e.target.value }))}
-                  placeholder={`last ${p.last_meter_reading.toLocaleString()} L`}
-                  className="mt-1 w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-[13px] font-mono"
-                />
-              </label>
-            ))}
+            {shiftGateStatus.missingPumps.map(p => {
+              const sourceTank = physicalTanks.find(t => t.id === p.physical_tank_id);
+              return (
+                <label key={p.id} className="text-[12px] font-sans text-slate-700 dark:text-slate-300">
+                  {p.label}
+                  {sourceTank && <span className="text-slate-400"> — {sourceTank.label}</span>}
+                  <input
+                    type="number"
+                    value={gateInputs[p.id] || ''}
+                    onChange={e => setGateInputs(prev => ({ ...prev, [p.id]: e.target.value }))}
+                    placeholder={`last ${p.last_meter_reading.toLocaleString()} L`}
+                    className="mt-1 w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px] font-mono"
+                  />
+                </label>
+              );
+            })}
           </div>
           {gateError && <div className="text-[12px] text-rose-600 dark:text-rose-400">{gateError}</div>}
           <button
             onClick={submitGate}
-            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-sans font-bold text-[13px]"
+            className="w-full px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-[0_0_0_3px_rgba(0,183,73,0.18)]"
           >
             Unlock counter
           </button>
         </div>
-      )}
+      </Modal>
 
-      <div className={gateBlocked ? 'opacity-40 pointer-events-none' : ''}>
+      <div>
         <div className="grid grid-cols-1 split:grid-cols-12 gap-5">
           {/* ---------- BUILDER ---------- */}
           <div className="split:col-span-7 space-y-5">
             {/* Customer */}
             <section className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
-              <div className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-500">1 · Customer</div>
+              <StepBadge n={1} label="Customer" />
               <div className="relative">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -356,7 +379,7 @@ export const NewOrderScreen: React.FC = () => {
 
             {/* Item builder */}
             <section className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
-              <div className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-500">2 · Add an item</div>
+              <StepBadge n={2} label="Add an item" />
 
               {/* product */}
               <div className="flex flex-wrap gap-2">
@@ -364,9 +387,9 @@ export const NewOrderScreen: React.FC = () => {
                   <button
                     key={p.id}
                     onClick={() => selectProduct(p.id)}
-                    className={`px-3.5 py-2 rounded-xl text-[13px] font-sans font-semibold border transition-colors ${
+                    className={`px-3.5 py-2 rounded-xl text-[13px] font-sans font-semibold border transition-all ${
                       p.id === product.id
-                        ? 'bg-brand-500 text-slate-950 border-brand-500'
+                        ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-[0_0_0_3px_rgba(0,183,73,0.18)]'
                         : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                     }`}
                   >
@@ -414,9 +437,9 @@ export const NewOrderScreen: React.FC = () => {
                       <button
                         key={s.id}
                         onClick={() => setPackSizeId(s.id)}
-                        className={`p-2.5 rounded-xl border text-left transition-colors ${
+                        className={`p-2.5 rounded-xl border text-left transition-all ${
                           selected
-                            ? 'border-brand-500 bg-brand-50/60 dark:bg-brand-950/40'
+                            ? 'border-brand-500 bg-brand-50/60 dark:bg-brand-950/40 shadow-[0_0_0_3px_rgba(0,183,73,0.14)]'
                             : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700'
                         }`}
                       >
@@ -563,7 +586,7 @@ export const NewOrderScreen: React.FC = () => {
                       disabled={!canAddLine}
                       className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-sans font-bold text-[13px] flex items-center gap-1.5"
                     >
-                      <Plus className="w-4 h-4" /> Add to sale
+                      <Plus className="w-4 h-4" weight="bold" /> Add to sale
                     </button>
                   </div>
                 </div>
@@ -574,8 +597,8 @@ export const NewOrderScreen: React.FC = () => {
           {/* ---------- CART + PAYMENT ---------- */}
           <div className="split:col-span-5 space-y-4">
             <section className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-              <div className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-500 mb-3">
-                3 · Sale ({lines.length})
+              <div className="mb-3">
+                <StepBadge n={3} label={`Sale (${lines.length})`} />
               </div>
               {lines.length === 0 ? (
                 <div className="py-6 text-center text-[12px] text-slate-400 flex flex-col items-center gap-2">
@@ -614,15 +637,15 @@ export const NewOrderScreen: React.FC = () => {
             </section>
 
             <section className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
-              <div className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-500">4 · Payment</div>
+              <StepBadge n={4} label="Payment" />
               <div className="grid grid-cols-2 gap-1.5">
                 {PAYMENT_METHODS.map(m => (
                   <button
                     key={m.id}
                     onClick={() => setPaymentMethod(m.id)}
-                    className={`py-2.5 rounded-xl text-[13px] font-sans font-bold border transition-colors ${
+                    className={`py-2.5 rounded-xl text-[13px] font-sans font-bold border transition-all ${
                       paymentMethod === m.id
-                        ? 'bg-brand-500 text-slate-950 border-brand-500'
+                        ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-[0_0_0_3px_rgba(0,183,73,0.18)]'
                         : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                     }`}
                   >
@@ -709,8 +732,8 @@ export const NewOrderScreen: React.FC = () => {
                 disabled={lines.length === 0 || shortTender || overLimitBlocked}
                 className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-sans font-bold text-[14px] flex items-center justify-center gap-2"
               >
-                <Check className="w-4 h-4" /> Complete sale · {formatNaira(cartTotal)}
-                <ChevronRight className="w-4 h-4" />
+                <Check className="w-4 h-4" weight="bold" /> Complete sale · {formatNaira(cartTotal)}
+                <ChevronRight className="w-4 h-4" weight="bold" />
               </button>
             </section>
           </div>

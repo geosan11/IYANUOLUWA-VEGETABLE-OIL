@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { IconContext } from '@phosphor-icons/react';
 import { StoreProvider, useStore } from './services/store';
 import { NAV_ITEMS } from './constants/nav';
 import { Sidebar } from './components/layout/Sidebar';
@@ -136,9 +137,13 @@ const MainLayout: React.FC = () => {
 
 export function App() {
   return (
-    <StoreProvider>
-      <MainLayout />
-    </StoreProvider>
+    // App-wide icon convention: thin by default, bold on an active tab,
+    // selected tile/chip, or primary action — set explicitly per element.
+    <IconContext.Provider value={{ weight: 'thin' }}>
+      <StoreProvider>
+        <MainLayout />
+      </StoreProvider>
+    </IconContext.Provider>
   );
 }
 

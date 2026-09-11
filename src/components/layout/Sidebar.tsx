@@ -3,14 +3,14 @@ import { useStore } from '../../services/store';
 import { UserRole } from '../../types';
 import { NAV_ITEMS } from '../../constants/nav';
 import {
-  AlertTriangle,
+  Warning,
   User,
   ShieldCheck,
-  ChevronRight,
-  Droplets,
+  CaretRight,
+  Drop,
   Sun,
   Moon
-} from 'lucide-react';
+} from '@phosphor-icons/react';
 
 interface SidebarProps {
   currentTab: string;
@@ -41,7 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
             />
           ) : (
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-brand-400 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-brand-500/20 flex-shrink-0">
-              <Droplets className="w-5 h-5 text-slate-950 fill-current" />
+              <Drop className="w-5 h-5 text-slate-950" weight="fill" />
             </div>
           )}
           <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap overflow-hidden">
@@ -61,7 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
           className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
           title={theme === 'dark' ? 'Light Theme' : 'Dark Theme'}
         >
-          {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
+          {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" weight="bold" /> : <Moon className="w-4 h-4 text-slate-600" weight="bold" />}
         </button>
       </div>
 
@@ -91,6 +91,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
                     className={`w-6 h-6 transition-transform group-hover/btn:scale-105 ${
                       isActive ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400 dark:text-slate-400'
                     }`}
+                    weight={isActive ? 'bold' : 'thin'}
                   />
                 </div>
                 <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap font-medium">
@@ -123,7 +124,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
               className="group-hover:hidden w-full flex items-center justify-center p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 cursor-pointer shadow-sm relative"
               title={`Depot Alerts (${activeAlerts.totalAlertCount})`}
             >
-              <AlertTriangle className="w-5 h-5 animate-pulse" />
+              <Warning className="w-5 h-5 animate-pulse" weight="bold" />
               <span className="absolute -top-1 -right-1 px-1.5 py-0.2 bg-rose-600 text-white rounded-full text-[11px] font-mono font-bold">
                 {activeAlerts.totalAlertCount}
               </span>
@@ -137,10 +138,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
             >
               <div className="flex items-center justify-between text-[12px] font-sans font-semibold text-rose-800 dark:text-rose-300 whitespace-nowrap">
                 <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 animate-pulse flex-shrink-0" />
+                  <Warning className="w-4 h-4 text-rose-600 dark:text-rose-400 animate-pulse flex-shrink-0" weight="bold" />
                   <span>Depot Alerts ({activeAlerts.totalAlertCount})</span>
                 </div>
-                <ChevronRight className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 flex-shrink-0" />
+                <CaretRight className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 flex-shrink-0" />
               </div>
               <div className="mt-2 space-y-1 text-[11px] font-sans text-rose-700/90 dark:text-rose-200/80">
                 {activeAlerts.overdueCredit.length > 0 && (

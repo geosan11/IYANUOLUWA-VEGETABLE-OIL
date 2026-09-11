@@ -5,19 +5,19 @@ import { calculatePumpMeterVariance, formatDepotDate, formatDepotTime, depotDate
 import { Modal } from '../components/common/Modal';
 import { Pump, PumpVarianceAudit } from '../types';
 import {
-  Fuel,
+  GasPump as Fuel,
   Plus,
   Pencil,
-  Trash2,
+  Trash as Trash2,
   Gauge,
-  History,
-  AlertTriangle,
-  CheckCircle2,
+  ClockCounterClockwise as History,
+  Warning as AlertTriangle,
+  CheckCircle as CheckCircle2,
   Lock
-} from 'lucide-react';
+} from '@phosphor-icons/react';
 
 export const PumpsScreen: React.FC = () => {
-  const { pumps, pumpReadings, orders, products, settings, recordPumpReading, addPump, updatePump, deletePump } =
+  const { pumps, pumpReadings, orders, products, physicalTanks, settings, recordPumpReading, addPump, updatePump, deletePump } =
     useStore();
   const { isOwner } = usePermissions();
 
@@ -30,13 +30,16 @@ export const PumpsScreen: React.FC = () => {
   const [newLabel, setNewLabel] = useState('');
   const [newProductId, setNewProductId] = useState(products[0]?.id || '');
   const [newOpening, setNewOpening] = useState('0');
+  const [newTankId, setNewTankId] = useState('');
 
   const [editingPump, setEditingPump] = useState<Pump | null>(null);
   const [editLabel, setEditLabel] = useState('');
   const [editProductId, setEditProductId] = useState('');
+  const [editTankId, setEditTankId] = useState('');
   const [editErr, setEditErr] = useState<string | null>(null);
 
   const productName = (id?: string) => products.find(p => p.id === id)?.name || 'Unassigned';
+  const tankLabel = (id?: string | null) => physicalTanks.find(t => t.id === id)?.label;
 
   const submitReading = (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,22 +59,33 @@ export const PumpsScreen: React.FC = () => {
   const submitAddPump = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newLabel.trim()) return;
-    addPump({ label: newLabel.trim(), productId: newProductId || undefined, openingReading: Number(newOpening) || 0 });
+    addPump({
+      label: newLabel.trim(),
+      productId: newProductId || undefined,
+      openingReading: Number(newOpening) || 0,
+      physicalTankId: newTankId || null
+    });
     setAddOpen(false);
     setNewLabel('');
     setNewOpening('0');
+    setNewTankId('');
   };
 
   const openEdit = (pump: Pump) => {
     setEditingPump(pump);
     setEditLabel(pump.label);
     setEditProductId(pump.product_id || '');
+    setEditTankId(pump.physical_tank_id || '');
     setEditErr(null);
   };
 
   const submitEdit = () => {
     if (!editingPump) return;
-    updatePump(editingPump.id, { label: editLabel.trim(), product_id: editProductId || null });
+    updatePump(editingPump.id, {
+      label: editLabel.trim(),
+      product_id: editProductId || null,
+      physical_tank_id: editTankId || null
+    });
     setEditingPump(null);
   };
 
@@ -123,7 +137,7 @@ export const PumpsScreen: React.FC = () => {
             onClick={() => setAddOpen(true)}
             className="px-3.5 py-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-[12px] font-sans font-bold flex items-center gap-1.5"
           >
-            <Plus className="w-4 h-4" /> Add pump
+            <Plus className="w-4 h-4" weight="bold" /> Add pump
           </button>
         )}
       </div>
@@ -150,6 +164,9 @@ export const PumpsScreen: React.FC = () => {
                 <div>
                   <div className="font-sans font-bold text-[14px] text-slate-900 dark:text-white">{pump.label}</div>
                   <div className="text-[11px] text-slate-500">{productName(pump.product_id)}</div>
+                  <div className="text-[11px] text-slate-400">
+                    Source: {tankLabel(pump.physical_tank_id) || 'Not set'}
+                  </div>
                 </div>
                 {isOwner && (
                   <div className="flex items-center gap-1 shrink-0">
@@ -364,6 +381,23 @@ export const PumpsScreen: React.FC = () => {
               </select>
             </label>
             <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+              Source tank
+              <select
+                value={newTankId}
+                onChange={e => setNewTankId(e.target.value)}
+                className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]"
+              >
+                <option value="">Not set</option>
+                {physicalTanks
+                  .filter(t => !newProductId || t.product_id === newProductId)
+                  .map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
               Opening meter reading (L)
               <input
                 type="number"
@@ -408,6 +442,23 @@ export const PumpsScreen: React.FC = () => {
                     {p.name}
                   </option>
                 ))}
+              </select>
+            </label>
+            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+              Source tank
+              <select
+                value={editTankId}
+                onChange={e => setEditTankId(e.target.value)}
+                className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]"
+              >
+                <option value="">Not set</option>
+                {physicalTanks
+                  .filter(t => !editProductId || t.product_id === editProductId)
+                  .map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
               </select>
             </label>
             {editErr && <div className="text-[12px] text-rose-600 dark:text-rose-400">{editErr}</div>}

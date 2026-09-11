@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef } from 'react';
-import { X } from 'lucide-react';
+import { X } from '@phosphor-icons/react';
 
 interface SlideOverDrawerProps {
   isOpen: boolean;

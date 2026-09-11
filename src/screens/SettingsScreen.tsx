@@ -5,27 +5,27 @@ import { Modal } from '../components/common/Modal';
 import { uploadDepotLogo } from '../services/supabase';
 import { formatNaira } from '../services/businessLogic';
 import {
-  Settings,
+  Gear as Settings,
   Upload,
-  Trash2,
-  CheckCircle2,
+  Trash as Trash2,
+  CheckCircle as CheckCircle2,
   Building,
   Shield,
-  RotateCcw,
+  ArrowCounterClockwise as RotateCcw,
   Image as ImageIcon,
   Package,
   Sliders,
-  DollarSign,
-  AlertTriangle,
-  Save,
-  ChevronRight,
+  CurrencyDollar as DollarSign,
+  Warning as AlertTriangle,
+  FloppyDisk as Save,
+  CaretRight as ChevronRight,
   Plus,
   Warehouse,
-  Building2,
+  Buildings as Building2,
   Tag,
-  Edit2,
+  PencilSimple as Edit2,
   X
-} from 'lucide-react';
+} from '@phosphor-icons/react';
 import { UserRole, SupplyModel, ProductVariety } from '../types';
 
 export const SettingsScreen: React.FC = () => {
@@ -551,7 +551,7 @@ export const SettingsScreen: React.FC = () => {
                 }`}
               >
                 <div className={`w-9 h-9 rounded-lg ${item.bg} flex items-center justify-center flex-shrink-0`}>
-                  <Icon className={`w-4 h-4 ${item.color}`} />
+                  <Icon className={`w-4 h-4 ${item.color}`} weight={isActive ? 'bold' : 'thin'} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-heading font-semibold text-[13px] truncate">
@@ -684,7 +684,7 @@ export const SettingsScreen: React.FC = () => {
                     type="submit"
                     className="px-5 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
                   >
-                    <Save className="w-[18px] h-[18px]" />
+                    <Save className="w-[18px] h-[18px]" weight="bold" />
                     <span>Save Company Profile</span>
                   </button>
                 </div>
@@ -865,7 +865,7 @@ export const SettingsScreen: React.FC = () => {
                   type="submit"
                   className="px-5 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
                 >
-                  <Save className="w-[18px] h-[18px]" />
+                  <Save className="w-[18px] h-[18px]" weight="bold" />
                   <span>Save Keg Parameters</span>
                 </button>
               </div>
@@ -1269,7 +1269,7 @@ export const SettingsScreen: React.FC = () => {
                   type="submit"
                   className="px-5 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
                 >
-                  <Save className="w-[18px] h-[18px]" />
+                  <Save className="w-[18px] h-[18px]" weight="bold" />
                   <span>Save Alert Thresholds</span>
                 </button>
               </div>

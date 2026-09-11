@@ -3,7 +3,7 @@ import { ReceiptData } from '../../types';
 import { useStore } from '../../services/store';
 import { formatNaira, formatNairaWords, formatDepotDate, formatDepotTime } from '../../services/businessLogic';
 import { packShort } from '../../constants/config';
-import { Printer, X, CheckCircle2, ShieldCheck, Receipt, PackageCheck, Truck } from 'lucide-react';
+import { Printer, X, CheckCircle, ShieldCheck, Receipt, SealCheck, Truck } from '@phosphor-icons/react';
 
 interface ReceiptModalProps {
   receipt: ReceiptData | null;
@@ -55,7 +55,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
         <div className="no-print px-5 pt-4 pb-3 border-b border-slate-800 bg-slate-900/95 rounded-t-2xl space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-brand-400 font-sans font-semibold text-sm">
-              <CheckCircle2 className="w-5 h-5 text-brand-500" />
+              <CheckCircle className="w-5 h-5 text-brand-500" weight="bold" />
               <span>{isOrder ? 'Order transaction recorded' : 'Payment credit recorded'}</span>
             </div>
             <button
@@ -83,7 +83,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
                 }`}
               >
-                <Receipt className="w-3.5 h-3.5 shrink-0" />
+                <Receipt className="w-3.5 h-3.5 shrink-0" weight={receiptFormat === 'commercial' ? 'bold' : 'thin'} />
                 <span className="truncate">Commercial (With Prices)</span>
               </button>
 
@@ -96,7 +96,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
                 }`}
               >
-                <PackageCheck className="w-3.5 h-3.5 shrink-0" />
+                <SealCheck className="w-3.5 h-3.5 shrink-0" weight={receiptFormat === 'dispatch' ? 'bold' : 'thin'} />
                 <span className="truncate">Waybill (No Prices)</span>
               </button>
             </div>
@@ -554,7 +554,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
               onClick={handlePrint}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-sans font-bold text-[13px] shadow-lg shadow-brand-500/25 transition-all transform active:scale-95"
             >
-              <Printer className="w-[18px] h-[18px]" />
+              <Printer className="w-[18px] h-[18px]" weight="bold" />
               <span>
                 {receiptFormat === 'commercial' ? 'Print Commercial Receipt' : 'Print Waybill (No Prices)'}
               </span>
