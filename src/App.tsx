@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { StoreProvider, useStore } from './services/store';
+import { NAV_ITEMS } from './constants/nav';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopHeader } from './components/layout/TopHeader';
 import { MobileNav } from './components/layout/MobileNav';
+import { ScreenTransition } from './components/layout/ScreenTransition';
 import { ReceiptModal } from './components/common/ReceiptModal';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
@@ -18,14 +20,33 @@ import { SettingsScreen } from './screens/SettingsScreen';
 import { AIAdvisorScreen } from './screens/AIAdvisorScreen';
 import { TransactionLedgerScreen } from './screens/TransactionLedgerScreen';
 
+// Order tabs slide toward when navigating between them mirrors this array —
+// the same one the Sidebar / mobile nav render from.
+const navOrderIndex = (tabId: string): number => {
+  const i = NAV_ITEMS.findIndex(item => item.id === tabId);
+  return i === -1 ? 0 : i;
+};
+
 const MainLayout: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState<string>('dashboard');
+  const [currentTab, setCurrentTabState] = useState<string>('dashboard');
+  const [slideDirection, setSlideDirection] = useState(1);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
   const { activeReceipt, setActiveReceipt, userRole } = useStore();
 
   // Owner/admin gets the full sidebar; counter staff & drivers get a compact
   // top-bar screen switcher instead (dedicated counter tablet).
   const isAdmin = userRole === 'owner';
+
+  // Slides toward the destination tab's position in the nav bar, and scrolls
+  // the content pane back to the top so the motion is actually visible.
+  const setCurrentTab = (tab: string) => {
+    if (tab !== currentTab) {
+      setSlideDirection(navOrderIndex(tab) >= navOrderIndex(currentTab) ? 1 : -1);
+      if (mainRef.current) mainRef.current.scrollTop = 0;
+    }
+    setCurrentTabState(tab);
+  };
 
   const renderActiveScreen = () => {
     switch (currentTab) {
@@ -82,11 +103,16 @@ const MainLayout: React.FC = () => {
         {/* Scrollable Screen Content Container */}
         <main
           id="main-content"
+          ref={mainRef}
           tabIndex={-1}
-          className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 split:pb-8 bg-slate-100/80 dark:bg-slate-950 focus:outline-none"
+          className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-6 lg:px-8 py-6 pb-24 split:pb-8 bg-slate-100/80 dark:bg-slate-950 focus:outline-none"
         >
           <div className="max-w-7xl mx-auto">
-            <ErrorBoundary>{renderActiveScreen()}</ErrorBoundary>
+            <ErrorBoundary>
+              <ScreenTransition screenKey={currentTab} direction={slideDirection}>
+                {renderActiveScreen()}
+              </ScreenTransition>
+            </ErrorBoundary>
           </div>
         </main>
       </div>

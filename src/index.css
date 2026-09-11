@@ -12,6 +12,24 @@
   }
 }
 
+/*
+ * Smooth light/dark theme switch: every element cross-fades its colors
+ * instead of snapping the instant the `dark` class toggles on <html>.
+ * Scoped to color-ish properties only, so it never competes with
+ * component transitions that animate transform/opacity (hover states,
+ * the screen-slide transition, etc.) — those keep their own durations.
+ * Skipped entirely for prefers-reduced-motion.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  *,
+  *::before,
+  *::after {
+    transition-property: background-color, border-color, color, fill, stroke, box-shadow, outline-color, text-decoration-color;
+    transition-duration: 300ms;
+    transition-timing-function: ease;
+  }
+}
+
 .font-mono, .tabular-nums {
   font-family: 'IBM Plex Mono', Menlo, monospace;
   font-variant-numeric: tabular-nums;
