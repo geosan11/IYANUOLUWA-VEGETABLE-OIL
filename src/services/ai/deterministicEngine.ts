@@ -82,7 +82,7 @@ export function runDeterministicOperationsAudit(
         id: `dec-pump-${pump.pumpId}`,
         category: 'loss_prevention',
         priority: 'P1 - Immediate',
-        action: `Perform physical dipstick audit & inspect nozzle calibration on ${pump.pumpName}`,
+        action: `Physically verify the tank level & inspect nozzle calibration on ${pump.pumpName}`,
         rationale: 'Discrepancy exceeds safe mechanical tolerance threshold (20L). Risk of unregistered counter dispensing or pipe leakage.',
         expectedFinancialImpactNaira: Math.abs(pump.varianceLitres) * 3500,
         impactDescription: 'Plugs potential recurring stock leakage of up to ₦' + (Math.abs(pump.varianceLitres) * 3500).toLocaleString() + ' per shift.',
@@ -302,7 +302,7 @@ export function answerCopilotQuestionDeterministic(
     }
     return `**Pump Forensic Audit Alert:**\n\n` +
       flagged.map(p => `• **${p.pumpName}:** Meter delta was ${p.actualMeterLitres}L vs cashier tickets of ${p.expectedLitres}L (Variance: **${p.varianceLitres > 0 ? '+' : ''}${p.varianceLitres}L**)`).join('\n') +
-      `\n\n**Action:** Inspect nozzle calibration and physically dipstick the source tank immediately to verify if oil was dispensed without a sales ticket or lost to line dripping.`;
+      `\n\n**Action:** Inspect nozzle calibration and physically verify the source tank's level immediately to verify if oil was dispensed without a sales ticket or lost to line dripping.`;
   }
 
   if (q.includes('keg') || q.includes('container') || q.includes('fleet')) {

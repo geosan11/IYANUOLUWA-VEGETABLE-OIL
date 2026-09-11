@@ -8,7 +8,6 @@ import {
   applyFifoPayment,
   calculatePumpMeterVariance,
   validateNewPumpReading,
-  calculateDipstickVariance,
   calculateShiftSummary,
   computeShiftCash,
   calculatePreKeggedIntakeMetrics,
@@ -435,15 +434,6 @@ assert(senderStats.totalCompanyKegsOut === 14, 'Customer Transfers: Sender kegs 
 
 const receiverStats = calculateCustomerStats(transferReceiver, [], [], mockTransfers);
 assert(receiverStats.totalCompanyKegsOut === 6, 'Customer Transfers: Receiver kegs out increased by 6 (0 + 6 = 6)');
-
-// 13. TANK DIPSTICK PHYSICAL VERIFICATION
-const dipstickValid = calculateDipstickVariance(5015, 5000, 30);
-assert(dipstickValid.variance === 15, 'Dipstick verification: variance is +15L');
-assert(dipstickValid.isOverThreshold === false, 'Dipstick verification: 15L is within 30L threshold');
-
-const dipstickHigh = calculateDipstickVariance(4940, 5000, 30);
-assert(dipstickHigh.variance === -60, 'Dipstick verification: variance is -60L');
-assert(dipstickHigh.isOverThreshold === true, 'Dipstick verification: -60L exceeds 30L threshold');
 
 // 14. SHIFT RECONCILIATION & CLOSEOUT
 const shiftBalanced = calculateShiftSummary(20000, 180000, 30000, 170000);

@@ -764,35 +764,6 @@ export function fromDatetimeLocalValue(value: string): string {
 }
 
 /**
- * 11. TANK DIPSTICK VERIFICATION
- * Physical stick measurement for depot bulk storage tanks.
- * variance = reading_litres - tank.remaining_litres
- * flag if |variance| > thresholdLitres (default 30L)
- */
-export function calculateDipstickVariance(
-  readingLitres: number,
-  tankRemainingLitres: number,
-  thresholdLitres = 30
-): {
-  readingLitres: number;
-  tankLitres: number;
-  variance: number;
-  isOverThreshold: boolean;
-} {
-  const reading = Number(readingLitres) || 0;
-  const tankLitres = Number(tankRemainingLitres) || 0;
-  const variance = Number((reading - tankLitres).toFixed(2));
-  const isOverThreshold = Math.abs(variance) > thresholdLitres;
-
-  return {
-    readingLitres: reading,
-    tankLitres,
-    variance,
-    isOverThreshold
-  };
-}
-
-/**
  * 12. SHIFT RECONCILIATION
  * expected_cash = opening_float + cash_sales - cash_expenses
  * cash_variance = cash_counted - expected_cash

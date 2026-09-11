@@ -3,12 +3,10 @@ import { useStore } from '../services/store';
 import { TruckTankIllustration } from '../components/common/TruckTankIllustration';
 import { BottomSheet } from '../components/common/BottomSheet';
 import { SlideOverDrawer } from '../components/common/SlideOverDrawer';
-import { Modal } from '../components/common/Modal';
 import { useIsDesktopSplit } from '../hooks/useBreakpoint';
 import {
   calculateIntakeMetrics,
   calculatePreKeggedIntakeMetrics,
-  calculateDipstickVariance,
   formatDepotDate,
   formatDepotTime,
   toDatetimeLocalValue,
@@ -21,7 +19,6 @@ import {
   Info,
   AlertTriangle,
   History,
-  Ruler,
   AlertCircle,
   ChevronRight,
   ShoppingCart,
@@ -39,12 +36,10 @@ export const TruckIntakeScreen: React.FC = () => {
     kegInventory,
     settings,
     pumps,
-    dipstickReadings,
     orders,
     customers,
     logTruckIntake,
-    logPreKeggedIntake,
-    recordDipstickReading
+    logPreKeggedIntake
   } = useStore();
 
   const isDesktop = useIsDesktopSplit();
@@ -71,57 +66,6 @@ export const TruckIntakeScreen: React.FC = () => {
 
   // Progressive Disclosure State for Tank Detail
   const [selectedTankForDetail, setSelectedTankForDetail] = useState<string | null>(null);
-
-  // Tank Dipstick Verification Modal State
-  const [dipstickTankId, setDipstickTankId] = useState<string | null>(null);
-  const [dipstickReadingInput, setDipstickReadingInput] = useState<string>('');
-  const [dipstickNotes, setDipstickNotes] = useState<string>('');
-  const [dipstickError, setDipstickError] = useState<string | null>(null);
-
-  const selectedDipstickTank = tanks.find(t => t.id === dipstickTankId);
-
-  const liveDipstickVariance = useMemo(() => {
-    if (!selectedDipstickTank || !dipstickReadingInput) return null;
-    const num = parseFloat(dipstickReadingInput);
-    if (isNaN(num)) return null;
-    return calculateDipstickVariance(
-      num,
-      selectedDipstickTank.remaining_litres,
-      settings.dipstick_variance_threshold
-    );
-  }, [selectedDipstickTank, dipstickReadingInput, settings.dipstick_variance_threshold]);
-
-  const handleOpenDipstick = (tankId: string) => {
-    setDipstickTankId(tankId);
-    const t = tanks.find(tank => tank.id === tankId);
-    setDipstickReadingInput(t ? t.remaining_litres.toString() : '');
-    setDipstickNotes('');
-    setDipstickError(null);
-  };
-
-  const handleRecordDipstickSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!dipstickTankId) return;
-    const num = parseFloat(dipstickReadingInput);
-    if (isNaN(num) || num <= 0) {
-      setDipstickError('Please enter a valid positive physical dipstick reading.');
-      return;
-    }
-
-    const res = recordDipstickReading({
-      tankId: dipstickTankId,
-      readingLitres: num,
-      notes: dipstickNotes.trim() || undefined
-    });
-
-    if (res.success) {
-      setDipstickTankId(null);
-      setSuccessMessage(`Dipstick reading for ${selectedDipstickTank?.truck_label} recorded successfully.`);
-      setTimeout(() => setSuccessMessage(null), 5000);
-    } else {
-      setDipstickError(res.error || 'Failed to record dipstick reading.');
-    }
-  };
 
   const selectedProduct = products.find(p => p.id === productId) || products[0];
   const isBulkTruck = selectedProduct.supply_model === 'bulk_truck';
@@ -697,7 +641,7 @@ export const TruckIntakeScreen: React.FC = () => {
               <span>Depot Storage Tanks & Reception Batches</span>
             </h3>
             <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-              Active physical tank batches with supplier provenance, volume remaining, and dipstick verification status.
+              Active physical tank batches with supplier provenance and volume remaining.
             </p>
           </div>
           <span className="text-[12px] font-mono tabular-nums font-bold px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 self-start sm:self-auto">
@@ -710,10 +654,6 @@ export const TruckIntakeScreen: React.FC = () => {
           {tanks.map(t => {
             const supp = suppliers.find(s => s.id === t.supplier_id);
             const pct = Math.min(100, (t.remaining_litres / (t.received_litres || 1)) * 100);
-            const tankReadings = dipstickReadings
-              .filter(d => d.tank_id === t.id)
-              .sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime());
-            const latestReading = tankReadings[0];
             const isVeg = t.product_id === 'veg';
 
             return (
@@ -742,24 +682,6 @@ export const TruckIntakeScreen: React.FC = () => {
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {latestReading ? (
-                      latestReading.is_flagged ? (
-                        <span className="flex items-center gap-1 text-[10px] font-sans font-bold text-rose-600 dark:text-rose-400">
-                          <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                          Variance
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 text-[10px] font-sans font-bold text-emerald-600 dark:text-emerald-400">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                          Verified
-                        </span>
-                      )
-                    ) : (
-                      <span className="flex items-center gap-1 text-[10px] font-sans font-bold text-slate-500 dark:text-slate-400">
-                        <span className="w-2 h-2 rounded-full bg-slate-400" />
-                        Awaiting stick
-                      </span>
-                    )}
                     <ChevronRight className="w-4 h-4 text-slate-400" />
                   </div>
                 </div>
@@ -802,10 +724,6 @@ export const TruckIntakeScreen: React.FC = () => {
             const supp = suppliers.find(s => s.id === t.supplier_id);
             const physTank = physicalTanks.find(pt => pt.id === t.physical_tank_id);
             const connectedPump = pumps.find(p => p.product_id === t.product_id);
-            const tankReadings = dipstickReadings
-              .filter(d => d.tank_id === t.id)
-              .sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime());
-            const latestReading = tankReadings[0];
 
             return (
               <div
@@ -865,210 +783,11 @@ export const TruckIntakeScreen: React.FC = () => {
                     )}
                   </div>
                 )}
-
-                {/* Physical Dipstick Verification Strip */}
-                <div className="bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200/80 dark:border-slate-800 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800/80 flex items-center justify-center text-brand-600 dark:text-brand-400 shrink-0">
-                      <Ruler className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-[12px] font-sans font-semibold text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
-                        <span>Physical Dipstick Audit</span>
-                        {latestReading ? (
-                          latestReading.is_flagged ? (
-                            <span className="text-[10px] font-mono tabular-nums font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-300 dark:border-rose-800">
-                              VARIANCE {(latestReading.variance ?? 0) > 0 ? `+${latestReading.variance}` : (latestReading.variance ?? 0)}L
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-mono tabular-nums font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
-                              VERIFIED ({(latestReading.variance ?? 0) > 0 ? `+${latestReading.variance}` : (latestReading.variance ?? 0)}L)
-                            </span>
-                          )
-                        ) : (
-                          <span className="text-[10px] font-sans text-slate-500 dark:text-slate-400 bg-slate-200/70 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                            Awaiting First Stick
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400">
-                        {latestReading
-                          ? `Stick: ${latestReading.reading_litres.toLocaleString()} L · System: ${(latestReading.system_litres ?? t.remaining_litres).toLocaleString()} L · ${formatDepotDate(latestReading.recorded_at)} ${formatDepotTime(latestReading.recorded_at)}`
-                          : `System volume: ${t.remaining_litres.toLocaleString()} L`}
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleOpenDipstick(t.id);
-                    }}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[12px] font-sans font-medium rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-slate-700/80 transition-all text-slate-700 dark:text-slate-200 shadow-sm shrink-0"
-                  >
-                    <Ruler className="w-3.5 h-3.5" />
-                    Record Dipstick
-                  </button>
-                </div>
               </div>
             );
           })}
         </div>
       </div>
-
-      {/* Modal: Record Physical Tank Dipstick Verification */}
-      {dipstickTankId && selectedDipstickTank && (
-        <Modal
-          isOpen
-          onClose={() => setDipstickTankId(null)}
-          size="lg"
-          title={
-            <span className="flex items-center gap-2.5">
-              <span className="p-2 rounded-xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-800">
-                <Ruler className="w-5 h-5" />
-              </span>
-              <span>Physical Tank Dipstick Audit</span>
-            </span>
-          }
-          subtitle={selectedDipstickTank.truck_label}
-        >
-            <form onSubmit={handleRecordDipstickSubmit} className="space-y-4">
-              <div className="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/40 text-[12px] font-sans text-amber-900 dark:text-amber-200 space-y-1">
-                <div className="font-semibold flex items-center gap-1.5">
-                  <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                  Physical Stick vs Depot Ledger
-                </div>
-                <p className="text-slate-600 dark:text-slate-300">
-                  Dipstick measurement verifies the actual physical liquid level inside the storage tank against the cumulative ledger volume. Variances exceeding {settings.dipstick_variance_threshold}L trigger a supervisor alert.
-                </p>
-              </div>
-
-              {dipstickError && (
-                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-[12px] font-sans text-rose-700 dark:text-rose-300 flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                  <span>{dipstickError}</span>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-                <div>
-                  <span className="text-[11px] font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                    Ledger Balance
-                  </span>
-                  <span className="text-[16px] font-mono tabular-nums font-bold text-slate-900 dark:text-white">
-                    {selectedDipstickTank.remaining_litres.toLocaleString()} L
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[11px] font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                    Product
-                  </span>
-                  <span className="text-[14px] font-sans font-semibold text-brand-600 dark:text-brand-400">
-                    {selectedDipstickTank.product_id === 'veg' ? 'Golden Vegetable Oil' : 'Industrial Palm Oil'}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="dipstick-reading" className="block text-[12px] font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Physical Dipstick Reading (Litres) *
-                </label>
-                <div className="relative">
-                  <input
-                    id="dipstick-reading"
-                    type="number"
-                    step="1"
-                    min="0"
-                    required
-                    value={dipstickReadingInput}
-                    onChange={e => setDipstickReadingInput(e.target.value)}
-                    placeholder="e.g. 3250"
-                    className="w-full px-3.5 py-3 min-h-[48px] rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tabular-nums text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  />
-                  <span className="absolute right-3 top-3 text-[12px] font-mono text-slate-400">
-                    Litres
-                  </span>
-                </div>
-              </div>
-
-              {/* Live Variance Calculation Preview */}
-              {liveDipstickVariance && (
-                <div
-                  className={`p-3.5 rounded-xl border transition-all ${
-                    liveDipstickVariance.isOverThreshold
-                      ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900/60'
-                      : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-900/60'
-                  }`}
-                >
-                  <div className="flex items-center justify-between text-[12px] font-sans">
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">
-                      Measurement Variance:
-                    </span>
-                    <span
-                      className={`font-mono tabular-nums font-bold text-[14px] ${
-                        liveDipstickVariance.isOverThreshold
-                          ? 'text-rose-700 dark:text-rose-400'
-                          : 'text-emerald-700 dark:text-emerald-400'
-                      }`}
-                    >
-                      {liveDipstickVariance.variance > 0
-                        ? `+${liveDipstickVariance.variance.toLocaleString()} L`
-                        : `${liveDipstickVariance.variance.toLocaleString()} L`}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-[11px] font-sans flex items-center gap-1.5">
-                    {liveDipstickVariance.isOverThreshold ? (
-                      <>
-                        <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                        <span className="text-rose-700 dark:text-rose-300">
-                          Variance exceeds ±{settings.dipstick_variance_threshold}L threshold. Will be flagged for supervisor check.
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        <span className="text-emerald-700 dark:text-emerald-300">
-                          Variance within normal tolerance (±{settings.dipstick_variance_threshold}L).
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label htmlFor="dipstick-notes" className="block text-[12px] font-sans font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Dip Notes / Stick Condition (Optional)
-                </label>
-                <input
-                  id="dipstick-notes"
-                  type="text"
-                  value={dipstickNotes}
-                  onChange={e => setDipstickNotes(e.target.value)}
-                  placeholder="e.g., Morning dip, cold temperature, calibrated brass tape"
-                  className="w-full px-3.5 py-3 min-h-[48px] rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-sans text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setDipstickTankId(null)}
-                  className="px-4 py-2.5 text-[13px] font-sans font-medium rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2.5 text-[13px] font-sans font-semibold rounded-xl bg-brand-600 hover:bg-brand-700 text-white shadow-sm flex items-center gap-1.5 transition-colors"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  Save Physical Dipstick Reading
-                </button>
-              </div>
-            </form>
-        </Modal>
-      )}
 
       {/* Tank Detail Progressive Disclosure */}
       {(() => {
@@ -1076,12 +795,6 @@ export const TruckIntakeScreen: React.FC = () => {
         const selectedProduct = products.find(p => p.id === selectedTank?.product_id);
         const selectedSupplier = suppliers.find(s => s.id === selectedTank?.supplier_id);
         const selectedPump = pumps.find(p => p.product_id === selectedTank?.product_id);
-        const tankDipsticks = selectedTank
-          ? dipstickReadings
-              .filter(d => d.tank_id === selectedTank.id)
-              .sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime())
-          : [];
-        const latestDipstick = tankDipsticks[0];
 
         const drawnOrders = selectedTank
           ? orders
@@ -1155,61 +868,6 @@ export const TruckIntakeScreen: React.FC = () => {
                     </span>
                   </div>
                 )}
-
-                {/* Physical Dipstick Verification Strip & Quick Action */}
-                <div className="bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[13px] font-sans font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
-                      <Ruler className="w-4 h-4 text-brand-600 dark:text-brand-400" />
-                      <span>Physical Dipstick Status</span>
-                    </span>
-                    {latestDipstick ? (
-                      latestDipstick.is_flagged ? (
-                        <span className="text-[10px] font-mono tabular-nums font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-300 dark:border-rose-800">
-                          VARIANCE {(latestDipstick.variance ?? 0) > 0 ? `+${latestDipstick.variance}` : (latestDipstick.variance ?? 0)}L
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-mono tabular-nums font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
-                          VERIFIED ({(latestDipstick.variance ?? 0) > 0 ? `+${latestDipstick.variance}` : (latestDipstick.variance ?? 0)}L)
-                        </span>
-                      )
-                    ) : (
-                      <span className="text-[10px] font-sans text-slate-500 dark:text-slate-400 bg-slate-200/70 dark:bg-slate-800 px-2 py-0.5 rounded">
-                        Awaiting First Stick
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="text-[12px] font-mono tabular-nums text-slate-600 dark:text-slate-400 space-y-1">
-                    <div className="flex justify-between">
-                      <span>Current System Ledger:</span>
-                      <span className="font-bold text-slate-900 dark:text-slate-100">
-                        {selectedTank.remaining_litres.toLocaleString()} L
-                      </span>
-                    </div>
-                    {latestDipstick && (
-                      <div className="flex justify-between">
-                        <span>Last Physical Stick:</span>
-                        <span className="font-bold text-slate-900 dark:text-slate-100">
-                          {latestDipstick.reading_litres.toLocaleString()} L ({formatDepotDate(latestDipstick.recorded_at)} {formatDepotTime(latestDipstick.recorded_at)})
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const id = selectedTank.id;
-                      setSelectedTankForDetail(null);
-                      handleOpenDipstick(id);
-                    }}
-                    className="w-full py-3 px-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-[13px] font-sans font-bold flex items-center justify-center gap-2 shadow-sm transition-all active:scale-98"
-                  >
-                    <Ruler className="w-4 h-4" />
-                    <span>Record Physical Dipstick Audit</span>
-                  </button>
-                </div>
 
                 {/* Orders Drawn from this Tank / Product Batch */}
                 <div className="space-y-2.5">

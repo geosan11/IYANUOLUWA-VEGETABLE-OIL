@@ -391,7 +391,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                     {row.amountLabel}
                   </div>
                   <div className="flex items-center justify-end gap-1 mt-1">
-                    {row.kind === 'sale' && (
+                    {(row.kind === 'sale' || row.kind === 'payment') && (
                       <button
                         onClick={() => setExpanded(isOpen ? null : row.id)}
                         className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
@@ -464,6 +464,40 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                       </span>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {isOpen && row.kind === 'payment' && row.payment && (
+                <div className="px-3.5 pb-3 space-y-1.5 border-t border-slate-100 dark:border-slate-800 pt-2">
+                  <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400">
+                    Applied to
+                  </div>
+                  {row.payment.applied_to.length === 0 && row.payment.overpayment_to_credit <= 0 && (
+                    <div className="text-[12px] text-slate-400">Nothing on record for this payment.</div>
+                  )}
+                  {row.payment.applied_to.map(a => {
+                    const line = orders.find(o => o.id === a.order_id);
+                    return (
+                      <div key={a.order_id} className="flex items-center justify-between text-[12px]">
+                        <span className="text-slate-600 dark:text-slate-300 truncate">
+                          {line
+                            ? `${line.qty} × ${packShort(line.pack_size_id)} · ${prodName(line.product_id)} / ${line.variety_name}`
+                            : `Sale line ${a.order_id}`}
+                        </span>
+                        <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 shrink-0 ml-2">
+                          {formatNaira(a.amount)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {row.payment.overpayment_to_credit > 0 && (
+                    <div className="flex items-center justify-between text-[12px] text-emerald-700 dark:text-emerald-400">
+                      <span>Overpayment → store credit</span>
+                      <span className="font-mono font-semibold shrink-0 ml-2">
+                        {formatNaira(row.payment.overpayment_to_credit)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 

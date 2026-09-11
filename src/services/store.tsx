@@ -24,7 +24,6 @@ import {
   PumpVarianceAudit,
   Transfer,
   CustomerCredit,
-  TankDipstickReading,
   Shift,
   Supplier,
   PhysicalTank
@@ -46,7 +45,6 @@ import {
   SEED_AUDIT_LOG,
   SEED_EXPENSES,
   SEED_TRANSFERS,
-  SEED_DIPSTICK_READINGS,
   SEED_SHIFTS,
   packLabel as packLabelFor
 } from '../constants/config';
@@ -61,7 +59,6 @@ import {
   ShiftOpeningGateStatus,
   calculatePumpMeterVariance,
   validateNewPumpReading,
-  calculateDipstickVariance,
   calculateShiftSummary,
   computeShiftCash,
   getDepotToday,
@@ -87,7 +84,6 @@ interface StoreContextType {
   pumpReadings: PumpReading[];
   transfers: Transfer[];
   customerCredits: CustomerCredit[];
-  dipstickReadings: TankDipstickReading[];
   shifts: Shift[];
   activeShift: Shift | null;
   shiftGateStatus: ShiftOpeningGateStatus;
@@ -109,7 +105,6 @@ interface StoreContextType {
     overLimit: { customer: Customer; balance: number; limit: number; excess: number }[];
     deliveryShortfall: { tank: Tank; shortfallLitres: number }[];
     pumpVariance: PumpVarianceAudit[];
-    dipstickVariance: { reading: TankDipstickReading; tank: Tank; variance: number }[];
     shiftDiscrepancy: Shift[];
     lowTankStock: { product: Product; litres: number; threshold: number }[];
     totalAlertCount: number;
@@ -221,12 +216,6 @@ interface StoreContextType {
     notes?: string;
   }) => { success: boolean; transfer?: Transfer; error?: string };
 
-  recordDipstickReading: (data: {
-    tankId: string;
-    readingLitres: number;
-    notes?: string;
-  }) => { success: boolean; reading?: TankDipstickReading; error?: string };
-
   startShift: (data: {
     cashierName: string;
     openingFloat: number;
@@ -312,7 +301,6 @@ const STORAGE_KEYS = {
   PUMP_READINGS: 'iyanu_pump_readings_v3',
   TRANSFERS: 'iyanu_transfers_v3',
   CUSTOMER_CREDITS: 'iyanu_customer_credits_v3',
-  DIPSTICK_READINGS: 'iyanu_dipstick_readings_v3',
   SHIFTS: 'iyanu_shifts_v3',
   USER_ROLE: 'iyanu_user_role_v3',
   THEME: 'iyanu_theme_v3'
@@ -397,8 +385,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [customerCredits, setCustomerCredits] = useState<CustomerCredit[]>(() => loadPersisted<CustomerCredit[]>(STORAGE_KEYS.CUSTOMER_CREDITS, []));
 
-  const [dipstickReadings, setDipstickReadings] = useState<TankDipstickReading[]>(() => loadPersisted(STORAGE_KEYS.DIPSTICK_READINGS, SEED_DIPSTICK_READINGS));
-
   const [shifts, setShifts] = useState<Shift[]>(() => loadPersisted(STORAGE_KEYS.SHIFTS, SEED_SHIFTS));
 
   const [userRole, setUserRole] = useState<UserRole>(() => {
@@ -476,10 +462,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.CUSTOMER_CREDITS, JSON.stringify(customerCredits));
   }, [customerCredits]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.DIPSTICK_READINGS, JSON.stringify(dipstickReadings));
-  }, [dipstickReadings]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.SHIFTS, JSON.stringify(shifts));
@@ -566,13 +548,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return allAudits;
   }, [pumps, pumpReadings, orders, settings.pump_variance_threshold]);
 
-  // 5. Split alerts (Overdue Credit, Over Limit, Delivery Shortfall, Pump Variance, Dipstick, Shifts, Low Tank Stock)
+  // 5. Split alerts (Overdue Credit, Over Limit, Delivery Shortfall, Pump Variance, Shifts, Low Tank Stock)
   const activeAlerts = useMemo(() => {
     const overdueCredit: { customer: Customer; overdueDays: number; amount: number }[] = [];
     const overLimit: { customer: Customer; balance: number; limit: number; excess: number }[] = [];
     const deliveryShortfall: { tank: Tank; shortfallLitres: number }[] = [];
     const pumpVariance = pumpVarianceAudits.filter(a => a.isOverThreshold);
-    const dipstickVariance: { reading: TankDipstickReading; tank: Tank; variance: number }[] = [];
     const lowTankStock: { product: Product; litres: number; threshold: number }[] = [];
 
     // Tank running low: combined active stock for a product is above zero but under the reorder threshold
@@ -618,20 +599,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     });
 
-    // Check dipstick alerts
-    dipstickReadings.forEach(d => {
-      if (d.variance !== undefined && Math.abs(d.variance) > settings.dipstick_variance_threshold) {
-        const tank = tanks.find(t => t.id === d.tank_id);
-        if (tank) {
-          dipstickVariance.push({
-            reading: d,
-            tank,
-            variance: d.variance
-          });
-        }
-      }
-    });
-
     // Check shift cash discrepancies
     const shiftDiscrepancy = shifts.filter(
       s => s.status === 'closed' && s.cash_variance !== undefined && s.cash_variance !== null && Math.abs(s.cash_variance) > 0.01
@@ -642,7 +609,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       overLimit.length +
       deliveryShortfall.length +
       pumpVariance.length +
-      dipstickVariance.length +
       shiftDiscrepancy.length +
       lowTankStock.length;
 
@@ -651,12 +617,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       overLimit,
       deliveryShortfall,
       pumpVariance,
-      dipstickVariance,
       shiftDiscrepancy,
       lowTankStock,
       totalAlertCount
     };
-  }, [customerStatsMap, tanks, products, tankStockByProduct, settings.truck_shortfall_threshold, settings.dipstick_variance_threshold, settings.low_stock_litres_threshold, pumpVarianceAudits, dipstickReadings, shifts]);
+  }, [customerStatsMap, tanks, products, tankStockByProduct, settings.truck_shortfall_threshold, settings.low_stock_litres_threshold, pumpVarianceAudits, shifts]);
 
 
   // 6. Today's operational stats
@@ -1508,39 +1473,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true, transfer: newTransfer };
   };
 
-  // 6. Tank Dipstick Verification Reading
-  const recordDipstickReading = (data: {
-    tankId: string;
-    readingLitres: number;
-    notes?: string;
-  }) => {
-    const tank = tanks.find(t => t.id === data.tankId);
-    if (!tank) return { success: false, error: 'Tank not found' };
-    if (!Number.isFinite(Number(data.readingLitres)) || Number(data.readingLitres) <= 0) {
-      return { success: false, error: 'Dipstick reading must be greater than 0' };
-    }
-
-    const varianceAudit = calculateDipstickVariance(
-      Number(data.readingLitres),
-      tank.remaining_litres,
-      settings.dipstick_variance_threshold
-    );
-
-    const newReading: TankDipstickReading = {
-      id: `dip-${Date.now()}`,
-      tank_id: data.tankId,
-      reading_litres: Number(data.readingLitres),
-      system_litres: tank.remaining_litres,
-      recorded_at: new Date().toISOString(),
-      variance: varianceAudit.variance,
-      is_flagged: varianceAudit.isOverThreshold,
-      note: data.notes?.trim() || undefined
-    };
-
-    setDipstickReadings(prev => [newReading, ...prev]);
-    return { success: true, reading: newReading };
-  };
-
   // 7. Shift Management: Start Shift
   const startShift = (data: {
     cashierName: string;
@@ -1881,7 +1813,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setPumpReadings(SEED_PUMP_READINGS);
     setTransfers(SEED_TRANSFERS);
     setCustomerCredits([]);
-    setDipstickReadings(SEED_DIPSTICK_READINGS);
     setShifts(SEED_SHIFTS);
     localStorage.clear();
   };
@@ -1906,7 +1837,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         pumpReadings,
         transfers,
         customerCredits,
-        dipstickReadings,
         shifts,
         activeShift,
         shiftGateStatus,
@@ -1936,7 +1866,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateTankIntake,
         logKegReturn,
         logTransfer,
-        recordDipstickReading,
         startShift,
         closeShift,
         recordShiftOpeningReadings,

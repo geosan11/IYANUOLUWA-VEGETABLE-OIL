@@ -352,7 +352,7 @@ export const AIAdvisorScreen: React.FC = () => {
             {
               id: 'sample-2',
               priority: 'P1 - Immediate',
-              action: 'Perform physical dipstick audit & inspect nozzle calibration on Pump 2',
+              action: 'Physically verify the tank level & inspect nozzle calibration on Pump 2',
               rationale: 'Meter discrepancy of +50L registered on mechanical counter.',
               impactDescription: 'Plugs potential ₦175,000 dispensing leakage per shift.',
               ownerActionRole: 'Driver / Yardman'

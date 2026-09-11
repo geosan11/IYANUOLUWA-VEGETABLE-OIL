@@ -122,7 +122,6 @@ const mockSettings: AppSettings = {
   low_stock_litres_threshold: 1000,
   truck_shortfall_threshold: 50,
   pump_variance_threshold: 20,
-  dipstick_variance_threshold: 30,
   default_daily_float: 20000,
   daily_float: 20000
 };

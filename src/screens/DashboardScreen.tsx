@@ -22,7 +22,6 @@ import {
   Gauge,
   CheckCircle2,
   Banknote,
-  Ruler,
   ShieldCheck,
   ChevronRight,
   Sparkles,
@@ -237,20 +236,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         details: `Offload shortfall of ${d.shortfallLitres}L exceeds ${settings.truck_shortfall_threshold}L threshold. Driver/supplier delivery variance flagged.`,
         severity: 'amber',
         actionLabel: 'Inspect Truck Intake',
-        action: () => onNavigate('intake')
-      });
-    });
-
-    // 6. Tank dipstick variances (Amber)
-    activeAlerts.dipstickVariance.forEach((d, idx) => {
-      list.push({
-        id: `dip-${idx}`,
-        type: 'Tank Dipstick Variance',
-        title: `${d.tank.truck_label} (${d.variance > 0 ? '+' : ''}${d.variance}L Stick Variance)`,
-        subtitle: `Physical reading: ${d.reading.reading_litres.toLocaleString()}L on ${formatDepotDate(d.reading.recorded_at)}`,
-        details: `Physical stick gauge (${d.reading.reading_litres.toLocaleString()}L) deviates from cumulative storage ledger (${d.tank.remaining_litres.toLocaleString()}L) by ${d.variance}L.`,
-        severity: 'amber',
-        actionLabel: 'Verify Tank Dipstick',
         action: () => onNavigate('intake')
       });
     });
@@ -1169,62 +1154,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             </div>
           </div>
 
-          {/* Alert Stream 5: Tank Dipstick Variance Flags (> settings.dipstick_variance_threshold) */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-amber-200 dark:border-amber-900/80 shadow-sm flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between border-b border-amber-200 dark:border-amber-900/60 pb-2.5 mb-3">
-                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-bold text-[12px] font-sans uppercase tracking-wider">
-                  <Ruler className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                  <span>5. Tank Dipstick Variance</span>
-                </div>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono tabular-nums font-bold bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30">
-                  {activeAlerts.dipstickVariance.length}
-                </span>
-              </div>
-
-              {activeAlerts.dipstickVariance.length === 0 ? (
-                <p className="text-[12px] font-sans text-slate-400 py-3 text-center">
-                  All storage tanks verify within ±{settings.dipstick_variance_threshold}L stick limit.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {activeAlerts.dipstickVariance.map((alert, idx) => (
-                    <div
-                      key={idx}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => onNavigate('intake')}
-                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate('intake'); } }}
-                      className="cursor-pointer p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors flex items-center justify-between text-[12px]"
-                    >
-                      <div>
-                        <div className="font-bold text-slate-900 dark:text-slate-200 font-sans">{alert.tank.truck_label}</div>
-                        <div className="text-[11px] text-amber-800 dark:text-amber-300 font-mono tabular-nums">
-                          Physical: {alert.reading.reading_litres.toLocaleString()} L · {formatDepotDate(alert.reading.recorded_at)}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-mono tabular-nums font-bold text-rose-700 dark:text-rose-400">
-                          {alert.variance > 0 ? `+${alert.variance}` : alert.variance} L
-                        </div>
-                        <span className="text-[11px] font-sans text-slate-500 flex items-center justify-end gap-0.5">
-                          Inspect <ArrowRight className="w-2.5 h-2.5" />
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Alert Stream 6: Shift Drawer Cash Discrepancies */}
+          {/* Alert Stream 5: Shift Drawer Cash Discrepancies */}
           <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5 mb-3">
                 <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-[12px] font-sans uppercase tracking-wider">
                   <Banknote className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-                  <span>6. Shift Drawer Discrepancy</span>
+                  <span>5. Shift Drawer Discrepancy</span>
                 </div>
                 <span className="px-2 py-0.5 rounded-full text-[11px] font-mono tabular-nums font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-500/30">
                   {activeAlerts.shiftDiscrepancy.length}
@@ -1265,13 +1201,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             </div>
           </div>
 
-          {/* Alert Stream 7: Tank Running Low on Stock (< settings.low_stock_litres_threshold) */}
+          {/* Alert Stream 6: Tank Running Low on Stock (< settings.low_stock_litres_threshold) */}
           <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-amber-200 dark:border-amber-900/80 shadow-sm flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between border-b border-amber-200 dark:border-amber-900/60 pb-2.5 mb-3">
                 <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-bold text-[12px] font-sans uppercase tracking-wider">
                   <Droplet className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                  <span>7. Tank Running Low (&lt; {settings.low_stock_litres_threshold}L)</span>
+                  <span>6. Tank Running Low (&lt; {settings.low_stock_litres_threshold}L)</span>
                 </div>
                 <span className="px-2 py-0.5 rounded-full text-[11px] font-mono tabular-nums font-bold bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30">
                   {activeAlerts.lowTankStock.length}

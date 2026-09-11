@@ -14,7 +14,6 @@ import {
   Pump,
   PumpReading,
   Transfer,
-  TankDipstickReading,
   Shift,
   Supplier,
   PhysicalTank,
@@ -285,7 +284,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   low_stock_litres_threshold: 500,
   truck_shortfall_threshold: 50,
   pump_variance_threshold: 20,
-  dipstick_variance_threshold: 30,
   default_daily_float: 150000,
   daily_float: 150000
 };
@@ -303,9 +301,7 @@ export const SEED_TANKS: Tank[] = [
     shortfall: 0,
     supplier_id: 'sup-1',
     physical_tank_id: 'pt-1',
-    supply_model: 'bulk_truck',
-    last_dipstick_reading: 15435,
-    last_dipstick_variance: 0
+    supply_model: 'bulk_truck'
   },
   {
     id: 'tank-v2',
@@ -318,9 +314,7 @@ export const SEED_TANKS: Tank[] = [
     shortfall: 20,
     supplier_id: 'sup-3',
     physical_tank_id: 'pt-2',
-    supply_model: 'bulk_truck',
-    last_dipstick_reading: 10740,
-    last_dipstick_variance: -10
+    supply_model: 'bulk_truck'
   },
   {
     id: 'tank-r1',
@@ -334,9 +328,7 @@ export const SEED_TANKS: Tank[] = [
     supplier_id: 'sup-2',
     physical_tank_id: 'pt-3',
     supply_model: 'pre_kegged',
-    space_note: 'Filled 1 decanting tank',
-    last_dipstick_reading: 12250,
-    last_dipstick_variance: 0
+    space_note: 'Filled 1 decanting tank'
   }
 ];
 
@@ -558,18 +550,6 @@ export const SEED_TRANSFERS: Transfer[] = [
 export const SEED_PAYMENTS: Payment[] = [];
 
 export const SEED_AUDIT_LOG: AuditEntry[] = [];
-
-export const SEED_DIPSTICK_READINGS: TankDipstickReading[] = [
-  {
-    id: 'ds-1',
-    tank_id: 'tank-v1',
-    reading_litres: 15660,
-    recorded_at: '2026-09-08T07:30:00Z',
-    variance: 0,
-    is_flagged: false,
-    note: 'Morning yard calibration'
-  }
-];
 
 export const SEED_SHIFTS: Shift[] = [
   {

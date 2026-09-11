@@ -89,8 +89,6 @@ export interface Tank {
   space_note?: string;
   physical_tank_id?: string | null;
   supply_model?: SupplyModel;
-  last_dipstick_reading?: number;
-  last_dipstick_variance?: number;
 }
 
 export interface Pump {
@@ -240,17 +238,6 @@ export interface AuditEntry {
   reason?: string;
 }
 
-export interface TankDipstickReading {
-  id: string;
-  tank_id: string;
-  reading_litres: number;
-  system_litres?: number;
-  recorded_at: string;
-  note?: string;
-  variance?: number;
-  is_flagged?: boolean;
-}
-
 export interface Shift {
   id: string;
   supervisor_name?: string;
@@ -290,7 +277,6 @@ export interface AppSettings {
   low_stock_litres_threshold: number;
   truck_shortfall_threshold: number;
   pump_variance_threshold: number;
-  dipstick_variance_threshold: number;
   default_daily_float: number;
   daily_float: number;
 }
