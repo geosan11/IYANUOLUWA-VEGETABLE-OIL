@@ -12,7 +12,7 @@ import {
   fromDatetimeLocalValue
 } from '../services/businessLogic';
 import { packShort } from '../constants/config';
-import { Sale, Order, Payment, Expense, Tank, ReceiptData, ContainerMode } from '../types';
+import { Sale, Order, Payment, Expense, Tank, ReceiptData, ContainerMode, PaymentMethod } from '../types';
 import {
   Scroll as ScrollText,
   MagnifyingGlass as Search,
@@ -26,16 +26,27 @@ import {
   CreditCard,
   Money as Banknote,
   Truck,
-  ArrowUUpLeft as Undo2
+  ArrowUUpLeft as Undo2,
+  CalendarBlank,
+  Wallet,
+  DeviceMobile,
+  Bank
 } from '@phosphor-icons/react';
 
 interface Props {
   onNavigate: (tab: string) => void;
 }
 
-type Scope = 'shift' | 'today' | 'all';
+type Scope = 'shift' | 'today' | 'all' | 'custom';
 type Kind = 'sale' | 'payment' | 'expense' | 'intake';
 type KindFilter = 'all' | Kind;
+
+const PAYMENT_MODE_META: Record<PaymentMethod, { label: string; Icon: typeof CreditCard; cls: string }> = {
+  cash: { label: 'Cash', Icon: Banknote, cls: 'text-emerald-600 dark:text-emerald-400' },
+  transfer: { label: 'Transfer', Icon: Bank, cls: 'text-sky-600 dark:text-sky-400' },
+  pos: { label: 'POS / Card', Icon: DeviceMobile, cls: 'text-violet-600 dark:text-violet-400' },
+  credit: { label: 'Credit', Icon: Wallet, cls: 'text-amber-600 dark:text-amber-400' }
+};
 
 interface TxnRow {
   id: string;
@@ -90,6 +101,8 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
   const [scope, setScope] = useState<Scope>(activeShift ? 'shift' : 'today');
   const [search, setSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
   const [auditFor, setAuditFor] = useState<string | null>(null);
   const [voidTarget, setVoidTarget] = useState<TxnRow | null>(null);
@@ -180,6 +193,9 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
     return rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [sales, orders, payments, expenses, tanks, customers, products, suppliers]);
 
+  const customFromMs = scope === 'custom' && customFrom ? new Date(fromDatetimeLocalValue(customFrom)).getTime() : null;
+  const customToMs = scope === 'custom' && customTo ? new Date(fromDatetimeLocalValue(customTo)).getTime() : null;
+
   const scopedRows = useMemo(() => {
     const today = getDepotToday();
     return allRows.filter(r => {
@@ -192,11 +208,16 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
           return false;
         }
       }
+      if (scope === 'custom') {
+        const t = new Date(r.date).getTime();
+        if (customFromMs != null && t < customFromMs) return false;
+        if (customToMs != null && t > customToMs) return false;
+      }
       const q = search.trim().toLowerCase();
       if (q && !(`${r.title} ${r.subtitle}`.toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [allRows, kindFilter, scope, activeShift, search]);
+  }, [allRows, kindFilter, scope, activeShift, search, customFromMs, customToMs]);
 
   const kpi = useMemo(() => {
     let gross = 0;
@@ -211,6 +232,21 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
     const creditOwed = Object.values(customerStatsMap).reduce((s, c) => s + c.currentBalance, 0);
     return { gross, received, spent, creditOwed };
   }, [scopedRows, customerStatsMap]);
+
+  // Value moved by payment mode in this window — sale value booked under
+  // each method, plus credit settlements collected via that method.
+  const paymentModeTotals = useMemo(() => {
+    const totals: Record<PaymentMethod, number> = { cash: 0, transfer: 0, pos: 0, credit: 0 };
+    for (const r of scopedRows) {
+      if (r.voided) continue;
+      if (r.kind === 'sale' && r.sale) {
+        totals[r.sale.payment_method] += r.amount;
+      } else if (r.kind === 'payment' && r.payment) {
+        totals[r.payment.method] += r.amount;
+      }
+    }
+    return totals;
+  }, [scopedRows]);
 
   const reprintSale = (sale: Sale, lines: Order[]) => {
     const customer = customers.find(c => c.id === sale.customer_id);
@@ -241,7 +277,8 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
   const SCOPES: { id: Scope; label: string }[] = [
     { id: 'shift', label: activeShift ? 'This shift' : 'Today' },
     { id: 'today', label: 'Today' },
-    { id: 'all', label: 'All' }
+    { id: 'all', label: 'All' },
+    { id: 'custom', label: 'Custom range' }
   ];
   const KIND_CHIPS: { id: KindFilter; label: string }[] = [
     { id: 'all', label: 'All' },
@@ -296,6 +333,34 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         ))}
       </div>
 
+      {/* Payment mode breakdown */}
+      <div>
+        <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+          By payment mode
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          {(Object.keys(PAYMENT_MODE_META) as PaymentMethod[]).map(method => {
+            const { label, Icon, cls } = PAYMENT_MODE_META[method];
+            return (
+              <div
+                key={method}
+                className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-2.5"
+              >
+                <div className={`w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 ${cls}`}>
+                  <Icon className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[10px] font-sans uppercase tracking-wider text-slate-500 truncate">{label}</div>
+                  <div className={`text-[14px] font-mono font-extrabold tabular-nums ${cls}`}>
+                    {formatNaira(paymentModeTotals[method])}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Controls */}
       <div className="space-y-2.5">
         <div className="relative">
@@ -312,12 +377,13 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
             <button
               key={s.id}
               onClick={() => setScope(s.id)}
-              className={`px-3 py-1.5 rounded-lg text-[12px] font-sans font-semibold border ${
+              className={`px-3 py-1.5 rounded-lg text-[12px] font-sans font-semibold border flex items-center gap-1.5 ${
                 scope === s.id
                   ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
                   : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800'
               }`}
             >
+              {s.id === 'custom' && <CalendarBlank className="w-3.5 h-3.5" weight={scope === 'custom' ? 'bold' : 'thin'} />}
               {s.label}
             </button>
           ))}
@@ -336,196 +402,264 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
             </button>
           ))}
         </div>
+
+        {scope === 'custom' && (
+          <div className="flex flex-wrap items-end gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+            <label className="text-[11px] font-sans font-semibold text-slate-500">
+              From
+              <input
+                type="datetime-local"
+                value={customFrom}
+                onChange={e => setCustomFrom(e.target.value)}
+                className="mt-1 block px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono text-[12px]"
+              />
+            </label>
+            <label className="text-[11px] font-sans font-semibold text-slate-500">
+              To
+              <input
+                type="datetime-local"
+                value={customTo}
+                onChange={e => setCustomTo(e.target.value)}
+                className="mt-1 block px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono text-[12px]"
+              />
+            </label>
+            {(customFrom || customTo) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomFrom('');
+                  setCustomTo('');
+                }}
+                className="text-[11px] font-sans font-semibold text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 pb-2"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Feed */}
-      <div className="space-y-2">
-        {scopedRows.length === 0 && (
-          <div className="py-12 text-center text-[13px] text-slate-400">Nothing in this window.</div>
-        )}
-        {scopedRows.map(row => {
-          const { Icon, badge, label } = KIND_META[row.kind];
-          const isOpen = expanded === row.id;
-          const showAudit = auditFor === row.id;
-          const rowAudits = auditLog.filter(a => row.auditIds.includes(a.entity_id));
-          return (
-            <div
-              key={row.id}
-              className={`rounded-2xl border bg-white dark:bg-slate-900 ${
-                row.voided ? 'border-slate-200 dark:border-slate-800 opacity-60' : 'border-slate-200 dark:border-slate-800'
-              }`}
-            >
-              <div className="p-3.5 flex items-start gap-3">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${badge}`}>
-                  <Icon className="w-4 h-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[13px] font-sans font-bold text-slate-900 dark:text-white truncate ${row.voided ? 'line-through' : ''}`}>
-                      {row.title}
-                    </span>
-                    <span className={`text-[9px] font-sans font-black uppercase tracking-wide px-1.5 py-0.5 rounded ${badge}`}>{label}</span>
-                    {row.voided && (
-                      <span className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
-                        Voided
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{row.subtitle}</div>
-                  <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                    {formatDepotDate(row.date)} · {formatDepotTime(row.date)}
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div
-                    className={`text-[14px] font-mono font-extrabold tabular-nums ${
-                      row.voided
-                        ? 'text-slate-400 line-through'
-                        : row.tone === 'out'
-                        ? 'text-rose-600 dark:text-rose-400'
-                        : row.tone === 'neutral'
-                        ? 'text-slate-500'
-                        : 'text-slate-900 dark:text-white'
-                    }`}
-                  >
-                    {row.amountLabel}
-                  </div>
-                  <div className="flex items-center justify-end gap-1 mt-1">
-                    {(row.kind === 'sale' || row.kind === 'payment') && (
-                      <button
-                        onClick={() => setExpanded(isOpen ? null : row.id)}
-                        className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                        aria-label="Expand"
-                      >
-                        {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                      </button>
-                    )}
-                    {rowAudits.length > 0 && (
-                      <button
-                        onClick={() => setAuditFor(showAudit ? null : row.id)}
-                        className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                        title="Edit history"
-                      >
-                        <History className="w-4 h-4" />
-                      </button>
-                    )}
-                    {row.kind === 'sale' && row.sale && row.lines && !row.voided && (
-                      <button
-                        onClick={() => reprintSale(row.sale!, row.lines!)}
-                        className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                        title="Reprint"
-                      >
-                        <Printer className="w-4 h-4" />
-                      </button>
-                    )}
-                    {isOwner && !row.voided && row.kind !== 'intake' && (
-                      <button
-                        onClick={() => setEditTarget(row)}
-                        className="p-1 rounded text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
-                        title="Edit"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                    )}
-                    {isOwner && !row.voided && row.kind === 'intake' && (
-                      <button
-                        onClick={() => setEditTarget(row)}
-                        className="p-1 rounded text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
-                        title="Correct date / details"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                    )}
-                    {isOwner && !row.voided && (row.kind === 'sale' || row.kind === 'payment' || row.kind === 'expense') && (
-                      <button
-                        onClick={() => setVoidTarget(row)}
-                        className="p-1 rounded text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
-                        title="Void"
-                      >
-                        <Ban className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {isOpen && row.lines && (
-                <div className="px-3.5 pb-3 space-y-1.5 border-t border-slate-100 dark:border-slate-800 pt-2">
-                  {row.lines.map(l => (
-                    <div key={l.id} className="flex items-center justify-between text-[12px]">
-                      <span className="text-slate-600 dark:text-slate-300 truncate">
-                        {l.qty} × {packShort(l.pack_size_id)} · {prodName(l.product_id)} / {l.variety_name}
-                        {l.container_mode === 'taken' && ' · keg taken'}
-                        {l.container_mode === 'bought' && ' · keg bought'}
-                        {l.price_adjusted && ` · adj: ${l.price_adjust_reason || 'price changed'}`}
-                      </span>
-                      <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 shrink-0 ml-2">
-                        {formatNaira(l.line_amount)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+      {/* Feed — a proper column table so rows scan left-to-right */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-[12px] border-collapse">
+            <thead className="bg-slate-50 dark:bg-slate-950 text-[10px] uppercase tracking-wider text-slate-500 font-sans">
+              <tr>
+                <th className="text-left px-3.5 py-2.5 font-bold whitespace-nowrap">Date &amp; time</th>
+                <th className="text-left px-3.5 py-2.5 font-bold whitespace-nowrap">Type</th>
+                <th className="text-left px-3.5 py-2.5 font-bold">Description</th>
+                <th className="text-right px-3.5 py-2.5 font-bold whitespace-nowrap">Amount</th>
+                <th className="text-right px-3.5 py-2.5 font-bold whitespace-nowrap">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {scopedRows.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-12 text-center text-[13px] text-slate-400">
+                    Nothing in this window.
+                  </td>
+                </tr>
               )}
-
-              {isOpen && row.kind === 'payment' && row.payment && (
-                <div className="px-3.5 pb-3 space-y-1.5 border-t border-slate-100 dark:border-slate-800 pt-2">
-                  <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400">
-                    Applied to
-                  </div>
-                  {row.payment.applied_to.length === 0 && row.payment.overpayment_to_credit <= 0 && (
-                    <div className="text-[12px] text-slate-400">Nothing on record for this payment.</div>
-                  )}
-                  {row.payment.applied_to.map(a => {
-                    const line = orders.find(o => o.id === a.order_id);
-                    return (
-                      <div key={a.order_id} className="flex items-center justify-between text-[12px]">
-                        <span className="text-slate-600 dark:text-slate-300 truncate">
-                          {line
-                            ? `${line.qty} × ${packShort(line.pack_size_id)} · ${prodName(line.product_id)} / ${line.variety_name}`
-                            : `Sale line ${a.order_id}`}
-                        </span>
-                        <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 shrink-0 ml-2">
-                          {formatNaira(a.amount)}
-                        </span>
-                      </div>
-                    );
-                  })}
-                  {row.payment.overpayment_to_credit > 0 && (
-                    <div className="flex items-center justify-between text-[12px] text-emerald-700 dark:text-emerald-400">
-                      <span>Overpayment → store credit</span>
-                      <span className="font-mono font-semibold shrink-0 ml-2">
-                        {formatNaira(row.payment.overpayment_to_credit)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {showAudit && (
-                <div className="px-3.5 pb-3 border-t border-slate-100 dark:border-slate-800 pt-2 space-y-1.5">
-                  <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400">Edit history</div>
-                  {rowAudits.map(a => (
-                    <div key={a.id} className="text-[11px] text-slate-500 dark:text-slate-400">
-                      <span className="font-semibold capitalize text-slate-700 dark:text-slate-300">{a.action}</span>
-                      {' · '}
-                      {formatDepotDate(a.at)} {formatDepotTime(a.at)} · {a.actor_name || a.actor_role}
-                      {a.reason ? ` · “${a.reason}”` : ''}
-                      {a.changes.length > 0 && (
-                        <div className="pl-3 text-[10px] font-mono text-slate-400">
-                          {a.changes.map((c, i) => (
-                            <div key={i}>
-                              {c.field}: {String(c.old)} → {String(c.new)}
-                            </div>
-                          ))}
+              {scopedRows.map(row => {
+                const { Icon, badge, label } = KIND_META[row.kind];
+                const isOpen = expanded === row.id;
+                const showAudit = auditFor === row.id;
+                const rowAudits = auditLog.filter(a => row.auditIds.includes(a.entity_id));
+                return (
+                  <React.Fragment key={row.id}>
+                    <tr className={row.voided ? 'opacity-60' : 'hover:bg-slate-50/70 dark:hover:bg-slate-800/40'}>
+                      <td className="px-3.5 py-3 align-top whitespace-nowrap font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                        <div>{formatDepotDate(row.date)}</div>
+                        <div className="text-[10px] text-slate-400">{formatDepotTime(row.date)}</div>
+                      </td>
+                      <td className="px-3.5 py-3 align-top whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${badge}`}>
+                            <Icon className="w-3.5 h-3.5" />
+                          </div>
+                          <span className={`text-[9px] font-sans font-black uppercase tracking-wide px-1.5 py-0.5 rounded ${badge}`}>
+                            {label}
+                          </span>
                         </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
+                        {row.voided && (
+                          <span className="inline-block mt-1 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
+                            Voided
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3.5 py-3 align-top min-w-[180px]">
+                        <div className={`text-[13px] font-sans font-bold text-slate-900 dark:text-white truncate ${row.voided ? 'line-through' : ''}`}>
+                          {row.title}
+                        </div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{row.subtitle}</div>
+                      </td>
+                      <td className="px-3.5 py-3 align-top text-right whitespace-nowrap">
+                        <span
+                          className={`text-[14px] font-mono font-extrabold tabular-nums ${
+                            row.voided
+                              ? 'text-slate-400 line-through'
+                              : row.tone === 'out'
+                              ? 'text-rose-600 dark:text-rose-400'
+                              : row.tone === 'neutral'
+                              ? 'text-slate-500'
+                              : 'text-slate-900 dark:text-white'
+                          }`}
+                        >
+                          {row.amountLabel}
+                        </span>
+                      </td>
+                      <td className="px-3.5 py-3 align-top text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1">
+                          {(row.kind === 'sale' || row.kind === 'payment') && (
+                            <button
+                              onClick={() => setExpanded(isOpen ? null : row.id)}
+                              className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                              aria-label="Expand"
+                            >
+                              {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                            </button>
+                          )}
+                          {rowAudits.length > 0 && (
+                            <button
+                              onClick={() => setAuditFor(showAudit ? null : row.id)}
+                              className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                              title="Edit history"
+                            >
+                              <History className="w-4 h-4" />
+                            </button>
+                          )}
+                          {row.kind === 'sale' && row.sale && row.lines && !row.voided && (
+                            <button
+                              onClick={() => reprintSale(row.sale!, row.lines!)}
+                              className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                              title="Reprint"
+                            >
+                              <Printer className="w-4 h-4" />
+                            </button>
+                          )}
+                          {isOwner && !row.voided && row.kind !== 'intake' && (
+                            <button
+                              onClick={() => setEditTarget(row)}
+                              className="p-1 rounded text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
+                              title="Edit"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                          )}
+                          {isOwner && !row.voided && row.kind === 'intake' && (
+                            <button
+                              onClick={() => setEditTarget(row)}
+                              className="p-1 rounded text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
+                              title="Correct date / details"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                          )}
+                          {isOwner && !row.voided && (row.kind === 'sale' || row.kind === 'payment' || row.kind === 'expense') && (
+                            <button
+                              onClick={() => setVoidTarget(row)}
+                              className="p-1 rounded text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
+                              title="Void"
+                            >
+                              <Ban className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+
+                    {isOpen && row.lines && (
+                      <tr>
+                        <td colSpan={5} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
+                          <div className="space-y-1.5 pt-2">
+                            {row.lines.map(l => (
+                              <div key={l.id} className="flex items-center justify-between text-[12px]">
+                                <span className="text-slate-600 dark:text-slate-300 truncate">
+                                  {l.qty} × {packShort(l.pack_size_id)} · {prodName(l.product_id)} / {l.variety_name}
+                                  {l.container_mode === 'taken' && ' · keg taken'}
+                                  {l.container_mode === 'bought' && ' · keg bought'}
+                                  {l.price_adjusted && ` · adj: ${l.price_adjust_reason || 'price changed'}`}
+                                </span>
+                                <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 shrink-0 ml-2">
+                                  {formatNaira(l.line_amount)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+
+                    {isOpen && row.kind === 'payment' && row.payment && (
+                      <tr>
+                        <td colSpan={5} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
+                          <div className="space-y-1.5 pt-2">
+                            <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400">
+                              Applied to
+                            </div>
+                            {row.payment.applied_to.length === 0 && row.payment.overpayment_to_credit <= 0 && (
+                              <div className="text-[12px] text-slate-400">Nothing on record for this payment.</div>
+                            )}
+                            {row.payment.applied_to.map(a => {
+                              const line = orders.find(o => o.id === a.order_id);
+                              return (
+                                <div key={a.order_id} className="flex items-center justify-between text-[12px]">
+                                  <span className="text-slate-600 dark:text-slate-300 truncate">
+                                    {line
+                                      ? `${line.qty} × ${packShort(line.pack_size_id)} · ${prodName(line.product_id)} / ${line.variety_name}`
+                                      : `Sale line ${a.order_id}`}
+                                  </span>
+                                  <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 shrink-0 ml-2">
+                                    {formatNaira(a.amount)}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                            {row.payment.overpayment_to_credit > 0 && (
+                              <div className="flex items-center justify-between text-[12px] text-emerald-700 dark:text-emerald-400">
+                                <span>Overpayment → store credit</span>
+                                <span className="font-mono font-semibold shrink-0 ml-2">
+                                  {formatNaira(row.payment.overpayment_to_credit)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+
+                    {showAudit && (
+                      <tr>
+                        <td colSpan={5} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
+                          <div className="space-y-1.5 pt-2">
+                            <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400">Edit history</div>
+                            {rowAudits.map(a => (
+                              <div key={a.id} className="text-[11px] text-slate-500 dark:text-slate-400">
+                                <span className="font-semibold capitalize text-slate-700 dark:text-slate-300">{a.action}</span>
+                                {' · '}
+                                {formatDepotDate(a.at)} {formatDepotTime(a.at)} · {a.actor_name || a.actor_role}
+                                {a.reason ? ` · “${a.reason}”` : ''}
+                                {a.changes.length > 0 && (
+                                  <div className="pl-3 text-[10px] font-mono text-slate-400">
+                                    {a.changes.map((c, i) => (
+                                      <div key={i}>
+                                        {c.field}: {String(c.old)} → {String(c.new)}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {voidTarget && (
