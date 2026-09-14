@@ -11,7 +11,7 @@ import {
   toDatetimeLocalValue,
   fromDatetimeLocalValue
 } from '../services/businessLogic';
-import { packShort } from '../constants/config';
+import { packShort, PAYMENT_MODE_THEME, getPaymentModeTheme } from '../constants/config';
 import { Sale, Order, Payment, Expense, Tank, ReceiptData, ContainerMode, PaymentMethod } from '../types';
 import {
   Scroll as ScrollText,
@@ -42,10 +42,10 @@ type Kind = 'sale' | 'payment' | 'expense' | 'intake';
 type KindFilter = 'all' | Kind;
 
 const PAYMENT_MODE_META: Record<PaymentMethod, { label: string; Icon: typeof CreditCard; cls: string }> = {
-  cash: { label: 'Cash', Icon: Banknote, cls: 'text-emerald-600 dark:text-emerald-400' },
-  transfer: { label: 'Transfer', Icon: Bank, cls: 'text-sky-600 dark:text-sky-400' },
-  pos: { label: 'POS / Card', Icon: DeviceMobile, cls: 'text-violet-600 dark:text-violet-400' },
-  credit: { label: 'Credit', Icon: Wallet, cls: 'text-amber-600 dark:text-amber-400' }
+  cash: { label: 'Cash', Icon: Banknote, cls: PAYMENT_MODE_THEME.cash.textCls },
+  transfer: { label: 'Transfer', Icon: Bank, cls: PAYMENT_MODE_THEME.transfer.textCls },
+  pos: { label: 'POS / Card', Icon: DeviceMobile, cls: PAYMENT_MODE_THEME.pos.textCls },
+  credit: { label: 'Credit', Icon: Wallet, cls: PAYMENT_MODE_THEME.credit.textCls }
 };
 
 interface TxnRow {
@@ -60,12 +60,23 @@ interface TxnRow {
   amountLabel: string;
   tone: 'in' | 'out' | 'neutral';
   voided: boolean;
+  paymentMethod?: PaymentMethod;
   sale?: Sale;
   lines?: Order[];
   payment?: Payment;
   expense?: Expense;
   tank?: Tank;
 }
+
+type PaymentModeFilter = 'all' | PaymentMethod;
+
+const PAYMENT_MODE_CHIPS: { id: PaymentModeFilter; label: string }[] = [
+  { id: 'all', label: 'All Modes' },
+  { id: 'cash', label: 'Cash' },
+  { id: 'transfer', label: 'Transfer' },
+  { id: 'pos', label: 'Card / POS' },
+  { id: 'credit', label: 'Credit' }
+];
 
 const KIND_META: Record<Kind, { label: string; Icon: typeof CreditCard; badge: string }> = {
   sale: { label: 'Sale', Icon: Banknote, badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' },
@@ -101,6 +112,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
   const [scope, setScope] = useState<Scope>(activeShift ? 'shift' : 'today');
   const [search, setSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
+  const [paymentModeFilter, setPaymentModeFilter] = useState<PaymentModeFilter>('all');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -133,6 +145,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         amountLabel: formatNaira(total),
         tone: 'in',
         voided: !!sale.voided,
+        paymentMethod: sale.payment_method,
         sale,
         lines
       });
@@ -151,6 +164,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         amountLabel: formatNaira(p.amount),
         tone: 'in',
         voided: !!p.voided,
+        paymentMethod: p.method,
         payment: p
       });
     }
@@ -168,6 +182,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         amountLabel: `-${formatNaira(e.amount)}`,
         tone: 'out',
         voided: !!e.voided,
+        paymentMethod: 'cash',
         expense: e
       });
     }
@@ -186,6 +201,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         amountLabel: `+${t.received_litres.toLocaleString()} L`,
         tone: 'neutral',
         voided: false,
+        paymentMethod: undefined,
         tank: t
       });
     }
@@ -200,6 +216,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
     const today = getDepotToday();
     return allRows.filter(r => {
       if (kindFilter !== 'all' && r.kind !== kindFilter) return false;
+      if (paymentModeFilter !== 'all' && r.paymentMethod !== paymentModeFilter) return false;
       if (scope === 'today' && depotDateKey(r.date) !== today) return false;
       if (scope === 'shift') {
         if (!activeShift) {
@@ -217,7 +234,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
       if (q && !(`${r.title} ${r.subtitle}`.toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [allRows, kindFilter, scope, activeShift, search, customFromMs, customToMs]);
+  }, [allRows, kindFilter, paymentModeFilter, scope, activeShift, search, customFromMs, customToMs]);
 
   const kpi = useMemo(() => {
     let gross = 0;
@@ -340,18 +357,19 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           {(Object.keys(PAYMENT_MODE_META) as PaymentMethod[]).map(method => {
-            const { label, Icon, cls } = PAYMENT_MODE_META[method];
+            const { label, Icon } = PAYMENT_MODE_META[method];
+            const theme = PAYMENT_MODE_THEME[method];
             return (
               <div
                 key={method}
-                className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-2.5"
+                className={`p-3 rounded-xl border flex items-center gap-2.5 transition-all ${theme.bgSubtleCls} ${theme.borderCls}`}
               >
-                <div className={`w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 ${cls}`}>
-                  <Icon className="w-4 h-4" />
+                <div className={`w-8 h-8 rounded-lg bg-white/90 dark:bg-slate-900 border ${theme.borderCls} flex items-center justify-center shrink-0 ${theme.textCls} shadow-xs`}>
+                  <Icon className="w-4 h-4" weight="bold" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-[10px] font-sans uppercase tracking-wider text-slate-500 truncate">{label}</div>
-                  <div className={`text-[14px] font-mono font-extrabold tabular-nums ${cls}`}>
+                  <div className={`text-[10px] font-sans font-bold uppercase tracking-wider truncate ${theme.textCls}`}>{label}</div>
+                  <div className={`text-[14px] font-mono font-extrabold tabular-nums ${theme.textCls}`}>
                     {formatNaira(paymentModeTotals[method])}
                   </div>
                 </div>
@@ -401,6 +419,35 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
               {k.label}
             </button>
           ))}
+          <span className="w-px bg-slate-200 dark:bg-slate-800 mx-1 hidden sm:inline-block" />
+          {PAYMENT_MODE_CHIPS.map(pm => {
+            const isSelected = paymentModeFilter === pm.id;
+            const meta = pm.id !== 'all' ? PAYMENT_MODE_META[pm.id] : null;
+            const theme = pm.id !== 'all' ? PAYMENT_MODE_THEME[pm.id] : null;
+            const Icon = meta?.Icon;
+            return (
+              <button
+                key={pm.id}
+                type="button"
+                onClick={() => setPaymentModeFilter(pm.id)}
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-sans font-bold border flex items-center gap-1.5 transition-all ${
+                  isSelected
+                    ? theme
+                      ? theme.buttonActiveCls
+                      : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white shadow-sm'
+                    : theme
+                    ? `bg-white dark:bg-slate-900 ${theme.textCls} ${theme.borderCls} hover:border-current`
+                    : 'bg-white dark:bg-slate-900 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 border-slate-200 dark:border-slate-800'
+                }`}
+              >
+                {theme ? (
+                  <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : theme.dotCls} shrink-0`} />
+                ) : null}
+                {Icon && <Icon className="w-3.5 h-3.5 shrink-0" weight={isSelected ? 'bold' : 'regular'} />}
+                <span>{pm.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         {scope === 'custom' && (
@@ -447,6 +494,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
               <tr>
                 <th className="text-left px-3.5 py-2.5 font-bold whitespace-nowrap">Date &amp; time</th>
                 <th className="text-left px-3.5 py-2.5 font-bold whitespace-nowrap">Type</th>
+                <th className="text-left px-3.5 py-2.5 font-bold whitespace-nowrap">Mode of Payment</th>
                 <th className="text-left px-3.5 py-2.5 font-bold">Description</th>
                 <th className="text-right px-3.5 py-2.5 font-bold whitespace-nowrap">Amount</th>
                 <th className="text-right px-3.5 py-2.5 font-bold whitespace-nowrap">Actions</th>
@@ -455,7 +503,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {scopedRows.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-[13px] text-slate-400">
+                  <td colSpan={6} className="py-12 text-center text-[13px] text-slate-400">
                     Nothing in this window.
                   </td>
                 </tr>
@@ -485,6 +533,26 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                           <span className="inline-block mt-1 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
                             Voided
                           </span>
+                        )}
+                      </td>
+                      <td className="px-3.5 py-3 align-top whitespace-nowrap">
+                        {row.paymentMethod ? (
+                          (() => {
+                            const meta = PAYMENT_MODE_META[row.paymentMethod];
+                            const theme = getPaymentModeTheme(row.paymentMethod);
+                            const Icon = meta?.Icon || CreditCard;
+                            return (
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-sans font-bold capitalize border shadow-xs ${theme.badgeCls}`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${theme.dotCls} shrink-0`} />
+                                <Icon className="w-3.5 h-3.5 shrink-0" weight="bold" />
+                                <span>{meta?.label || theme.label}</span>
+                              </span>
+                            );
+                          })()
+                        ) : (
+                          <span className="text-slate-400 font-mono text-[11px]">—</span>
                         )}
                       </td>
                       <td className="px-3.5 py-3 align-top min-w-[180px]">
@@ -570,7 +638,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
 
                     {isOpen && row.lines && (
                       <tr>
-                        <td colSpan={5} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
+                        <td colSpan={6} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
                           <div className="space-y-1.5 pt-2">
                             {row.lines.map(l => (
                               <div key={l.id} className="flex items-center justify-between text-[12px]">
@@ -592,7 +660,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
 
                     {isOpen && row.kind === 'payment' && row.payment && (
                       <tr>
-                        <td colSpan={5} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
+                        <td colSpan={6} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
                           <div className="space-y-1.5 pt-2">
                             <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400">
                               Applied to
@@ -630,7 +698,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
 
                     {showAudit && (
                       <tr>
-                        <td colSpan={5} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
+                        <td colSpan={6} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
                           <div className="space-y-1.5 pt-2">
                             <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400">Edit history</div>
                             {rowAudits.map(a => (

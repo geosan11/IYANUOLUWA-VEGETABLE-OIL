@@ -1,6 +1,5 @@
 import React from 'react';
 import { useStore } from '../../services/store';
-import { UserRole } from '../../types';
 import { NAV_ITEMS } from '../../constants/nav';
 import {
   Warning,
@@ -18,7 +17,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => {
-  const { settings, userRole, setUserRole, activeAlerts, theme, toggleTheme } = useStore();
+  const { settings, userRole, activeAlerts, theme, toggleTheme, currentUser, setCurrentUser, users, activeHub } = useStore();
 
   const overdueCount = activeAlerts.overdueCredit.length;
   const navItems = NAV_ITEMS
@@ -192,35 +191,43 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
         {/* Expanded User Profile Box */}
         <div className="hidden group-hover:block p-3 rounded-xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm">
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-brand-600 dark:text-brand-400 flex-shrink-0">
-              <User className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-lg bg-brand-500 text-slate-950 font-black text-sm flex items-center justify-center flex-shrink-0">
+              {currentUser.full_name.charAt(0)}
             </div>
             <div className="min-w-0">
               <div className="text-[12px] font-sans font-bold text-slate-800 dark:text-slate-200 truncate">
-                {userRole === 'owner' ? 'Alhaja / Owner' : userRole === 'staff' ? 'Counter Staff' : 'Driver / Operator'}
+                {currentUser.full_name}
               </div>
-              <div className="text-[11px] font-sans text-slate-500 dark:text-slate-400 capitalize flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400 flex-shrink-0" />
-                <span className="truncate">{userRole} Access</span>
+              <div className="text-[10px] font-sans text-brand-600 dark:text-brand-400 font-semibold capitalize flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate">{currentUser.role.replace('_', ' ')}</span>
               </div>
             </div>
           </div>
 
-          {/* Quick Role Switcher */}
-          <div className="grid grid-cols-3 gap-1 pt-1 text-[11px] font-sans font-medium">
-            {(['owner', 'staff', 'driver'] as UserRole[]).map(role => (
-              <button
-                key={role}
-                onClick={() => setUserRole(role)}
-                className={`py-1 rounded-md capitalize text-center transition-all ${
-                  userRole === role
-                    ? 'bg-brand-500 text-slate-950 font-bold shadow-sm'
-                    : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800'
-                }`}
-              >
-                {role}
-              </button>
-            ))}
+          <div className="text-[10px] font-sans text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/70 px-2 py-1 rounded-lg mb-2 truncate">
+            {activeHub ? `📍 ${activeHub.name} (${activeHub.state})` : '🌐 Global Hub Access'}
+          </div>
+
+          {/* Quick Impersonate User Switcher */}
+          <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
+            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">Switch Account</p>
+            <div className="grid grid-cols-2 gap-1 text-[10px] font-sans font-medium">
+              {users.map(u => (
+                <button
+                  key={u.id}
+                  onClick={() => setCurrentUser(u)}
+                  className={`px-1.5 py-1 rounded-md text-left truncate transition-all ${
+                    currentUser.id === u.id
+                      ? 'bg-brand-500 text-slate-950 font-bold shadow-sm'
+                      : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800'
+                  }`}
+                  title={`${u.full_name} (${u.role})`}
+                >
+                  {u.full_name.split(' ')[0]} ({u.role === 'hub_manager' ? 'Mgr' : u.role === 'owner' ? 'Own' : u.role.slice(0, 3)})
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

@@ -60,7 +60,7 @@ const MainLayout: React.FC = () => {
       case 'pumps':
         return <PumpsScreen />;
       case 'order':
-        return <NewOrderScreen />;
+        return <NewOrderScreen onNavigate={setCurrentTab} />;
       case 'ledger':
         return <TransactionLedgerScreen onNavigate={setCurrentTab} />;
       case 'customers':

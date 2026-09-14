@@ -2,8 +2,31 @@ export type CustomerType = 'retail' | 'agent' | 'corporate';
 export type UnitType = 'litre' | 'keg' | 'ton';
 export type PaymentMethod = 'cash' | 'transfer' | 'credit' | 'pos';
 export type KegSource = 'company' | 'own' | 'purchased' | null;
-export type UserRole = 'owner' | 'staff' | 'driver';
+export type UserRole = 'owner' | 'hub_manager' | 'staff' | 'driver';
 export type SupplyModel = 'bulk_truck' | 'pre_kegged';
+
+export interface Hub {
+  id: string; // e.g. 'hub-los-alaba', 'hub-los-ikeja', 'hub-oyo-ibadan'
+  name: string; // e.g. "Alaba Central Depot"
+  code: string; // e.g. "LOS-ALB-01"
+  state: string; // e.g. "Lagos", "Oyo"
+  address: string;
+  phone?: string;
+  manager_name?: string;
+  is_active: boolean;
+  created_at?: string;
+}
+
+export interface UserProfile {
+  id: string;
+  full_name: string;
+  email: string;
+  phone?: string;
+  role: UserRole;
+  hub_id: string | null; // null for owner (global super-admin); assigned to a hub for manager/staff/driver
+  active: boolean;
+  created_at?: string;
+}
 
 /** How a returnable container leaves the depot on a sale line. */
 export type ContainerMode = 'taken' | 'bought' | 'none';
@@ -64,6 +87,7 @@ export interface PhysicalTank {
   product_id: string;
   capacity_litres: number;
   notes?: string;
+  hub_id?: string;
 }
 
 export interface Customer {
@@ -73,6 +97,7 @@ export interface Customer {
   credit_limit: number;
   credit_term_days: number;
   phone: string;
+  hub_id?: string | null;
   created_at?: string;
 }
 
@@ -89,6 +114,7 @@ export interface Tank {
   space_note?: string;
   physical_tank_id?: string | null;
   supply_model?: SupplyModel;
+  hub_id?: string;
 }
 
 export interface Pump {
@@ -98,6 +124,7 @@ export interface Pump {
   last_meter_reading: number;
   /** Yard {@link PhysicalTank} this pump draws from — the pump's "source". */
   physical_tank_id?: string | null;
+  hub_id?: string;
 }
 
 export interface PumpReading {
@@ -107,6 +134,7 @@ export interface PumpReading {
   recorded_at: string;
   note?: string;
   recorded_by?: string;
+  hub_id?: string;
 }
 
 export interface PumpVarianceAudit {
@@ -139,6 +167,7 @@ export interface Sale {
   voided_at?: string | null;
   voided_by?: string | null;
   void_reason?: string | null;
+  hub_id?: string;
 }
 
 /** One sale line. Grouped under a {@link Sale} by `sale_id`. */
@@ -177,6 +206,7 @@ export interface Order {
   tank_allocations?: { tank_id: string; litres: number }[] | null;
   voided?: boolean; // mirrors Sale.voided
   note?: string;
+  hub_id?: string;
 }
 
 export interface KegReturn {
@@ -187,6 +217,7 @@ export interface KegReturn {
   qty: number;
   date: string;
   note?: string;
+  hub_id?: string;
 }
 
 export interface Transfer {
@@ -199,6 +230,8 @@ export interface Transfer {
   pack_size_id?: string | null;
   date: string;
   note?: string;
+  from_hub_id?: string;
+  to_hub_id?: string;
 }
 
 /** A recorded customer payment. Persisted so a fully-applied settlement still leaves a trace. */
@@ -216,6 +249,7 @@ export interface Payment {
   voided?: boolean;
   voided_at?: string | null;
   void_reason?: string | null;
+  hub_id?: string;
 }
 
 export interface CustomerCredit {
@@ -225,6 +259,7 @@ export interface CustomerCredit {
   source_payment_id?: string | null;
   created_at: string;
   note?: string;
+  hub_id?: string;
 }
 
 /** One recorded edit / void of a financial record, for dispute history. */
@@ -238,6 +273,7 @@ export interface AuditEntry {
   actor_name?: string;
   at: string; // ISO
   reason?: string;
+  hub_id?: string;
 }
 
 export interface Shift {
@@ -255,6 +291,7 @@ export interface Shift {
   cash_variance?: number | null;
   note?: string;
   status: 'open' | 'closed';
+  hub_id?: string;
 }
 
 export interface Expense {
@@ -266,6 +303,7 @@ export interface Expense {
   voided?: boolean;
   voided_at?: string | null;
   void_reason?: string | null;
+  hub_id?: string;
 }
 
 export interface AppSettings {

@@ -17,7 +17,10 @@ import {
   Shift,
   Supplier,
   PhysicalTank,
-  CustomerType
+  CustomerType,
+  Hub,
+  UserProfile,
+  PaymentMethod
 } from '../types';
 
 export const LITRES_PER_KEG = 30;
@@ -47,6 +50,80 @@ export const packLitres = (id: string): number => packSizeById(id)?.litres ?? 0;
 export const packLabel = (id: string): string => packSizeById(id)?.label ?? id;
 
 export const packShort = (id: string): string => packSizeById(id)?.short ?? id;
+
+/* ------------------------------------------------------------------ *
+ * PAYMENT MODE VISUAL THEMES — Consistent color coding across the app
+ * ------------------------------------------------------------------ */
+
+export interface PaymentModeTheme {
+  label: string;
+  badgeLabel: string;
+  dotCls: string;
+  badgeCls: string;
+  buttonActiveCls: string;
+  textCls: string;
+  bgSubtleCls: string;
+  borderCls: string;
+}
+
+export const PAYMENT_MODE_THEME: Record<PaymentMethod, PaymentModeTheme> = {
+  cash: {
+    label: 'Cash',
+    badgeLabel: 'CASH',
+    dotCls: 'bg-emerald-500',
+    badgeCls: 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800/80',
+    buttonActiveCls: 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-500/25 ring-2 ring-emerald-500/30',
+    textCls: 'text-emerald-600 dark:text-emerald-400',
+    bgSubtleCls: 'bg-emerald-50/70 dark:bg-emerald-950/30',
+    borderCls: 'border-emerald-200 dark:border-emerald-800/60'
+  },
+  transfer: {
+    label: 'Bank Transfer',
+    badgeLabel: 'TRANSFER',
+    dotCls: 'bg-sky-500',
+    badgeCls: 'bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-950/70 dark:text-sky-300 dark:border-sky-800/80',
+    buttonActiveCls: 'bg-sky-600 text-white border-sky-600 shadow-md shadow-sky-500/25 ring-2 ring-sky-500/30',
+    textCls: 'text-sky-600 dark:text-sky-400',
+    bgSubtleCls: 'bg-sky-50/70 dark:bg-sky-950/30',
+    borderCls: 'border-sky-200 dark:border-sky-800/60'
+  },
+  pos: {
+    label: 'Card / POS',
+    badgeLabel: 'POS',
+    dotCls: 'bg-purple-500',
+    badgeCls: 'bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-950/70 dark:text-purple-300 dark:border-purple-800/80',
+    buttonActiveCls: 'bg-purple-600 text-white border-purple-600 shadow-md shadow-purple-500/25 ring-2 ring-purple-500/30',
+    textCls: 'text-purple-600 dark:text-purple-400',
+    bgSubtleCls: 'bg-purple-50/70 dark:bg-purple-950/30',
+    borderCls: 'border-purple-200 dark:border-purple-800/60'
+  },
+  credit: {
+    label: 'Credit',
+    badgeLabel: 'CREDIT',
+    dotCls: 'bg-amber-500',
+    badgeCls: 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800/80',
+    buttonActiveCls: 'bg-amber-600 text-white border-amber-600 shadow-md shadow-amber-500/25 ring-2 ring-amber-500/30',
+    textCls: 'text-amber-600 dark:text-amber-400',
+    bgSubtleCls: 'bg-amber-50/70 dark:bg-amber-950/30',
+    borderCls: 'border-amber-200 dark:border-amber-800/60'
+  }
+};
+
+export const getPaymentModeTheme = (method: string): PaymentModeTheme => {
+  const m = method.toLowerCase() as PaymentMethod;
+  return (
+    PAYMENT_MODE_THEME[m] ?? {
+      label: method,
+      badgeLabel: method.toUpperCase(),
+      dotCls: 'bg-slate-400',
+      badgeCls: 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+      buttonActiveCls: 'bg-slate-800 text-white border-slate-800',
+      textCls: 'text-slate-600 dark:text-slate-400',
+      bgSubtleCls: 'bg-slate-50 dark:bg-slate-900',
+      borderCls: 'border-slate-200 dark:border-slate-800'
+    }
+  );
+};
 
 /* ------------------------------------------------------------------ *
  * PRODUCTS + varieties + per-product pack config
@@ -186,6 +263,105 @@ const containerBuyPrice = (productId: string, packSizeId: string): number =>
  * OTHER CATALOG DATA (unchanged)
  * ------------------------------------------------------------------ */
 
+export const DEFAULT_HUBS: Hub[] = [
+  {
+    id: 'hub-los-alaba',
+    name: 'Alaba Central Depot',
+    code: 'ALB-01',
+    state: 'Lagos',
+    address: 'Plot 14, Commercial Avenue, Alaba International, Lagos',
+    phone: '+234 802 000 1122',
+    manager_name: 'Babatunde Raji',
+    is_active: true,
+    created_at: '2026-01-01T00:00:00Z'
+  },
+  {
+    id: 'hub-los-ikeja',
+    name: 'Ikeja Industrial Hub',
+    code: 'IKJ-02',
+    state: 'Lagos',
+    address: 'Block B, Industrial Estate, Ikeja, Lagos',
+    phone: '+234 803 444 5566',
+    manager_name: 'Musa Bello',
+    is_active: true,
+    created_at: '2026-02-15T00:00:00Z'
+  },
+  {
+    id: 'hub-oyo-ibadan',
+    name: 'Ibadan Regional Depot',
+    code: 'IBD-01',
+    state: 'Oyo',
+    address: 'Ring Road Oil Terminal, Ibadan, Oyo State',
+    phone: '+234 805 777 8899',
+    manager_name: 'Rasheed Adebayo',
+    is_active: true,
+    created_at: '2026-03-10T00:00:00Z'
+  }
+];
+
+export const DEFAULT_USERS: UserProfile[] = [
+  {
+    id: 'usr-owner',
+    full_name: 'Alhaja Sikirat (Owner)',
+    email: 'alhaja@iyanuolwa.com',
+    phone: '+234 802 000 1122',
+    role: 'owner',
+    hub_id: null, // Global access across all hubs
+    active: true,
+    created_at: '2026-01-01T00:00:00Z'
+  },
+  {
+    id: 'usr-mgr-alaba',
+    full_name: 'Babatunde Raji',
+    email: 'babatunde@iyanuolwa.com',
+    phone: '+234 803 111 2233',
+    role: 'hub_manager',
+    hub_id: 'hub-los-alaba',
+    active: true,
+    created_at: '2026-01-15T00:00:00Z'
+  },
+  {
+    id: 'usr-staff-alaba',
+    full_name: 'Chidinma Okafor',
+    email: 'chidinma@iyanuolwa.com',
+    phone: '+234 806 333 4455',
+    role: 'staff',
+    hub_id: 'hub-los-alaba',
+    active: true,
+    created_at: '2026-02-01T00:00:00Z'
+  },
+  {
+    id: 'usr-mgr-ikeja',
+    full_name: 'Musa Bello',
+    email: 'musa@iyanuolwa.com',
+    phone: '+234 803 444 5566',
+    role: 'hub_manager',
+    hub_id: 'hub-los-ikeja',
+    active: true,
+    created_at: '2026-02-15T00:00:00Z'
+  },
+  {
+    id: 'usr-staff-ikeja',
+    full_name: 'Samuel Adeleke',
+    email: 'samuel@iyanuolwa.com',
+    phone: '+234 809 555 6677',
+    role: 'staff',
+    hub_id: 'hub-los-ikeja',
+    active: true,
+    created_at: '2026-03-01T00:00:00Z'
+  },
+  {
+    id: 'usr-driver-alaba',
+    full_name: 'Emeka Obi (Driver)',
+    email: 'emeka@iyanuolwa.com',
+    phone: '+234 807 888 9900',
+    role: 'driver',
+    hub_id: 'hub-los-alaba',
+    active: true,
+    created_at: '2026-02-10T00:00:00Z'
+  }
+];
+
 export const DEFAULT_SUPPLIERS: Supplier[] = [
   { id: 'sup-1', name: 'Presco Oil Plc', phone: '+234 803 100 2000' },
   { id: 'sup-2', name: 'Okomu Oil Palm Company', phone: '+234 802 200 3000' },
@@ -194,9 +370,11 @@ export const DEFAULT_SUPPLIERS: Supplier[] = [
 ];
 
 export const DEFAULT_PHYSICAL_TANKS: PhysicalTank[] = [
-  { id: 'pt-1', label: 'Yard Tank 1 (Bulk Veg - 30,000L)', product_id: 'veg', capacity_litres: 30000, notes: 'Main East yard bulk vertical tank' },
-  { id: 'pt-2', label: 'Yard Tank 2 (Reserve Veg - 20,000L)', product_id: 'veg', capacity_litres: 20000, notes: 'Secondary West yard tank' },
-  { id: 'pt-3', label: 'Yard Tank 3 (Palm Decanting - 15,000L)', product_id: 'red', capacity_litres: 15000, notes: 'Dedicated decanting vessel for palm deliveries' }
+  { id: 'pt-1', label: 'Yard Tank 1 (Bulk Veg - 30,000L)', product_id: 'veg', capacity_litres: 30000, notes: 'Main East yard bulk vertical tank', hub_id: 'hub-los-alaba' },
+  { id: 'pt-2', label: 'Yard Tank 2 (Reserve Veg - 20,000L)', product_id: 'veg', capacity_litres: 20000, notes: 'Secondary West yard tank', hub_id: 'hub-los-alaba' },
+  { id: 'pt-3', label: 'Yard Tank 3 (Palm Decanting - 15,000L)', product_id: 'red', capacity_litres: 15000, notes: 'Dedicated decanting vessel for palm deliveries', hub_id: 'hub-los-alaba' },
+  { id: 'pt-4', label: 'Ikeja Tank 1 (Bulk Veg - 25,000L)', product_id: 'veg', capacity_litres: 25000, notes: 'Ikeja main bulk storage', hub_id: 'hub-los-ikeja' },
+  { id: 'pt-5', label: 'Ikeja Tank 2 (Palm Storage - 10,000L)', product_id: 'red', capacity_litres: 10000, notes: 'Ikeja palm oil decanting tank', hub_id: 'hub-los-ikeja' }
 ];
 
 export const DEFAULT_PUMPS: Pump[] = [
@@ -205,21 +383,40 @@ export const DEFAULT_PUMPS: Pump[] = [
     label: 'Pump 1 (Golden Vegetable Oil)',
     product_id: 'veg',
     last_meter_reading: 12450,
-    physical_tank_id: 'pt-1'
+    physical_tank_id: 'pt-1',
+    hub_id: 'hub-los-alaba'
   },
   {
     id: 'p-2',
     label: 'Pump 2 (Golden Vegetable Oil)',
     product_id: 'veg',
     last_meter_reading: 8920,
-    physical_tank_id: 'pt-1'
+    physical_tank_id: 'pt-1',
+    hub_id: 'hub-los-alaba'
   },
   {
     id: 'p-3',
     label: 'Pump 3 (Golden Vegetable Oil)',
     product_id: 'veg',
     last_meter_reading: 5310,
-    physical_tank_id: 'pt-2'
+    physical_tank_id: 'pt-2',
+    hub_id: 'hub-los-alaba'
+  },
+  {
+    id: 'p-4',
+    label: 'Ikeja Dispenser 1 (Golden Veg)',
+    product_id: 'veg',
+    last_meter_reading: 3400,
+    physical_tank_id: 'pt-4',
+    hub_id: 'hub-los-ikeja'
+  },
+  {
+    id: 'p-5',
+    label: 'Ikeja Dispenser 2 (Red Palm)',
+    product_id: 'red',
+    last_meter_reading: 1850,
+    physical_tank_id: 'pt-5',
+    hub_id: 'hub-los-ikeja'
   }
 ];
 
@@ -229,28 +426,40 @@ export const SEED_PUMP_READINGS: PumpReading[] = [
     pump_id: 'p-1',
     reading: 11160,
     recorded_at: '2026-08-01T06:00:00Z',
-    note: 'Monthly baseline calibration'
+    note: 'Monthly baseline calibration',
+    hub_id: 'hub-los-alaba'
   },
   {
     id: 'pr-2',
     pump_id: 'p-1',
     reading: 12450,
     recorded_at: '2026-09-08T07:00:00Z',
-    note: 'Morning shift meter verification'
+    note: 'Morning shift meter verification',
+    hub_id: 'hub-los-alaba'
   },
   {
     id: 'pr-3',
     pump_id: 'p-2',
     reading: 8920,
     recorded_at: '2026-09-08T07:00:00Z',
-    note: 'Morning shift meter verification'
+    note: 'Morning shift meter verification',
+    hub_id: 'hub-los-alaba'
   },
   {
     id: 'pr-4',
     pump_id: 'p-3',
     reading: 5310,
     recorded_at: '2026-09-08T07:00:00Z',
-    note: 'Morning shift meter verification'
+    note: 'Morning shift meter verification',
+    hub_id: 'hub-los-alaba'
+  },
+  {
+    id: 'pr-5',
+    pump_id: 'p-4',
+    reading: 3400,
+    recorded_at: '2026-09-08T07:00:00Z',
+    note: 'Morning shift meter verification',
+    hub_id: 'hub-los-ikeja'
   }
 ];
 
@@ -261,7 +470,8 @@ export const DEFAULT_CUSTOMERS: Customer[] = [
     type: 'corporate',
     credit_limit: 300000,
     credit_term_days: 30,
-    phone: '+2348031234567'
+    phone: '+2348031234567',
+    hub_id: 'hub-los-alaba'
   },
   {
     id: 'cust-2',
@@ -269,7 +479,8 @@ export const DEFAULT_CUSTOMERS: Customer[] = [
     type: 'agent',
     credit_limit: 200000,
     credit_term_days: 14,
-    phone: '+2348022345678'
+    phone: '+2348022345678',
+    hub_id: 'hub-los-alaba'
   },
   {
     id: 'cust-3',
@@ -277,7 +488,8 @@ export const DEFAULT_CUSTOMERS: Customer[] = [
     type: 'agent',
     credit_limit: 150000,
     credit_term_days: 14,
-    phone: '+2348053456789'
+    phone: '+2348053456789',
+    hub_id: 'hub-los-alaba'
   },
   {
     id: 'cust-4',
@@ -285,7 +497,17 @@ export const DEFAULT_CUSTOMERS: Customer[] = [
     type: 'agent',
     credit_limit: 100000,
     credit_term_days: 14,
-    phone: '+2348094567890'
+    phone: '+2348094567890',
+    hub_id: 'hub-los-alaba'
+  },
+  {
+    id: 'cust-5',
+    name: 'Ikeja Food Mart & Kitchens',
+    type: 'corporate',
+    credit_limit: 250000,
+    credit_term_days: 14,
+    phone: '+2348087654321',
+    hub_id: 'hub-los-ikeja'
   }
 ];
 
@@ -317,7 +539,8 @@ export const SEED_TANKS: Tank[] = [
     shortfall: 0,
     supplier_id: 'sup-1',
     physical_tank_id: 'pt-1',
-    supply_model: 'bulk_truck'
+    supply_model: 'bulk_truck',
+    hub_id: 'hub-los-alaba'
   },
   {
     id: 'tank-v2',
@@ -330,7 +553,8 @@ export const SEED_TANKS: Tank[] = [
     shortfall: 20,
     supplier_id: 'sup-3',
     physical_tank_id: 'pt-2',
-    supply_model: 'bulk_truck'
+    supply_model: 'bulk_truck',
+    hub_id: 'hub-los-alaba'
   },
   {
     id: 'tank-r1',
@@ -344,7 +568,22 @@ export const SEED_TANKS: Tank[] = [
     supplier_id: 'sup-2',
     physical_tank_id: 'pt-3',
     supply_model: 'pre_kegged',
-    space_note: 'Filled 1 decanting tank'
+    space_note: 'Filled 1 decanting tank',
+    hub_id: 'hub-los-alaba'
+  },
+  {
+    id: 'tank-ikj-1',
+    product_id: 'veg',
+    truck_label: 'Truck 3 · IKD-552-XY (Ikeja Haulage)',
+    tons: 12,
+    received_litres: 12900,
+    remaining_litres: 11200,
+    date: '2026-09-02T09:00:00Z',
+    shortfall: 0,
+    supplier_id: 'sup-1',
+    physical_tank_id: 'pt-4',
+    supply_model: 'bulk_truck',
+    hub_id: 'hub-los-ikeja'
   }
 ];
 
@@ -369,6 +608,7 @@ function seedLine(args: {
   dueDate: string | null;
   date: string;
   sourceTankId: string | null;
+  hubId?: string;
 }): Order {
   const litres = Number((args.qty * packLitres(args.packSizeId)).toFixed(2));
   const unitPrice = seedPrice(args.productId, args.varietyId, args.packSizeId, args.tier);
@@ -412,7 +652,8 @@ function seedLine(args: {
     date: args.date,
     source_tank_id: args.sourceTankId,
     tank_allocations: args.sourceTankId ? [{ tank_id: args.sourceTankId, litres }] : null,
-    voided: false
+    voided: false,
+    hub_id: args.hubId ?? 'hub-los-alaba'
   };
 }
 
@@ -424,7 +665,8 @@ export const SEED_SALES: Sale[] = [
     payment_method: 'credit',
     cashier_name: 'Depot Cashier',
     note: 'Initial supply',
-    voided: false
+    voided: false,
+    hub_id: 'hub-los-alaba'
   },
   {
     id: 'sale-102',
@@ -433,7 +675,8 @@ export const SEED_SALES: Sale[] = [
     payment_method: 'credit',
     cashier_name: 'Depot Cashier',
     note: 'Depot dispatch',
-    voided: false
+    voided: false,
+    hub_id: 'hub-los-alaba'
   },
   {
     id: 'sale-103',
@@ -442,7 +685,8 @@ export const SEED_SALES: Sale[] = [
     payment_method: 'transfer',
     cashier_name: 'Depot Cashier',
     note: 'Customer brought own jerrycans',
-    voided: false
+    voided: false,
+    hub_id: 'hub-los-alaba'
   },
   {
     id: 'sale-104',
@@ -451,7 +695,18 @@ export const SEED_SALES: Sale[] = [
     payment_method: 'credit',
     cashier_name: 'Depot Cashier',
     note: 'Fast agent restock',
-    voided: false
+    voided: false,
+    hub_id: 'hub-los-alaba'
+  },
+  {
+    id: 'sale-201',
+    customer_id: 'cust-5',
+    date: '2026-09-08T08:30:00Z',
+    payment_method: 'transfer',
+    cashier_name: 'Musa Bello',
+    note: 'Ikeja supermarket morning bulk delivery',
+    voided: false,
+    hub_id: 'hub-los-ikeja'
   }
 ];
 
@@ -471,7 +726,8 @@ export const SEED_ORDERS: Order[] = [
     paidAmount: 0,
     dueDate: '2026-09-04T10:00:00Z', // overdue
     date: '2026-08-05T10:00:00Z',
-    sourceTankId: 'tank-v1'
+    sourceTankId: 'tank-v1',
+    hubId: 'hub-los-alaba'
   }),
   seedLine({
     id: 'line-102-1',
@@ -488,7 +744,8 @@ export const SEED_ORDERS: Order[] = [
     paidAmount: 0,
     dueDate: '2026-09-11T14:30:00Z', // due soon
     date: '2026-08-28T14:30:00Z',
-    sourceTankId: 'tank-v1'
+    sourceTankId: 'tank-v1',
+    hubId: 'hub-los-alaba'
   }),
   seedLine({
     id: 'line-103-1',
@@ -505,7 +762,8 @@ export const SEED_ORDERS: Order[] = [
     paidAmount: 0, // set below from line_amount
     dueDate: null,
     date: '2026-09-07T09:15:00Z',
-    sourceTankId: 'tank-r1'
+    sourceTankId: 'tank-r1',
+    hubId: 'hub-los-alaba'
   }),
   seedLine({
     id: 'line-104-1',
@@ -522,13 +780,36 @@ export const SEED_ORDERS: Order[] = [
     paidAmount: 0,
     dueDate: '2026-09-18T12:00:00Z', // current
     date: '2026-09-04T12:00:00Z',
-    sourceTankId: 'tank-v1'
+    sourceTankId: 'tank-v1',
+    hubId: 'hub-los-alaba'
+  }),
+  seedLine({
+    id: 'line-201-1',
+    saleId: 'sale-201',
+    customerId: 'cust-5',
+    productId: 'veg',
+    varietyId: 'veg-soya',
+    varietyName: 'Pure Soya (Grade A)',
+    packSizeId: 'sz_30',
+    qty: 10,
+    tier: 'corporate',
+    containerMode: 'none',
+    paymentMethod: 'transfer',
+    paidAmount: 0,
+    dueDate: null,
+    date: '2026-09-08T08:30:00Z',
+    sourceTankId: 'tank-ikj-1',
+    hubId: 'hub-los-ikeja'
   })
 ];
 
 // sale-103 was paid in full on the spot — mark its line settled.
 const paidLine = SEED_ORDERS.find(o => o.id === 'line-103-1');
 if (paidLine) paidLine.paid_amount = paidLine.line_amount;
+
+// sale-201 was paid in full on the spot — mark its line settled.
+const ikejaPaidLine = SEED_ORDERS.find(o => o.id === 'line-201-1');
+if (ikejaPaidLine) ikejaPaidLine.paid_amount = ikejaPaidLine.line_amount;
 
 export const SEED_KEG_RETURNS: KegReturn[] = [
   {
@@ -537,7 +818,8 @@ export const SEED_KEG_RETURNS: KegReturn[] = [
     product_id: 'veg',
     pack_size_id: 'sz_30',
     qty: 5,
-    date: '2026-08-15T15:20:00Z'
+    date: '2026-08-15T15:20:00Z',
+    hub_id: 'hub-los-alaba'
   },
   {
     id: 'ret-2',
@@ -545,7 +827,8 @@ export const SEED_KEG_RETURNS: KegReturn[] = [
     product_id: 'veg',
     pack_size_id: 'sz_30',
     qty: 3,
-    date: '2026-09-02T11:00:00Z'
+    date: '2026-09-02T11:00:00Z',
+    hub_id: 'hub-los-alaba'
   }
 ];
 
@@ -559,7 +842,9 @@ export const SEED_TRANSFERS: Transfer[] = [
     product_id: 'veg',
     pack_size_id: 'sz_30',
     date: '2026-09-03T14:00:00Z',
-    note: 'Direct market transfer from Samson to Arena'
+    note: 'Direct market transfer from Samson to Arena',
+    from_hub_id: 'hub-los-alaba',
+    to_hub_id: 'hub-los-alaba'
   }
 ];
 
@@ -570,13 +855,14 @@ export const SEED_AUDIT_LOG: AuditEntry[] = [];
 export const SEED_SHIFTS: Shift[] = [
   {
     id: 'shift-1',
-    supervisor_name: 'Alhaja Sikirat (Owner)',
+    supervisor_name: 'Babatunde Raji (Manager)',
     start_time: '2026-09-08T07:00:00Z',
     end_time: null,
     opening_float: 150000,
     opening_readings: {
       'p-1': 12450,
-      'p-2': 8920
+      'p-2': 8920,
+      'p-3': 5310
     },
     cash_sales: 0,
     cash_expenses: 37000,
@@ -584,7 +870,27 @@ export const SEED_SHIFTS: Shift[] = [
     cash_counted: null,
     cash_variance: null,
     status: 'open',
-    note: 'Morning shift operational run'
+    note: 'Alaba morning operational run',
+    hub_id: 'hub-los-alaba'
+  },
+  {
+    id: 'shift-2',
+    supervisor_name: 'Musa Bello (Manager)',
+    start_time: '2026-09-08T07:30:00Z',
+    end_time: null,
+    opening_float: 100000,
+    opening_readings: {
+      'p-4': 3400,
+      'p-5': 1850
+    },
+    cash_sales: 0,
+    cash_expenses: 15000,
+    expected_cash: 85000,
+    cash_counted: null,
+    cash_variance: null,
+    status: 'open',
+    note: 'Ikeja morning operational shift',
+    hub_id: 'hub-los-ikeja'
   }
 ];
 
@@ -594,14 +900,24 @@ export const SEED_EXPENSES: Expense[] = [
     date: '2026-09-08T08:00:00Z',
     category: 'Diesel/Gen',
     amount: 25000,
-    note: '30L diesel for 40kVA generator'
+    note: '30L diesel for 40kVA generator',
+    hub_id: 'hub-los-alaba'
   },
   {
     id: 'exp-2',
     date: '2026-09-08T09:30:00Z',
     category: 'Loading & Offloading',
     amount: 12000,
-    note: 'Depot boys offloading assistance'
+    note: 'Depot boys offloading assistance',
+    hub_id: 'hub-los-alaba'
+  },
+  {
+    id: 'exp-3',
+    date: '2026-09-08T08:15:00Z',
+    category: 'Diesel/Gen',
+    amount: 15000,
+    note: 'Diesel fuel for Ikeja standby generator',
+    hub_id: 'hub-los-ikeja'
   }
 ];
 

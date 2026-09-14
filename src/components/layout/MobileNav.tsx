@@ -26,7 +26,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   isMenuOpen,
   onCloseMenu
 }) => {
-  const { activeAlerts, userRole, setUserRole, theme, toggleTheme } = useStore();
+  const { activeAlerts, userRole, theme, toggleTheme, currentUser, setCurrentUser, users, activeHub } = useStore();
 
   const overdueCount = activeAlerts.overdueCredit.length;
 
@@ -112,23 +112,37 @@ export const MobileNav: React.FC<MobileNavProps> = ({
               })}
             </div>
 
-            {/* Role switch in mobile drawer */}
+            {/* User Profile and Impersonation in mobile drawer */}
             <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
-              <div className="text-[11px] uppercase font-sans font-bold text-slate-500 dark:text-slate-400 mb-2">
-                Active User Role: <span className="text-brand-600 dark:text-brand-400 capitalize">{userRole}</span>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-brand-500 text-slate-950 font-black text-xs flex items-center justify-center">
+                  {currentUser.full_name.charAt(0)}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[12px] font-sans font-bold text-slate-900 dark:text-white truncate">
+                    {currentUser.full_name}
+                  </div>
+                  <div className="text-[10px] text-brand-600 dark:text-brand-400 capitalize font-semibold">
+                    {currentUser.role.replace('_', ' ')} · {activeHub ? `📍 ${activeHub.name} (${activeHub.state})` : '🌐 All Hubs'}
+                  </div>
+                </div>
               </div>
-              <div className="grid grid-cols-3 gap-1.5 text-[11px]">
-                {(['owner', 'staff', 'driver'] as const).map(role => (
+
+              <div className="text-[10px] uppercase font-sans font-bold text-slate-400 mb-1.5">
+                Switch User Account
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                {users.map(u => (
                   <button
-                    key={role}
-                    onClick={() => setUserRole(role)}
-                    className={`py-1.5 rounded-lg capitalize font-sans font-medium ${
-                      userRole === role
-                        ? 'bg-brand-500 text-slate-950 font-bold'
-                        : 'bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400'
+                    key={u.id}
+                    onClick={() => { setCurrentUser(u); onCloseMenu(); }}
+                    className={`px-2 py-1.5 rounded-lg text-left truncate font-sans font-medium transition-all ${
+                      currentUser.id === u.id
+                        ? 'bg-brand-500 text-slate-950 font-bold shadow-sm'
+                        : 'bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
                     }`}
                   >
-                    {role}
+                    {u.full_name.split(' ')[0]} ({u.role === 'hub_manager' ? 'Mgr' : u.role === 'owner' ? 'Own' : u.role.slice(0, 3)})
                   </button>
                 ))}
               </div>

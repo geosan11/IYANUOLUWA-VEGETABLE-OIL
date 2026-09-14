@@ -910,24 +910,26 @@ export const CustomersScreen: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('transfer')}
-                    className={`py-2.5 rounded-xl border text-[12px] font-sans font-bold transition-all ${
+                    className={`py-2.5 rounded-xl border text-[12px] font-sans font-bold transition-all flex items-center justify-center gap-1.5 ${
                       paymentMethod === 'transfer'
-                        ? 'bg-emerald-100 dark:bg-emerald-500/20 border-emerald-400 dark:border-emerald-500 text-emerald-900 dark:text-emerald-300'
+                        ? 'bg-sky-600 text-white border-sky-600 shadow-md shadow-sky-500/25 ring-2 ring-sky-500/30'
                         : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
                     }`}
                   >
-                    Bank Transfer
+                    <span className="w-2 h-2 rounded-full bg-sky-500" />
+                    <span>Bank Transfer</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('cash')}
-                    className={`py-2.5 rounded-xl border text-[12px] font-sans font-bold transition-all ${
+                    className={`py-2.5 rounded-xl border text-[12px] font-sans font-bold transition-all flex items-center justify-center gap-1.5 ${
                       paymentMethod === 'cash'
-                        ? 'bg-emerald-100 dark:bg-emerald-500/20 border-emerald-400 dark:border-emerald-500 text-emerald-900 dark:text-emerald-300'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-500/25 ring-2 ring-emerald-500/30'
                         : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
                     }`}
                   >
-                    Cash
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>Cash</span>
                   </button>
                 </div>
               </div>

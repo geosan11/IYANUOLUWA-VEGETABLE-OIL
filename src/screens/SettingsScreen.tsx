@@ -24,9 +24,13 @@ import {
   Buildings as Building2,
   Tag,
   PencilSimple as Edit2,
-  X
+  X,
+  Users,
+  MapPin,
+  GasPump,
+  Info
 } from '@phosphor-icons/react';
-import { UserRole, SupplyModel, ProductVariety } from '../types';
+import { UserRole, SupplyModel, ProductVariety, Hub, UserProfile, Pump } from '../types';
 
 export const SettingsScreen: React.FC = () => {
   const {
@@ -44,7 +48,25 @@ export const SettingsScreen: React.FC = () => {
     addSupplier,
     deleteSupplier,
     updateSettings,
-    resetToSeedData
+    resetToSeedData,
+    hubs,
+    users,
+    currentUser,
+    activeHubId,
+    setCurrentUser,
+    setActiveHubId,
+    addHub,
+    updateHub,
+    deleteHub,
+    addUser,
+    updateUser,
+    deleteUser,
+    allTanks,
+    allPumps,
+    pumps,
+    addPump,
+    updatePump,
+    deletePump
   } = useStore();
 
   // Only the owner can change pricing, products, thresholds, branding, or reset data.
@@ -56,10 +78,36 @@ export const SettingsScreen: React.FC = () => {
   };
 
   // Desktop Tab Navigation
-  const [activeDesktopTab, setActiveDesktopTab] = useState<'company' | 'kegs' | 'pricing' | 'infrastructure' | 'thresholds' | 'system'>('company');
+  type SettingsTab = 'company' | 'kegs' | 'pricing' | 'infrastructure' | 'thresholds' | 'system' | 'hubs' | 'users';
+  const [activeDesktopTab, setActiveDesktopTab] = useState<SettingsTab>('company');
 
   // Mobile BottomSheet Navigation
-  const [, setActiveMobileSheet] = useState<'company' | 'kegs' | 'pricing' | 'infrastructure' | 'thresholds' | 'system' | null>(null);
+  const [activeMobileSheet, setActiveMobileSheet] = useState<SettingsTab | null>(null);
+
+  // Hub Modal State
+  const [isHubModalOpen, setIsHubModalOpen] = useState(false);
+  const [editingHubId, setEditingHubId] = useState<string | null>(null);
+  const [hubName, setHubName] = useState('');
+  const [hubCode, setHubCode] = useState('');
+  const [hubState, setHubState] = useState('Lagos');
+  const [hubAddress, setHubAddress] = useState('');
+  const [hubPhone, setHubPhone] = useState('');
+  const [hubManagerName, setHubManagerName] = useState('');
+  const [hubIsActive, setHubIsActive] = useState(true);
+
+  // User Modal State
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [userFullName, setUserFullName] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const [userPhone, setUserPhone] = useState('');
+  const [userRoleSelect, setUserRoleSelect] = useState<UserRole>('staff');
+  const [userHubIdSelect, setUserHubIdSelect] = useState<string>('hub-los-alaba');
+  const [userIsActive, setUserIsActive] = useState(true);
+
+  // Filters for user table
+  const [userRoleFilter, setUserRoleFilter] = useState<string>('all');
+  const [userHubFilter, setUserHubFilter] = useState<string>('all');
 
   // 1. Company Profile Local State
   const [companyName, setCompanyName] = useState(settings.company_name);
@@ -112,6 +160,15 @@ export const SettingsScreen: React.FC = () => {
   // Add Supplier Form State
   const [newSupplierName, setNewSupplierName] = useState('');
   const [newSupplierPhone, setNewSupplierPhone] = useState('');
+
+  // Pump Management State (Scalable Counter Infrastructure)
+  const [isPumpModalOpen, setIsPumpModalOpen] = useState(false);
+  const [editingPumpId, setEditingPumpId] = useState<string | null>(null);
+  const [pumpLabelInput, setPumpLabelInput] = useState('');
+  const [pumpProductIdInput, setPumpProductIdInput] = useState('veg');
+  const [pumpTankIdInput, setPumpTankIdInput] = useState('');
+  const [pumpReadingInput, setPumpReadingInput] = useState('0');
+  const [pumpHubIdInput, setPumpHubIdInput] = useState('hub-los-alaba');
 
   // 4. Alert Thresholds Local State
   const [lowStockThreshold, setLowStockThreshold] = useState(settings.low_stock_litres_threshold.toString());
@@ -317,6 +374,216 @@ export const SettingsScreen: React.FC = () => {
     }
   };
 
+  // Hub Management Handlers
+  const handleOpenAddHub = () => {
+    setEditingHubId(null);
+    setHubName('');
+    setHubCode('');
+    setHubState('Lagos');
+    setHubAddress('');
+    setHubPhone('');
+    setHubManagerName('');
+    setHubIsActive(true);
+    setIsHubModalOpen(true);
+  };
+
+  const handleOpenEditHub = (hub: Hub) => {
+    setEditingHubId(hub.id);
+    setHubName(hub.name);
+    setHubCode(hub.code);
+    setHubState(hub.state);
+    setHubAddress(hub.address);
+    setHubPhone(hub.phone || '');
+    setHubManagerName(hub.manager_name || '');
+    setHubIsActive(hub.is_active);
+    setIsHubModalOpen(true);
+  };
+
+  const handleSaveHub = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (denyIfNotOwner()) return;
+    if (!hubName.trim() || !hubCode.trim() || !hubState.trim()) {
+      showNotification('Please fill in required hub details.');
+      return;
+    }
+
+    if (editingHubId) {
+      updateHub(editingHubId, {
+        name: hubName.trim(),
+        code: hubCode.trim().toUpperCase(),
+        state: hubState.trim(),
+        address: hubAddress.trim(),
+        phone: hubPhone.trim(),
+        manager_name: hubManagerName.trim() || undefined,
+        is_active: hubIsActive
+      });
+      showNotification(`Hub "${hubName.trim()}" updated successfully.`);
+    } else {
+      addHub({
+        name: hubName.trim(),
+        code: hubCode.trim().toUpperCase(),
+        state: hubState.trim(),
+        address: hubAddress.trim(),
+        phone: hubPhone.trim(),
+        manager_name: hubManagerName.trim() || undefined,
+        is_active: hubIsActive
+      });
+      showNotification(`New hub "${hubName.trim()}" registered.`);
+    }
+    setIsHubModalOpen(false);
+  };
+
+  const handleDeleteHubAction = (hub: Hub) => {
+    if (denyIfNotOwner()) return;
+    if (!window.confirm(`Are you sure you want to delete "${hub.name}"?`)) return;
+    const res = deleteHub(hub.id);
+    if (!res.success) {
+      showNotification(`Cannot delete hub: ${res.error}`);
+    } else {
+      showNotification(`Hub "${hub.name}" removed successfully.`);
+    }
+  };
+
+  // User Management Handlers
+  const handleOpenAddUser = () => {
+    setEditingUserId(null);
+    setUserFullName('');
+    setUserEmail('');
+    setUserPhone('');
+    setUserRoleSelect('staff');
+    setUserHubIdSelect(hubs[0]?.id || 'hub-los-alaba');
+    setUserIsActive(true);
+    setIsUserModalOpen(true);
+  };
+
+  const handleOpenEditUser = (u: UserProfile) => {
+    setEditingUserId(u.id);
+    setUserFullName(u.full_name);
+    setUserEmail(u.email);
+    setUserPhone(u.phone || '');
+    setUserRoleSelect(u.role);
+    setUserHubIdSelect(u.hub_id || 'all');
+    setUserIsActive(u.active);
+    setIsUserModalOpen(true);
+  };
+
+  const handleSaveUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (denyIfNotOwner()) return;
+    if (!userFullName.trim() || !userEmail.trim()) {
+      showNotification('Full name and email are required.');
+      return;
+    }
+
+    const assignedHubId: string | null = (userRoleSelect === 'owner' && userHubIdSelect === 'all')
+      ? null
+      : (userHubIdSelect === 'all' ? (hubs[0]?.id || null) : userHubIdSelect);
+
+    if (editingUserId) {
+      updateUser(editingUserId, {
+        full_name: userFullName.trim(),
+        email: userEmail.trim(),
+        phone: userPhone.trim(),
+        role: userRoleSelect,
+        hub_id: assignedHubId,
+        active: userIsActive
+      });
+      showNotification(`User "${userFullName.trim()}" updated.`);
+    } else {
+      addUser({
+        full_name: userFullName.trim(),
+        email: userEmail.trim(),
+        phone: userPhone.trim(),
+        role: userRoleSelect,
+        hub_id: assignedHubId,
+        active: userIsActive
+      });
+      showNotification(`New user "${userFullName.trim()}" added to ${userRoleSelect} role.`);
+    }
+    setIsUserModalOpen(false);
+  };
+
+  const handleDeleteUserAction = (u: UserProfile) => {
+    if (denyIfNotOwner()) return;
+    if (u.id === currentUser.id) {
+      showNotification('Cannot delete your own active user account.');
+      return;
+    }
+    if (!window.confirm(`Are you sure you want to delete user "${u.full_name}"?`)) return;
+    const res = deleteUser(u.id);
+    if (!res.success) {
+      showNotification(`Cannot delete user: ${res.error}`);
+    } else {
+      showNotification(`User "${u.full_name}" removed.`);
+    }
+  };
+
+  // Dispensing Pump Handlers
+  const handleOpenAddPumpModal = () => {
+    setEditingPumpId(null);
+    setPumpLabelInput(`Pump ${pumps.length + 1} (${products[0]?.name || 'Bulk Oil'})`);
+    setPumpProductIdInput(products[0]?.id || 'veg');
+    setPumpTankIdInput(physicalTanks[0]?.id || '');
+    setPumpReadingInput('0');
+    setPumpHubIdInput(activeHubId === 'all' ? (hubs[0]?.id || 'hub-los-alaba') : activeHubId);
+    setIsPumpModalOpen(true);
+  };
+
+  const handleOpenEditPumpModal = (pump: Pump) => {
+    setEditingPumpId(pump.id);
+    setPumpLabelInput(pump.label);
+    setPumpProductIdInput(pump.product_id || products[0]?.id || 'veg');
+    setPumpTankIdInput(pump.physical_tank_id || '');
+    setPumpReadingInput(pump.last_meter_reading.toString());
+    setPumpHubIdInput(pump.hub_id || hubs[0]?.id || 'hub-los-alaba');
+    setIsPumpModalOpen(true);
+  };
+
+  const handleSavePump = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (denyIfNotOwner()) return;
+
+    if (!pumpLabelInput.trim()) {
+      alert('Please enter a pump name or label.');
+      return;
+    }
+
+    if (editingPumpId) {
+      updatePump(editingPumpId, {
+        label: pumpLabelInput.trim(),
+        product_id: pumpProductIdInput || null,
+        physical_tank_id: pumpTankIdInput || null
+      });
+      showNotification(`Pump "${pumpLabelInput.trim()}" updated successfully.`);
+    } else {
+      addPump({
+        label: pumpLabelInput.trim(),
+        productId: pumpProductIdInput || undefined,
+        physicalTankId: pumpTankIdInput || null,
+        openingReading: parseFloat(pumpReadingInput) || 0,
+        hubId: pumpHubIdInput
+      });
+      showNotification(`New pump "${pumpLabelInput.trim()}" registered and ready.`);
+    }
+    setIsPumpModalOpen(false);
+  };
+
+  const handleDeletePumpAction = (pump: Pump) => {
+    if (denyIfNotOwner()) return;
+    if (pumps.length <= 1) {
+      alert('A depot must maintain at least one operational dispensing pump.');
+      return;
+    }
+    if (window.confirm(`Are you sure you want to remove ${pump.label}?`)) {
+      const res = deletePump(pump.id);
+      if (!res.success) {
+        alert(res.error || 'Could not delete this pump.');
+      } else {
+        showNotification(`Pump "${pump.label}" has been removed.`);
+      }
+    }
+  };
+
   return (
     <div className="space-y-6 pb-16 max-w-6xl mx-auto">
       {/* Top Banner */}
@@ -416,21 +683,21 @@ export const SettingsScreen: React.FC = () => {
             <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" />
           </button>
 
-          {/* Row 4: Physical Yard Tanks & Suppliers */}
+          {/* Row 4: Physical Infrastructure & Dispensing Pumps */}
           <button
             type="button"
             onClick={() => setActiveMobileSheet('infrastructure')}
             className="w-full p-4 flex items-center gap-3.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100"
           >
             <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/15 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center flex-shrink-0">
-              <Warehouse className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              <GasPump className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-heading font-bold text-slate-900 dark:text-white text-[14px] truncate">
-                Yard Tanks & Suppliers
+                Tanks, Dispensing Pumps & Suppliers
               </div>
               <div className="text-[12px] font-sans text-slate-500 truncate mt-0.5">
-                {physicalTanks.length} permanent tanks · {suppliers.length} suppliers
+                {pumps.length} pumps · {physicalTanks.length} tanks · {suppliers.length} suppliers
               </div>
             </div>
             <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" />
@@ -475,6 +742,46 @@ export const SettingsScreen: React.FC = () => {
             </div>
             <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" />
           </button>
+
+          {/* Row 7: Hubs & Depots */}
+          <button
+            type="button"
+            onClick={() => setActiveMobileSheet('hubs')}
+            className="w-full p-4 flex items-center gap-3.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100"
+          >
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 flex items-center justify-center flex-shrink-0">
+              <Building2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-heading font-bold text-slate-900 dark:text-white text-[14px] truncate">
+                Hubs & Depots Network
+              </div>
+              <div className="text-[12px] font-sans text-slate-500 truncate mt-0.5">
+                {hubs.length} depots · Multi-hub isolation
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" />
+          </button>
+
+          {/* Row 8: Team & Access Control */}
+          <button
+            type="button"
+            onClick={() => setActiveMobileSheet('users')}
+            className="w-full p-4 flex items-center gap-3.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100"
+          >
+            <div className="w-10 h-10 rounded-xl bg-cyan-50 dark:bg-cyan-500/15 border border-cyan-200 dark:border-cyan-500/30 flex items-center justify-center flex-shrink-0">
+              <Users className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-heading font-bold text-slate-900 dark:text-white text-[14px] truncate">
+                Team & Hub Access
+              </div>
+              <div className="text-[12px] font-sans text-slate-500 truncate mt-0.5">
+                {users.length} members · Role & hub scoping
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" />
+          </button>
         </div>
       </div>
 
@@ -513,9 +820,9 @@ export const SettingsScreen: React.FC = () => {
             },
             {
               id: 'infrastructure' as const,
-              title: 'Yard Tanks & Suppliers',
-              subtitle: `${physicalTanks.length} tanks · ${suppliers.length} suppliers`,
-              icon: Warehouse,
+              title: 'Tanks, Pumps & Suppliers',
+              subtitle: `${pumps.length} pumps · ${physicalTanks.length} tanks · ${suppliers.length} suppliers`,
+              icon: GasPump,
               color: 'text-blue-600 dark:text-blue-400',
               bg: 'bg-blue-50 dark:bg-blue-500/15'
             },
@@ -534,6 +841,22 @@ export const SettingsScreen: React.FC = () => {
               icon: Shield,
               color: 'text-purple-600 dark:text-purple-400',
               bg: 'bg-purple-50 dark:bg-purple-500/15'
+            },
+            {
+              id: 'hubs' as const,
+              title: 'Hubs & Depots',
+              subtitle: `${hubs.length} depots · Multi-depot network`,
+              icon: Building2,
+              color: 'text-indigo-600 dark:text-indigo-400',
+              bg: 'bg-indigo-50 dark:bg-indigo-500/15'
+            },
+            {
+              id: 'users' as const,
+              title: 'Team & User Access',
+              subtitle: `${users.length} members · Role & hub scoping`,
+              icon: Users,
+              color: 'text-cyan-600 dark:text-cyan-400',
+              bg: 'bg-cyan-50 dark:bg-cyan-500/15'
             }
           ].map(item => {
             const Icon = item.icon;
@@ -1010,20 +1333,129 @@ export const SettingsScreen: React.FC = () => {
           )}
 
           {activeDesktopTab === 'infrastructure' && (
-            /* 4. PHYSICAL YARD TANKS & SUPPLIERS */
+            /* 4. PHYSICAL YARD TANKS, DISPENSING PUMPS & SUPPLIERS */
             <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
               <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
                 <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Warehouse className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                  <span>4. Yard Tanks & Supplier Registry</span>
+                  <GasPump className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  <span>4. Yard Storage Tanks, Dispensing Pumps & Verified Suppliers</span>
                 </h3>
                 <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-                  Permanent depot infrastructure tanks and approved supplier roster for offload provenance.
+                  Permanent storage vessels, scalable counter flow meters for bulk oil, and approved road tanker supplier directory.
                 </p>
               </div>
 
-              {/* Physical Tanks Section */}
+              {/* Dispensing Pumps Section (Scalable counter infrastructure) */}
               <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-[15px] font-sans font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <GasPump className="w-4 h-4 text-emerald-600 dark:text-emerald-400" weight="bold" />
+                      <span>Dispensing Pumps & Counter Flow Meters ({pumps.length} Active, Scalable)</span>
+                    </h4>
+                    <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+                      Mechanical and digital counter totalizers that track bulk oil pumped into customer containers.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleOpenAddPumpModal}
+                    className="self-start sm:self-auto px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-sans font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+                  >
+                    <Plus className="w-3.5 h-3.5" weight="bold" />
+                    <span>+ Add Dispensing Pump</span>
+                  </button>
+                </div>
+
+                {/* Comprehensible Info Banner */}
+                <div className="p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 text-xs text-emerald-900 dark:text-emerald-200 space-y-1">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <Info className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>Why Pump Totalizers Matter for Daily Depot Operations</span>
+                  </div>
+                  <p className="leading-relaxed opacity-90">
+                    Pumps only count upwards. Each morning before sales begin, staff must log opening meter readings. At the end of the day, the change in meter readings is audited against recorded sales to instantly detect any stolen or unmetered oil. You can add more pumps as you expand counter lanes.
+                  </p>
+                </div>
+
+                {/* Pumps Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {pumps.map(pump => {
+                    const sourceTank = physicalTanks.find(t => t.id === pump.physical_tank_id);
+                    const prod = products.find(p => p.id === pump.product_id);
+                    const pumpHub = hubs.find(h => h.id === pump.hub_id);
+
+                    return (
+                      <div
+                        key={pump.id}
+                        className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-col justify-between text-xs space-y-3 shadow-2xs"
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-heading font-bold text-slate-900 dark:text-white text-[13px] flex items-center gap-1.5">
+                              <GasPump className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>{pump.label}</span>
+                            </span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              Operational
+                            </span>
+                          </div>
+
+                          <div className="text-[11px] text-slate-600 dark:text-slate-300 space-y-0.5">
+                            <div>
+                              <span className="text-slate-400">Product:</span>{' '}
+                              <span className="font-semibold text-slate-800 dark:text-slate-200">{prod?.name || 'Bulk Oil'}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400">Source:</span>{' '}
+                              <span>{sourceTank ? sourceTank.label : 'Direct / Unassigned'}</span>
+                            </div>
+                            {pumpHub && (
+                              <div>
+                                <span className="text-slate-400">Hub:</span>{' '}
+                                <span className="font-mono text-indigo-600 dark:text-indigo-400 font-semibold">{pumpHub.name}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                          <div>
+                            <div className="text-[10px] uppercase font-bold text-slate-400">Current Meter</div>
+                            <div className="font-mono font-bold text-[13px] text-slate-900 dark:text-white">
+                              {pump.last_meter_reading.toLocaleString()} L
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditPumpModal(pump)}
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950/40 transition-colors"
+                              title="Edit Pump Details"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePumpAction(pump)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                              title="Delete Pump"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Physical Tanks Section */}
+              <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
                 <div className="flex items-center justify-between">
                   <h4 className="text-[15px] font-sans font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                     <Warehouse className="w-4 h-4 text-slate-400" />
@@ -1326,6 +1758,7 @@ export const SettingsScreen: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {[
                     { id: 'owner', label: 'Owner (Full Access)', desc: 'Managing Director, price overrides, credit authorizations.' },
+                    { id: 'hub_manager', label: 'Hub Manager', desc: 'Depot Branch Manager, yard authority, credit approvals.' },
                     { id: 'staff', label: 'Counter Staff', desc: 'Day-to-day dispensing, receiving payments, customer lookup.' },
                     { id: 'driver', label: 'Driver / Logistics', desc: 'Intake logging and transport delivery audits.' }
                   ].map(r => (
@@ -1370,6 +1803,386 @@ export const SettingsScreen: React.FC = () => {
                 >
                   Reset Database
                 </button>
+              </div>
+            </div>
+          )}
+
+          {activeDesktopTab === 'hubs' && (
+            /* 7. HUBS & MULTI-DEPOT OPERATIONS */
+            <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+                <div>
+                  <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Building2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                    <span>7. Hubs & Multi-Depot Operations</span>
+                  </h3>
+                  <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+                    Configure regional depots and distribution hubs. Hubs in the same state (e.g. Lagos Alaba & Ikeja) operate with strict independent tanks, pumps, shifts, and cash boxes.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenAddHub}
+                  className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-sans font-bold text-[13px] shadow-sm flex items-center gap-2 transition-all active:scale-95 shrink-0 self-start sm:self-auto"
+                >
+                  <Plus className="w-4 h-4" weight="bold" />
+                  <span>Register New Hub</span>
+                </button>
+              </div>
+
+              {/* Active Hub Scope Indicator */}
+              <div className="p-4 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                    <MapPin className="w-5 h-5" weight="bold" />
+                  </div>
+                  <div>
+                    <div className="text-xs text-indigo-700 dark:text-indigo-300 font-sans font-semibold uppercase tracking-wider">
+                      Current Operational Scope
+                    </div>
+                    <div className="text-sm font-heading font-bold text-slate-900 dark:text-white">
+                      {activeHubId === 'all'
+                        ? '🌐 All Hubs Consolidated (Global Overview)'
+                        : `📍 ${hubs.find(h => h.id === activeHubId)?.name || 'Selected Hub'} (${hubs.find(h => h.id === activeHubId)?.code})`}
+                    </div>
+                  </div>
+                </div>
+
+                {isOwner && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-sans text-slate-500">Quick Scope:</span>
+                    <select
+                      value={activeHubId}
+                      onChange={e => {
+                        setActiveHubId(e.target.value);
+                        showNotification(`Operational scope switched to ${e.target.value === 'all' ? 'All Hubs' : hubs.find(h => h.id === e.target.value)?.name}`);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200"
+                    >
+                      <option value="all">🌐 All Hubs Consolidated</option>
+                      {hubs.map(h => (
+                        <option key={h.id} value={h.id}>
+                          {h.name} ({h.state})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* Hubs Grouped by State */}
+              <div className="space-y-6">
+                {Array.from(new Set(hubs.map(h => h.state))).map(stateName => {
+                  const stateHubs = hubs.filter(h => h.state === stateName);
+                  return (
+                    <div key={stateName} className="space-y-3">
+                      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        <MapPin className="w-3.5 h-3.5 text-indigo-500" />
+                        <span>{stateName} State</span>
+                        <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-400 font-mono">
+                          {stateHubs.length} {stateHubs.length === 1 ? 'Depot' : 'Depots'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {stateHubs.map(hub => {
+                          const tankCount = allTanks.filter(t => t.hub_id === hub.id).length;
+                          const pumpCount = allPumps.filter(p => p.hub_id === hub.id).length;
+                          const staffCount = users.filter(u => u.hub_id === hub.id).length;
+                          const isHubSelected = activeHubId === hub.id;
+
+                          return (
+                            <div
+                              key={hub.id}
+                              className={`p-5 rounded-2xl border transition-all flex flex-col justify-between ${
+                                isHubSelected
+                                  ? 'bg-indigo-50/40 dark:bg-indigo-950/20 border-indigo-400 dark:border-indigo-600 ring-1 ring-indigo-400 shadow-sm'
+                                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs'
+                              }`}
+                            >
+                              <div className="space-y-3">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <h4 className="font-heading font-bold text-slate-900 dark:text-white text-[15px]">
+                                        {hub.name}
+                                      </h4>
+                                      <span className="px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-300 font-mono font-bold text-[11px]">
+                                        {hub.code}
+                                      </span>
+                                    </div>
+                                    <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-1 flex items-start gap-1">
+                                      <MapPin className="w-3.5 h-3.5 mt-0.5 text-slate-400 shrink-0" />
+                                      <span>{hub.address}</span>
+                                    </p>
+                                  </div>
+
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                      hub.is_active
+                                        ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                                    }`}
+                                  >
+                                    {hub.is_active ? 'Active' : 'Inactive'}
+                                  </span>
+                                </div>
+
+                                <div className="text-[12px] font-sans text-slate-600 dark:text-slate-300 space-y-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-slate-400">Branch Manager:</span>
+                                    <span className="font-semibold text-slate-900 dark:text-white">
+                                      {hub.manager_name || 'Not assigned'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-slate-400">Contact Phone:</span>
+                                    <span className="font-mono">{hub.phone}</span>
+                                  </div>
+                                </div>
+
+                                {/* Operational Counters */}
+                                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-3 gap-2 text-center">
+                                  <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800">
+                                    <div className="text-base font-bold font-mono text-slate-900 dark:text-white">
+                                      {tankCount}
+                                    </div>
+                                    <div className="text-[10px] uppercase font-sans text-slate-500">Tanks</div>
+                                  </div>
+                                  <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800">
+                                    <div className="text-base font-bold font-mono text-slate-900 dark:text-white">
+                                      {pumpCount}
+                                    </div>
+                                    <div className="text-[10px] uppercase font-sans text-slate-500">Pumps</div>
+                                  </div>
+                                  <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800">
+                                    <div className="text-base font-bold font-mono text-slate-900 dark:text-white">
+                                      {staffCount}
+                                    </div>
+                                    <div className="text-[10px] uppercase font-sans text-slate-500">Personnel</div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Actions */}
+                              <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveHubId(hub.id);
+                                    showNotification(`Switched operational view to ${hub.name}`);
+                                  }}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    isHubSelected
+                                      ? 'bg-indigo-600 text-white shadow-xs'
+                                      : 'bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 dark:text-slate-300'
+                                  }`}
+                                >
+                                  {isHubSelected ? '✓ Active View' : 'Switch to Hub'}
+                                </button>
+
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditHub(hub)}
+                                    className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                                    title="Edit Hub Details"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                  {hubs.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteHubAction(hub)}
+                                      className="p-1.5 rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"
+                                      title="Delete Hub"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {activeDesktopTab === 'users' && (
+            /* 8. TEAM & USER ACCESS CONTROL */
+            <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+                <div>
+                  <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Users className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+                    <span>8. Team Members & Hub Access Control</span>
+                  </h3>
+                  <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+                    Assign managers and staff to specific depots. Operational transactions (sales, pump meter readings, and cash registers) are strictly tied to the assigned hub.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenAddUser}
+                  className="px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-sans font-bold text-[13px] shadow-sm flex items-center gap-2 transition-all active:scale-95 shrink-0 self-start sm:self-auto"
+                >
+                  <Plus className="w-4 h-4" weight="bold" />
+                  <span>Add Team Member</span>
+                </button>
+              </div>
+
+              {/* Role and Hub Filters */}
+              <div className="flex flex-wrap items-center gap-2 pt-1 pb-1 text-xs">
+                <span className="text-slate-400 font-sans font-medium mr-1">Filter:</span>
+                {[
+                  { id: 'all', label: 'All Roles' },
+                  { id: 'owner', label: 'Owners' },
+                  { id: 'hub_manager', label: 'Hub Managers' },
+                  { id: 'staff', label: 'Counter Staff' },
+                  { id: 'driver', label: 'Drivers' }
+                ].map(r => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => setUserRoleFilter(r.id)}
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                      userRoleFilter === r.id
+                        ? 'bg-cyan-600 text-white shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+
+                <div className="ml-auto flex items-center gap-2">
+                  <span className="text-slate-400 font-sans">Hub:</span>
+                  <select
+                    value={userHubFilter}
+                    onChange={e => setUserHubFilter(e.target.value)}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300"
+                  >
+                    <option value="all">All Depots</option>
+                    {hubs.map(h => (
+                      <option key={h.id} value={h.id}>{h.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* User List */}
+              <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
+                {users
+                  .filter(u => userRoleFilter === 'all' || u.role === userRoleFilter)
+                  .filter(u => userHubFilter === 'all' || u.hub_id === userHubFilter)
+                  .map(u => {
+                    const assignedHub = hubs.find(h => h.id === u.hub_id);
+                    const isCurrentUser = currentUser.id === u.id;
+
+                    const roleBadge = {
+                      owner: { label: 'Owner (Global)', bg: 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300' },
+                      hub_manager: { label: 'Hub Manager', bg: 'bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300' },
+                      staff: { label: 'Counter Staff', bg: 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300' },
+                      driver: { label: 'Driver / Logistics', bg: 'bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300' }
+                    }[u.role] || { label: u.role, bg: 'bg-slate-100 text-slate-800' };
+
+                    return (
+                      <div
+                        key={u.id}
+                        className={`p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
+                          isCurrentUser
+                            ? 'bg-cyan-50/30 dark:bg-cyan-950/20'
+                            : 'hover:bg-slate-50/60 dark:hover:bg-slate-800/40'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-cyan-100 dark:bg-cyan-900/50 text-cyan-800 dark:text-cyan-200 flex items-center justify-center font-bold text-sm shrink-0">
+                            {u.full_name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-heading font-bold text-[14px] text-slate-900 dark:text-white truncate">
+                                {u.full_name}
+                              </span>
+                              {isCurrentUser && (
+                                <span className="px-2 py-0.5 rounded-full bg-cyan-600 text-white font-sans text-[10px] font-bold">
+                                  You
+                                </span>
+                              )}
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${roleBadge.bg}`}>
+                                {roleBadge.label}
+                              </span>
+                            </div>
+                            <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                              <span>{u.email}</span>
+                              <span>·</span>
+                              <span className="font-mono">{u.phone}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3">
+                          {/* Hub Assignment Badge */}
+                          <div className="text-left md:text-right">
+                            <div className="text-[10px] font-sans uppercase font-bold text-slate-400">
+                              Assigned Hub
+                            </div>
+                            <div className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1 mt-0.5">
+                              {assignedHub ? (
+                                <>
+                                  <MapPin className="w-3.5 h-3.5 text-indigo-500" />
+                                  <span>{assignedHub.name} ({assignedHub.state})</span>
+                                </>
+                              ) : (
+                                <span className="text-slate-400 italic">🌐 Global Access</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Quick Actions */}
+                          <div className="flex items-center gap-1.5 ml-auto md:ml-2">
+                            {!isCurrentUser && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCurrentUser(u);
+                                  showNotification(`Switched active account to ${u.full_name} (${roleBadge.label})`);
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-cyan-50 dark:hover:bg-cyan-950/60 hover:text-cyan-700 dark:hover:text-cyan-300 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-all active:scale-95"
+                              >
+                                Switch Account
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditUser(u)}
+                              className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                              title="Edit User"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+
+                            {!isCurrentUser && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteUserAction(u)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"
+                                title="Delete User"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
           )}
@@ -1582,6 +2395,429 @@ export const SettingsScreen: React.FC = () => {
                 </button>
               </div>
             </form>
+        </Modal>
+      )}
+
+      {/* HUB ADD / EDIT MODAL */}
+      {isHubModalOpen && (
+        <Modal
+          isOpen
+          onClose={() => setIsHubModalOpen(false)}
+          title={
+            <span className="flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              <span>{editingHubId ? 'Edit Depot Hub' : 'Register New Depot Hub'}</span>
+            </span>
+          }
+        >
+          <form onSubmit={handleSaveHub} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Hub Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Alaba Central Depot"
+                  value={hubName}
+                  onChange={e => setHubName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Hub Code *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. ALABA-01"
+                  value={hubCode}
+                  onChange={e => setHubCode(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 uppercase"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  State *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Lagos"
+                  value={hubState}
+                  onChange={e => setHubState(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                />
+                <span className="text-[10px] text-slate-500 mt-0.5 block">
+                  Multiple hubs can exist in the same state with independent records.
+                </span>
+              </div>
+
+              <div>
+                <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Contact Phone *
+                </label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="e.g. +234 803 111 2222"
+                  value={hubPhone}
+                  onChange={e => setHubPhone(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                Physical Street Address *
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Km 18 Badagry Expressway, Alaba International"
+                value={hubAddress}
+                onChange={e => setHubAddress(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Branch Manager Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Babajide Sanwo"
+                  value={hubManagerName}
+                  onChange={e => setHubManagerName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 self-end pb-2">
+                <input
+                  id="hub-is-active"
+                  type="checkbox"
+                  checked={hubIsActive}
+                  onChange={e => setHubIsActive(e.target.checked)}
+                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                />
+                <label htmlFor="hub-is-active" className="text-[13px] font-sans font-semibold text-slate-700 dark:text-slate-300">
+                  Hub is currently operating & active
+                </label>
+              </div>
+            </div>
+
+            <div className="pt-3 pb-1 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsHubModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-sans font-medium text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-sans font-bold text-xs shadow-sm"
+              >
+                Save Hub
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* USER ADD / EDIT MODAL */}
+      {isUserModalOpen && (
+        <Modal
+          isOpen
+          onClose={() => setIsUserModalOpen(false)}
+          title={
+            <span className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+              <span>{editingUserId ? 'Edit Team Member' : 'Add New Team Member'}</span>
+            </span>
+          }
+        >
+          <form onSubmit={handleSaveUser} className="space-y-4">
+            <div>
+              <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                Full Legal Name *
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Babajide Sanwo"
+                value={userFullName}
+                onChange={e => setUserFullName(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Email Address *
+                </label>
+                <input
+                  type="email"
+                  required
+                  placeholder="e.g. babajide@iyanuoluwa.ng"
+                  value={userEmail}
+                  onChange={e => setUserEmail(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Phone Number *
+                </label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="e.g. +234 803 111 2222"
+                  value={userPhone}
+                  onChange={e => setUserPhone(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                Assigned Role *
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { id: 'owner' as UserRole, label: 'Owner', desc: 'Global management across all hubs' },
+                  { id: 'hub_manager' as UserRole, label: 'Hub Manager', desc: 'Branch authority & credit approvals' },
+                  { id: 'staff' as UserRole, label: 'Counter Staff', desc: 'Dispensing & sales at assigned hub' },
+                  { id: 'driver' as UserRole, label: 'Driver', desc: 'Truck intake & delivery transit' }
+                ].map(r => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => setUserRoleSelect(r.id)}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      userRoleSelect === r.id
+                        ? 'bg-cyan-50 dark:bg-cyan-950/40 border-cyan-500 text-cyan-900 dark:text-cyan-200 font-bold'
+                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    <div className="text-[13px] font-bold">{r.label}</div>
+                    <div className="text-[10px] opacity-80 mt-0.5">{r.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                Assigned Depot Hub *
+              </label>
+              {userRoleSelect === 'owner' ? (
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs">
+                  Owners have global access to all hubs. You can switch between any depot dynamically.
+                </div>
+              ) : (
+                <>
+                  <select
+                    value={userHubIdSelect}
+                    onChange={e => setUserHubIdSelect(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500"
+                    required
+                  >
+                    {hubs.map(h => (
+                      <option key={h.id} value={h.id}>
+                        [{h.code}] {h.name} — {h.state} State ({h.address})
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-[11px] text-slate-500 mt-1 block">
+                    All transactions created by this user will be scoped exclusively to this hub.
+                  </span>
+                </>
+              )}
+            </div>
+
+            <div className="pt-3 pb-1 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsUserModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-sans font-medium text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-sans font-bold text-xs shadow-sm"
+              >
+                Save Team Member
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* PUMP ADD / EDIT MODAL */}
+      {isPumpModalOpen && (
+        <Modal
+          isOpen
+          onClose={() => setIsPumpModalOpen(false)}
+          title={
+            <span className="flex items-center gap-2">
+              <GasPump className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              <span>{editingPumpId ? 'Edit Dispensing Pump' : 'Scale Infrastructure: Add Dispensing Pump'}</span>
+            </span>
+          }
+          subtitle="Configure counter dispensing totalizer for bulk edible oil"
+        >
+          <form onSubmit={handleSavePump} className="space-y-4">
+            <div>
+              <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                Pump Name / Label *
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Pump 4 (High-Speed Veg Dispenser)"
+                value={pumpLabelInput}
+                onChange={e => setPumpLabelInput(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Product Dispensed *
+                </label>
+                <select
+                  value={pumpProductIdInput}
+                  onChange={e => setPumpProductIdInput(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px] text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-semibold"
+                >
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Connected Yard Storage Tank
+                </label>
+                <select
+                  value={pumpTankIdInput}
+                  onChange={e => setPumpTankIdInput(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px] text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="">None / Direct Line</option>
+                  {physicalTanks.map(t => (
+                    <option key={t.id} value={t.id}>{t.label} ({t.capacity_litres.toLocaleString()} L)</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {!editingPumpId && (
+                <div>
+                  <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                    Initial Meter Reading (Litres) *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    required
+                    placeholder="e.g. 0 or current mechanical reading"
+                    value={pumpReadingInput}
+                    onChange={e => setPumpReadingInput(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Starting reading on the totalizer</span>
+                </div>
+              )}
+
+              <div>
+                <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Assigned Depot Hub *
+                </label>
+                <select
+                  value={pumpHubIdInput}
+                  onChange={e => setPumpHubIdInput(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px] text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                >
+                  {hubs.map(h => (
+                    <option key={h.id} value={h.id}>[{h.code}] {h.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="pt-3 pb-1 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsPumpModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-sans font-medium text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-sans font-bold text-xs shadow-sm"
+              >
+                {editingPumpId ? 'Save Changes' : 'Register Pump'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* MOBILE SHEET MODAL WRAPPER */}
+      {activeMobileSheet && (
+        <Modal
+          isOpen
+          onClose={() => setActiveMobileSheet(null)}
+          title={
+            <span className="font-heading font-bold text-base text-slate-900 dark:text-white">
+              {activeMobileSheet === 'hubs' && 'Hubs & Depots Network'}
+              {activeMobileSheet === 'users' && 'Team & User Access'}
+              {activeMobileSheet === 'company' && 'Company & Branding'}
+              {activeMobileSheet === 'kegs' && 'Keg Fleet Standards'}
+              {activeMobileSheet === 'pricing' && 'Products & Rate Cards'}
+              {activeMobileSheet === 'infrastructure' && 'Tanks, Dispensing Pumps & Suppliers'}
+              {activeMobileSheet === 'thresholds' && 'Safety & Thresholds'}
+              {activeMobileSheet === 'system' && 'Float & System Tools'}
+            </span>
+          }
+        >
+          <div className="pb-4">
+            <p className="text-xs text-slate-500 mb-4">
+              Switch to desktop view or select the tab to manage all details.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveDesktopTab(activeMobileSheet);
+                setActiveMobileSheet(null);
+                showNotification(`Active category set to ${activeMobileSheet}`);
+              }}
+              className="w-full py-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-xs shadow-sm"
+            >
+              Open Category Content
+            </button>
+          </div>
         </Modal>
       )}
     </div>

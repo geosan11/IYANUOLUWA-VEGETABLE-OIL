@@ -94,6 +94,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   const [cashierInput, setCashierInput] = useState('Counter Staff');
   const [openingFloatInput, setOpeningFloatInput] = useState(settings.default_daily_float?.toString() || '50000');
   const [startNotesInput, setStartNotesInput] = useState('');
+  const [pumpOpeningInputs, setPumpOpeningInputs] = useState<Record<string, string>>({});
 
   const [isCloseShiftModalOpen, setIsCloseShiftModalOpen] = useState(false);
   const [cashCountedInput, setCashCountedInput] = useState('');
@@ -114,19 +115,45 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     return counted - shiftMetrics.expectedCash;
   }, [shiftMetrics, cashCountedInput]);
 
+  const copyDashboardPreviousReadings = () => {
+    const prefilled: Record<string, string> = {};
+    pumps.forEach(p => {
+      prefilled[p.id] = p.last_meter_reading.toString();
+    });
+    setPumpOpeningInputs(prev => ({ ...prev, ...prefilled }));
+  };
+
   const handleStartShiftSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setShiftError(null);
     const floatNum = parseFloat(openingFloatInput) || 0;
+
+    const readings: Record<string, number> = {};
+    for (const p of pumps) {
+      const valStr = pumpOpeningInputs[p.id];
+      const v = Number(valStr);
+      if (!valStr || !Number.isFinite(v) || v <= 0) {
+        setShiftError(`Enter a valid opening reading for ${p.label}.`);
+        return;
+      }
+      if (v < p.last_meter_reading) {
+        setShiftError(`Meter reading for ${p.label} cannot be less than previous (${p.last_meter_reading.toLocaleString()} L).`);
+        return;
+      }
+      readings[p.id] = v;
+    }
+
     const res = startShift({
       cashierName: cashierInput.trim() || 'Counter Staff',
       openingFloat: floatNum,
-      notes: startNotesInput.trim() || undefined
+      notes: startNotesInput.trim() || undefined,
+      openingReadings: readings
     });
     if (res.success) {
       setIsStartShiftModalOpen(false);
       setStartNotesInput('');
-      setShiftFeedback('New shift opened successfully.');
+      setPumpOpeningInputs({});
+      setShiftFeedback('New shift opened successfully with verified pump readings.');
       setTimeout(() => setShiftFeedback(null), 4000);
     } else {
       setShiftError(res.error || 'Could not start the shift.');
@@ -1318,6 +1345,48 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-sans text-[13px] focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
+
+              {/* Mandatory Opening Pump Meter Readings */}
+              <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between">
+                  <div className="text-[12px] font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                    Opening Pump Meter Readings ({pumps.length}) *
+                  </div>
+                  <button
+                    type="button"
+                    onClick={copyDashboardPreviousReadings}
+                    className="text-[11px] font-sans font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                  >
+                    Prefill Previous Readings
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {pumps.map(p => {
+                    return (
+                      <div key={p.id} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-bold text-slate-800 dark:text-slate-200">{p.label}</span>
+                          <span className="text-slate-400 font-mono">Last: {p.last_meter_reading.toLocaleString()} L</span>
+                        </div>
+                        <input
+                          type="number"
+                          required
+                          value={pumpOpeningInputs[p.id] ?? ''}
+                          onChange={e => setPumpOpeningInputs(prev => ({ ...prev, [p.id]: e.target.value }))}
+                          placeholder={`Min ${p.last_meter_reading} L`}
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {shiftError && (
+                <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-600 dark:text-rose-400">
+                  {shiftError}
+                </div>
+              )}
 
               <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5">
                 <button

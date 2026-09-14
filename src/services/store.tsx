@@ -26,7 +26,9 @@ import {
   CustomerCredit,
   Shift,
   Supplier,
-  PhysicalTank
+  PhysicalTank,
+  Hub,
+  UserProfile
 } from '../types';
 import {
   DEFAULT_PRODUCTS,
@@ -36,6 +38,8 @@ import {
   DEFAULT_PUMPS,
   DEFAULT_SUPPLIERS,
   DEFAULT_PHYSICAL_TANKS,
+  DEFAULT_HUBS,
+  DEFAULT_USERS,
   SEED_PUMP_READINGS,
   SEED_TANKS,
   SEED_SALES,
@@ -220,6 +224,7 @@ interface StoreContextType {
     cashierName: string;
     openingFloat: number;
     notes?: string;
+    openingReadings?: Record<string, number>;
   }) => { success: boolean; shift?: Shift; error?: string };
 
   closeShift: (data: {
@@ -238,8 +243,8 @@ interface StoreContextType {
     note?: string
   ) => { success: boolean; pumpReading?: PumpReading; error?: string };
 
-  addPump: (data: { label: string; productId?: string; openingReading?: number; physicalTankId?: string | null }) => Pump;
-  updatePump: (pumpId: string, updates: { label?: string; product_id?: string | null; physical_tank_id?: string | null }) => void;
+  addPump: (data: { label: string; productId?: string; openingReading?: number; physicalTankId?: string | null; hubId?: string }) => Pump;
+  updatePump: (pumpId: string, updates: { label?: string; product_id?: string | null; physical_tank_id?: string | null; hub_id?: string }) => void;
   deletePump: (pumpId: string) => { success: boolean; error?: string };
 
   addExpense: (
@@ -273,6 +278,29 @@ interface StoreContextType {
   updatePhysicalTank: (id: string, updates: Partial<PhysicalTank>) => void;
   deletePhysicalTank: (id: string) => void;
 
+  // Multi-Hub Architecture & User Profiles
+  hubs: Hub[];
+  users: UserProfile[];
+  currentUser: UserProfile;
+  activeHubId: string;
+  activeHub: Hub | null;
+  setCurrentUser: (user: UserProfile) => void;
+  setActiveHubId: (hubId: string) => void;
+  addHub: (hub: Omit<Hub, 'id' | 'created_at'>) => Hub;
+  updateHub: (id: string, updates: Partial<Hub>) => void;
+  deleteHub: (id: string) => { success: boolean; error?: string };
+  addUser: (user: Omit<UserProfile, 'id' | 'created_at'>) => UserProfile;
+  updateUser: (id: string, updates: Partial<UserProfile>) => void;
+  deleteUser: (id: string) => { success: boolean; error?: string };
+
+  // Global unpartitioned lists (available for cross-hub aggregation)
+  allTanks: Tank[];
+  allSales: Sale[];
+  allOrders: Order[];
+  allShifts: Shift[];
+  allExpenses: Expense[];
+  allPumps: Pump[];
+
   // Receipt Modal State
   activeReceipt: ReceiptData | null;
   setActiveReceipt: (receipt: ReceiptData | null) => void;
@@ -303,7 +331,11 @@ const STORAGE_KEYS = {
   CUSTOMER_CREDITS: 'iyanu_customer_credits_v3',
   SHIFTS: 'iyanu_shifts_v3',
   USER_ROLE: 'iyanu_user_role_v3',
-  THEME: 'iyanu_theme_v3'
+  THEME: 'iyanu_theme_v3',
+  HUBS: 'iyanu_hubs_v3',
+  USERS: 'iyanu_users_v3',
+  CURRENT_USER: 'iyanu_current_user_v3',
+  ACTIVE_HUB_ID: 'iyanu_active_hub_id_v3'
 };
 
 /**
@@ -347,6 +379,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [theme]);
 
+  // Multi-hub and User Profiles state
+  const [hubs, setHubs] = useState<Hub[]>(() => loadPersisted(STORAGE_KEYS.HUBS, DEFAULT_HUBS));
+  const [users, setUsers] = useState<UserProfile[]>(() => loadPersisted(STORAGE_KEYS.USERS, DEFAULT_USERS));
+  const [currentUser, setCurrentUserState] = useState<UserProfile>(() => {
+    const saved = loadPersisted<UserProfile | null>(STORAGE_KEYS.CURRENT_USER, null);
+    if (saved && saved.id) return saved;
+    return DEFAULT_USERS[0];
+  });
+  const [activeHubId, setActiveHubIdState] = useState<string>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.ACTIVE_HUB_ID);
+    if (saved) return saved;
+    return 'all';
+  });
+
   // Load state from LocalStorage or seed defaults
   const [products, setProducts] = useState<Product[]>(() => loadPersisted(STORAGE_KEYS.PRODUCTS, DEFAULT_PRODUCTS));
 
@@ -356,45 +402,61 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => loadPersisted(STORAGE_KEYS.SUPPLIERS, DEFAULT_SUPPLIERS));
 
-  const [physicalTanks, setPhysicalTanks] = useState<PhysicalTank[]>(() => loadPersisted(STORAGE_KEYS.PHYSICAL_TANKS, DEFAULT_PHYSICAL_TANKS));
+  const [allPhysicalTanks, setPhysicalTanks] = useState<PhysicalTank[]>(() => loadPersisted(STORAGE_KEYS.PHYSICAL_TANKS, DEFAULT_PHYSICAL_TANKS));
 
-  const [tanks, setTanks] = useState<Tank[]>(() => loadPersisted(STORAGE_KEYS.TANKS, SEED_TANKS));
+  const [allTanks, setTanks] = useState<Tank[]>(() => loadPersisted(STORAGE_KEYS.TANKS, SEED_TANKS));
 
-  const [sales, setSales] = useState<Sale[]>(() => loadPersisted(STORAGE_KEYS.SALES, SEED_SALES));
+  const [allSales, setSales] = useState<Sale[]>(() => loadPersisted(STORAGE_KEYS.SALES, SEED_SALES));
 
-  const [orders, setOrders] = useState<Order[]>(() => loadPersisted(STORAGE_KEYS.ORDERS, SEED_ORDERS));
+  const [allOrders, setOrders] = useState<Order[]>(() => loadPersisted(STORAGE_KEYS.ORDERS, SEED_ORDERS));
 
-  const [payments, setPayments] = useState<Payment[]>(() => loadPersisted(STORAGE_KEYS.PAYMENTS, SEED_PAYMENTS));
+  const [allPayments, setPayments] = useState<Payment[]>(() => loadPersisted(STORAGE_KEYS.PAYMENTS, SEED_PAYMENTS));
 
-  const [auditLog, setAuditLog] = useState<AuditEntry[]>(() => loadPersisted(STORAGE_KEYS.AUDIT_LOG, SEED_AUDIT_LOG));
+  const [allAuditLog, setAuditLog] = useState<AuditEntry[]>(() => loadPersisted(STORAGE_KEYS.AUDIT_LOG, SEED_AUDIT_LOG));
 
-  const [kegReturns, setKegReturns] = useState<KegReturn[]>(() => loadPersisted(STORAGE_KEYS.KEG_RETURNS, SEED_KEG_RETURNS));
+  const [allKegReturns, setKegReturns] = useState<KegReturn[]>(() => loadPersisted(STORAGE_KEYS.KEG_RETURNS, SEED_KEG_RETURNS));
 
-  const [expenses, setExpenses] = useState<Expense[]>(() => loadPersisted(STORAGE_KEYS.EXPENSES, SEED_EXPENSES));
+  const [allExpenses, setExpenses] = useState<Expense[]>(() => loadPersisted(STORAGE_KEYS.EXPENSES, SEED_EXPENSES));
 
   const [settings, setSettings] = useState<AppSettings>(() => ({
     ...DEFAULT_SETTINGS,
     ...loadPersisted<Partial<AppSettings>>(STORAGE_KEYS.SETTINGS, {})
   }));
 
-  const [pumps, setPumps] = useState<Pump[]>(() => loadPersisted<Pump[]>(STORAGE_KEYS.PUMPS, DEFAULT_PUMPS));
+  const [allPumps, setPumps] = useState<Pump[]>(() => loadPersisted<Pump[]>(STORAGE_KEYS.PUMPS, DEFAULT_PUMPS));
 
-  const [pumpReadings, setPumpReadings] = useState<PumpReading[]>(() => loadPersisted(STORAGE_KEYS.PUMP_READINGS, SEED_PUMP_READINGS));
+  const [allPumpReadings, setPumpReadings] = useState<PumpReading[]>(() => loadPersisted(STORAGE_KEYS.PUMP_READINGS, SEED_PUMP_READINGS));
 
-  const [transfers, setTransfers] = useState<Transfer[]>(() => loadPersisted(STORAGE_KEYS.TRANSFERS, SEED_TRANSFERS));
+  const [allTransfers, setTransfers] = useState<Transfer[]>(() => loadPersisted(STORAGE_KEYS.TRANSFERS, SEED_TRANSFERS));
 
   const [customerCredits, setCustomerCredits] = useState<CustomerCredit[]>(() => loadPersisted<CustomerCredit[]>(STORAGE_KEYS.CUSTOMER_CREDITS, []));
 
-  const [shifts, setShifts] = useState<Shift[]>(() => loadPersisted(STORAGE_KEYS.SHIFTS, SEED_SHIFTS));
+  const [allShifts, setShifts] = useState<Shift[]>(() => loadPersisted(STORAGE_KEYS.SHIFTS, SEED_SHIFTS));
 
   const [userRole, setUserRole] = useState<UserRole>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.USER_ROLE);
-    return (saved as UserRole) || 'owner';
+    return (saved as UserRole) || currentUser.role || 'owner';
   });
 
   const [activeReceipt, setActiveReceipt] = useState<ReceiptData | null>(null);
 
   // Sync to LocalStorage on change
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.HUBS, JSON.stringify(hubs));
+  }, [hubs]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+  }, [users]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(currentUser));
+  }, [currentUser]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_HUB_ID, activeHubId);
+  }, [activeHubId]);
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
   }, [products]);
@@ -412,64 +474,212 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [suppliers]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.PHYSICAL_TANKS, JSON.stringify(physicalTanks));
-  }, [physicalTanks]);
+    localStorage.setItem(STORAGE_KEYS.PHYSICAL_TANKS, JSON.stringify(allPhysicalTanks));
+  }, [allPhysicalTanks]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.TANKS, JSON.stringify(tanks));
-  }, [tanks]);
+    localStorage.setItem(STORAGE_KEYS.TANKS, JSON.stringify(allTanks));
+  }, [allTanks]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.SALES, JSON.stringify(sales));
-  }, [sales]);
+    localStorage.setItem(STORAGE_KEYS.SALES, JSON.stringify(allSales));
+  }, [allSales]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
-  }, [orders]);
+    localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(allOrders));
+  }, [allOrders]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.PAYMENTS, JSON.stringify(payments));
-  }, [payments]);
+    localStorage.setItem(STORAGE_KEYS.PAYMENTS, JSON.stringify(allPayments));
+  }, [allPayments]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.AUDIT_LOG, JSON.stringify(auditLog));
-  }, [auditLog]);
+    localStorage.setItem(STORAGE_KEYS.AUDIT_LOG, JSON.stringify(allAuditLog));
+  }, [allAuditLog]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.KEG_RETURNS, JSON.stringify(kegReturns));
-  }, [kegReturns]);
+    localStorage.setItem(STORAGE_KEYS.KEG_RETURNS, JSON.stringify(allKegReturns));
+  }, [allKegReturns]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(expenses));
-  }, [expenses]);
+    localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(allExpenses));
+  }, [allExpenses]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
   }, [settings]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.PUMPS, JSON.stringify(pumps));
-  }, [pumps]);
+    localStorage.setItem(STORAGE_KEYS.PUMPS, JSON.stringify(allPumps));
+  }, [allPumps]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.PUMP_READINGS, JSON.stringify(pumpReadings));
-  }, [pumpReadings]);
+    localStorage.setItem(STORAGE_KEYS.PUMP_READINGS, JSON.stringify(allPumpReadings));
+  }, [allPumpReadings]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.TRANSFERS, JSON.stringify(transfers));
-  }, [transfers]);
+    localStorage.setItem(STORAGE_KEYS.TRANSFERS, JSON.stringify(allTransfers));
+  }, [allTransfers]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.CUSTOMER_CREDITS, JSON.stringify(customerCredits));
   }, [customerCredits]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.SHIFTS, JSON.stringify(shifts));
-  }, [shifts]);
+    localStorage.setItem(STORAGE_KEYS.SHIFTS, JSON.stringify(allShifts));
+  }, [allShifts]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.USER_ROLE, userRole);
   }, [userRole]);
+
+  // ==========================================
+  // MULTI-HUB ACTIONS & SCOPED COMPUTED VIEWS
+  // ==========================================
+
+  const setCurrentUser = (user: UserProfile) => {
+    setCurrentUserState(user);
+    setUserRole(user.role);
+    if (user.role === 'owner') {
+      // Owner retains selection or can select all
+    } else if (user.hub_id) {
+      setActiveHubIdState(user.hub_id);
+    }
+  };
+
+  const setActiveHubId = (hubId: string) => {
+    // Non-owner staff/managers are strictly locked to their assigned hub
+    if (currentUser.role !== 'owner' && currentUser.hub_id) {
+      setActiveHubIdState(currentUser.hub_id);
+      return;
+    }
+    setActiveHubIdState(hubId);
+  };
+
+  const activeHub = useMemo(() => {
+    if (activeHubId === 'all') return null;
+    return hubs.find(h => h.id === activeHubId) || null;
+  }, [hubs, activeHubId]);
+
+  const addHub = (hubData: Omit<Hub, 'id' | 'created_at'>): Hub => {
+    const newHub: Hub = {
+      ...hubData,
+      id: `hub-${Date.now()}`,
+      created_at: new Date().toISOString()
+    };
+    setHubs(prev => [...prev, newHub]);
+    return newHub;
+  };
+
+  const updateHub = (id: string, updates: Partial<Hub>) => {
+    setHubs(prev => prev.map(h => (h.id === id ? { ...h, ...updates } : h)));
+  };
+
+  const deleteHub = (id: string) => {
+    const hasTanks = allTanks.some(t => t.hub_id === id);
+    const hasPumps = allPumps.some(p => p.hub_id === id);
+    const hasUsers = users.some(u => u.hub_id === id);
+    if (hasTanks || hasPumps || hasUsers) {
+      return { success: false, error: 'Cannot delete hub with associated tanks, pumps, or assigned staff.' };
+    }
+    setHubs(prev => prev.filter(h => h.id !== id));
+    if (activeHubId === id) setActiveHubIdState('all');
+    return { success: true };
+  };
+
+  const addUser = (userData: Omit<UserProfile, 'id' | 'created_at'>): UserProfile => {
+    const newUser: UserProfile = {
+      ...userData,
+      id: `usr-${Date.now()}`,
+      created_at: new Date().toISOString()
+    };
+    setUsers(prev => [...prev, newUser]);
+    return newUser;
+  };
+
+  const updateUser = (id: string, updates: Partial<UserProfile>) => {
+    setUsers(prev => prev.map(u => (u.id === id ? { ...u, ...updates } : u)));
+    if (currentUser.id === id) {
+      setCurrentUserState(prev => ({ ...prev, ...updates }));
+      if (updates.role) setUserRole(updates.role);
+    }
+  };
+
+  const deleteUser = (id: string) => {
+    if (currentUser.id === id) {
+      return { success: false, error: 'Cannot delete the currently active logged-in user.' };
+    }
+    setUsers(prev => prev.filter(u => u.id !== id));
+    return { success: true };
+  };
+
+  const getTargetHubId = () => {
+    if (activeHubId !== 'all') return activeHubId;
+    return currentUser.hub_id || 'hub-los-alaba';
+  };
+
+  // Scoped views for the active hub (or consolidated across all if 'all')
+  const physicalTanks = useMemo(() => {
+    if (activeHubId === 'all') return allPhysicalTanks;
+    return allPhysicalTanks.filter(pt => !pt.hub_id || pt.hub_id === activeHubId);
+  }, [allPhysicalTanks, activeHubId]);
+
+  const tanks = useMemo(() => {
+    if (activeHubId === 'all') return allTanks;
+    return allTanks.filter(t => !t.hub_id || t.hub_id === activeHubId);
+  }, [allTanks, activeHubId]);
+
+  const sales = useMemo(() => {
+    if (activeHubId === 'all') return allSales;
+    return allSales.filter(s => !s.hub_id || s.hub_id === activeHubId);
+  }, [allSales, activeHubId]);
+
+  const orders = useMemo(() => {
+    if (activeHubId === 'all') return allOrders;
+    return allOrders.filter(o => !o.hub_id || o.hub_id === activeHubId);
+  }, [allOrders, activeHubId]);
+
+  const payments = useMemo(() => {
+    if (activeHubId === 'all') return allPayments;
+    return allPayments.filter(p => !p.hub_id || p.hub_id === activeHubId);
+  }, [allPayments, activeHubId]);
+
+  const auditLog = useMemo(() => {
+    if (activeHubId === 'all') return allAuditLog;
+    return allAuditLog.filter(a => !a.hub_id || a.hub_id === activeHubId);
+  }, [allAuditLog, activeHubId]);
+
+  const kegReturns = useMemo(() => {
+    if (activeHubId === 'all') return allKegReturns;
+    return allKegReturns.filter(k => !k.hub_id || k.hub_id === activeHubId);
+  }, [allKegReturns, activeHubId]);
+
+  const expenses = useMemo(() => {
+    if (activeHubId === 'all') return allExpenses;
+    return allExpenses.filter(e => !e.hub_id || e.hub_id === activeHubId);
+  }, [allExpenses, activeHubId]);
+
+  const pumps = useMemo(() => {
+    if (activeHubId === 'all') return allPumps;
+    return allPumps.filter(p => !p.hub_id || p.hub_id === activeHubId);
+  }, [allPumps, activeHubId]);
+
+  const pumpReadings = useMemo(() => {
+    if (activeHubId === 'all') return allPumpReadings;
+    return allPumpReadings.filter(pr => !pr.hub_id || pr.hub_id === activeHubId);
+  }, [allPumpReadings, activeHubId]);
+
+  const transfers = useMemo(() => {
+    if (activeHubId === 'all') return allTransfers;
+    return allTransfers.filter(
+      t => !t.from_hub_id || t.from_hub_id === activeHubId || t.to_hub_id === activeHubId
+    );
+  }, [allTransfers, activeHubId]);
+
+  const shifts = useMemo(() => {
+    if (activeHubId === 'all') return allShifts;
+    return allShifts.filter(s => !s.hub_id || s.hub_id === activeHubId);
+  }, [allShifts, activeHubId]);
 
   // ==========================================
   // COMPUTED BUSINESS LOGIC DERIVATIONS
@@ -715,7 +925,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       supplier_id: data.supplierId,
       physical_tank_id: data.physicalTankId || null,
       space_note: data.spaceNote?.trim() || undefined,
-      supply_model: 'bulk_truck'
+      supply_model: 'bulk_truck',
+      hub_id: getTargetHubId()
     };
 
     setTanks(prev => [newTank, ...prev]);
@@ -754,7 +965,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       supplier_id: data.supplierId,
       physical_tank_id: data.physicalTankId || null,
       space_note: data.spaceNote?.trim() || undefined,
-      supply_model: 'pre_kegged'
+      supply_model: 'pre_kegged',
+      hub_id: getTargetHubId()
     };
 
     setTanks(prev => [newTank, ...prev]);
@@ -769,7 +981,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         id: `aud-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         at: new Date().toISOString(),
         actor_role: userRole,
-        actor_name: userRole === 'owner' ? 'Managing Director' : 'Depot Cashier'
+        actor_name: currentUser.full_name || (userRole === 'owner' ? 'Managing Director' : 'Depot Cashier'),
+        hub_id: getTargetHubId()
       },
       ...prev
     ]);
@@ -900,7 +1113,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         source_tank_id: draw.primaryTankId,
         tank_allocations: draw.allocations.map(a => ({ tank_id: a.tankId, litres: a.drawnLitres })),
         voided: false,
-        note: i === 0 ? data.note?.trim() || undefined : undefined
+        note: i === 0 ? data.note?.trim() || undefined : undefined,
+        hub_id: getTargetHubId()
       });
     }
 
@@ -916,12 +1130,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       payment_method: data.paymentMethod,
       amount_tendered: tendered,
       change_due: changeDue,
-      cashier_name: userRole === 'owner' ? 'Managing Director' : 'Depot Cashier',
+      cashier_name: currentUser.full_name || (userRole === 'owner' ? 'Managing Director' : 'Depot Cashier'),
       note: data.note?.trim() || undefined,
-      voided: false
+      voided: false,
+      hub_id: getTargetHubId()
     };
 
-    setTanks(workingTanks);
+    const updatedMap = new Map(workingTanks.map(t => [t.id, t]));
+    setTanks(prev => prev.map(t => updatedMap.get(t.id) || t));
     setSales(prev => [sale, ...prev]);
     setOrders(prev => [...newLines, ...prev]);
     logAudit({ entity_type: 'sale', entity_id: saleId, action: 'create', changes: [] });
@@ -1252,7 +1468,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (litresDelta > 0.001) {
       const draw = executeFifoTankDraw(tanks, line.product_id, litresDelta);
       if (!draw.success) return { success: false, error: draw.errorMessage || 'Not enough tank stock for the increase' };
-      setTanks(draw.updatedTanks);
+      const updatedMap = new Map(draw.updatedTanks.map(t => [t.id, t]));
+      setTanks(prev => prev.map(t => updatedMap.get(t.id) || t));
       const merged: Record<string, number> = {};
       for (const a of nextAllocations) merged[a.tank_id] = (merged[a.tank_id] || 0) + a.litres;
       for (const a of draw.allocations) merged[a.tankId] = (merged[a.tankId] || 0) + a.drawnLitres;
@@ -1429,7 +1646,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       pack_size_id: packSizeId,
       qty: numericQty,
       date: new Date().toISOString(),
-      note: note?.trim() || undefined
+      note: note?.trim() || undefined,
+      hub_id: getTargetHubId()
     };
 
     setKegReturns(prev => [newReturn, ...prev]);
@@ -1457,6 +1675,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return { success: false, error: `Sender only has ${senderKegs} company container(s) to transfer` };
     }
 
+    const targetHubId = getTargetHubId();
     const newTransfer: Transfer = {
       id: `tr-${Date.now()}`,
       from_customer_id: data.fromCustomerId,
@@ -1466,7 +1685,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       product_id: data.productId ?? null,
       pack_size_id: data.packSizeId ?? null,
       date: new Date().toISOString(),
-      note: data.notes?.trim() || undefined
+      note: data.notes?.trim() || undefined,
+      from_hub_id: targetHubId,
+      to_hub_id: targetHubId
     };
 
     setTransfers(prev => [newTransfer, ...prev]);
@@ -1478,20 +1699,57 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     cashierName: string;
     openingFloat: number;
     notes?: string;
+    openingReadings?: Record<string, number>;
   }) => {
-    if (shifts.some(s => s.status === 'open')) {
-      return { success: false, error: 'A shift is already open. Close it before starting a new one.' };
+    const targetHubId = getTargetHubId();
+    if (allShifts.some(s => s.status === 'open' && (!s.hub_id || s.hub_id === targetHubId))) {
+      return { success: false, error: 'A shift is already open for this hub. Close it before starting a new one.' };
     }
     if (!Number.isFinite(Number(data.openingFloat)) || Number(data.openingFloat) < 0) {
       return { success: false, error: 'Opening float cannot be negative' };
     }
+
+    const recordedAtIso = new Date().toISOString();
+    const newPumpReadings: PumpReading[] = [];
+    const validReadings: Record<string, number> = {};
+
+    if (data.openingReadings) {
+      for (const [pumpId, reading] of Object.entries(data.openingReadings)) {
+        const num = Number(reading);
+        if (!isNaN(num) && num > 0) {
+          validReadings[pumpId] = num;
+          newPumpReadings.push({
+            id: `pr-shift-open-${Date.now()}-${pumpId}`,
+            pump_id: pumpId,
+            reading: num,
+            recorded_at: recordedAtIso,
+            note: `Shift opening meter reading (${data.cashierName || currentUser.full_name || 'Staff'})`,
+            hub_id: targetHubId
+          });
+        }
+      }
+
+      // Update pumps last_meter_reading
+      setPumps(prev => prev.map(p => {
+        const r = validReadings[p.id];
+        return r !== undefined && !isNaN(Number(r)) ? { ...p, last_meter_reading: Number(r) } : p;
+      }));
+
+      // Append to pumpReadings
+      if (newPumpReadings.length > 0) {
+        setPumpReadings(prev => [...prev, ...newPumpReadings]);
+      }
+    }
+
     const newShift: Shift = {
       id: `shift-${Date.now()}`,
-      cashier_name: data.cashierName,
-      start_time: new Date().toISOString(),
+      cashier_name: data.cashierName || currentUser.full_name,
+      start_time: recordedAtIso,
       opening_float: Number(data.openingFloat),
+      opening_readings: Object.keys(validReadings).length > 0 ? validReadings : undefined,
       status: 'open',
-      note: data.notes?.trim() || undefined
+      note: data.notes?.trim() || undefined,
+      hub_id: targetHubId
     };
 
     setShifts(prev => [newShift, ...prev]);
@@ -1536,7 +1794,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // 8b. Record Shift Opening Readings (Shift Meter Gate)
   const recordShiftOpeningReadings = (readings: Record<string, number>) => {
     if (!activeShift) {
-      return { success: false, error: 'No active shift is currently open. Please start a shift first.' };
+      return startShift({
+        cashierName: currentUser.full_name || 'Depot Cashier',
+        openingFloat: settings.default_daily_float || 50000,
+        notes: 'Shift opened with morning pump readings',
+        openingReadings: readings
+      });
     }
 
     const recordedAtIso = new Date().toISOString();
@@ -1550,7 +1813,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           pump_id: pumpId,
           reading: num,
           recorded_at: recordedAtIso,
-          note: `Shift opening meter reading (${activeShift.cashier_name || 'Staff'})`
+          note: `Shift opening meter reading (${activeShift.cashier_name || 'Staff'})`,
+          hub_id: activeShift.hub_id || getTargetHubId()
         });
       }
     }
@@ -1593,7 +1857,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       reading: Number(reading),
       recorded_at: new Date().toISOString(),
       note: note?.trim() || undefined,
-      recorded_by: userRole === 'owner' ? 'Managing Director' : 'Depot Cashier'
+      recorded_by: currentUser.full_name || (userRole === 'owner' ? 'Managing Director' : 'Depot Cashier'),
+      hub_id: pump.hub_id || getTargetHubId()
     };
 
     // Update pump's last_meter_reading
@@ -1604,19 +1869,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // 9b. Pumps CRUD (named register)
-  const addPump = (data: { label: string; productId?: string; openingReading?: number; physicalTankId?: string | null }) => {
+  const addPump = (data: { label: string; productId?: string; openingReading?: number; physicalTankId?: string | null; hubId?: string }) => {
     const newPump: Pump = {
       id: `p-${Date.now()}`,
       label: data.label.trim(),
       product_id: data.productId || undefined,
       last_meter_reading: Number(data.openingReading) || 0,
-      physical_tank_id: data.physicalTankId || null
+      physical_tank_id: data.physicalTankId || null,
+      hub_id: data.hubId || getTargetHubId()
     };
     setPumps(prev => [...prev, newPump]);
     return newPump;
   };
 
-  const updatePump = (pumpId: string, updates: { label?: string; product_id?: string | null; physical_tank_id?: string | null }) => {
+  const updatePump = (pumpId: string, updates: { label?: string; product_id?: string | null; physical_tank_id?: string | null; hub_id?: string }) => {
     setPumps(prev =>
       prev.map(p =>
         p.id === pumpId
@@ -1624,7 +1890,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               ...p,
               label: updates.label !== undefined ? updates.label.trim() || p.label : p.label,
               product_id: updates.product_id !== undefined ? updates.product_id || undefined : p.product_id,
-              physical_tank_id: updates.physical_tank_id !== undefined ? updates.physical_tank_id || null : p.physical_tank_id
+              physical_tank_id: updates.physical_tank_id !== undefined ? updates.physical_tank_id || null : p.physical_tank_id,
+              hub_id: updates.hub_id !== undefined ? updates.hub_id : p.hub_id
             }
           : p
       )
@@ -1654,7 +1921,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       date: date || new Date().toISOString(),
       category: category.trim(),
       amount: numericAmount,
-      note
+      note,
+      hub_id: getTargetHubId()
     };
 
     setExpenses(prev => [newExpense, ...prev]);
@@ -1749,7 +2017,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const addCustomer = (customerData: Omit<Customer, 'id'>) => {
     const newCust: Customer = {
       ...customerData,
-      id: `cust-${Date.now()}`
+      id: `cust-${Date.now()}`,
+      hub_id: customerData.hub_id || getTargetHubId()
     };
     setCustomers(prev => [...prev, newCust]);
     return newCust;
@@ -1782,7 +2051,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const addPhysicalTank = (tankData: Omit<PhysicalTank, 'id'>) => {
     const newPT: PhysicalTank = {
       ...tankData,
-      id: `pt-${Date.now()}`
+      id: `pt-${Date.now()}`,
+      hub_id: tankData.hub_id || getTargetHubId()
     };
     setPhysicalTanks(prev => [...prev, newPT]);
     return newPT;
@@ -1798,6 +2068,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // 18. Reset to default demo seed data
   const resetToSeedData = () => {
+    setHubs(DEFAULT_HUBS);
+    setUsers(DEFAULT_USERS);
+    setCurrentUserState(DEFAULT_USERS[0]);
+    setActiveHubIdState('all');
     setProducts(DEFAULT_PRODUCTS);
     setPackPrices(DEFAULT_PACK_PRICES);
     setCustomers(DEFAULT_CUSTOMERS);
@@ -1854,6 +2128,25 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         pumpVarianceAudits,
         activeAlerts,
         todayStats,
+        hubs,
+        users,
+        currentUser,
+        activeHubId,
+        activeHub,
+        setCurrentUser,
+        setActiveHubId,
+        addHub,
+        updateHub,
+        deleteHub,
+        addUser,
+        updateUser,
+        deleteUser,
+        allTanks,
+        allSales,
+        allOrders,
+        allShifts,
+        allExpenses,
+        allPumps,
         logTruckIntake,
         logPreKeggedIntake,
         createSale,
