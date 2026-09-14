@@ -34,10 +34,10 @@ import {
 /** Small numbered step marker for section headers, echoing a terminal-style flow. */
 const StepBadge: React.FC<{ n: number; label: string }> = ({ n, label }) => (
   <div className="flex items-center gap-2">
-    <span className="w-5 h-5 rounded bg-brand-500/20 text-brand-700 dark:text-brand-400 font-mono tabular-nums font-bold text-[11px] flex items-center justify-center shrink-0">
+    <span className="w-5 h-5 rounded bg-brand-500/20 text-brand-700 dark:text-brand-400 font-mono tabular-nums font-bold text-xs flex items-center justify-center shrink-0">
       {n}
     </span>
-    <span className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-500">{label}</span>
+    <span className="text-xs font-sans font-bold uppercase tracking-wider text-slate-500">{label}</span>
   </div>
 );
 
@@ -379,7 +379,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
         onClose={() => {}}
         hideCloseButton
         title={
-          <span className="flex items-center gap-2.5 text-slate-900 dark:text-white font-heading font-bold text-[16px]">
+          <span className="flex items-center gap-2.5 text-slate-900 dark:text-white font-heading font-bold text-base">
             <span className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
               <GasPump className="w-4 h-4" weight="bold" />
             </span>
@@ -396,7 +396,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
           {!activeShift && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800">
               <div>
-                <label className="block text-[11px] font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
                   Cashier / Staff on Duty *
                 </label>
                 <div className="relative">
@@ -413,7 +413,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
               </div>
 
               <div>
-                <label className="block text-[11px] font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
                   Opening Cash Float (NGN) *
                 </label>
                 <div className="relative">
@@ -429,20 +429,20 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     className="w-full pl-9 pr-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
                   />
                 </div>
-                <p className="text-[10px] text-slate-400 mt-0.5">Physical cash placed in the drawer for customer change.</p>
+                <p className="text-xs text-slate-400 mt-0.5">Physical cash placed in the drawer for customer change.</p>
               </div>
             </div>
           )}
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <div className="text-[12px] font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+              <div className="text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
                 Dispensing Pumps Meter Readings ({shiftGateStatus.missingPumps.length})
               </div>
               <button
                 type="button"
                 onClick={copyPreviousReadings}
-                className="text-[11px] font-sans font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1"
+                className="text-xs font-sans font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1"
               >
                 <ArrowsCounterClockwise className="w-3.5 h-3.5" />
                 <span>Use Previous Closing Readings</span>
@@ -456,10 +456,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                 return (
                   <div key={p.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="font-sans font-bold text-[12px] text-slate-900 dark:text-white">{p.label}</span>
-                      <span className="text-[10px] font-mono text-slate-400">Prev: {p.last_meter_reading.toLocaleString()} L</span>
+                      <span className="font-sans font-bold text-xs text-slate-900 dark:text-white">{p.label}</span>
+                      <span className="text-xs font-mono text-slate-400">Prev: {p.last_meter_reading.toLocaleString()} L</span>
                     </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
                       {prod?.name || 'Bulk Oil'}{sourceTank ? ` · ${sourceTank.label}` : ''}
                     </div>
                     <div className="relative">
@@ -471,7 +471,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         placeholder={`Min ${p.last_meter_reading} L`}
                         className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
                       />
-                      <span className="absolute right-3 top-2 text-[11px] font-mono text-slate-400">Litres</span>
+                      <span className="absolute right-3 top-2 text-xs font-mono text-slate-400">Litres</span>
                     </div>
                   </div>
                 );
@@ -480,7 +480,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
           </div>
 
           {gateError && (
-            <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-[12px] text-rose-600 dark:text-rose-400 flex items-center gap-2">
+            <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-600 dark:text-rose-400 flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 shrink-0" weight="bold" />
               <span>{gateError}</span>
             </div>
@@ -488,7 +488,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
           <button
             type="submit"
-            className="w-full py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-[0_0_0_3px_rgba(0,183,73,0.18)] flex items-center justify-center gap-2 transition-all active:scale-[0.99]"
+            className="w-full py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-sm shadow-sm flex items-center justify-center gap-2 transition-all active:scale-[0.99]"
           >
             <Check className="w-4 h-4" weight="bold" />
             <span>{!activeShift ? 'Start Shift & Unlock Counter' : 'Verify Readings & Unlock Counter'}</span>
@@ -506,7 +506,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
               type="button"
               id="btn-back-to-new-sale"
               onClick={() => setShowPreviousTransactions(false)}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-[13px] font-sans font-bold transition-all active:scale-95"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-sans font-bold transition-all active:scale-95"
             >
               <ArrowLeft className="w-4 h-4 text-brand-600 dark:text-brand-400" weight="bold" />
               <span>← Back to New Sale</span>
@@ -517,14 +517,14 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                 type="button"
                 id="btn-goto-ledger"
                 onClick={() => onNavigate('ledger')}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-[12px] font-sans font-bold shadow-sm transition-all"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-xs font-sans font-bold shadow-sm transition-all"
               >
                 <span>Full Ledger</span>
                 <ArrowSquareOut className="w-3.5 h-3.5" weight="bold" />
               </button>
             )}
           </div>
-          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
+          <div className="depot-card p-4 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="relative flex-1 max-w-md">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -533,7 +533,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   value={txnSearch}
                   onChange={e => setTxnSearch(e.target.value)}
                   placeholder="Search previous transactions by customer or order..."
-                  className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px] font-sans focus:outline-none focus:border-brand-500"
+                  className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-sans focus:outline-none focus:border-brand-500"
                 />
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -561,26 +561,26 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   >
                     <div className="min-w-0 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-heading font-bold text-[14px] text-slate-900 dark:text-white">
+                        <span className="font-heading font-bold text-sm text-slate-900 dark:text-white">
                           {item.customerName}
                         </span>
                         {(() => {
                           const theme = getPaymentModeTheme(item.sale.payment_method);
                           return (
                             <span
-                              className={`inline-flex items-center gap-1.5 text-[10px] font-bold font-mono uppercase px-2 py-0.5 rounded-md border tracking-wider shadow-xs ${theme.badgeCls}`}
+                              className={`inline-flex items-center gap-1.5 text-xs font-bold font-mono uppercase px-2 py-0.5 rounded-md border tracking-wider ${theme.badgeCls}`}
                             >
                               <span className={`w-1.5 h-1.5 rounded-full ${theme.dotCls} shrink-0`} />
                               <span>{theme.badgeLabel}</span>
                             </span>
                           );
                         })()}
-                        <span className="text-[11px] font-mono text-slate-400">
+                        <span className="text-xs font-mono text-slate-400">
                           {formatDepotDate(item.sale.date)} · {formatDepotTime(item.sale.date)}
                         </span>
                       </div>
 
-                      <div className="text-[12px] text-slate-600 dark:text-slate-300 truncate">
+                      <div className="text-xs text-slate-600 dark:text-slate-300 truncate">
                         {item.lines.length > 0 ? (
                           item.lines.map((l, idx) => (
                             <span key={l.id}>
@@ -594,7 +594,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       </div>
 
                       {item.sale.cashier_name && (
-                        <div className="text-[10px] text-slate-400">
+                        <div className="text-xs text-slate-400">
                           Cashier: <span className="text-slate-600 dark:text-slate-300">{item.sale.cashier_name}</span>
                         </div>
                       )}
@@ -602,10 +602,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
                     <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
                       <div className="text-right">
-                        <div className="font-mono font-extrabold text-[15px] text-slate-900 dark:text-white">
+                        <div className="font-mono font-extrabold text-base text-slate-900 dark:text-white">
                           {formatNaira(item.total)}
                         </div>
-                        <div className="text-[10px] text-slate-400 font-mono">
+                        <div className="text-xs text-slate-400 font-mono">
                           {item.sale.id.replace('sale-', 'REC-')}
                         </div>
                       </div>
@@ -613,7 +613,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       <button
                         type="button"
                         onClick={() => handlePrintReceipt(item)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-brand-50 dark:hover:bg-brand-950/40 hover:text-brand-600 dark:hover:text-brand-400 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-[12px] font-sans font-semibold transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-brand-50 dark:hover:bg-brand-950/40 hover:text-brand-600 dark:hover:text-brand-400 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-sans font-semibold transition-colors"
                         title="Reprint receipt"
                       >
                         <Printer className="w-4 h-4" />
@@ -636,7 +636,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
             {/* ---------- BUILDER COLUMN (LEFT) ---------- */}
             <div className="split:col-span-7 space-y-5">
               {/* Card 1: Customer */}
-              <section className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
+              <section className="depot-card p-4 space-y-3">
                 <StepBadge n={1} label="Customer" />
                 <div className="relative">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -650,7 +650,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       setCustomerOpen(true);
                       setCustomerSearch('');
                     }}
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-sans font-semibold focus:outline-none focus:border-brand-500"
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm font-sans font-semibold focus:outline-none focus:border-brand-500"
                   />
                   {customerOpen && (
                     <div className="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-lg">
@@ -662,20 +662,20 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                             setTierOverride(null);
                             setCustomerOpen(false);
                           }}
-                          className="w-full text-left px-3.5 py-2.5 text-[13px] hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between"
+                          className="w-full text-left px-3.5 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between"
                         >
                           <span className="font-sans font-semibold text-slate-800 dark:text-slate-200">{c.name}</span>
-                          <span className="text-[11px] capitalize text-slate-400">{c.type}</span>
+                          <span className="text-xs capitalize text-slate-400">{c.type}</span>
                         </button>
                       ))}
                       {filteredCustomers.length === 0 && (
-                        <div className="px-3.5 py-3 text-[12px] text-slate-400">No match</div>
+                        <div className="px-3.5 py-3 text-xs text-slate-400">No match</div>
                       )}
                     </div>
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 text-[12px]">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span className="text-slate-500">Balance</span>
                   <span
                     className={`font-mono font-bold ${
@@ -691,12 +691,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-slate-500 mr-1">Price tier</span>
+                  <span className="text-xs text-slate-500 mr-1">Price tier</span>
                   {TIERS.map(t => (
                     <button
                       key={t}
                       onClick={() => setTierOverride(t === customer.type ? null : t)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-sans font-bold uppercase border transition-colors ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-sans font-bold uppercase border transition-colors ${
                         tier === t
                           ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
                           : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800'
@@ -705,12 +705,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       {t}
                     </button>
                   ))}
-                  {tierOverride && <span className="text-[10px] text-amber-600 dark:text-amber-400">overridden</span>}
+                  {tierOverride && <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold">overridden</span>}
                 </div>
               </section>
 
               {/* Card 2: Item builder */}
-              <section className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
+              <section className="depot-card p-4 space-y-4">
                 <StepBadge n={2} label="Add an item" />
 
                 {/* product selector */}
@@ -719,9 +719,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     <button
                       key={p.id}
                       onClick={() => selectProduct(p.id)}
-                      className={`px-3.5 py-2 rounded-xl text-[13px] font-sans font-semibold border transition-all ${
+                      className={`px-3.5 py-2 rounded-xl text-xs font-sans font-semibold border transition-all ${
                         p.id === product.id
-                          ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-[0_0_0_3px_rgba(0,183,73,0.18)]'
+                          ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
                           : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                       }`}
                     >
@@ -736,7 +736,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     <button
                       key={v.id}
                       onClick={() => setVarietyId(v.id)}
-                      className={`px-3 py-1.5 rounded-lg text-[12px] font-sans font-semibold border transition-colors ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-sans font-semibold border transition-colors ${
                         v.id === varietyId
                           ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
                           : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
@@ -749,7 +749,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
                 {/* pack size tiles */}
                 {sellableSizes.length === 0 ? (
-                  <div className="text-[12px] text-amber-700 dark:text-amber-400">
+                  <div className="text-xs text-amber-700 dark:text-amber-400">
                     This product has no pack sizes set. Configure them in the Inventory tab.
                   </div>
                 ) : (
@@ -771,12 +771,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           onClick={() => setPackSizeId(s.id)}
                           className={`p-2.5 rounded-xl border text-left transition-all ${
                             selected
-                              ? 'border-brand-500 bg-brand-50/60 dark:bg-brand-950/40 shadow-[0_0_0_3px_rgba(0,183,73,0.14)]'
+                              ? 'border-brand-500 bg-brand-50/60 dark:bg-brand-950/40 shadow-sm'
                               : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700'
                           }`}
                         >
-                          <div className="text-[13px] font-sans font-bold text-slate-900 dark:text-white">{s.short}</div>
-                          <div className="text-[11px] font-mono text-slate-500">
+                          <div className="text-xs font-sans font-bold text-slate-900 dark:text-white">{s.short}</div>
+                          <div className="text-xs font-mono text-slate-500">
                             {linePrice.unpriced ? (
                               <span className="text-amber-600 dark:text-amber-400">no price</span>
                             ) : (
@@ -793,7 +793,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   <div className="space-y-3 pt-1">
                     {/* qty stepper */}
                     <div className="flex items-center gap-3">
-                      <span className="text-[12px] text-slate-500 w-16">Packs</span>
+                      <span className="text-xs text-slate-500 w-16">Packs</span>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => setQty(q => Math.max(1, q - 1))}
@@ -806,7 +806,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           min={1}
                           value={qty}
                           onChange={e => setQty(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
-                          className="w-16 text-center py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-[15px]"
+                          className="w-16 text-center py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-sm"
                         />
                         <button
                           onClick={() => setQty(q => q + 1)}
@@ -815,19 +815,19 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           <Plus className="w-4 h-4" />
                         </button>
                       </div>
-                      <span className="text-[11px] text-slate-400 font-mono">{preview.litres.toLocaleString()} L</span>
+                      <span className="text-xs text-slate-400 font-mono">{preview.litres.toLocaleString()} L</span>
                     </div>
 
                     {/* container mode */}
                     {isReturnable && (
                       <div className="flex items-center gap-3">
-                        <span className="text-[12px] text-slate-500 w-16">Keg</span>
+                        <span className="text-xs text-slate-500 w-16">Keg</span>
                         <div className="flex gap-1.5">
                           {(['taken', 'bought'] as ContainerMode[]).map(m => (
                             <button
                               key={m}
                               onClick={() => setContainerMode(m)}
-                              className={`px-3 py-1.5 rounded-lg text-[12px] font-sans font-bold border capitalize transition-colors ${
+                              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold border capitalize transition-colors ${
                                 containerMode === m
                                   ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
                                   : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800'
@@ -838,7 +838,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           ))}
                         </div>
                         {containerMode === 'bought' && (
-                          <span className="text-[11px] text-amber-600 dark:text-amber-400 font-mono">
+                          <span className="text-xs text-amber-600 dark:text-amber-400 font-mono">
                             +{formatNaira(preview.containerAmount)}
                           </span>
                         )}
@@ -847,19 +847,19 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
                     {/* price + override */}
                     <div className="flex items-center gap-3">
-                      <span className="text-[12px] text-slate-500 w-16">Price</span>
+                      <span className="text-xs text-slate-500 w-16">Price</span>
                       {!overrideOn ? (
                         <>
-                          <span className="font-mono font-bold text-[15px] text-slate-900 dark:text-white">
+                          <span className="font-mono font-bold text-sm text-slate-900 dark:text-white">
                             {formatNaira(preview.unitPrice)}
                           </span>
-                          <span className="text-[11px] text-slate-400">/ {packShort(packSizeId)}</span>
+                          <span className="text-xs text-slate-400">/ {packShort(packSizeId)}</span>
                           <button
                             onClick={() => {
                               setOverrideOn(true);
                               setOverrideValue(String(preview.matrixUnitPrice ?? preview.unitPrice));
                             }}
-                            className="text-[11px] font-sans font-semibold text-brand-600 dark:text-brand-400"
+                            className="text-xs font-sans font-semibold text-brand-600 dark:text-brand-400"
                           >
                             Adjust
                           </button>
@@ -868,14 +868,14 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         <div className="flex-1 space-y-2">
                           <div className="flex items-center gap-2">
                             <div className="relative w-32">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-[13px]">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
                                 ₦
                               </span>
                               <input
                                 type="number"
                                 value={overrideValue}
                                 onChange={e => setOverrideValue(e.target.value)}
-                                className="w-full pl-6 pr-2 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-[13px]"
+                                className="w-full pl-6 pr-2 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-xs"
                               />
                             </div>
                             <button
@@ -889,7 +889,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                               <X className="w-4 h-4" />
                             </button>
                             {preview.matrixUnitPrice != null && (
-                              <span className="text-[10px] text-slate-400 font-mono">
+                              <span className="text-xs text-slate-400 font-mono">
                                 std {formatNaira(preview.matrixUnitPrice)}
                               </span>
                             )}
@@ -899,7 +899,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                               value={priceReason}
                               onChange={e => setPriceReason(e.target.value)}
                               placeholder="Reason for the price change (required)"
-                              className="w-full px-3 py-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-700 text-[12px]"
+                              className="w-full px-3 py-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-700 text-xs"
                             />
                           )}
                         </div>
@@ -907,20 +907,20 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     </div>
 
                     {preview.unpriced && (
-                      <div className="text-[12px] text-rose-600 dark:text-rose-400">
+                      <div className="text-xs text-rose-600 dark:text-rose-400">
                         No price for {product.name} / {product.varieties.find(v => v.id === varietyId)?.name} /{' '}
                         {packLabel(packSizeId)} at the {tier} tier. Set it in Inventory.
                       </div>
                     )}
 
                     <div className="flex items-center justify-between pt-1">
-                      <span className="text-[13px] font-mono font-bold text-slate-900 dark:text-white">
+                      <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">
                         Line: {formatNaira(preview.lineAmount)}
                       </span>
                       <button
                         onClick={addLine}
                         disabled={!canAddLine}
-                        className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-sans font-bold text-[13px] flex items-center gap-1.5"
+                        className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-sans font-bold text-xs flex items-center gap-1.5 shadow-sm"
                       >
                         <Plus className="w-4 h-4" weight="bold" /> Add to sale
                       </button>
@@ -934,14 +934,14 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
             {/* Note: Card 3 is removed. Payment is now Step 3. */}
             <div className="split:col-span-5 space-y-4">
               {/* Quick shortcut to Previous Transactions */}
-              <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-sm">
+              <div className="depot-card p-3.5 flex items-center justify-between shadow-sm">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800/80 flex items-center justify-center text-brand-600 dark:text-brand-400">
                     <ClockCounterClockwise className="w-4 h-4" weight="bold" />
                   </div>
                   <div>
-                    <div className="text-[12px] font-bold text-slate-900 dark:text-white">Previous Transactions</div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">Previous Transactions</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
                       {sales.length} counter transaction{sales.length === 1 ? '' : 's'} on record
                     </div>
                   </div>
@@ -950,20 +950,20 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   type="button"
                   id="btn-view-previous-transactions-card"
                   onClick={() => setShowPreviousTransactions(true)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-[12px] font-sans font-bold border border-slate-200 dark:border-slate-700 transition-colors"
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-sans font-bold border border-slate-200 dark:border-slate-700 transition-colors"
                 >
                   View list →
                 </button>
               </div>
 
               {/* Step 3: Payment & Items Summary */}
-              <section className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3.5">
+              <section className="depot-card p-4 space-y-3.5">
                 <StepBadge n={3} label="Payment" />
 
                 {/* Items in Sale (only shown when lines exist, replacing the standalone Card 3) */}
                 {lines.length > 0 && (
                   <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
-                    <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500">
                       <span>Items in Sale ({lines.length})</span>
                       <span className="text-slate-900 dark:text-white font-mono text-xs">{formatNaira(cartTotal)}</span>
                     </div>
@@ -972,10 +972,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       {lines.map(l => (
                         <div key={l.key} className="flex items-center justify-between gap-2 pt-1.5 first:pt-0">
                           <div className="min-w-0">
-                            <div className="text-[12px] font-sans font-semibold text-slate-900 dark:text-white truncate">
+                            <div className="text-xs font-sans font-semibold text-slate-900 dark:text-white truncate">
                               {l.qty} × {packShort(l.packSizeId)} · {l.productName}
                             </div>
-                            <div className="text-[10px] text-slate-500 truncate">
+                            <div className="text-xs text-slate-500 truncate">
                               {l.varietyName} · {formatNaira(l.unitPrice)}
                               {l.containerMode === 'taken' && ' · keg taken'}
                               {l.containerMode === 'bought' && ' · keg bought'}
@@ -983,7 +983,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-[12px] font-mono font-bold text-slate-900 dark:text-white">
+                            <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">
                               {formatNaira(l.lineAmount)}
                             </span>
                             <button
@@ -1018,7 +1018,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         key={m.id}
                         type="button"
                         onClick={() => setPaymentMethod(m.id)}
-                        className={`py-2.5 px-3 rounded-xl text-[13px] font-sans font-bold border transition-all flex items-center justify-center gap-2 ${
+                        className={`py-2.5 px-3 rounded-xl text-xs font-sans font-bold border transition-all flex items-center justify-center gap-2 ${
                           isSelected
                             ? theme.buttonActiveCls + ' scale-[1.02]'
                             : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
@@ -1034,7 +1034,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                 {paymentMethod === 'cash' && (
                   <div className="space-y-1.5">
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-[14px]">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
                         ₦
                       </span>
                       <input
@@ -1042,12 +1042,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         value={amountTendered}
                         onChange={e => setAmountTendered(e.target.value)}
                         placeholder="Cash tendered"
-                        className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-[14px]"
+                        className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-sm"
                       />
                     </div>
                     {amountTendered !== '' && (
                       <div
-                        className={`text-[12px] font-mono ${
+                        className={`text-xs font-mono ${
                           shortTender ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
                         }`}
                       >
@@ -1058,7 +1058,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                 )}
 
                 {paymentMethod === 'credit' && (
-                  <div className="text-[12px] space-y-1">
+                  <div className="text-xs space-y-1">
                     <div className="text-slate-500">
                       Due{' '}
                       {formatDepotDate(
@@ -1089,14 +1089,14 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   value={note}
                   onChange={e => setNote(e.target.value)}
                   placeholder="Note (optional)"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                 />
 
                 <div className="space-y-1.5">
                   <button
                     type="button"
                     onClick={() => setShowBackdate(v => !v)}
-                    className="text-[11px] font-sans font-semibold text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
+                    className="text-xs font-sans font-semibold text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
                   >
                     {showBackdate ? 'Using a specific date & time' : 'Not now? Backdate this sale'}
                   </button>
@@ -1105,13 +1105,13 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       type="datetime-local"
                       value={saleDateInput}
                       onChange={e => setSaleDateInput(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-[13px]"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-xs"
                     />
                   )}
                 </div>
 
                 {error && (
-                  <div className="text-[12px] text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-lg px-3 py-2">
+                  <div className="text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-lg px-3 py-2">
                     {error}
                   </div>
                 )}
@@ -1119,7 +1119,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                 <button
                   onClick={completeSale}
                   disabled={lines.length === 0 || shortTender || overLimitBlocked}
-                  className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-sans font-bold text-[14px] flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all"
+                  className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-sans font-bold text-sm flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all"
                 >
                   <Check className="w-4 h-4" weight="bold" /> Complete sale · {formatNaira(cartTotal)}
                   <ChevronRight className="w-4 h-4" weight="bold" />

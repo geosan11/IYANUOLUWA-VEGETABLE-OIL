@@ -3,6 +3,7 @@ import { useStore } from '../services/store';
 import { usePermissions } from '../services/permissions';
 import { calculatePumpMeterVariance, formatDepotDate, formatDepotTime, depotDateKey, getDepotToday } from '../services/businessLogic';
 import { Modal } from '../components/common/Modal';
+import { PumpOdometerIllustration } from '../components/common/PumpOdometerIllustration';
 import { Pump, PumpVarianceAudit } from '../types';
 import {
   GasPump as Fuel,
@@ -118,59 +119,89 @@ export const PumpsScreen: React.FC = () => {
 
   const today = getDepotToday();
 
+  // Active pump for illustration
+  const selectedPumpForIllustration = pumps.find(p => p.id === loggerPumpId) || pumps[0];
+  const selectedAudits = selectedPumpForIllustration ? auditsByPump[selectedPumpForIllustration.id] || [] : [];
+  const latestSelectedAudit = selectedAudits[0];
+
   return (
-    <div className="space-y-5 pb-20">
+    <div className="space-y-6 pb-20">
+      {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 flex items-center justify-center">
-            <Fuel className="w-5 h-5 text-purple-700 dark:text-purple-400" />
+          <div className="w-10 h-10 rounded-xl bg-purple-500/10 dark:bg-purple-950/60 border border-purple-500/20 dark:border-purple-800 flex items-center justify-center">
+            <Fuel className="w-5 h-5 text-purple-600 dark:text-purple-400" />
           </div>
           <div>
-            <h1 className="text-lg font-heading font-bold text-slate-900 dark:text-white leading-tight">Pumps</h1>
-            <p className="text-[12px] text-slate-500 dark:text-slate-400">
-              Named pumps, daily meter readings, and metered-vs-sold reconciliation.
+            <h1 className="text-xl font-heading font-bold text-slate-900 dark:text-white leading-tight">
+              Dispense Pumps & Meter Audits
+            </h1>
+            <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
+              Mechanical odometer readings, morning vs evening counts, and cashier sales reconciliation.
             </p>
           </div>
         </div>
         {isOwner && (
           <button
             onClick={() => setAddOpen(true)}
-            className="px-3.5 py-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-[12px] font-sans font-bold flex items-center gap-1.5"
+            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-sans font-bold flex items-center gap-1.5 shadow-sm transition-all"
           >
-            <Plus className="w-4 h-4" weight="bold" /> Add pump
+            <Plus className="w-4 h-4" weight="bold" /> Add Pump
           </button>
         )}
       </div>
 
-      {/* Register */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {/* Visual Odometer Illustration */}
+      {selectedPumpForIllustration && (
+        <PumpOdometerIllustration
+          pumpName={selectedPumpForIllustration.label}
+          openingReading={latestSelectedAudit ? latestSelectedAudit.startReading : selectedPumpForIllustration.last_meter_reading}
+          currentReading={latestSelectedAudit ? latestSelectedAudit.endReading : selectedPumpForIllustration.last_meter_reading}
+          recordedSalesLitres={latestSelectedAudit ? latestSelectedAudit.expectedLitres : 0}
+          tankName={tankLabel(selectedPumpForIllustration.physical_tank_id) || 'Yard Storage Tank'}
+        />
+      )}
+
+      {/* Register Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
         {pumps.length === 0 && (
-          <div className="col-span-full py-10 text-center text-[13px] text-slate-400 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl">
-            No pumps registered yet.
+          <div className="col-span-full py-10 text-center text-sm text-slate-400 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl">
+            No pumps registered yet. Click &ldquo;Add Pump&rdquo; to configure your depot dispensers.
           </div>
         )}
         {pumps.map(pump => {
           const dayAudits = auditsByPump[pump.id] || [];
           const latest = dayAudits[0];
           const alert = latest && latest.day === today && latest.isOverThreshold;
+          const isVeg = pump.product_id === 'veg';
+
           return (
             <div
               key={pump.id}
-              className={`p-4 rounded-2xl border bg-white dark:bg-slate-900 space-y-2.5 ${
-                alert ? 'border-rose-300 dark:border-rose-800' : 'border-slate-200 dark:border-slate-800'
+              className={`p-4 rounded-2xl depot-card border space-y-2.5 transition-all cursor-pointer ${
+                pump.id === loggerPumpId ? 'ring-2 ring-amber-500/40' : ''
+              } ${
+                alert ? 'border-rose-300 dark:border-rose-800 shadow-glow-rose' : 'border-slate-200 dark:border-slate-800'
               }`}
+              onClick={() => setLoggerPumpId(pump.id)}
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <div className="font-sans font-bold text-[14px] text-slate-900 dark:text-white">{pump.label}</div>
-                  <div className="text-[11px] text-slate-500">{productName(pump.product_id)}</div>
-                  <div className="text-[11px] text-slate-400">
-                    Source: {tankLabel(pump.physical_tank_id) || 'Not set'}
+                  <div className="font-heading font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }}
+                    />
+                    <span>{pump.label}</span>
+                  </div>
+                  <div className="text-xs text-slate-500 font-sans">{productName(pump.product_id)}</div>
+                  <div className="text-xs text-slate-400 font-sans">
+                    Source: {tankLabel(pump.physical_tank_id) || 'Yard Tank'}
                   </div>
                 </div>
                 {isOwner && (
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button onClick={() => openEdit(pump)} className="p-1 rounded text-slate-400 hover:text-brand-600 dark:hover:text-brand-400">
+                  <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => openEdit(pump)} className="p-1 rounded text-slate-400 hover:text-amber-600 dark:hover:text-amber-400">
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
                     <button onClick={() => removePump(pump)} className="p-1 rounded text-slate-400 hover:text-rose-600 dark:hover:text-rose-400">
@@ -179,23 +210,23 @@ export const PumpsScreen: React.FC = () => {
                   </div>
                 )}
               </div>
-              <div className="flex items-center justify-between text-[12px] font-mono tabular-nums">
-                <span className="text-slate-500">Meter total</span>
-                <span className="font-bold text-slate-900 dark:text-white">{pump.last_meter_reading.toLocaleString()} L</span>
+              <div className="flex items-center justify-between text-xs font-mono tabular-nums pt-1 border-t border-slate-100 dark:border-slate-800/80">
+                <span className="text-slate-500 font-sans">Current Meter:</span>
+                <span className="font-bold text-slate-900 dark:text-white text-sm">{pump.last_meter_reading.toLocaleString()} L</span>
               </div>
               <div
-                className={`flex items-center gap-1.5 text-[11px] font-sans font-bold px-2 py-1 rounded-lg ${
+                className={`flex items-center gap-1.5 text-xs font-sans font-bold px-2 py-1 rounded-lg ${
                   alert
-                    ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400'
-                    : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
+                    ? 'badge-rose'
+                    : 'badge-emerald'
                 }`}
               >
                 {alert ? <AlertTriangle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                 {latest
                   ? alert
                     ? `Today's variance ${latest.variance > 0 ? '+' : ''}${latest.variance} L`
-                    : 'Reconciled'
-                  : 'No readings yet'}
+                    : 'Meter Reconciled (OK)'
+                  : 'Opening Logged'}
               </div>
             </div>
           );
@@ -203,69 +234,72 @@ export const PumpsScreen: React.FC = () => {
       </div>
 
       {/* Log a reading */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
-        <div className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-          <Gauge className="w-4 h-4 text-brand-600 dark:text-brand-400" /> Log a meter reading
+      <div className="p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 space-y-3 shadow-card-light dark:shadow-card-dark">
+        <div className="text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+          <Gauge className="w-4 h-4 text-amber-500" />
+          <span>Record Daily Meter Reading (Morning or Evening)</span>
         </div>
         {pumps.length === 0 ? (
-          <p className="text-[12px] text-slate-400">Add a pump first.</p>
+          <p className="text-xs text-slate-400">Add a pump first to log meter counts.</p>
         ) : (
-          <form onSubmit={submitReading} className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end">
-            <label className="text-[11px] font-sans font-semibold text-slate-500 sm:col-span-1">
-              Pump
+          <form onSubmit={submitReading} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+            <label className="text-xs font-sans font-semibold text-slate-600 dark:text-slate-400 sm:col-span-1">
+              Select Pump
               <select
                 value={loggerPumpId}
                 onChange={e => setLoggerPumpId(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]"
+                className="depot-input mt-1 w-full px-3 py-2.5 rounded-xl text-sm font-sans font-semibold"
               >
                 {pumps.map(p => (
                   <option key={p.id} value={p.id}>
-                    {p.label} (last {p.last_meter_reading.toLocaleString()} L)
+                    {p.label} (Current: {p.last_meter_reading.toLocaleString()} L)
                   </option>
                 ))}
               </select>
             </label>
-            <label className="text-[11px] font-sans font-semibold text-slate-500">
-              New reading (L)
+            <label className="text-xs font-sans font-semibold text-slate-600 dark:text-slate-400">
+              Meter Reading (Litres)
               <input
                 type="number"
                 step="0.5"
                 value={loggerReading}
                 onChange={e => setLoggerReading(e.target.value)}
+                placeholder="e.g. 143830.5"
                 required
-                className="mt-1 w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-[13px]"
+                className="depot-input mt-1 w-full px-3 py-2.5 rounded-xl font-mono font-bold text-sm"
               />
             </label>
-            <label className="text-[11px] font-sans font-semibold text-slate-500 sm:col-span-1">
-              Note (optional)
+            <label className="text-xs font-sans font-semibold text-slate-600 dark:text-slate-400 sm:col-span-1">
+              Shift Note (optional)
               <input
                 value={loggerNote}
                 onChange={e => setLoggerNote(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]"
+                placeholder="e.g. Evening close"
+                className="depot-input mt-1 w-full px-3 py-2.5 rounded-xl text-sm font-sans"
               />
             </label>
             <button
               type="submit"
-              className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px]"
+              className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-sans font-bold text-sm active:scale-98 transition-all"
             >
-              Save reading
+              Save Reading
             </button>
           </form>
         )}
         {loggerMsg && (
-          <div className={`text-[12px] ${loggerMsg.kind === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+          <div className={`text-xs font-sans font-semibold ${loggerMsg.kind === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
             {loggerMsg.text}
           </div>
         )}
       </div>
 
-      {/* Reconciliation */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
-        <div className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-500">
-          Daily reconciliation — metered vs sold
+      {/* Reconciliation Table */}
+      <div className="p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 space-y-3 shadow-card-light dark:shadow-card-dark">
+        <div className="text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+          Daily Reconciliation — Metered Volume vs Cashier Sales
         </div>
         {pumps.every(p => (auditsByPump[p.id] || []).length === 0) ? (
-          <p className="text-[12px] text-slate-400 py-4 text-center">Log a second reading on any pump to see its first day reconciled.</p>
+          <p className="text-xs text-slate-400 py-4 text-center">Log a second reading on any pump to compute its daily meter variance.</p>
         ) : (
           <div className="space-y-4">
             {pumps.map(pump => {
@@ -273,9 +307,9 @@ export const PumpsScreen: React.FC = () => {
               if (audits.length === 0) return null;
               return (
                 <div key={pump.id}>
-                  <div className="text-[12px] font-sans font-bold text-slate-700 dark:text-slate-300 mb-1.5">{pump.label}</div>
+                  <div className="text-xs font-heading font-bold text-slate-800 dark:text-slate-200 mb-1.5">{pump.label}</div>
                   <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-                    <table className="w-full text-[12px]">
+                    <table className="w-full text-xs">
                       <thead className="bg-slate-100 dark:bg-slate-950 text-[10px] uppercase tracking-wider text-slate-500 font-sans">
                         <tr>
                           <th className="text-left px-3 py-2">Day</th>
@@ -286,7 +320,7 @@ export const PumpsScreen: React.FC = () => {
                       </thead>
                       <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                         {audits.map((a, i) => (
-                          <tr key={i} className={a.isOverThreshold ? 'bg-rose-50/60 dark:bg-rose-950/20' : ''}>
+                          <tr key={i} className={a.isOverThreshold ? 'bg-rose-500/10' : ''}>
                             <td className="px-3 py-2 font-sans font-semibold text-slate-800 dark:text-slate-200">{formatDepotDate(a.endDate)}</td>
                             <td className="px-3 py-2 text-right font-mono tabular-nums">{a.meterDelta.toLocaleString()} L</td>
                             <td className="px-3 py-2 text-right font-mono tabular-nums">{a.expectedLitres.toLocaleString()} L</td>
@@ -310,13 +344,14 @@ export const PumpsScreen: React.FC = () => {
         )}
       </div>
 
-      {/* Daily reading log */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
-        <div className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-          <History className="w-4 h-4 text-slate-400" /> Reading history
+      {/* Reading history */}
+      <div className="p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 space-y-3 shadow-card-light dark:shadow-card-dark">
+        <div className="text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+          <History className="w-4 h-4 text-slate-400" />
+          <span>Meter Reading Audit Log</span>
         </div>
         {readingsByDay.length === 0 ? (
-          <p className="text-[12px] text-slate-400 py-4 text-center">No readings logged yet.</p>
+          <p className="text-xs text-slate-400 py-4 text-center">No readings logged yet.</p>
         ) : (
           <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
             {readingsByDay.map(([day, readings]) => (
@@ -326,14 +361,14 @@ export const PumpsScreen: React.FC = () => {
                 </div>
                 <div className="space-y-1">
                   {readings.map(r => (
-                    <div key={r.id} className="flex items-center justify-between text-[12px] py-1 border-b border-slate-100 dark:border-slate-800/70 last:border-0">
-                      <span className="text-slate-600 dark:text-slate-300">
+                    <div key={r.id} className="flex items-center justify-between text-xs py-1.5 border-b border-slate-100 dark:border-slate-800/70 last:border-0">
+                      <span className="text-slate-600 dark:text-slate-300 font-sans">
                         {pumps.find(p => p.id === r.pump_id)?.label || 'Unknown pump'}
                         {r.note ? ` — ${r.note}` : ''}
                       </span>
                       <span className="text-right font-mono tabular-nums">
                         <span className="font-bold text-slate-900 dark:text-white">{r.reading.toLocaleString()} L</span>
-                        <span className="text-slate-400 ml-2">
+                        <span className="text-slate-400 ml-2 text-xs">
                           {formatDepotTime(r.recorded_at)} · {r.recorded_by || 'staff'}
                         </span>
                       </span>
@@ -347,30 +382,30 @@ export const PumpsScreen: React.FC = () => {
       </div>
 
       {!isOwner && (
-        <div className="flex items-center gap-2 text-[11px] text-slate-400">
-          <Lock className="w-3.5 h-3.5" /> Adding, renaming or removing pumps is owner-only.
+        <div className="flex items-center gap-2 text-xs text-slate-400 font-sans">
+          <Lock className="w-3.5 h-3.5" /> Adding, renaming, or removing pumps is restricted to depot managers.
         </div>
       )}
 
       {addOpen && (
-        <Modal isOpen onClose={() => setAddOpen(false)} title={<span className="flex items-center gap-2"><Plus className="w-4 h-4 text-brand-500" /> Add pump</span>}>
+        <Modal isOpen onClose={() => setAddOpen(false)} title={<span className="flex items-center gap-2"><Plus className="w-4 h-4 text-amber-500" /> Add Pump</span>}>
           <form onSubmit={submitAddPump} className="space-y-3">
-            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+            <label className="text-xs font-sans font-semibold text-slate-600 dark:text-slate-400 block">
               Label
               <input
                 value={newLabel}
                 onChange={e => setNewLabel(e.target.value)}
                 placeholder="e.g. Pump 3 (Veg Line 3)"
                 required
-                className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]"
+                className="depot-input mt-1 w-full px-3 py-2 rounded-xl text-sm"
               />
             </label>
-            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+            <label className="text-xs font-sans font-semibold text-slate-600 dark:text-slate-400 block">
               Product it dispenses
               <select
                 value={newProductId}
                 onChange={e => setNewProductId(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]"
+                className="depot-input mt-1 w-full px-3 py-2 rounded-xl text-sm"
               >
                 <option value="">Unassigned</option>
                 {products.map(p => (
@@ -380,12 +415,12 @@ export const PumpsScreen: React.FC = () => {
                 ))}
               </select>
             </label>
-            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+            <label className="text-xs font-sans font-semibold text-slate-600 dark:text-slate-400 block">
               Source tank
               <select
                 value={newTankId}
                 onChange={e => setNewTankId(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]"
+                className="depot-input mt-1 w-full px-3 py-2 rounded-xl text-sm"
               >
                 <option value="">Not set</option>
                 {physicalTanks
@@ -397,21 +432,21 @@ export const PumpsScreen: React.FC = () => {
                   ))}
               </select>
             </label>
-            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+            <label className="text-xs font-sans font-semibold text-slate-600 dark:text-slate-400 block">
               Opening meter reading (L)
               <input
                 type="number"
                 value={newOpening}
                 onChange={e => setNewOpening(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-[13px]"
+                className="depot-input mt-1 w-full px-3 py-2 rounded-xl font-mono font-bold text-sm"
               />
             </label>
             <div className="flex justify-end gap-2 pt-1">
-              <button type="button" onClick={() => setAddOpen(false)} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-[13px] font-sans font-semibold">
+              <button type="button" onClick={() => setAddOpen(false)} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-sm font-sans font-semibold">
                 Cancel
               </button>
-              <button type="submit" className="px-4 py-2 rounded-xl bg-brand-500 text-slate-950 text-[13px] font-sans font-bold">
-                Add pump
+              <button type="submit" className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 text-sm font-sans font-bold">
+                Add Pump
               </button>
             </div>
           </form>
@@ -419,22 +454,22 @@ export const PumpsScreen: React.FC = () => {
       )}
 
       {editingPump && (
-        <Modal isOpen onClose={() => setEditingPump(null)} title={<span className="flex items-center gap-2"><Pencil className="w-4 h-4 text-brand-500" /> Edit pump</span>}>
+        <Modal isOpen onClose={() => setEditingPump(null)} title={<span className="flex items-center gap-2"><Pencil className="w-4 h-4 text-amber-500" /> Edit Pump</span>}>
           <div className="space-y-3">
-            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+            <label className="text-xs font-sans font-semibold text-slate-600 dark:text-slate-400 block">
               Label
               <input
                 value={editLabel}
                 onChange={e => setEditLabel(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]"
+                className="depot-input mt-1 w-full px-3 py-2 rounded-xl text-sm"
               />
             </label>
-            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+            <label className="text-xs font-sans font-semibold text-slate-600 dark:text-slate-400 block">
               Product it dispenses
               <select
                 value={editProductId}
                 onChange={e => setEditProductId(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]"
+                className="depot-input mt-1 w-full px-3 py-2 rounded-xl text-sm"
               >
                 <option value="">Unassigned</option>
                 {products.map(p => (
@@ -444,12 +479,12 @@ export const PumpsScreen: React.FC = () => {
                 ))}
               </select>
             </label>
-            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+            <label className="text-xs font-sans font-semibold text-slate-600 dark:text-slate-400 block">
               Source tank
               <select
                 value={editTankId}
                 onChange={e => setEditTankId(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]"
+                className="depot-input mt-1 w-full px-3 py-2 rounded-xl text-sm"
               >
                 <option value="">Not set</option>
                 {physicalTanks
@@ -461,12 +496,12 @@ export const PumpsScreen: React.FC = () => {
                   ))}
               </select>
             </label>
-            {editErr && <div className="text-[12px] text-rose-600 dark:text-rose-400">{editErr}</div>}
+            {editErr && <div className="text-xs text-rose-600 dark:text-rose-400">{editErr}</div>}
             <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setEditingPump(null)} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-[13px] font-sans font-semibold">
+              <button onClick={() => setEditingPump(null)} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-sm font-sans font-semibold">
                 Cancel
               </button>
-              <button onClick={submitEdit} className="px-4 py-2 rounded-xl bg-brand-500 text-slate-950 text-[13px] font-sans font-bold">
+              <button onClick={submitEdit} className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 text-sm font-sans font-bold">
                 Save
               </button>
             </div>

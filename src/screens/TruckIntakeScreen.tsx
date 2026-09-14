@@ -24,7 +24,8 @@ import {
   ShoppingCart,
   Buildings as Building2,
   Warehouse,
-  FileText
+  FileText,
+  Truck
 } from '@phosphor-icons/react';
 
 export const TruckIntakeScreen: React.FC = () => {
@@ -174,39 +175,101 @@ export const TruckIntakeScreen: React.FC = () => {
   return (
     <div className="space-y-6 pb-20">
       {successMessage && (
-        <div role="status" aria-live="polite" className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300 text-[13px] font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
+        <div role="status" aria-live="polite" className="p-4 rounded-xl badge-emerald border border-emerald-300 dark:border-emerald-700/60 text-sm font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
           <span>{successMessage}</span>
         </div>
       )}
 
       {errorMessage && (
-        <div role="alert" aria-live="assertive" className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-300 text-[13px] font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
+        <div role="alert" aria-live="assertive" className="p-4 rounded-xl badge-rose border border-rose-300 dark:border-rose-700/60 text-sm font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
           <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />
           <span>{errorMessage}</span>
         </div>
       )}
 
-      {/* Main 2-Column Counter Form & Live Preview Layout (Desktop-First) */}
+      {/* 3-STEP VISUAL INTAKE WORKFLOW BANNER */}
+      <div className="depot-card p-4 sm:p-5 border border-slate-200 dark:border-slate-800 space-y-3 shadow-card-light dark:shadow-card-dark">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div>
+            <h2 className="font-heading font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+              <Truck className="w-5 h-5 text-amber-500" />
+              <span>Oil Delivery & Reception Workflow</span>
+            </h2>
+            <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
+              Standard 3-step operating procedure for receiving tankers or sealed pre-kegged deliveries.
+            </p>
+          </div>
+          <span className="badge-sky text-xs px-2.5 py-1 rounded-full font-mono font-bold self-start sm:self-auto">
+            SOP Standard
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-start gap-3">
+            <span className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400 font-bold text-xs flex items-center justify-center shrink-0">
+              1
+            </span>
+            <div className="space-y-0.5">
+              <h4 className="font-heading font-bold text-xs text-slate-800 dark:text-slate-200">
+                Waybill & Driver
+              </h4>
+              <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
+                Log the supplier waybill reference, truck plate, and driver on duty.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-start gap-3">
+            <span className="w-6 h-6 rounded-full bg-sky-500/20 text-sky-700 dark:text-sky-400 font-bold text-xs flex items-center justify-center shrink-0">
+              2
+            </span>
+            <div className="space-y-0.5">
+              <h4 className="font-heading font-bold text-xs text-slate-800 dark:text-slate-200">
+                Offload into Storage Tanks
+              </h4>
+              <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
+                Offload metric tons into yard tanks or stack sealed kegs directly in bays.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-start gap-3">
+            <span className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 font-bold text-xs flex items-center justify-center shrink-0">
+              3
+            </span>
+            <div className="space-y-0.5">
+              <h4 className="font-heading font-bold text-xs text-slate-800 dark:text-slate-200">
+                Variance & Cost Audit
+              </h4>
+              <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
+                Automatically checks offloaded volume against waybill to flag shortfalls.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main 2-Column Counter Form & Live Preview Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Data Entry Form (lg:col-span-7) */}
         <form
           onSubmit={handleSubmit}
-          className="lg:col-span-7 p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5"
+          className="lg:col-span-7 p-5 sm:p-6 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark space-y-5"
         >
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-            <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <Scale className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-              <span>{isBulkTruck ? 'Bulk Truck Intake Parameters' : 'Pre-Kegged Delivery Parameters'}</span>
+            <h3 className="text-base font-heading font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <Scale className="w-5 h-5 text-amber-500" />
+              <span>{isBulkTruck ? 'Bulk Tanker Intake Parameters' : 'Pre-Kegged Delivery Parameters'}</span>
             </h3>
-            <span className="text-[12px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
               1 Keg = {selectedProduct.litres_per_keg}L ({selectedProduct.name})
             </span>
           </div>
 
           {/* Product Select */}
           <div className="space-y-2">
-            <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+            <label className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
               Select Product Category
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -227,10 +290,10 @@ export const TruckIntakeScreen: React.FC = () => {
                     }`}
                   >
                     <div>
-                      <div className="text-[14px] font-sans font-bold">{p.name}</div>
-                      <div className="text-[11px] opacity-75 font-mono tabular-nums mt-0.5">
+                      <div className="text-sm font-sans font-bold">{p.name}</div>
+                      <div className="text-xs opacity-80 font-mono tabular-nums mt-0.5">
                         {p.supply_model === 'bulk_truck'
-                          ? `Bulk Truck (~${p.litres_per_ton || 1075} L/Ton)`
+                          ? `Bulk Tanker (~${p.litres_per_ton || 1075} L/Ton)`
                           : `Pre-Kegged (${p.litres_per_keg}L/keg)`}
                       </div>
                     </div>
@@ -245,7 +308,7 @@ export const TruckIntakeScreen: React.FC = () => {
           </div>
 
           {/* Supply Model Guidance Banner */}
-          <div className={`p-3.5 rounded-xl border text-[12px] flex items-start gap-2.5 ${
+          <div className={`p-3.5 rounded-xl border text-xs flex items-start gap-2.5 ${
             isBulkTruck
               ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/40 text-amber-900 dark:text-amber-200'
               : 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/40 text-rose-900 dark:text-rose-200'
@@ -253,11 +316,11 @@ export const TruckIntakeScreen: React.FC = () => {
             <Info className="w-4 h-4 shrink-0 mt-0.5" />
             <div>
               <span className="font-bold block">
-                {isBulkTruck ? 'Bulk Truck Model (Vegetable Oil)' : 'Pre-Kegged Model (Palm Oil)'}
+                {isBulkTruck ? 'Bulk Tanker Model (Vegetable Oil)' : 'Pre-Kegged Model (Palm Oil)'}
               </span>
-              <span className="text-[11px] opacity-90 leading-relaxed">
+              <span className="text-xs opacity-90 leading-relaxed font-sans">
                 {isBulkTruck
-                  ? 'Delivery arrives in metric tons. We compute expected litres, offload recovered kegs + leftover, and evaluate delivery shortfall against supplier bill.'
+                  ? 'Delivery arrives in metric tons. We compute expected litres, offload recovered kegs + leftover, and evaluate delivery shortfall against supplier waybill.'
                   : 'Delivered in physical sealed kegs from suppliers. Exact volume = Kegs × Litres/Keg. Kept in separate tank batches per supplier to avoid commingling.'}
               </span>
             </div>
@@ -265,15 +328,15 @@ export const TruckIntakeScreen: React.FC = () => {
 
           {/* Required Supplier Selector */}
           <div className="space-y-1.5">
-            <label htmlFor="intake-supplier" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <Building2 className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+            <label htmlFor="intake-supplier" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <Building2 className="w-4 h-4 text-amber-500" />
               <span>Supplier Account *</span>
             </label>
             <select
               id="intake-supplier"
               value={supplierId}
               onChange={e => setSupplierId(e.target.value)}
-              className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[15px] font-sans font-semibold focus:outline-none focus:border-brand-500"
+              className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl text-sm font-sans font-semibold"
               required
             >
               <option value="" disabled>-- Select Supplier --</option>
@@ -288,22 +351,22 @@ export const TruckIntakeScreen: React.FC = () => {
           {/* Truck Plate and Driver Name 2-Column */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label htmlFor="intake-truck-label" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
-                {isBulkTruck ? 'Truck License / Plate No. *' : 'Delivery Batch Ref / Truck Plate *'}
+              <label htmlFor="intake-truck-label" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+                {isBulkTruck ? 'Truck Plate / Waybill Ref *' : 'Delivery Batch Ref / Plate *'}
               </label>
               <input
                 id="intake-truck-label"
                 type="text"
-                placeholder={isBulkTruck ? 'e.g. Truck 3 · KJA-492-XA' : 'e.g. Batch #24 · Palm Delivery'}
+                placeholder={isBulkTruck ? 'e.g. TRK-VEG-4921' : 'e.g. Batch #24 · Palm Delivery'}
                 value={truckLabel}
                 onChange={e => setTruckLabel(e.target.value)}
-                className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 text-[15px] font-mono font-bold focus:outline-none focus:border-brand-500"
+                className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl text-sm font-mono font-bold placeholder-slate-400"
                 required
               />
             </div>
 
             <div className="space-y-1">
-              <label htmlFor="intake-driver-name" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+              <label htmlFor="intake-driver-name" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
                 Driver Name / Delivery Contact
               </label>
               <input
@@ -312,14 +375,14 @@ export const TruckIntakeScreen: React.FC = () => {
                 placeholder="e.g. Alhaji Musa"
                 value={driverName}
                 onChange={e => setDriverName(e.target.value)}
-                className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 text-[15px] font-sans font-medium focus:outline-none focus:border-brand-500"
+                className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl text-sm font-sans font-medium placeholder-slate-400"
               />
             </div>
           </div>
 
-          {/* Delivery date & time — defaults to now, editable to catch up a late entry */}
+          {/* Delivery date & time */}
           <div className="space-y-1">
-            <label htmlFor="intake-datetime" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+            <label htmlFor="intake-datetime" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
               Delivery Date &amp; Time
             </label>
             <input
@@ -327,7 +390,7 @@ export const TruckIntakeScreen: React.FC = () => {
               type="datetime-local"
               value={intakeDateInput}
               onChange={e => setIntakeDateInput(e.target.value)}
-              className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-mono focus:outline-none focus:border-brand-500"
+              className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl text-sm font-mono"
             />
           </div>
 
@@ -338,10 +401,10 @@ export const TruckIntakeScreen: React.FC = () => {
               {/* Scale Weight in Tons */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <label htmlFor="intake-tons" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  <label htmlFor="intake-tons" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
                     Delivery Weight (Metric Tons) *
                   </label>
-                  <span className="text-[11px] text-slate-500 font-mono tabular-nums">
+                  <span className="text-xs text-slate-500 font-mono tabular-nums">
                     Density: {selectedProduct.litres_per_ton || 1075} L/Ton
                   </span>
                 </div>
@@ -355,10 +418,10 @@ export const TruckIntakeScreen: React.FC = () => {
                     value={tons}
                     inputMode="decimal"
                     onChange={e => setTons(e.target.value)}
-                    className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[16px] font-mono tabular-nums font-bold focus:outline-none focus:border-brand-500"
+                    className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl text-base font-mono tabular-nums font-bold"
                     required
                   />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[12px] font-mono font-bold text-slate-400">
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">
                     TONS
                   </span>
                 </div>
@@ -368,7 +431,7 @@ export const TruckIntakeScreen: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Actual Kegs Filled */}
                 <div className="space-y-1">
-                  <label htmlFor="intake-actual-kegs" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+                  <label htmlFor="intake-actual-kegs" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
                     Actual Kegs Filled ({selectedProduct.litres_per_keg}L) *
                   </label>
                   <input
@@ -380,14 +443,14 @@ export const TruckIntakeScreen: React.FC = () => {
                     value={actualKegs}
                     inputMode="numeric"
                     onChange={e => setActualKegs(e.target.value)}
-                    className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
+                    className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl font-mono tabular-nums font-bold text-sm"
                     required
                   />
                 </div>
 
                 {/* Leftover Bulk Litres */}
                 <div className="space-y-1">
-                  <label htmlFor="intake-leftover-litres" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+                  <label htmlFor="intake-leftover-litres" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
                     Leftover Recovered (Litres)
                   </label>
                   <input
@@ -399,19 +462,19 @@ export const TruckIntakeScreen: React.FC = () => {
                     value={leftoverLitres}
                     inputMode="decimal"
                     onChange={e => setLeftoverLitres(e.target.value)}
-                    className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
+                    className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl font-mono tabular-nums font-bold text-sm"
                   />
                 </div>
               </div>
 
               {/* Depot Capacity Warning Banner */}
               {bulkMetrics.exceedsDepotKegCapacity && (
-                <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 text-[12px] font-sans text-amber-900 dark:text-amber-300 flex items-start gap-2.5 animate-in fade-in">
+                <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 text-xs font-sans text-amber-900 dark:text-amber-300 flex items-start gap-2.5 animate-in fade-in">
                   <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-bold block">Depot Keg Capacity Warning</span>
+                    <span className="font-bold block">Depot Keg Capacity Alert</span>
                     <span>
-                      Expected offload requires ~{bulkMetrics.expectedKegs.toFixed(0)} kegs, but depot only has {kegInventory.kegsAtDepot} empty kegs available.
+                      Expected offload requires ~{bulkMetrics.expectedKegs.toFixed(0)} kegs, but depot yard only has {kegInventory.kegsAtDepot} empty kegs available.
                     </span>
                   </div>
                 </div>
@@ -423,11 +486,11 @@ export const TruckIntakeScreen: React.FC = () => {
               {/* Kegs Received Count */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <label htmlFor="intake-kegs-received" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  <label htmlFor="intake-kegs-received" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
                     Physical Kegs Received ({selectedProduct.litres_per_keg}L/keg) *
                   </label>
-                  <span className="text-[11px] text-slate-500 font-mono tabular-nums font-bold">
-                    Per-Keg Standard: {selectedProduct.litres_per_keg} Litres
+                  <span className="text-xs text-slate-500 font-mono tabular-nums font-bold">
+                    Standard: {selectedProduct.litres_per_keg} Litres
                   </span>
                 </div>
                 <div className="relative">
@@ -440,28 +503,28 @@ export const TruckIntakeScreen: React.FC = () => {
                     value={kegsReceived}
                     inputMode="numeric"
                     onChange={e => setKegsReceived(e.target.value)}
-                    className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[16px] font-mono tabular-nums font-bold focus:outline-none focus:border-brand-500"
+                    className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl text-base font-mono tabular-nums font-bold"
                     required
                   />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[12px] font-mono font-bold text-slate-400">
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">
                     KEGS
                   </span>
                 </div>
               </div>
 
               {/* Exact Calculated Volume Callout */}
-              <div className="p-4 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-[13px] font-sans text-emerald-900 dark:text-emerald-200 space-y-1">
+              <div className="p-4 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-xs font-sans text-emerald-900 dark:text-emerald-200 space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                     Exact Inventory Volume:
                   </span>
-                  <span className="text-[18px] font-mono tabular-nums font-bold text-emerald-700 dark:text-emerald-300">
+                  <span className="text-base font-mono tabular-nums font-bold text-emerald-700 dark:text-emerald-300">
                     {preKeggedMetrics.exactLitres.toLocaleString()} Litres
                   </span>
                 </div>
-                <p className="text-[11px] text-emerald-700 dark:text-emerald-300/90 font-mono">
-                  Calculated as: {preKeggedMetrics.kegsReceived} kegs × {selectedProduct.litres_per_keg}L/keg. Direct pre-kegged offload bypasses metric ton conversion and delivery shortfall checks.
+                <p className="text-xs text-emerald-700 dark:text-emerald-300/90 font-mono">
+                  Calculated as: {preKeggedMetrics.kegsReceived} kegs × {selectedProduct.litres_per_keg}L/keg.
                 </p>
               </div>
             </>
@@ -470,7 +533,7 @@ export const TruckIntakeScreen: React.FC = () => {
           {/* Physical Tank Infrastructure Link & Space Note */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1 border-t border-slate-100 dark:border-slate-800">
             <div className="space-y-1">
-              <label htmlFor="intake-physical-tank" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <label htmlFor="intake-physical-tank" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                 <Warehouse className="w-3.5 h-3.5 text-slate-500" />
                 <span>Physical Yard Tank Storage</span>
               </label>
@@ -478,7 +541,7 @@ export const TruckIntakeScreen: React.FC = () => {
                 id="intake-physical-tank"
                 value={physicalTankId}
                 onChange={e => setPhysicalTankId(e.target.value)}
-                className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-sans focus:outline-none focus:border-brand-500"
+                className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl text-sm font-sans"
               >
                 <option value="">-- Optional: Link Permanent Tank --</option>
                 {physicalTanks
@@ -492,20 +555,20 @@ export const TruckIntakeScreen: React.FC = () => {
             </div>
 
             <div className="space-y-1">
-              <label htmlFor="intake-space-note" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <label htmlFor="intake-space-note" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                 <FileText className="w-3.5 h-3.5 text-slate-500" />
-                <span>Space Note (Informational)</span>
+                <span>Yard Storage Placement Note</span>
               </label>
               <input
                 id="intake-space-note"
                 type="text"
                 value={spaceNote}
                 onChange={e => setSpaceNote(e.target.value)}
-                placeholder="e.g. Filled 1.5 yard tanks, offloaded to bay 3"
-                className="w-full px-4 py-3.5 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-sans placeholder-slate-400 focus:outline-none focus:border-brand-500"
+                placeholder="e.g. Offloaded to Bay 3 near gate"
+                className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl text-sm font-sans placeholder-slate-400"
               />
-              <span className="text-[10px] text-slate-500 font-sans block">
-                Planning note only. Does not alter exact ledger litres.
+              <span className="text-xs text-slate-500 font-sans block">
+                Yard location reference. Does not alter ledger litres.
               </span>
             </div>
           </div>
@@ -513,30 +576,30 @@ export const TruckIntakeScreen: React.FC = () => {
           {/* Submit Button */}
           <button
             type="submit"
-            className="w-full py-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[14px] uppercase tracking-wider shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2 active:scale-98"
+            className="w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-98 text-slate-950 font-sans font-bold text-sm uppercase tracking-wider shadow-card-light dark:shadow-card-dark transition-all flex items-center justify-center gap-2"
           >
-            <ArrowDownToLine className="w-[18px] h-[18px] text-slate-950" weight="bold" />
+            <ArrowDownToLine className="w-5 h-5 text-slate-950" weight="bold" />
             <span>
-              {isBulkTruck ? 'Save this tanker delivery' : 'Save this keg delivery'}
+              {isBulkTruck ? 'Record Tanker Delivery' : 'Record Keg Delivery'}
             </span>
           </button>
         </form>
 
         {/* Right Column: Live Reconciliation Preview & Simulation (lg:col-span-5) */}
         <div className="lg:col-span-5 space-y-6">
-          {/* Live Volumetric Conversion Card */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
+          {/* Delivery Litres & Keg Yield */}
+          <div className="p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 space-y-4 shadow-card-light dark:shadow-card-dark">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <span className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                {isBulkTruck ? 'Live delivery check' : 'Live keg count'}
+              <span className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                {isBulkTruck ? 'Delivery Litres & Keg Yield' : 'Live Keg Count'}
               </span>
-              <span className="text-[11px] font-mono tabular-nums px-2 py-0.5 rounded bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300 font-bold">
+              <span className="text-xs font-mono tabular-nums px-2 py-0.5 rounded badge-emerald font-bold">
                 {isBulkTruck ? 'Formula Verified' : 'Direct Volume'}
               </span>
             </div>
 
             {isBulkTruck ? (
-              <div className="space-y-3 text-[12px] font-mono tabular-nums">
+              <div className="space-y-3 text-xs font-mono tabular-nums">
                 <div className="flex justify-between text-slate-600 dark:text-slate-400">
                   <span className="font-sans">Expected Litres ({tons || 0}T):</span>
                   <span className="font-bold text-slate-900 dark:text-slate-200">{bulkMetrics.expectedLitres.toLocaleString()} L</span>
@@ -553,32 +616,32 @@ export const TruckIntakeScreen: React.FC = () => {
                 {/* Live Shortfall Gauge / Alert */}
                 <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
                   <div className="flex justify-between items-center mb-1">
-                    <span className="font-sans font-bold text-slate-700 dark:text-slate-300 text-[12px]">Delivery Variance:</span>
+                    <span className="font-sans font-bold text-slate-700 dark:text-slate-300 text-xs">Offload Variance vs Waybill:</span>
                     <span
-                      className={`font-mono tabular-nums font-bold text-[14px] px-2 py-0.5 rounded-md ${
+                      className={`font-mono tabular-nums font-bold text-xs px-2 py-0.5 rounded-md ${
                         isShortfallTriggered
-                          ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-500/30'
+                          ? 'badge-rose'
                           : bulkMetrics.shortfall > 0
-                          ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
-                          : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
+                          ? 'badge-amber'
+                          : 'badge-emerald'
                       }`}
                     >
-                      {bulkMetrics.shortfall > 0 ? `-${bulkMetrics.shortfall} L` : `${bulkMetrics.shortfall} L (Clean)`}
+                      {bulkMetrics.shortfall > 0 ? `-${bulkMetrics.shortfall} L` : `${bulkMetrics.shortfall} L (Balanced)`}
                     </span>
                   </div>
 
                   {isShortfallTriggered && (
-                    <div className="mt-2 text-[11px] font-sans text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 p-2.5 rounded-xl border border-rose-200 dark:border-rose-900/60 flex items-start gap-2">
+                    <div className="mt-2 text-xs font-sans text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 p-2.5 rounded-xl border border-rose-200 dark:border-rose-900/60 flex items-start gap-2">
                       <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-rose-600" />
                       <span>
-                        High delivery shortfall exceeding {settings.truck_shortfall_threshold}L threshold. This will trigger an operational alert.
+                        High offload loss exceeding {settings.truck_shortfall_threshold}L threshold. Driver delivery variance flagged.
                       </span>
                     </div>
                   )}
                 </div>
               </div>
             ) : (
-              <div className="space-y-3 text-[12px] font-mono tabular-nums">
+              <div className="space-y-3 text-xs font-mono tabular-nums">
                 <div className="flex justify-between text-slate-600 dark:text-slate-400">
                   <span className="font-sans">Kegs received:</span>
                   <span className="font-bold text-slate-900 dark:text-slate-200">{preKeggedMetrics.kegsReceived} kegs</span>
@@ -589,11 +652,11 @@ export const TruckIntakeScreen: React.FC = () => {
                 </div>
                 <div className="flex justify-between text-slate-600 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800">
                   <span className="font-sans">Batch Exact Litres:</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400 text-[14px]">
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">
                     {preKeggedMetrics.exactLitres.toLocaleString()} L
                   </span>
                 </div>
-                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] font-sans text-slate-500">
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-sans text-slate-500">
                   <span className="font-bold text-slate-700 dark:text-slate-300 block">Supplier Batch Isolation:</span>
                   <span>Palm deliveries are logged into isolated depot tank batches linked to {suppliers.find(s => s.id === supplierId)?.name || 'the selected supplier'}.</span>
                 </div>
@@ -602,12 +665,12 @@ export const TruckIntakeScreen: React.FC = () => {
           </div>
 
           {/* Live Tanker Simulation Preview */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm flex flex-col">
+          <div className="p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 space-y-3 shadow-card-light dark:shadow-card-dark flex flex-col">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-              <span className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+              <span className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
                 Live Reception Simulation
               </span>
-              <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+              <span className="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-bold">
                 Previewing Live Form
               </span>
             </div>
@@ -633,18 +696,18 @@ export const TruckIntakeScreen: React.FC = () => {
       </div>
 
       {/* Historical Storage Tanks & Offload Fleet */}
-      <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm">
+      <div className="p-5 sm:p-6 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 space-y-5 shadow-card-light dark:shadow-card-dark">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-4">
           <div>
-            <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-              <History className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+            <h3 className="text-base font-heading font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <History className="w-5 h-5 text-amber-500" />
               <span>Depot Storage Tanks & Reception Batches</span>
             </h3>
-            <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-xs font-sans text-slate-500 dark:text-slate-400 mt-0.5">
               Active physical tank batches with supplier provenance and volume remaining.
             </p>
           </div>
-          <span className="text-[12px] font-mono tabular-nums font-bold px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 self-start sm:self-auto">
+          <span className="text-xs font-mono tabular-nums font-bold px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 self-start sm:self-auto">
             {tanks.length} Active Storage Batches
           </span>
         </div>
@@ -677,7 +740,7 @@ export const TruckIntakeScreen: React.FC = () => {
                       className="w-2.5 h-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }}
                     />
-                    <span className="font-sans font-bold text-[14px] text-slate-900 dark:text-white truncate">
+                    <span className="font-sans font-bold text-sm text-slate-900 dark:text-white truncate">
                       {t.truck_label}
                     </span>
                   </div>
@@ -686,18 +749,18 @@ export const TruckIntakeScreen: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-[11px] font-sans text-slate-500">
+                <div className="flex items-center gap-2 text-xs font-sans text-slate-500">
                   {supp && (
                     <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium">
                       {supp.name}
                     </span>
                   )}
-                  <span className="px-2 py-0.5 rounded bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300 font-medium">
+                  <span className="px-2 py-0.5 rounded badge-emerald font-medium">
                     {t.supply_model === 'pre_kegged' ? 'In kegs' : 'By tanker'}
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between text-[12px] font-mono tabular-nums text-slate-600 dark:text-slate-400">
+                <div className="flex items-center justify-between text-xs font-mono tabular-nums text-slate-600 dark:text-slate-400">
                   <span>{t.remaining_litres.toLocaleString()}L / {t.received_litres.toLocaleString()}L</span>
                   <span className="font-bold text-slate-900 dark:text-slate-200">{pct.toFixed(0)}% full</span>
                 </div>
@@ -738,10 +801,10 @@ export const TruckIntakeScreen: React.FC = () => {
                     setSelectedTankForDetail(t.id);
                   }
                 }}
-                className="flex flex-col space-y-2 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 hover:border-brand-400 dark:hover:border-brand-600/70 hover:shadow-md transition-all cursor-pointer group focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
+                className="flex flex-col space-y-2 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 hover:border-amber-500 dark:hover:border-amber-500/70 hover:shadow-md transition-all cursor-pointer group focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
                 title="Click to inspect tank audit history & orders drawn in side drawer"
               >
-                <div className="flex items-center justify-between text-[11px] px-1 pb-1">
+                <div className="flex items-center justify-between text-xs px-1 pb-1">
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
                       {prod?.name}
@@ -751,11 +814,11 @@ export const TruckIntakeScreen: React.FC = () => {
                         {supp.name}
                       </span>
                     )}
-                    <span className="px-2 py-0.5 rounded-full bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300 font-sans font-bold">
+                    <span className="px-2 py-0.5 rounded-full badge-sky font-sans font-bold">
                       {t.supply_model === 'pre_kegged' ? 'In kegs' : `${t.tons}T tanker`}
                     </span>
                   </div>
-                  <span className="text-brand-600 dark:text-brand-400 font-bold group-hover:underline flex items-center gap-1">
+                  <span className="text-amber-600 dark:text-amber-400 font-bold group-hover:underline flex items-center gap-1">
                     Inspect Drawer <ChevronRight className="w-3.5 h-3.5" />
                   </span>
                 </div>
@@ -769,7 +832,7 @@ export const TruckIntakeScreen: React.FC = () => {
 
                 {/* Storage & Space Note Metadata */}
                 {(physTank || t.space_note) && (
-                  <div className="px-2 py-1 text-[11px] font-sans text-slate-500 flex items-center gap-3">
+                  <div className="px-2 py-1 text-xs font-sans text-slate-500 flex items-center gap-3">
                     {physTank && (
                       <span className="flex items-center gap-1">
                         <Warehouse className="w-3 h-3 text-slate-400" />
@@ -831,14 +894,14 @@ export const TruckIntakeScreen: React.FC = () => {
                 {/* Provenance & Supply Model strip */}
                 <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
                   <div>
-                    <span className="text-[11px] font-sans text-slate-500 block uppercase">Supplier</span>
-                    <span className="font-bold text-slate-900 dark:text-white text-[13px]">
+                    <span className="text-xs font-sans text-slate-500 block uppercase">Supplier</span>
+                    <span className="font-bold text-slate-900 dark:text-white text-sm">
                       {selectedSupplier?.name || 'Direct Depot Intake'}
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[11px] font-sans text-slate-500 block uppercase">Intake Model</span>
-                    <span className="px-2 py-0.5 rounded font-bold uppercase tracking-wider text-[10px] bg-brand-100 text-brand-800 dark:bg-brand-950 dark:text-brand-300">
+                    <span className="text-xs font-sans text-slate-500 block uppercase">Intake Model</span>
+                    <span className="badge-sky px-2 py-0.5 rounded font-bold uppercase tracking-wider text-xs">
                       {selectedTank.supply_model === 'pre_kegged' ? 'In kegs' : 'By tanker'}
                     </span>
                   </div>
@@ -847,14 +910,14 @@ export const TruckIntakeScreen: React.FC = () => {
                 {/* Storage Metrics Row */}
                 <div className="grid grid-cols-2 gap-3 font-mono tabular-nums text-xs">
                   <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                    <span className="text-[11px] font-sans text-slate-500 block uppercase">Received Capacity</span>
-                    <span className="text-[15px] font-bold text-slate-900 dark:text-slate-100">
+                    <span className="text-xs font-sans text-slate-500 block uppercase">Received Capacity</span>
+                    <span className="text-base font-bold text-slate-900 dark:text-slate-100">
                       {selectedTank.received_litres.toLocaleString()} L
                     </span>
                   </div>
                   <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                    <span className="text-[11px] font-sans text-slate-500 block uppercase">Available Stock</span>
-                    <span className="text-[15px] font-bold text-emerald-600 dark:text-emerald-400">
+                    <span className="text-xs font-sans text-slate-500 block uppercase">Available Stock</span>
+                    <span className="text-base font-bold text-emerald-600 dark:text-emerald-400">
                       {selectedTank.remaining_litres.toLocaleString()} L
                     </span>
                   </div>
@@ -862,7 +925,7 @@ export const TruckIntakeScreen: React.FC = () => {
 
                 {selectedTank.space_note && (
                   <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs">
-                    <span className="text-[11px] font-sans text-slate-500 uppercase block mb-0.5">Yard Space Note:</span>
+                    <span className="text-xs font-sans text-slate-500 uppercase block mb-0.5">Yard Placement Note:</span>
                     <span className="font-sans text-slate-800 dark:text-slate-200 italic">
                       &ldquo;{selectedTank.space_note}&rdquo;
                     </span>
@@ -872,11 +935,11 @@ export const TruckIntakeScreen: React.FC = () => {
                 {/* Orders Drawn from this Tank / Product Batch */}
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-heading font-semibold text-[14px] text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <h4 className="font-heading font-semibold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
                       <ShoppingCart className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                       <span>Recent Orders Drawn</span>
                     </h4>
-                    <span className="text-[11px] font-mono text-slate-500">
+                    <span className="text-xs font-mono text-slate-500">
                       {drawnOrders.length} recent
                     </span>
                   </div>
@@ -894,7 +957,7 @@ export const TruckIntakeScreen: React.FC = () => {
                               <div className="font-sans font-semibold text-slate-900 dark:text-slate-200">
                                 {cust?.name || 'Customer'}
                               </div>
-                              <div className="text-[11px] text-slate-500 font-mono">
+                              <div className="text-xs text-slate-500 font-mono">
                                 {formatDepotDate(order.date)} {formatDepotTime(order.date)} · {order.qty} pack{order.qty === 1 ? '' : 's'} · {order.payment_method}
                               </div>
                             </div>
@@ -902,7 +965,7 @@ export const TruckIntakeScreen: React.FC = () => {
                               <span className="font-bold text-slate-900 dark:text-slate-100 block">
                                 -{(order.litres || 0).toLocaleString()} L
                               </span>
-                              <span className="text-[10px] text-slate-500 uppercase font-sans">Dispensed</span>
+                              <span className="text-xs text-slate-500 uppercase font-sans">Dispensed</span>
                             </div>
                           </div>
                         );

@@ -314,7 +314,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
           </div>
           <div>
             <h1 className="text-lg font-heading font-bold text-slate-900 dark:text-white leading-tight">Transactions</h1>
-            <p className="text-[12px] text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Everything in and out, newest first — with date, time and an edit trail.
             </p>
           </div>
@@ -322,13 +322,13 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         <div className="flex gap-2">
           <button
             onClick={() => window.print()}
-            className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-[12px] font-sans font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5"
+            className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-sans font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5"
           >
             <Printer className="w-3.5 h-3.5" /> Print
           </button>
           <button
             onClick={() => onNavigate('order')}
-            className="px-3 py-2 rounded-xl bg-brand-500 text-slate-950 text-[12px] font-sans font-bold flex items-center gap-1.5"
+            className="px-3 py-2 rounded-xl bg-brand-500 text-slate-950 text-xs font-sans font-bold flex items-center gap-1.5"
           >
             <PlusCircle className="w-3.5 h-3.5" /> New sale
           </button>
@@ -343,16 +343,16 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
           ['Expenses', formatNaira(kpi.spent), 'text-rose-600 dark:text-rose-400'],
           ['Credit owed', formatNaira(kpi.creditOwed), 'text-amber-600 dark:text-amber-400']
         ].map(([label, val, cls]) => (
-          <div key={label} className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-            <div className="text-[10px] font-sans uppercase tracking-wider text-slate-500">{label}</div>
-            <div className={`text-[15px] font-mono font-extrabold tabular-nums mt-0.5 ${cls}`}>{val}</div>
+          <div key={label} className="depot-card p-3 rounded-xl">
+            <div className="text-xs font-sans uppercase tracking-wider text-slate-500">{label}</div>
+            <div className={`text-base font-mono font-extrabold tabular-nums mt-0.5 ${cls}`}>{val}</div>
           </div>
         ))}
       </div>
 
       {/* Payment mode breakdown */}
       <div>
-        <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+        <div className="text-xs font-sans font-bold uppercase tracking-wider text-slate-500 mb-1.5">
           By payment mode
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
@@ -368,8 +368,8 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                   <Icon className="w-4 h-4" weight="bold" />
                 </div>
                 <div className="min-w-0">
-                  <div className={`text-[10px] font-sans font-bold uppercase tracking-wider truncate ${theme.textCls}`}>{label}</div>
-                  <div className={`text-[14px] font-mono font-extrabold tabular-nums ${theme.textCls}`}>
+                  <div className={`text-xs font-sans font-bold uppercase tracking-wider truncate ${theme.textCls}`}>{label}</div>
+                  <div className={`text-sm font-mono font-extrabold tabular-nums ${theme.textCls}`}>
                     {formatNaira(paymentModeTotals[method])}
                   </div>
                 </div>
@@ -387,7 +387,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search customer, category, truck…"
-            className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px] focus:outline-none focus:border-brand-500"
+            className="depot-input w-full pl-9 pr-3 py-2.5 rounded-xl text-sm font-sans placeholder-slate-400"
           />
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -395,7 +395,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
             <button
               key={s.id}
               onClick={() => setScope(s.id)}
-              className={`px-3 py-1.5 rounded-lg text-[12px] font-sans font-semibold border flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-semibold border flex items-center gap-1.5 ${
                 scope === s.id
                   ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
                   : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800'
@@ -410,7 +410,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
             <button
               key={k.id}
               onClick={() => setKindFilter(k.id)}
-              className={`px-3 py-1.5 rounded-lg text-[12px] font-sans font-semibold border ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-semibold border ${
                 kindFilter === k.id
                   ? 'bg-brand-500 text-slate-950 border-brand-500'
                   : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800'
@@ -430,7 +430,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                 key={pm.id}
                 type="button"
                 onClick={() => setPaymentModeFilter(pm.id)}
-                className={`px-3 py-1.5 rounded-lg text-[12px] font-sans font-bold border flex items-center gap-1.5 transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold border flex items-center gap-1.5 transition-all ${
                   isSelected
                     ? theme
                       ? theme.buttonActiveCls
@@ -452,22 +452,22 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
 
         {scope === 'custom' && (
           <div className="flex flex-wrap items-end gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-            <label className="text-[11px] font-sans font-semibold text-slate-500">
+            <label className="text-xs font-sans font-semibold text-slate-500">
               From
               <input
                 type="datetime-local"
                 value={customFrom}
                 onChange={e => setCustomFrom(e.target.value)}
-                className="mt-1 block px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono text-[12px]"
+                className="mt-1 block px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono text-xs"
               />
             </label>
-            <label className="text-[11px] font-sans font-semibold text-slate-500">
+            <label className="text-xs font-sans font-semibold text-slate-500">
               To
               <input
                 type="datetime-local"
                 value={customTo}
                 onChange={e => setCustomTo(e.target.value)}
-                className="mt-1 block px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono text-[12px]"
+                className="mt-1 block px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono text-xs"
               />
             </label>
             {(customFrom || customTo) && (
@@ -477,7 +477,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                   setCustomFrom('');
                   setCustomTo('');
                 }}
-                className="text-[11px] font-sans font-semibold text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 pb-2"
+                className="text-xs font-sans font-semibold text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 pb-2"
               >
                 Clear
               </button>
@@ -487,10 +487,10 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
       </div>
 
       {/* Feed — a proper column table so rows scan left-to-right */}
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+      <div className="depot-card rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-[12px] border-collapse">
-            <thead className="bg-slate-50 dark:bg-slate-950 text-[10px] uppercase tracking-wider text-slate-500 font-sans">
+          <table className="w-full text-xs border-collapse">
+            <thead className="bg-slate-50 dark:bg-slate-950 text-xs uppercase tracking-wider text-slate-500 font-sans">
               <tr>
                 <th className="text-left px-3.5 py-2.5 font-bold whitespace-nowrap">Date &amp; time</th>
                 <th className="text-left px-3.5 py-2.5 font-bold whitespace-nowrap">Type</th>
@@ -503,7 +503,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {scopedRows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-[13px] text-slate-400">
+                  <td colSpan={6} className="py-12 text-center text-xs text-slate-400">
                     Nothing in this window.
                   </td>
                 </tr>
@@ -518,19 +518,19 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                     <tr className={row.voided ? 'opacity-60' : 'hover:bg-slate-50/70 dark:hover:bg-slate-800/40'}>
                       <td className="px-3.5 py-3 align-top whitespace-nowrap font-mono tabular-nums text-slate-500 dark:text-slate-400">
                         <div>{formatDepotDate(row.date)}</div>
-                        <div className="text-[10px] text-slate-400">{formatDepotTime(row.date)}</div>
+                        <div className="text-xs text-slate-400">{formatDepotTime(row.date)}</div>
                       </td>
                       <td className="px-3.5 py-3 align-top whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${badge}`}>
                             <Icon className="w-3.5 h-3.5" />
                           </div>
-                          <span className={`text-[9px] font-sans font-black uppercase tracking-wide px-1.5 py-0.5 rounded ${badge}`}>
+                          <span className={`text-xs font-sans font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${badge}`}>
                             {label}
                           </span>
                         </div>
                         {row.voided && (
-                          <span className="inline-block mt-1 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
+                          <span className="inline-block mt-1 text-xs font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
                             Voided
                           </span>
                         )}
@@ -543,7 +543,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                             const Icon = meta?.Icon || CreditCard;
                             return (
                               <span
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-sans font-bold capitalize border shadow-xs ${theme.badgeCls}`}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-sans font-bold capitalize border shadow-xs ${theme.badgeCls}`}
                               >
                                 <span className={`w-1.5 h-1.5 rounded-full ${theme.dotCls} shrink-0`} />
                                 <Icon className="w-3.5 h-3.5 shrink-0" weight="bold" />
@@ -552,18 +552,18 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                             );
                           })()
                         ) : (
-                          <span className="text-slate-400 font-mono text-[11px]">—</span>
+                          <span className="text-slate-400 font-mono text-xs">—</span>
                         )}
                       </td>
                       <td className="px-3.5 py-3 align-top min-w-[180px]">
-                        <div className={`text-[13px] font-sans font-bold text-slate-900 dark:text-white truncate ${row.voided ? 'line-through' : ''}`}>
+                        <div className={`text-sm font-sans font-bold text-slate-900 dark:text-white truncate ${row.voided ? 'line-through' : ''}`}>
                           {row.title}
                         </div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{row.subtitle}</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{row.subtitle}</div>
                       </td>
                       <td className="px-3.5 py-3 align-top text-right whitespace-nowrap">
                         <span
-                          className={`text-[14px] font-mono font-extrabold tabular-nums ${
+                          className={`text-sm font-mono font-extrabold tabular-nums ${
                             row.voided
                               ? 'text-slate-400 line-through'
                               : row.tone === 'out'
@@ -641,7 +641,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                         <td colSpan={6} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
                           <div className="space-y-1.5 pt-2">
                             {row.lines.map(l => (
-                              <div key={l.id} className="flex items-center justify-between text-[12px]">
+                              <div key={l.id} className="flex items-center justify-between text-xs font-sans">
                                 <span className="text-slate-600 dark:text-slate-300 truncate">
                                   {l.qty} × {packShort(l.pack_size_id)} · {prodName(l.product_id)} / {l.variety_name}
                                   {l.container_mode === 'taken' && ' · keg taken'}
@@ -662,16 +662,16 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                       <tr>
                         <td colSpan={6} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
                           <div className="space-y-1.5 pt-2">
-                            <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400">
+                            <div className="text-xs font-sans font-bold uppercase tracking-wider text-slate-400">
                               Applied to
                             </div>
                             {row.payment.applied_to.length === 0 && row.payment.overpayment_to_credit <= 0 && (
-                              <div className="text-[12px] text-slate-400">Nothing on record for this payment.</div>
+                              <div className="text-xs text-slate-400">Nothing on record for this payment.</div>
                             )}
                             {row.payment.applied_to.map(a => {
                               const line = orders.find(o => o.id === a.order_id);
                               return (
-                                <div key={a.order_id} className="flex items-center justify-between text-[12px]">
+                                <div key={a.order_id} className="flex items-center justify-between text-xs font-sans">
                                   <span className="text-slate-600 dark:text-slate-300 truncate">
                                     {line
                                       ? `${line.qty} × ${packShort(line.pack_size_id)} · ${prodName(line.product_id)} / ${line.variety_name}`
@@ -684,7 +684,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                               );
                             })}
                             {row.payment.overpayment_to_credit > 0 && (
-                              <div className="flex items-center justify-between text-[12px] text-emerald-700 dark:text-emerald-400">
+                              <div className="flex items-center justify-between text-xs font-sans text-emerald-700 dark:text-emerald-400">
                                 <span>Overpayment → store credit</span>
                                 <span className="font-mono font-semibold shrink-0 ml-2">
                                   {formatNaira(row.payment.overpayment_to_credit)}
@@ -700,15 +700,15 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                       <tr>
                         <td colSpan={6} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
                           <div className="space-y-1.5 pt-2">
-                            <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400">Edit history</div>
+                            <div className="text-xs font-sans font-bold uppercase tracking-wider text-slate-400">Edit history</div>
                             {rowAudits.map(a => (
-                              <div key={a.id} className="text-[11px] text-slate-500 dark:text-slate-400">
+                              <div key={a.id} className="text-xs text-slate-500 dark:text-slate-400">
                                 <span className="font-semibold capitalize text-slate-700 dark:text-slate-300">{a.action}</span>
                                 {' · '}
                                 {formatDepotDate(a.at)} {formatDepotTime(a.at)} · {a.actor_name || a.actor_role}
                                 {a.reason ? ` · “${a.reason}”` : ''}
                                 {a.changes.length > 0 && (
-                                  <div className="pl-3 text-[10px] font-mono text-slate-400">
+                                  <div className="pl-3 text-xs font-mono text-slate-400">
                                     {a.changes.map((c, i) => (
                                       <div key={i}>
                                         {c.field}: {String(c.old)} → {String(c.new)}
@@ -773,7 +773,7 @@ const VoidModal: React.FC<{
   return (
     <Modal isOpen onClose={onClose} title={<span className="flex items-center gap-2"><Ban className="w-4 h-4 text-rose-500" /> Void {KIND_META[row.kind].label.toLowerCase()}</span>}>
       <div className="space-y-3">
-        <p className="text-[13px] text-slate-600 dark:text-slate-300">
+        <p className="text-xs font-sans text-slate-600 dark:text-slate-300">
           <b>{row.title}</b> · {row.amountLabel} · {formatDepotDate(row.date)}. Voiding removes it from every balance and
           restores stock. It stays visible with an audit note.
         </p>
@@ -782,11 +782,11 @@ const VoidModal: React.FC<{
           onChange={e => setReason(e.target.value)}
           rows={3}
           placeholder="Reason (required)"
-          className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]"
+          className="depot-input w-full px-3 py-2 rounded-xl text-sm font-sans placeholder-slate-400"
         />
-        {err && <div className="text-[12px] text-rose-600 dark:text-rose-400">{err}</div>}
+        {err && <div className="text-xs text-rose-600 dark:text-rose-400">{err}</div>}
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-[13px] font-sans font-semibold">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-sans font-semibold">
             Cancel
           </button>
           <button
@@ -796,7 +796,7 @@ const VoidModal: React.FC<{
               if (res.success) onClose();
               else setErr(res.error || 'Could not void.');
             }}
-            className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[13px] font-sans font-bold"
+            className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-sans font-bold"
           >
             Void it
           </button>
@@ -884,28 +884,28 @@ const EditModal: React.FC<{
     else setErr(res.error || 'Could not save.');
   };
 
-  const field = 'w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]';
+  const field = 'depot-input w-full px-3 py-2 rounded-xl text-sm font-sans placeholder-slate-400';
 
   return (
     <Modal isOpen onClose={onClose} title={<span className="flex items-center gap-2"><Pencil className="w-4 h-4 text-brand-500" /> Edit {KIND_META[row.kind].label.toLowerCase()}</span>}>
       <div className="space-y-3">
         {row.kind === 'sale' && !line && (
-          <p className="text-[13px] text-rose-600 dark:text-rose-400">This sale has no editable line.</p>
+          <p className="text-xs font-sans text-rose-600 dark:text-rose-400">This sale has no editable line.</p>
         )}
 
         {row.kind === 'sale' && line && (
           <>
             {row.lines && row.lines.length > 1 && (
-              <p className="text-[11px] text-amber-600 dark:text-amber-400">
+              <p className="text-xs font-sans text-amber-600 dark:text-amber-400">
                 Multi-line sale — editing the first line ({packShort(line.pack_size_id)}). Void &amp; re-enter for bigger changes.
               </p>
             )}
             <div className="grid grid-cols-2 gap-2">
-              <label className="text-[11px] font-sans font-semibold text-slate-500">
+              <label className="text-xs font-sans font-semibold text-slate-500">
                 Packs
                 <input type="number" min={1} value={qty} onChange={e => setQty(e.target.value)} className={field} />
               </label>
-              <label className="text-[11px] font-sans font-semibold text-slate-500">
+              <label className="text-xs font-sans font-semibold text-slate-500">
                 Unit price (₦)
                 <input type="number" value={unitPrice} onChange={e => setUnitPrice(e.target.value)} className={field} />
               </label>
@@ -916,7 +916,7 @@ const EditModal: React.FC<{
                   <button
                     key={m}
                     onClick={() => setContainerMode(m)}
-                    className={`px-3 py-1.5 rounded-lg text-[12px] font-sans font-bold border capitalize ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold border capitalize ${
                       containerMode === m
                         ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
                         : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800'
@@ -932,15 +932,15 @@ const EditModal: React.FC<{
 
         {row.kind === 'expense' && (
           <>
-            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+            <label className="text-xs font-sans font-semibold text-slate-500 block">
               Category
               <input value={expCategory} onChange={e => setExpCategory(e.target.value)} className={field} />
             </label>
-            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+            <label className="text-xs font-sans font-semibold text-slate-500 block">
               Amount (₦)
               <input type="number" value={expAmount} onChange={e => setExpAmount(e.target.value)} className={field} />
             </label>
-            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+            <label className="text-xs font-sans font-semibold text-slate-500 block">
               Note
               <input value={expNote} onChange={e => setExpNote(e.target.value)} className={field} />
             </label>
@@ -949,11 +949,11 @@ const EditModal: React.FC<{
 
         {row.kind === 'intake' && (
           <>
-            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+            <label className="text-xs font-sans font-semibold text-slate-500 block">
               Truck / label
               <input value={tkLabel} onChange={e => setTkLabel(e.target.value)} className={field} />
             </label>
-            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+            <label className="text-xs font-sans font-semibold text-slate-500 block">
               Supplier
               <select value={tkSupplier} onChange={e => setTkSupplier(e.target.value)} className={field}>
                 <option value="">—</option>
@@ -964,7 +964,7 @@ const EditModal: React.FC<{
                 ))}
               </select>
             </label>
-            <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+            <label className="text-xs font-sans font-semibold text-slate-500 block">
               Note
               <input value={tkNote} onChange={e => setTkNote(e.target.value)} className={field} />
             </label>
@@ -972,12 +972,12 @@ const EditModal: React.FC<{
         )}
 
         {row.kind === 'payment' && (
-          <p className="text-[12px] text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Only the recorded date &amp; time can be corrected here — to change the amount, void this payment and record it again.
           </p>
         )}
 
-        <label className="text-[11px] font-sans font-semibold text-slate-500 block">
+        <label className="text-xs font-sans font-semibold text-slate-500 block">
           Date &amp; time
           <input type="datetime-local" value={dateStr} onChange={e => setDateStr(e.target.value)} className={field} />
         </label>
@@ -989,12 +989,12 @@ const EditModal: React.FC<{
           placeholder="Reason for this change (required)"
           className={field}
         />
-        {err && <div className="text-[12px] text-rose-600 dark:text-rose-400">{err}</div>}
+        {err && <div className="text-xs text-rose-600 dark:text-rose-400">{err}</div>}
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-[13px] font-sans font-semibold">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-sans font-semibold">
             Cancel
           </button>
-          <button onClick={submit} className="px-4 py-2 rounded-xl bg-brand-500 text-slate-950 text-[13px] font-sans font-bold">
+          <button onClick={submit} className="px-4 py-2 rounded-xl bg-brand-500 text-slate-950 text-xs font-sans font-bold">
             Save change
           </button>
         </div>

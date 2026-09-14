@@ -24,41 +24,45 @@ export const TankGauge: React.FC<TankGaugeProps> = ({
   shortfall = 0,
   shortfallThresholdLitres = 50,
   size = 'md',
-  showLabels = true
+  showLabels = true,
 }) => {
-  // The product's own colors are the single source of truth for its tank
-  // visuals — an owner recoloring a product in Settings should change this.
   const { products } = useStore();
   const product = products.find(p => p.id === productId);
-  const colorLight = product?.color_light || '#FCD34D';
+  const colorLight = product?.color_light || '#F59E0B';
   const colorDark = product?.color_dark || '#B45309';
 
   const percentage = Math.min(100, Math.max(0, (remainingLitres / (totalCapacityLitres || 1)) * 100));
+  const isLowStock = percentage < 15;
 
-  // Height configurations
+  // Height and width configurations with responsive scaling
   const heightClasses = {
-    sm: 'h-36 w-full max-w-[120px]',
+    sm: 'h-36 w-full max-w-[130px]',
     md: 'h-52 w-full max-w-[200px]',
-    lg: 'h-64 w-full max-w-[260px]'
+    lg: 'h-64 w-full max-w-[260px]',
   }[size];
 
   return (
     <div className="flex flex-col items-center select-none">
-      {/* Tank Container Structure */}
+      {/* Tank Cylindrical Container Structure */}
       <div
-        className={`relative ${heightClasses} rounded-2xl border-2 shadow-xl bg-slate-100 dark:bg-slate-900/90 overflow-hidden backdrop-blur-md flex flex-col justify-end p-1 transition-colors duration-200`}
-        style={{ borderColor: hexToRgba(colorLight, 0.5) }}
+        className={`relative ${heightClasses} rounded-2xl border-2 shadow-card-light dark:shadow-card-dark bg-white dark:bg-slate-900/90 overflow-hidden flex flex-col justify-end p-1 transition-all duration-300`}
+        style={{ borderColor: hexToRgba(colorLight, 0.6) }}
       >
-        {/* Top Rim Indicator */}
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700/60 z-20" />
+        {/* Top Rim Indicator with metallic sheen */}
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 w-16 h-2 rounded-full bg-slate-200 dark:bg-slate-700/80 z-20 shadow-inner flex items-center justify-center">
+          <div className="w-8 h-0.5 rounded-full bg-slate-300 dark:bg-slate-600" />
+        </div>
 
         {/* Fill Percentage Overlay badge */}
-        <div className="absolute top-3 right-3 z-20 bg-white/90 dark:bg-slate-950/80 backdrop-blur-md px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 text-[11px] font-mono tabular-nums font-bold text-slate-800 dark:text-slate-200 shadow-sm">
-          {percentage.toFixed(0)}%
+        <div className="absolute top-3.5 right-3 z-20 bg-white/95 dark:bg-slate-950/90 backdrop-blur-md px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 text-xs font-mono tabular-nums font-bold text-slate-800 dark:text-slate-100 shadow-sm flex items-center gap-1">
+          {isLowStock && (
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+          )}
+          <span>{percentage.toFixed(0)}%</span>
         </div>
 
         {/* Measurement tick marks */}
-        <div className="absolute inset-y-4 left-2.5 z-10 flex flex-col justify-between opacity-50 dark:opacity-30 text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-300 pointer-events-none font-bold">
+        <div className="absolute inset-y-5 left-3 z-10 flex flex-col justify-between opacity-60 dark:opacity-40 text-xs font-mono tabular-nums text-slate-500 dark:text-slate-400 pointer-events-none font-bold">
           <span>MAX</span>
           <span>75%</span>
           <span>50%</span>
@@ -72,7 +76,7 @@ export const TankGauge: React.FC<TankGaugeProps> = ({
           style={{ height: `${Math.max(8, percentage)}%` }}
         >
           {/* Animated Wave Surface SVG */}
-          <div className="absolute -top-3 left-0 right-0 w-full h-4 overflow-hidden">
+          <div className="absolute -top-3 left-0 right-0 w-full h-4 overflow-hidden pointer-events-none">
             <svg
               className="w-[200%] h-full animate-liquid-wave fill-current text-opacity-95"
               style={{ color: colorDark }}
@@ -83,40 +87,45 @@ export const TankGauge: React.FC<TankGaugeProps> = ({
             </svg>
           </div>
 
-          {/* Liquid Body */}
+          {/* Liquid Body with rich dual gradient */}
           <div
-            className="w-full h-full opacity-95 rounded-b-xl relative overflow-hidden"
-            style={{ background: `linear-gradient(to top, ${colorLight}, ${colorDark})` }}
+            className="w-full h-full opacity-95 rounded-b-xl relative overflow-hidden shadow-inner"
+            style={{
+              background: `linear-gradient(to top, ${colorDark}, ${colorLight})`,
+            }}
           >
             {/* Shimmer / light reflection effect */}
-            <div className="absolute top-0 right-2 w-1.5 h-full bg-white/30 blur-[1px] rounded-full" />
-            <div className="absolute top-0 left-3 w-1 h-full bg-black/15 blur-[1px] rounded-full" />
+            <div className="absolute top-0 right-3 w-2 h-full bg-white/30 blur-[1px] rounded-full" />
+            <div className="absolute top-0 left-4 w-1.5 h-full bg-black/20 blur-[1px] rounded-full" />
           </div>
         </div>
 
-        {/* Empty Space Background Tint */}
+        {/* Empty Chamber Tint */}
         <div
           className="absolute inset-0 z-0 pointer-events-none"
-          style={{ backgroundColor: hexToRgba(colorDark, 0.12) }}
+          style={{ backgroundColor: hexToRgba(colorDark, 0.08) }}
         />
       </div>
 
       {/* Tank Labels */}
       {showLabels && (
-        <div className="mt-3 text-center w-full">
-          <div className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        <div className="mt-3 text-center w-full space-y-0.5">
+          <div className="text-xs font-heading font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
             {productName || product?.name || 'Oil'}
           </div>
-          <div className="text-[16px] font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100 mt-0.5">
-            {remainingLitres.toLocaleString('en-US', { maximumFractionDigits: 0 })} <span className="text-[12px] font-sans font-normal text-slate-500 dark:text-slate-400">Litres</span>
+          <div className="text-lg font-heading font-black text-slate-900 dark:text-white font-mono tabular-nums">
+            {remainingLitres.toLocaleString('en-US', { maximumFractionDigits: 0 })}{' '}
+            <span className="text-xs font-sans font-normal text-slate-500 dark:text-slate-400">
+              Litres
+            </span>
           </div>
           {truckLabel && (
-            <div className="text-[11px] text-slate-600 dark:text-slate-400 font-sans font-medium truncate max-w-[160px] mx-auto mt-0.5">
+            <div className="text-xs text-slate-600 dark:text-slate-400 font-sans truncate max-w-[180px] mx-auto">
               {truckLabel}
             </div>
           )}
           {shortfall > shortfallThresholdLitres && (
-            <div className="mt-1 inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono tabular-nums font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-500/30">
+            <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono tabular-nums font-bold bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/30">
               Shortfall: -{shortfall.toFixed(0)}L
             </div>
           )}

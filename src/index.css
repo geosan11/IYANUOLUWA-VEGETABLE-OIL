@@ -3,12 +3,75 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --bg-canvas: #f8fafc;
+    --bg-surface: #ffffff;
+    --bg-muted: #f1f5f9;
+    --border-color: #e2e8f0;
+    --border-highlight: #cbd5e1;
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+  }
+
+  .dark {
+    --bg-canvas: #090d16;
+    --bg-surface: #0f172a;
+    --bg-muted: #1e293b;
+    --border-color: #1e293b;
+    --border-highlight: #334155;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+  }
+
   body {
-    @apply font-sans bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased;
+    @apply font-sans bg-slate-50 text-slate-900 dark:bg-[#090d16] dark:text-slate-100 antialiased;
   }
 
   h1, h2, h3, h4 {
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+}
+
+/* Depot Design System Utilities */
+@layer components {
+  /* Elevated Surface Card */
+  .depot-card {
+    @apply rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800/80 shadow-card-light dark:shadow-card-dark transition-all duration-200;
+  }
+  
+  .depot-card-hover {
+    @apply hover:border-slate-300 dark:hover:border-slate-700/80 hover:shadow-card-elevated-light dark:hover:shadow-card-elevated-dark;
+  }
+
+  /* Form Input with tactile depth and focus glow */
+  .depot-input {
+    @apply w-full px-4 py-3 min-h-[46px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-sans text-sm focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600;
+  }
+
+  /* Section Title with Brand Accent Bar */
+  .depot-section-header {
+    @apply font-heading font-bold text-lg text-slate-900 dark:text-white tracking-tight;
+  }
+
+  /* High-Contrast Badges for Light & Dark */
+  .badge-emerald {
+    @apply bg-emerald-100/90 text-emerald-900 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300/90 dark:border-emerald-700/50 font-semibold;
+  }
+
+  .badge-sky {
+    @apply bg-sky-100/90 text-sky-900 dark:bg-sky-950/80 dark:text-sky-300 border border-sky-300/90 dark:border-sky-700/50 font-semibold;
+  }
+
+  .badge-purple {
+    @apply bg-purple-100/90 text-purple-900 dark:bg-purple-950/80 dark:text-purple-300 border border-purple-300/90 dark:border-purple-700/50 font-semibold;
+  }
+
+  .badge-amber {
+    @apply bg-amber-100/90 text-amber-950 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300/90 dark:border-amber-700/50 font-semibold;
+  }
+
+  .badge-rose {
+    @apply bg-rose-100/90 text-rose-950 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-300/90 dark:border-rose-700/50 font-semibold;
   }
 }
 

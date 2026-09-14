@@ -64,15 +64,15 @@ export const TruckTankIllustration: React.FC<TruckTankIllustrationProps> = ({
   const clipId = `truck-tank-clip-${tank.id}`;
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/90 p-5 shadow-sm hover:border-slate-300 dark:hover:border-slate-700/80 transition-all space-y-4">
+    <div className="rounded-2xl depot-card border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-card-light dark:shadow-card-dark space-y-4">
       {/* 1. TOP HEADER: IDENTIFIER & STATUS */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
-          <span className="font-heading font-bold text-[16px] text-slate-900 dark:text-white">
+          <span className="font-heading font-bold text-base text-slate-900 dark:text-white">
             {tank.truck_label}
           </span>
           <span
-            className="px-2 py-0.5 rounded text-[11px] font-sans font-bold uppercase tracking-wider border"
+            className="px-2 py-0.5 rounded text-xs font-sans font-bold uppercase tracking-wider border"
             style={{
               backgroundColor: hexToRgba(colorLight, 0.14),
               color: colorDark,
@@ -83,15 +83,15 @@ export const TruckTankIllustration: React.FC<TruckTankIllustrationProps> = ({
           </span>
         </div>
 
-        <div className="flex items-center gap-2 text-[12px] font-mono tabular-nums">
+        <div className="flex items-center gap-2 text-xs font-mono tabular-nums">
           <span className="text-slate-500 dark:text-slate-400">
             {formatDepotDate(tank.date)}
           </span>
           <span
-            className={`px-2.5 py-0.5 rounded-full text-[11px] font-mono tabular-nums font-bold ${
+            className={`px-2.5 py-0.5 rounded-full text-xs font-mono tabular-nums font-bold ${
               remaining > 0
-                ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-700/50'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                ? 'badge-emerald'
+                : 'badge-muted'
             }`}
           >
             {remaining > 0 ? `${targetPercentage.toFixed(0)}% Available` : 'Depleted'}
@@ -100,7 +100,7 @@ export const TruckTankIllustration: React.FC<TruckTankIllustrationProps> = ({
       </div>
 
       {/* 2. THE TRUCK ILLUSTRATION (SVG CANVAS) */}
-      <div className="relative w-full bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200/80 dark:border-slate-800/80 p-3 sm:p-4 overflow-hidden select-none">
+      <div className="relative w-full bg-slate-100/80 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 p-3 sm:p-4 overflow-hidden select-none">
         <svg
           viewBox="0 0 540 180"
           className="w-full h-auto max-h-[190px] drop-shadow-sm"
@@ -400,10 +400,10 @@ export const TruckTankIllustration: React.FC<TruckTankIllustrationProps> = ({
       </div>
 
       {/* 3. METRICS & SHORTFALL BREAKDOWN (UNDERNEATH ILLUSTRATION) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-[13px] font-mono tabular-nums">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs font-mono tabular-nums">
         <div>
-          <span className="text-[11px] uppercase text-slate-500 dark:text-slate-400 block font-sans">
-            Capacity (Tons)
+          <span className="text-[10px] uppercase text-slate-500 dark:text-slate-400 block font-sans font-medium">
+            Capacity
           </span>
           <span className="font-bold text-slate-800 dark:text-slate-200">
             {tank.tons} Metric Tons
@@ -411,7 +411,7 @@ export const TruckTankIllustration: React.FC<TruckTankIllustrationProps> = ({
         </div>
 
         <div>
-          <span className="text-[11px] uppercase text-slate-500 dark:text-slate-400 block font-sans">
+          <span className="text-[10px] uppercase text-slate-500 dark:text-slate-400 block font-sans font-medium">
             Received Volume
           </span>
           <span className="font-bold text-slate-800 dark:text-slate-200">
@@ -420,17 +420,17 @@ export const TruckTankIllustration: React.FC<TruckTankIllustrationProps> = ({
         </div>
 
         <div>
-          <span className="text-[11px] uppercase text-slate-500 dark:text-slate-400 block font-sans">
+          <span className="text-[10px] uppercase text-slate-500 dark:text-slate-400 block font-sans font-medium">
             Current Balance
           </span>
-          <span className="font-bold text-brand-600 dark:text-brand-400">
+          <span className="font-bold text-amber-600 dark:text-amber-400">
             {remaining.toLocaleString()} L
           </span>
         </div>
 
         <div>
-          <span className="text-[11px] uppercase text-slate-500 dark:text-slate-400 block font-sans">
-            Short by
+          <span className="text-[10px] uppercase text-slate-500 dark:text-slate-400 block font-sans font-medium">
+            Shortfall vs Waybill
           </span>
           <span
             className={`font-bold inline-flex items-center gap-1 ${
@@ -441,7 +441,7 @@ export const TruckTankIllustration: React.FC<TruckTankIllustrationProps> = ({
           >
             {tank.shortfall > 0 ? `-${tank.shortfall} L` : '0 L'}
             {tank.shortfall > 50 && (
-              <span className="text-[11px] px-1.5 py-0.2 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-300 font-sans font-bold">
+              <span className="text-[10px] px-1.5 py-0.5 rounded badge-rose font-sans font-bold">
                 FLAGGED
               </span>
             )}

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
 import { usePermissions } from '../services/permissions';
 import { TankGauge } from '../components/common/TankGauge';
+import { PumpOdometerIllustration } from '../components/common/PumpOdometerIllustration';
 import { BottomSheet } from '../components/common/BottomSheet';
 import { SlideOverDrawer } from '../components/common/SlideOverDrawer';
 import { Modal } from '../components/common/Modal';
@@ -288,28 +289,28 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     <div className="space-y-6 pb-20">
       {/* EXECUTIVE AI INTELLIGENCE BANNER (OWNER ONLY) */}
       {can('viewAIAdvisor') && (
-        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-brand-950 text-white border border-slate-800 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950 text-white border border-slate-800 shadow-card-dark flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-brand-500/20 text-brand-400 border border-brand-500/30 flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center flex-shrink-0">
               <Sparkles className="w-5 h-5 animate-pulse" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-sm text-white tracking-wide">
+                <span className="font-extrabold text-sm text-white tracking-wide font-heading">
                   Executive AI Operations Advisor
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-brand-500/20 text-brand-400 border border-brand-500/30">
+                <span className="px-2 py-0.5 rounded-full text-xs font-black uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30 font-mono">
                   Gemini & Claude
                 </span>
               </div>
-              <p className="text-xs text-slate-300 mt-0.5">
+              <p className="text-xs text-slate-300 mt-0.5 font-sans">
                 Run on-demand audits across tank depletion runway, pump variances, and customer credit exposure.
               </p>
             </div>
           </div>
           <button
             onClick={() => onNavigate('ai-advisor')}
-            className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 active:scale-95 text-slate-950 font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 flex-shrink-0"
+            className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 flex-shrink-0"
           >
             <span>Open Executive AI Hub</span>
             <ChevronRight className="w-4 h-4" />
@@ -318,16 +319,16 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       )}
 
       {/* SHIFT HANDOVER & CASH RECONCILIATION BANNER */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm transition-all">
+      <div className="p-4 sm:p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark transition-all">
         {shiftFeedback && (
-          <div className="mb-3 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[12px] font-sans text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+          <div className="mb-3 p-3 rounded-xl badge-emerald border border-emerald-300 dark:border-emerald-800 text-xs font-sans flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{shiftFeedback}</span>
           </div>
         )}
 
         {shiftError && (
-          <div className="mb-3 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-[12px] font-sans text-rose-800 dark:text-rose-300 flex items-center gap-2">
+          <div className="mb-3 p-3 rounded-xl badge-rose border border-rose-300 dark:border-rose-800 text-xs font-sans flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
             <span>{shiftError}</span>
             <button type="button" onClick={() => setShiftError(null)} className="ml-auto text-rose-500 hover:text-rose-700 dark:hover:text-rose-200">✕</button>
@@ -349,22 +350,22 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-heading font-bold text-[16px] text-slate-900 dark:text-white">
+                <span className="font-heading font-bold text-base text-slate-900 dark:text-white">
                   {activeShift ? 'Shift open' : 'No shift open'}
                 </span>
                 {activeShift ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-sans font-semibold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                  <span className="badge-emerald inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-sans font-semibold">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     Open Shift
                   </span>
                 ) : (
-                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-sans font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                  <span className="badge-muted px-2.5 py-0.5 rounded-full text-xs font-sans font-medium">
                     Shift Closed
                   </span>
                 )}
               </div>
 
-              <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-xs font-sans text-slate-500 dark:text-slate-400 mt-0.5">
                 {activeShift
                   ? `Cashier: ${activeShift.cashier_name || 'Counter Staff'} · Started ${formatDepotTime(activeShift.start_time)} · Cash is being tracked live`
                   : 'Start a shift to record the opening cash and check the drawer against sales at the end.'}
@@ -374,9 +375,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
           {/* Middle: Live Ledger Reconciliation (if active shift) */}
           {activeShift && shiftMetrics && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 text-[12px]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 text-xs">
               <div>
-                <span className="text-[10px] font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                <span className="text-xs font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                   Opening Float
                 </span>
                 <span className="font-mono tabular-nums font-bold text-slate-700 dark:text-slate-300">
@@ -384,7 +385,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 </span>
               </div>
               <div>
-                <span className="text-[10px] font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                <span className="text-xs font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                   Cash Sales
                 </span>
                 <span className="font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400">
@@ -392,7 +393,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 </span>
               </div>
               <div>
-                <span className="text-[10px] font-sans uppercase tracking-wider text-rose-700 dark:text-rose-400 block">
+                <span className="text-xs font-sans uppercase tracking-wider text-rose-700 dark:text-rose-400 block">
                   Cash Expenses
                 </span>
                 <span className="font-mono tabular-nums font-bold text-rose-600 dark:text-rose-400">
@@ -400,10 +401,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 </span>
               </div>
               <div>
-                <span className="text-[10px] font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                <span className="text-xs font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                   Expected Cash
                 </span>
-                <span className="font-mono tabular-nums font-bold text-brand-600 dark:text-brand-400">
+                <span className="font-mono tabular-nums font-bold text-amber-600 dark:text-amber-400">
                   {formatNaira(shiftMetrics.expectedCash)}
                 </span>
               </div>
@@ -420,7 +421,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   setCloseNotesInput('');
                   setIsCloseShiftModalOpen(true);
                 }}
-                className="px-3.5 py-2 text-[12px] font-sans font-semibold rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 hover:border-rose-300 dark:border-rose-800 transition-all shadow-sm flex items-center gap-1.5"
+                className="px-3.5 py-2 text-xs font-sans font-semibold rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 hover:border-rose-300 dark:border-rose-800 transition-all shadow-sm flex items-center gap-1.5"
               >
                 <Banknote className="w-3.5 h-3.5" />
                 <span>Count cash & end shift</span>
@@ -433,7 +434,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   setStartNotesInput('');
                   setIsStartShiftModalOpen(true);
                 }}
-                className="px-4 py-2 text-[12px] font-sans font-semibold rounded-xl bg-brand-600 hover:bg-brand-500 text-white shadow-sm flex items-center gap-1.5 transition-all"
+                className="px-4 py-2 text-xs font-sans font-semibold rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm flex items-center gap-1.5 transition-all"
               >
                 <PlusCircle className="w-3.5 h-3.5" weight="bold" />
                 <span>Start New Shift</span>
@@ -449,25 +450,25 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <button
           type="button"
           onClick={() => setActiveStatSheet('cash')}
-          className="w-full text-left p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-800/80 transition-all shadow-sm cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between"
+          className="w-full text-left p-3.5 sm:p-4 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-800/80 transition-all shadow-card-light dark:shadow-card-dark cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between"
         >
           <div className="flex items-center justify-between gap-1.5 mb-2.5">
-            <span className="text-[11px] sm:text-[12px] font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
+            <span className="text-xs font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
               Cash & Transfer
             </span>
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/60 dark:border-emerald-800/50 flex items-center justify-center shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/60 dark:border-emerald-800/50 flex items-center justify-center shrink-0">
               <DollarSign className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
             </div>
           </div>
           <div
             title={formatNaira(todayStats.cashTransferSales)}
-            className="text-[20px] sm:text-[22px] lg:text-[24px] 2xl:text-[22px] font-heading font-black tabular-nums tracking-tight leading-none text-emerald-600 dark:text-emerald-400 truncate my-1"
+            className="text-xl sm:text-2xl font-heading font-black tabular-nums tracking-tight leading-none text-emerald-600 dark:text-emerald-400 truncate my-1"
           >
             {formatNaira(todayStats.cashTransferSales)}
           </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800/60">
+          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800/60 font-sans">
             <span className="truncate">Collected today</span>
-            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden shrink-0">
+            <span className="inline-flex items-center gap-0.5 text-amber-600 dark:text-amber-400 font-bold sm:hidden shrink-0">
               <ChevronRight className="w-3 h-3" />
             </span>
           </div>
@@ -477,29 +478,29 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <button
           type="button"
           onClick={() => onNavigate('order')}
-          className="w-full text-left p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-brand-300 dark:hover:border-brand-800/80 transition-all shadow-sm cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between"
+          className="w-full text-left p-3.5 sm:p-4 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 hover:border-amber-300 dark:hover:border-amber-800/80 transition-all shadow-card-light dark:shadow-card-dark cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between"
         >
           <div className="flex items-center justify-between gap-1.5 mb-2.5">
-            <span className="text-[11px] sm:text-[12px] font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
+            <span className="text-xs font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
               Kegs Sold Today
             </span>
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-amber-50 dark:bg-amber-950/50 border border-amber-200/60 dark:border-amber-800/50 flex items-center justify-center shrink-0">
-              <Boxes className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400 group-hover:scale-110 transition-transform" />
+            <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950/50 border border-amber-200/60 dark:border-amber-800/50 flex items-center justify-center shrink-0">
+              <Boxes className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform" />
             </div>
           </div>
           <div className="flex items-baseline gap-1.5 truncate my-1">
-            <span className="text-[22px] sm:text-[24px] lg:text-[26px] 2xl:text-[24px] font-heading font-black tabular-nums tracking-tight leading-none text-slate-900 dark:text-white">
+            <span className="text-2xl sm:text-3xl font-heading font-black tabular-nums tracking-tight leading-none text-slate-900 dark:text-white">
               {todayStats.kegsSoldToday}
             </span>
-            <span className="text-xs sm:text-[13px] font-sans font-semibold text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-sans font-semibold text-slate-500 dark:text-slate-400">
               kegs
             </span>
           </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800/60">
+          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800/60 font-sans">
             <span className="truncate">
               {todayStats.purchasedKegsToday > 0 ? `${todayStats.purchasedKegsToday} outright` : 'Discharged today'}
             </span>
-            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden shrink-0">
+            <span className="inline-flex items-center gap-0.5 text-amber-600 dark:text-amber-400 font-bold sm:hidden shrink-0">
               <ChevronRight className="w-3 h-3" />
             </span>
           </div>
@@ -509,23 +510,23 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <button
           type="button"
           onClick={() => setActiveStatSheet('credit')}
-          className="w-full text-left p-3.5 sm:p-4 rounded-2xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-700 transition-all shadow-sm cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between"
+          className="w-full text-left p-3.5 sm:p-4 rounded-2xl depot-card border border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-700 transition-all shadow-card-light dark:shadow-card-dark cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between"
         >
           <div className="flex items-center justify-between gap-1.5 mb-2.5">
-            <span className="text-[11px] sm:text-[12px] font-sans font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 truncate">
+            <span className="text-xs font-sans font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 truncate">
               Credit Ledger
             </span>
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-rose-100/70 dark:bg-rose-900/40 border border-rose-200/80 dark:border-rose-800/50 flex items-center justify-center shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-rose-100/70 dark:bg-rose-900/40 border border-rose-200/80 dark:border-rose-800/50 flex items-center justify-center shrink-0">
               <CreditCard className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 group-hover:scale-110 transition-transform" />
             </div>
           </div>
           <div
             title={formatNaira(todayStats.creditOutstanding)}
-            className="text-[20px] sm:text-[22px] lg:text-[24px] 2xl:text-[22px] font-heading font-black tabular-nums tracking-tight leading-none text-rose-600 dark:text-rose-400 truncate my-1"
+            className="text-xl sm:text-2xl font-heading font-black tabular-nums tracking-tight leading-none text-rose-600 dark:text-rose-400 truncate my-1"
           >
             {formatNaira(todayStats.creditOutstanding)}
           </div>
-          <div className="flex items-center justify-between text-[11px] text-rose-600/80 dark:text-rose-400/80 mt-1.5 pt-1.5 border-t border-rose-100 dark:border-rose-950/60">
+          <div className="flex items-center justify-between text-xs text-rose-600/80 dark:text-rose-400/80 mt-1.5 pt-1.5 border-t border-rose-100 dark:border-rose-950/60 font-sans">
             <span className="truncate">Total open balance</span>
             <span className="inline-flex items-center gap-0.5 text-rose-700 dark:text-rose-300 font-bold sm:hidden shrink-0">
               <ChevronRight className="w-3 h-3" />
@@ -537,27 +538,27 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <button
           type="button"
           onClick={() => setActiveStatSheet('kegs_out')}
-          className="w-full text-left p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between"
+          className="w-full text-left p-3.5 sm:p-4 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-card-light dark:shadow-card-dark cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between"
         >
           <div className="flex items-center justify-between gap-1.5 mb-2.5">
-            <span className="text-[11px] sm:text-[12px] font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
+            <span className="text-xs font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
               Company Kegs Out
             </span>
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-center shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-center shrink-0">
               <Package className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 group-hover:scale-110 transition-transform" />
             </div>
           </div>
           <div className="flex items-baseline gap-1.5 truncate my-1">
-            <span className="text-[22px] sm:text-[24px] lg:text-[26px] 2xl:text-[24px] font-heading font-black tabular-nums tracking-tight leading-none text-slate-900 dark:text-white">
+            <span className="text-2xl sm:text-3xl font-heading font-black tabular-nums tracking-tight leading-none text-slate-900 dark:text-white">
               {todayStats.companyKegsOut}
             </span>
-            <span className="text-xs sm:text-[13px] font-sans font-semibold text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-sans font-semibold text-slate-500 dark:text-slate-400">
               kegs
             </span>
           </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800/60">
+          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800/60 font-sans">
             <span className="truncate">In customer custody</span>
-            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden shrink-0">
+            <span className="inline-flex items-center gap-0.5 text-amber-600 dark:text-amber-400 font-bold sm:hidden shrink-0">
               <ChevronRight className="w-3 h-3" />
             </span>
           </div>
@@ -567,21 +568,21 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <button
           type="button"
           onClick={() => setActiveStatSheet('depot_kegs')}
-          className={`w-full text-left p-3.5 sm:p-4 rounded-2xl border transition-all shadow-sm cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between ${
+          className={`w-full text-left p-3.5 sm:p-4 rounded-2xl depot-card border transition-all shadow-card-light dark:shadow-card-dark cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between ${
             kegInventory.isDepotStockCritical
-              ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-600/60 shadow-rose-500/10 animate-pulse'
-              : 'bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+              ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-600/60 shadow-glow-rose'
+              : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
           }`}
         >
           <div className="flex items-center justify-between gap-1.5 mb-2.5">
             <span
-              className={`text-[11px] sm:text-[12px] font-sans font-bold uppercase tracking-wider truncate ${
+              className={`text-xs font-sans font-bold uppercase tracking-wider truncate ${
                 kegInventory.isDepotStockCritical ? 'text-rose-700 dark:text-rose-300' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
               Kegs at Depot
             </span>
-            <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center shrink-0 border ${
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${
               kegInventory.isDepotStockCritical
                 ? 'bg-rose-100 dark:bg-rose-900/50 border-rose-300 dark:border-rose-700'
                 : 'bg-slate-100 dark:bg-slate-800 border-slate-200/80 dark:border-slate-700/60'
@@ -595,21 +596,21 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           </div>
           <div className="flex items-baseline gap-1.5 truncate my-1">
             <span
-              className={`text-[22px] sm:text-[24px] lg:text-[26px] 2xl:text-[24px] font-heading font-black tabular-nums tracking-tight leading-none ${
+              className={`text-2xl sm:text-3xl font-heading font-black tabular-nums tracking-tight leading-none ${
                 kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'
               }`}
             >
               {todayStats.kegsAtDepot}
             </span>
-            <span className="text-xs sm:text-[13px] font-sans font-semibold text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-sans font-semibold text-slate-500 dark:text-slate-400">
               kegs
             </span>
           </div>
-          <div className="flex items-center justify-between text-[11px] mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800/60">
+          <div className="flex items-center justify-between text-xs mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800/60 font-sans">
             <span className="truncate text-slate-500 dark:text-slate-400">
               {kegInventory.isDepotStockCritical ? `CRITICAL < ${settings.kegs_at_depot_low_threshold}` : 'Physical yard stock'}
             </span>
-            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden shrink-0">
+            <span className="inline-flex items-center gap-0.5 text-amber-600 dark:text-amber-400 font-bold sm:hidden shrink-0">
               <ChevronRight className="w-3 h-3" />
             </span>
           </div>
@@ -619,27 +620,27 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <button
           type="button"
           onClick={() => setActiveStatSheet('customer_kegs')}
-          className="w-full text-left p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between"
+          className="w-full text-left p-3.5 sm:p-4 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-card-light dark:shadow-card-dark cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between"
         >
           <div className="flex items-center justify-between gap-1.5 mb-2.5">
-            <span className="text-[11px] sm:text-[12px] font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
+            <span className="text-xs font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
               Customer Kegs
             </span>
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-sky-50 dark:bg-sky-950/50 border border-sky-200/60 dark:border-sky-800/50 flex items-center justify-center shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-sky-50 dark:bg-sky-950/50 border border-sky-200/60 dark:border-sky-800/50 flex items-center justify-center shrink-0">
               <Droplet className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 group-hover:scale-110 transition-transform" />
             </div>
           </div>
           <div className="flex items-baseline gap-1.5 truncate my-1">
-            <span className="text-[22px] sm:text-[24px] lg:text-[26px] 2xl:text-[24px] font-heading font-black tabular-nums tracking-tight leading-none text-slate-900 dark:text-white">
+            <span className="text-2xl sm:text-3xl font-heading font-black tabular-nums tracking-tight leading-none text-slate-900 dark:text-white">
               {todayStats.customerKegsFilledToday}
             </span>
-            <span className="text-xs sm:text-[13px] font-sans font-semibold text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-sans font-semibold text-slate-500 dark:text-slate-400">
               filled
             </span>
           </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800/60">
+          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800/60 font-sans">
             <span className="truncate">Own containers</span>
-            <span className="inline-flex items-center gap-0.5 text-brand-600 dark:text-brand-400 font-bold sm:hidden shrink-0">
+            <span className="inline-flex items-center gap-0.5 text-amber-600 dark:text-amber-400 font-bold sm:hidden shrink-0">
               <ChevronRight className="w-3 h-3" />
             </span>
           </div>
@@ -649,23 +650,23 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <button
           type="button"
           onClick={() => setActiveStatSheet('expenses')}
-          className="w-full text-left p-3.5 sm:p-4 rounded-2xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-700 transition-all shadow-sm cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between"
+          className="w-full text-left p-3.5 sm:p-4 rounded-2xl depot-card border border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-700 transition-all shadow-card-light dark:shadow-card-dark cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between"
         >
           <div className="flex items-center justify-between gap-1.5 mb-2.5">
-            <span className="text-[11px] sm:text-[12px] font-sans font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 truncate">
+            <span className="text-xs font-sans font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 truncate">
               Expenses Today
             </span>
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-rose-100/70 dark:bg-rose-900/40 border border-rose-200/80 dark:border-rose-800/50 flex items-center justify-center shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-rose-100/70 dark:bg-rose-900/40 border border-rose-200/80 dark:border-rose-800/50 flex items-center justify-center shrink-0">
               <Package className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 group-hover:scale-110 transition-transform" />
             </div>
           </div>
           <div
             title={formatNaira(todayStats.expensesToday)}
-            className="text-[20px] sm:text-[22px] lg:text-[24px] 2xl:text-[22px] font-heading font-black tabular-nums tracking-tight leading-none text-rose-600 dark:text-rose-400 truncate my-1"
+            className="text-xl sm:text-2xl font-heading font-black tabular-nums tracking-tight leading-none text-rose-600 dark:text-rose-400 truncate my-1"
           >
             {formatNaira(todayStats.expensesToday)}
           </div>
-          <div className="flex items-center justify-between text-[11px] text-rose-600/80 dark:text-rose-400/80 mt-1.5 pt-1.5 border-t border-rose-100 dark:border-rose-950/60">
+          <div className="flex items-center justify-between text-xs text-rose-600/80 dark:text-rose-400/80 mt-1.5 pt-1.5 border-t border-rose-100 dark:border-rose-950/60 font-sans">
             <span className="truncate">Float: {formatNaira(todayStats.dailyFloatRemaining)}</span>
             <span className="inline-flex items-center gap-0.5 text-rose-700 dark:text-rose-300 font-bold sm:hidden shrink-0">
               <ChevronRight className="w-3 h-3" />
@@ -675,42 +676,51 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       </div>
 
       {/* DEPOT PUMPS LIVE METER STATUS SECTION */}
-      <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+      <div className="p-5 sm:p-6 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-400">
+            <div className="p-2 rounded-xl bg-purple-500/10 dark:bg-purple-950/60 text-purple-700 dark:text-purple-400 border border-purple-500/20">
               <Fuel className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white">
-                Depot Dispense Pumps & Meter Audit Status
+              <h3 className="text-base font-heading font-bold text-slate-900 dark:text-white">
+                Depot Dispense Pumps &amp; Meter Audit Status
               </h3>
-              <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400">
-                Continuous odometer tracking to catch unlogged counter sales at the pump.
+              <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
+                Continuous odometer tracking to verify physical litres against cashier sales.
               </p>
             </div>
           </div>
 
           <button
             onClick={() => onNavigate('pumps')}
-            className="text-[12px] font-sans font-semibold text-purple-700 dark:text-purple-400 hover:underline flex items-center gap-1 self-start sm:self-auto"
+            className="text-xs font-sans font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 self-start sm:self-auto"
           >
             <span>Record Pump Reading</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Live Mechanical Counter drums preview for the first pump */}
+        {pumps[0] && (
+          <PumpOdometerIllustration
+            pumpName={pumps[0].label}
+            openingReading={pumps[0].last_meter_reading - 1250}
+            currentReading={pumps[0].last_meter_reading}
+            recordedSalesLitres={1250}
+            tankName="Main Storage Tank"
+            isCompact={true}
+          />
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
           {pumps.map(pump => {
             const isVeg = pump.product_id === 'veg';
             
-            // Sales no longer attribute to one specific pump — this is litres
-            // sold today for the pump's product (reconciled per-day in the Pumps tab).
             const todayPumpLitres = orders
               .filter(o => !o.voided && depotDateKey(o.date) === todayStr && o.product_id === pump.product_id)
               .reduce((sum, o) => sum + Number(o.litres || 0), 0);
 
-            // Check if there is any active variance alert on this pump
             const pumpAudits = pumpVarianceAudits.filter(a => a.pumpId === pump.id);
             const latestAudit = pumpAudits[pumpAudits.length - 1];
             const hasAlert = latestAudit && latestAudit.isOverThreshold;
@@ -725,32 +735,32 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-sans font-bold text-[14px] text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <span className="font-heading font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
                     <span
                       className="w-2.5 h-2.5 rounded-full"
                       style={{ backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }}
                     />
                     <span>{pump.label}</span>
                   </span>
-                  <span className={`px-2 py-0.5 rounded text-[11px] font-mono tabular-nums font-bold ${
+                  <span className={`px-2 py-0.5 rounded text-xs font-mono tabular-nums font-bold ${
                     hasAlert
-                      ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-300'
-                      : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300'
+                      ? 'badge-rose'
+                      : 'badge-emerald'
                   }`}>
                     {hasAlert ? `Variance Alert (${latestAudit.variance > 0 ? '+' : ''}${latestAudit.variance}L)` : 'Meter Normal'}
                   </span>
                 </div>
 
-                <div className="space-y-1.5 text-[12px] font-mono tabular-nums">
+                <div className="space-y-1.5 text-xs font-mono tabular-nums">
                   <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                    <span className="font-sans">Pump total:</span>
+                    <span className="font-sans">Current Meter:</span>
                     <span className="font-bold text-slate-900 dark:text-slate-100">
                       {pump.last_meter_reading.toLocaleString()} L
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-600 dark:text-slate-400">
                     <span className="font-sans">Dispensed Today:</span>
-                    <span className="font-bold text-slate-900 dark:text-slate-100">
+                    <span className="font-bold text-amber-600 dark:text-amber-400">
                       {todayPumpLitres.toLocaleString()} L
                     </span>
                   </div>
@@ -764,27 +774,27 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       {/* Volumetric Tanks Level Overview Grid */}
       <div className="grid grid-cols-1 split:grid-cols-2 gap-6">
         {/* Golden Vegetable Oil Active Tanks Overview */}
-        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+        <div className="p-5 sm:p-6 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 mb-4">
             <div className="flex items-center gap-3">
               <div className="w-3.5 h-3.5 rounded-full bg-amber-500 shadow-sm shadow-amber-500/50" />
               <div>
-                <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white">
+                <h3 className="text-base font-heading font-bold text-slate-900 dark:text-white">
                   Golden Vegetable Oil Tanks
                 </h3>
-                <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400">
-                  About 1,090 L per ton · oldest tank used first
+                <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
+                  First-In, First-Out: Oldest oil delivered is dispensed first.
                 </p>
               </div>
             </div>
-            <div className="text-right">
-              <span className="text-[14px] font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100">
+            <div className="text-right font-mono tabular-nums">
+              <span className="text-base font-bold text-slate-900 dark:text-slate-100">
                 {vegStock.toLocaleString()} L
               </span>
-              <span className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400 block">
+              <span className="text-xs text-slate-500 dark:text-slate-400 block">
                 ≈ {(vegStock / vegLitresPerKeg).toFixed(0)} Kegs ({vegLitresPerKeg}L)
               </span>
-              <span className="text-[11px] font-mono tabular-nums text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
+              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
                 Sold Today: {vegKegsSoldToday} packs
               </span>
             </div>
@@ -802,7 +812,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
             {/* Individual active veg tanks list */}
             <div className="w-full space-y-2.5">
-              <div className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              <div className="text-xs font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Active In-Feed Tanks
               </div>
               {tanks
@@ -812,24 +822,24 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   return (
                     <div
                       key={t.id}
-                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-[12px] font-mono tabular-nums"
+                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs font-mono tabular-nums"
                     >
                       <div className="space-y-0.5 font-sans">
                         <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                          <span className="text-[11px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">
                             Tank #{idx + 1}
                           </span>
-                          <span>{t.truck_label}</span>
+                          <span className="text-xs">{t.truck_label}</span>
                         </div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
                           Intake: {formatDepotDate(t.date)} · Received: {t.received_litres.toLocaleString()}L
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-bold text-slate-900 dark:text-slate-100">
+                        <div className="font-bold text-slate-900 dark:text-slate-100 text-sm">
                           {t.remaining_litres.toLocaleString()} L
                         </div>
-                        <div className="text-[11px] text-slate-400">
+                        <div className="text-xs text-slate-400">
                           {pct.toFixed(0)}% full
                         </div>
                       </div>
@@ -841,27 +851,27 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         </div>
 
         {/* Red / Palm Oil Active Tanks Overview */}
-        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+        <div className="p-5 sm:p-6 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 mb-4">
             <div className="flex items-center gap-3">
               <div className="w-3.5 h-3.5 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50" />
               <div>
-                <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white">
+                <h3 className="text-base font-heading font-bold text-slate-900 dark:text-white">
                   Red / Palm Oil Tanks
                 </h3>
-                <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400">
-                  About 1,085 L per ton · oldest tank used first
+                <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
+                  First-In, First-Out: Oldest oil delivered is dispensed first.
                 </p>
               </div>
             </div>
-            <div className="text-right">
-              <span className="text-[14px] font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100">
+            <div className="text-right font-mono tabular-nums">
+              <span className="text-base font-bold text-slate-900 dark:text-slate-100">
                 {redStock.toLocaleString()} L
               </span>
-              <span className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400 block">
+              <span className="text-xs text-slate-500 dark:text-slate-400 block">
                 ≈ {(redStock / redLitresPerKeg).toFixed(0)} Kegs ({redLitresPerKeg}L)
               </span>
-              <span className="text-[11px] font-mono tabular-nums text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
+              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
                 Sold Today: {redKegsSoldToday} packs
               </span>
             </div>
@@ -879,7 +889,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
             {/* Individual active red tanks list */}
             <div className="w-full space-y-2.5">
-              <div className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              <div className="text-xs font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Active In-Feed Tanks
               </div>
               {tanks
@@ -889,24 +899,24 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   return (
                     <div
                       key={t.id}
-                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-[12px] font-mono tabular-nums"
+                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs font-mono tabular-nums"
                     >
                       <div className="space-y-0.5 font-sans">
                         <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                          <span className="text-[11px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">
                             Tank #{idx + 1}
                           </span>
-                          <span>{t.truck_label}</span>
+                          <span className="text-xs">{t.truck_label}</span>
                         </div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
                           Intake: {formatDepotDate(t.date)} · Received: {t.received_litres.toLocaleString()}L
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-bold text-slate-900 dark:text-slate-100">
+                        <div className="font-bold text-slate-900 dark:text-slate-100 text-sm">
                           {t.remaining_litres.toLocaleString()} L
                         </div>
-                        <div className="text-[11px] text-slate-400">
+                        <div className="text-xs text-slate-400">
                           {pct.toFixed(0)}% full
                         </div>
                       </div>
@@ -921,21 +931,21 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       {/* Split Alert Stream: SEVEN DISTINCT ALERT TYPES (Desktop 3-col, Tablet 2-col, Mobile 1-col) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+          <h3 className="text-base font-heading font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-amber-500" />
-            <span>Things that need attention</span>
+            <span>Things That Need Attention</span>
           </h3>
-          <span className="text-[12px] font-sans text-slate-500 dark:text-slate-400">
+          <span className="text-xs font-sans text-slate-500 dark:text-slate-400">
             {activeAlerts.totalAlertCount === 0
-              ? 'Nothing needs attention right now'
-              : `${activeAlerts.totalAlertCount} to check`}
+              ? 'All depot systems operating normally'
+              : `${activeAlerts.totalAlertCount} item${activeAlerts.totalAlertCount === 1 ? '' : 's'} to audit`}
           </span>
         </div>
 
         {/* MOBILE CONDENSED ALERTS VIEW (<= 3 items + View All N button) */}
         <div className="sm:hidden space-y-2.5">
           {allAlertsList.length === 0 ? (
-            <div className="p-4 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 text-center text-[12px] font-sans text-slate-500 dark:text-slate-400">
+            <div className="p-4 rounded-xl depot-card border border-slate-200 dark:border-slate-800 text-center text-xs font-sans text-slate-500 dark:text-slate-400">
               Nothing needs attention right now.
             </div>
           ) : (
@@ -958,10 +968,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                       }`}
                     />
                     <div className="min-w-0">
-                      <div className="text-[13px] font-sans font-bold text-slate-900 dark:text-white truncate">
+                      <div className="text-xs font-sans font-bold text-slate-900 dark:text-white truncate">
                         {alert.title}
                       </div>
-                      <div className="text-[11px] font-sans text-slate-500 dark:text-slate-400 truncate">
+                      <div className="text-xs font-sans text-slate-500 dark:text-slate-400 truncate">
                         {alert.subtitle}
                       </div>
                     </div>
@@ -973,7 +983,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 <button
                   type="button"
                   onClick={() => setIsAllAlertsOpen(true)}
-                  className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[12px] font-sans font-semibold flex items-center justify-center gap-1.5 transition-colors border border-slate-200 dark:border-slate-700 active:scale-98"
+                  className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-sans font-semibold flex items-center justify-center gap-1.5 transition-colors border border-slate-200 dark:border-slate-700 active:scale-98"
                 >
                   <span>View all {allAlertsList.length} operational alerts</span>
                   <ChevronRight className="w-3.5 h-3.5" />
@@ -986,20 +996,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         {/* DESKTOP ALERT GRID */}
         <div className="hidden sm:grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {/* Alert Stream 1: Overdue Credit Invoices */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+          <div className="p-4 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5 mb-3">
-                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-[12px] font-sans uppercase tracking-wider">
+                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-xs font-sans uppercase tracking-wider">
                   <Clock className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                   <span>1. Overdue Invoices</span>
                 </div>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono tabular-nums font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30">
+                <span className="badge-rose px-2 py-0.5 rounded-full text-xs font-mono tabular-nums font-bold">
                   {activeAlerts.overdueCredit.length}
                 </span>
               </div>
 
               {activeAlerts.overdueCredit.length === 0 ? (
-                <p className="text-[12px] font-sans text-slate-400 py-3 text-center">
+                <p className="text-xs font-sans text-slate-400 py-3 text-center">
                   No overdue credit accounts.
                 </p>
               ) : (
@@ -1011,11 +1021,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                       tabIndex={0}
                       onClick={() => onNavigate('customers')}
                       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate('customers'); } }}
-                      className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-[12px]"
+                      className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-xs"
                     >
                       <div>
                         <div className="font-bold text-slate-900 dark:text-slate-200 font-sans">{alert.customer.name}</div>
-                        <div className="text-[11px] text-rose-600 dark:text-rose-400 font-mono tabular-nums font-semibold">
+                        <div className="text-xs text-rose-600 dark:text-rose-400 font-mono tabular-nums font-semibold">
                           Overdue by {alert.overdueDays} days
                         </div>
                       </div>
@@ -1023,7 +1033,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                         <div className="font-mono tabular-nums font-bold text-rose-700 dark:text-rose-300">
                           {formatNaira(alert.amount)}
                         </div>
-                        <span className="text-[11px] font-sans text-slate-500 dark:text-slate-400 flex items-center justify-end gap-0.5">
+                        <span className="text-xs font-sans text-slate-500 dark:text-slate-400 flex items-center justify-end gap-0.5">
                           View <ArrowRight className="w-2.5 h-2.5" />
                         </span>
                       </div>
@@ -1035,20 +1045,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           </div>
 
           {/* Alert Stream 2: Over Credit Limit Breaches */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+          <div className="p-4 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5 mb-3">
-                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-[12px] font-sans uppercase tracking-wider">
+                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-xs font-sans uppercase tracking-wider">
                   <ShieldAlert className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                   <span>2. Credit Cap Breaches</span>
                 </div>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono tabular-nums font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30">
+                <span className="badge-rose px-2 py-0.5 rounded-full text-xs font-mono tabular-nums font-bold">
                   {activeAlerts.overLimit.length}
                 </span>
               </div>
 
               {activeAlerts.overLimit.length === 0 ? (
-                <p className="text-[12px] font-sans text-slate-400 py-3 text-center">
+                <p className="text-xs font-sans text-slate-400 py-3 text-center">
                   All accounts within approved credit caps.
                 </p>
               ) : (
@@ -1060,11 +1070,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                       tabIndex={0}
                       onClick={() => onNavigate('customers')}
                       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate('customers'); } }}
-                      className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-[12px]"
+                      className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-xs"
                     >
                       <div>
                         <div className="font-bold text-slate-900 dark:text-slate-200 font-sans">{alert.customer.name}</div>
-                        <div className="text-[11px] text-slate-600 dark:text-slate-400 font-mono tabular-nums">
+                        <div className="text-xs text-slate-600 dark:text-slate-400 font-mono tabular-nums">
                           Limit: {formatNaira(alert.limit)}
                         </div>
                       </div>
@@ -1072,7 +1082,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                         <div className="font-bold text-rose-800 dark:text-rose-300">
                           {formatNaira(alert.balance)}
                         </div>
-                        <div className="text-[11px] text-rose-600 dark:text-rose-400 font-semibold">
+                        <div className="text-xs text-rose-600 dark:text-rose-400 font-semibold">
                           +{formatNaira(alert.excess)} over
                         </div>
                       </div>
@@ -1083,21 +1093,21 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             </div>
           </div>
 
-          {/* Alert Stream 3: Delivery Shortfall Flags (> settings.truck_shortfall_threshold) */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+          {/* Alert Stream 3: Delivery Shortfall Flags */}
+          <div className="p-4 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5 mb-3">
-                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-[12px] font-sans uppercase tracking-wider">
+                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-xs font-sans uppercase tracking-wider">
                   <Truck className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                   <span>3. Truck Shortfall (&gt; {settings.truck_shortfall_threshold}L)</span>
                 </div>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono tabular-nums font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30">
+                <span className="badge-rose px-2 py-0.5 rounded-full text-xs font-mono tabular-nums font-bold">
                   {activeAlerts.deliveryShortfall.length}
                 </span>
               </div>
 
               {activeAlerts.deliveryShortfall.length === 0 ? (
-                <p className="text-[12px] font-sans text-slate-400 py-3 text-center">
+                <p className="text-xs font-sans text-slate-400 py-3 text-center">
                   No high-variance intakes logged.
                 </p>
               ) : (
@@ -1109,11 +1119,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                       tabIndex={0}
                       onClick={() => onNavigate('intake')}
                       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate('intake'); } }}
-                      className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-[12px]"
+                      className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-xs"
                     >
                       <div>
                         <div className="font-bold text-slate-900 dark:text-slate-200 font-sans">{alert.tank.truck_label}</div>
-                        <div className="text-[11px] text-slate-500 font-mono tabular-nums">
+                        <div className="text-xs text-slate-500 font-mono tabular-nums">
                           {formatDepotDate(alert.tank.date)}
                         </div>
                       </div>
@@ -1121,7 +1131,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                         <div className="font-mono tabular-nums font-bold text-rose-600 dark:text-rose-400">
                           -{alert.shortfallLitres} L
                         </div>
-                        <span className="text-[11px] font-sans text-slate-500 flex items-center justify-end gap-0.5">
+                        <span className="text-xs font-sans text-slate-500 flex items-center justify-end gap-0.5">
                           Audit <ArrowRight className="w-2.5 h-2.5" />
                         </span>
                       </div>
@@ -1132,21 +1142,21 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             </div>
           </div>
 
-          {/* Alert Stream 4: Pump Meter Variance Audits (> settings.pump_variance_threshold) */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-rose-200 dark:border-rose-900/80 shadow-sm flex flex-col justify-between">
+          {/* Alert Stream 4: Pump Meter Variance Audits */}
+          <div className="p-4 rounded-2xl depot-card border border-rose-200 dark:border-rose-900/80 shadow-card-light dark:shadow-card-dark flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between border-b border-rose-200 dark:border-rose-900/60 pb-2.5 mb-3">
-                <div className="flex items-center gap-2 text-rose-700 dark:text-rose-400 font-bold text-[12px] font-sans uppercase tracking-wider">
+                <div className="flex items-center gap-2 text-rose-700 dark:text-rose-400 font-bold text-xs font-sans uppercase tracking-wider">
                   <Gauge className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                   <span>4. Pump Meter Variance</span>
                 </div>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono tabular-nums font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-500/30">
+                <span className="badge-rose px-2 py-0.5 rounded-full text-xs font-mono tabular-nums font-bold">
                   {activeAlerts.pumpVariance.length}
                 </span>
               </div>
 
               {activeAlerts.pumpVariance.length === 0 ? (
-                <p className="text-[12px] font-sans text-slate-400 py-3 text-center">
+                <p className="text-xs font-sans text-slate-400 py-3 text-center">
                   All pump meter deltas align with logged orders.
                 </p>
               ) : (
@@ -1158,11 +1168,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                       tabIndex={0}
                       onClick={() => onNavigate('pumps')}
                       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate('pumps'); } }}
-                      className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-[12px]"
+                      className="cursor-pointer p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-between text-xs"
                     >
                       <div>
                         <div className="font-bold text-slate-900 dark:text-slate-200 font-sans">{audit.pumpLabel}</div>
-                        <div className="text-[11px] text-rose-700 dark:text-rose-400 font-mono tabular-nums">
+                        <div className="text-xs text-rose-700 dark:text-rose-400 font-mono tabular-nums">
                           Meter: +{audit.meterDelta}L | Logged: {audit.expectedLitres}L
                         </div>
                       </div>
@@ -1170,7 +1180,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                         <div className="font-mono tabular-nums font-bold text-rose-700 dark:text-rose-300">
                           {audit.variance > 0 ? `+${audit.variance}` : audit.variance} L
                         </div>
-                        <span className="text-[11px] font-sans text-slate-500 flex items-center justify-end gap-0.5">
+                        <span className="text-xs font-sans text-slate-500 flex items-center justify-end gap-0.5">
                           Audit <ArrowRight className="w-2.5 h-2.5" />
                         </span>
                       </div>
@@ -1182,34 +1192,34 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           </div>
 
           {/* Alert Stream 5: Shift Drawer Cash Discrepancies */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+          <div className="p-4 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5 mb-3">
-                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-[12px] font-sans uppercase tracking-wider">
+                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-xs font-sans uppercase tracking-wider">
                   <Banknote className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                   <span>5. Shift Drawer Discrepancy</span>
                 </div>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono tabular-nums font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-500/30">
+                <span className="badge-rose px-2 py-0.5 rounded-full text-xs font-mono tabular-nums font-bold">
                   {activeAlerts.shiftDiscrepancy.length}
                 </span>
               </div>
 
               {activeAlerts.shiftDiscrepancy.length === 0 ? (
-                <p className="text-[12px] font-sans text-slate-400 py-3 text-center">
-                  All past shifts balanced perfectly to zero variance.
+                <p className="text-xs font-sans text-slate-400 py-3 text-center">
+                  All past shifts balanced cleanly to zero variance.
                 </p>
               ) : (
                 <div className="space-y-2">
                   {activeAlerts.shiftDiscrepancy.map((s, idx) => (
                     <div
                       key={idx}
-                      className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 flex items-center justify-between text-[12px]"
+                      className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 flex items-center justify-between text-xs"
                     >
                       <div>
                         <div className="font-bold text-slate-900 dark:text-slate-200 font-sans">
                           {s.cashier_name || 'Counter Cashier'}
                         </div>
-                        <div className="text-[11px] text-slate-600 dark:text-slate-400 font-mono tabular-nums">
+                        <div className="text-xs text-slate-600 dark:text-slate-400 font-mono tabular-nums">
                           Counted: {formatNaira(s.cash_counted || 0)} | Expected: {formatNaira(s.expected_cash || 0)}
                         </div>
                       </div>
@@ -1217,7 +1227,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                         <div className="font-mono tabular-nums font-bold text-rose-700 dark:text-rose-300">
                           {s.cash_variance! > 0 ? `+${formatNaira(s.cash_variance!)}` : formatNaira(s.cash_variance!)}
                         </div>
-                        <span className="text-[10px] font-sans text-slate-500 block">
+                        <span className="text-xs font-sans text-slate-500 block">
                           {formatDepotDate(s.start_time)}
                         </span>
                       </div>
@@ -1228,21 +1238,21 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             </div>
           </div>
 
-          {/* Alert Stream 6: Tank Running Low on Stock (< settings.low_stock_litres_threshold) */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-amber-200 dark:border-amber-900/80 shadow-sm flex flex-col justify-between">
+          {/* Alert Stream 6: Tank Running Low on Stock */}
+          <div className="p-4 rounded-2xl depot-card border border-amber-200 dark:border-amber-900/80 shadow-card-light dark:shadow-card-dark flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between border-b border-amber-200 dark:border-amber-900/60 pb-2.5 mb-3">
-                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-bold text-[12px] font-sans uppercase tracking-wider">
+                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-bold text-xs font-sans uppercase tracking-wider">
                   <Droplet className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                   <span>6. Tank Running Low (&lt; {settings.low_stock_litres_threshold}L)</span>
                 </div>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono tabular-nums font-bold bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30">
+                <span className="badge-amber px-2 py-0.5 rounded-full text-xs font-mono tabular-nums font-bold">
                   {activeAlerts.lowTankStock.length}
                 </span>
               </div>
 
               {activeAlerts.lowTankStock.length === 0 ? (
-                <p className="text-[12px] font-sans text-slate-400 py-3 text-center">
+                <p className="text-xs font-sans text-slate-400 py-3 text-center">
                   All products above the low-stock threshold.
                 </p>
               ) : (
@@ -1251,11 +1261,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                     <div
                       key={alert.product.id}
                       onClick={() => onNavigate('intake')}
-                      className="cursor-pointer p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors flex items-center justify-between text-[12px]"
+                      className="cursor-pointer p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors flex items-center justify-between text-xs"
                     >
                       <div>
                         <div className="font-bold text-slate-900 dark:text-slate-200 font-sans">{alert.product.name}</div>
-                        <div className="text-[11px] text-amber-800 dark:text-amber-300 font-mono tabular-nums">
+                        <div className="text-xs text-amber-800 dark:text-amber-300 font-mono tabular-nums">
                           Reorder threshold: {alert.threshold.toLocaleString()} L
                         </div>
                       </div>
@@ -1263,7 +1273,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                         <div className="font-mono tabular-nums font-bold text-amber-700 dark:text-amber-300">
                           {alert.litres.toLocaleString()} L left
                         </div>
-                        <span className="text-[11px] font-sans text-slate-500 flex items-center justify-end gap-0.5">
+                        <span className="text-xs font-sans text-slate-500 flex items-center justify-end gap-0.5">
                           Restock <ArrowRight className="w-2.5 h-2.5" />
                         </span>
                       </div>
@@ -1293,7 +1303,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         >
             <form onSubmit={handleStartShiftSubmit} className="space-y-4">
               <div>
-                <label htmlFor="shift-cashier-name" className="block text-[12px] font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label htmlFor="shift-cashier-name" className="block text-xs font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Cashier Name / On-Duty Staff *
                 </label>
                 <input
@@ -1303,12 +1313,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   value={cashierInput}
                   onChange={e => setCashierInput(e.target.value)}
                   placeholder="e.g. Fatima Yusuf"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-sans text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-sans text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
               <div>
-                <label htmlFor="shift-opening-float" className="block text-[12px] font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label htmlFor="shift-opening-float" className="block text-xs font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Opening Cash Float (NGN) *
                 </label>
                 <div className="relative">
@@ -1321,19 +1331,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                     value={openingFloatInput}
                     onChange={e => setOpeningFloatInput(e.target.value)}
                     placeholder="e.g. 50000"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tabular-nums text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tabular-nums text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
-                  <span className="absolute right-3 top-2.5 text-[12px] font-mono text-slate-400">
+                  <span className="absolute right-3 top-2.5 text-xs font-mono text-slate-400">
                     NGN
                   </span>
                 </div>
-                <p className="text-[11px] font-sans text-slate-500 dark:text-slate-400 mt-1">
+                <p className="text-xs font-sans text-slate-500 dark:text-slate-400 mt-1">
                   Physical cash placed in the cash drawer at shift start to make customer change.
                 </p>
               </div>
 
               <div>
-                <label htmlFor="shift-start-notes" className="block text-[12px] font-sans font-medium text-slate-700 dark:text-slate-300 mb-1">
+                <label htmlFor="shift-start-notes" className="block text-xs font-sans font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Shift Notes / Handover Details (Optional)
                 </label>
                 <input
@@ -1342,20 +1352,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   value={startNotesInput}
                   onChange={e => setStartNotesInput(e.target.value)}
                   placeholder="e.g. Morning shift, clean till, 50k denominations verified"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-sans text-[13px] focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-sans text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
               {/* Mandatory Opening Pump Meter Readings */}
               <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                 <div className="flex items-center justify-between">
-                  <div className="text-[12px] font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                  <div className="text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
                     Opening Pump Meter Readings ({pumps.length}) *
                   </div>
                   <button
                     type="button"
                     onClick={copyDashboardPreviousReadings}
-                    className="text-[11px] font-sans font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                    className="text-xs font-sans font-semibold text-brand-600 dark:text-brand-400 hover:underline"
                   >
                     Prefill Previous Readings
                   </button>
@@ -1364,7 +1374,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   {pumps.map(p => {
                     return (
                       <div key={p.id} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
-                        <div className="flex items-center justify-between text-[11px]">
+                        <div className="flex items-center justify-between text-xs">
                           <span className="font-bold text-slate-800 dark:text-slate-200">{p.label}</span>
                           <span className="text-slate-400 font-mono">Last: {p.last_meter_reading.toLocaleString()} L</span>
                         </div>
@@ -1392,13 +1402,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 <button
                   type="button"
                   onClick={() => setIsStartShiftModalOpen(false)}
-                  className="px-4 py-2 text-[13px] font-sans font-medium rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  className="px-4 py-2 text-xs font-sans font-medium rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-[13px] font-sans font-semibold rounded-xl bg-brand-600 hover:bg-brand-700 text-white shadow-sm flex items-center gap-1.5 transition-colors"
+                  className="px-4 py-2 text-xs font-sans font-semibold rounded-xl bg-brand-600 hover:bg-brand-700 text-white shadow-sm flex items-center gap-1.5 transition-colors"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   Open Shift
@@ -1426,7 +1436,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         >
             <form onSubmit={handleCloseShiftSubmit} className="space-y-4">
               {/* Shift Cash Reconciliation Breakdown */}
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2 text-[13px] font-mono tabular-nums">
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2 text-xs font-mono tabular-nums">
                 <div className="flex justify-between text-slate-600 dark:text-slate-400">
                   <span className="font-sans">Opening Float:</span>
                   <span className="font-semibold text-slate-900 dark:text-slate-100">
@@ -1445,7 +1455,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                     -{formatNaira(shiftMetrics.cashExpenses)}
                   </span>
                 </div>
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between font-bold text-[15px]">
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between font-bold text-sm">
                   <span className="font-sans text-slate-900 dark:text-white">(=) Expected Cash in Drawer:</span>
                   <span className="text-brand-600 dark:text-brand-400">
                     {formatNaira(shiftMetrics.expectedCash)}
@@ -1454,7 +1464,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
               </div>
 
               <div>
-                <label htmlFor="shift-cash-counted" className="block text-[12px] font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label htmlFor="shift-cash-counted" className="block text-xs font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Physical Cash Counted in Drawer (NGN) *
                 </label>
                 <div className="relative">
@@ -1467,13 +1477,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                     value={cashCountedInput}
                     onChange={e => setCashCountedInput(e.target.value)}
                     placeholder="e.g. 524000"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tabular-nums text-[16px] font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tabular-nums text-base font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
-                  <span className="absolute right-3 top-2.5 text-[12px] font-mono text-slate-400">
+                  <span className="absolute right-3 top-2.5 text-xs font-mono text-slate-400">
                     NGN
                   </span>
                 </div>
-                <p className="text-[11px] font-sans text-slate-500 dark:text-slate-400 mt-1">
+                <p className="text-xs font-sans text-slate-500 dark:text-slate-400 mt-1">
                   Count all banknotes in the till before handing over the drawer keys.
                 </p>
               </div>
@@ -1489,12 +1499,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                       : 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-900/60'
                   }`}
                 >
-                  <div className="flex items-center justify-between text-[12px] font-sans">
+                  <div className="flex items-center justify-between text-xs font-sans">
                     <span className="font-semibold text-slate-700 dark:text-slate-300">
                       Drawer Variance (Counted - Expected):
                     </span>
                     <span
-                      className={`font-mono tabular-nums font-bold text-[15px] ${
+                      className={`font-mono tabular-nums font-bold text-sm ${
                         Math.abs(liveCloseVariance) < 0.01
                           ? 'text-emerald-700 dark:text-emerald-400'
                           : liveCloseVariance < 0
@@ -1507,7 +1517,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                         : formatNaira(liveCloseVariance)}
                     </span>
                   </div>
-                  <div className="mt-1 text-[11px] font-sans flex items-center gap-1.5">
+                  <div className="mt-1 text-xs font-sans flex items-center gap-1.5">
                     {Math.abs(liveCloseVariance) < 0.01 ? (
                       <>
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -1535,7 +1545,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
               )}
 
               <div>
-                <label htmlFor="shift-close-notes" className="block text-[12px] font-sans font-medium text-slate-700 dark:text-slate-300 mb-1">
+                <label htmlFor="shift-close-notes" className="block text-xs font-sans font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Handover Notes / Supervisor Sign-off (Optional)
                 </label>
                 <input
@@ -1544,7 +1554,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   value={closeNotesInput}
                   onChange={e => setCloseNotesInput(e.target.value)}
                   placeholder="e.g. Handed over to evening cashier Sunday, small change verified"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-sans text-[13px] focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-sans text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
@@ -1552,13 +1562,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 <button
                   type="button"
                   onClick={() => setIsCloseShiftModalOpen(false)}
-                  className="px-4 py-2 text-[13px] font-sans font-medium rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  className="px-4 py-2 text-xs font-sans font-medium rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-[13px] font-sans font-semibold rounded-xl bg-brand-600 hover:bg-brand-700 text-white shadow-sm flex items-center gap-1.5 transition-colors"
+                  className="px-4 py-2 text-xs font-sans font-semibold rounded-xl bg-brand-600 hover:bg-brand-700 text-white shadow-sm flex items-center gap-1.5 transition-colors"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   Confirm & Close Shift
@@ -1607,15 +1617,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           {activeStatSheet === 'cash' && (
             <div className="space-y-3">
               <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 flex items-center justify-between">
-                <span className="text-[13px] font-sans font-semibold text-emerald-800 dark:text-emerald-300">
+                <span className="text-xs font-sans font-semibold text-emerald-800 dark:text-emerald-300">
                   Total Collected Today
                 </span>
-                <span className="text-[18px] font-mono tabular-nums font-bold text-emerald-700 dark:text-emerald-400">
+                <span className="text-lg font-mono tabular-nums font-bold text-emerald-700 dark:text-emerald-400">
                   {formatNaira(todayStats.cashTransferSales)}
                 </span>
               </div>
 
-              <div className="text-[12px] font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <div className="text-xs font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 Today's Paid Transactions
               </div>
 
@@ -1629,13 +1639,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   return (
                     <div
                       key={order.id}
-                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-[13px]"
+                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs"
                     >
                       <div className="space-y-0.5">
                         <div className="font-sans font-bold text-slate-900 dark:text-white">
                           {cust?.name || 'Counter Sale'}
                         </div>
-                        <div className="flex items-center gap-2 text-[11px] font-sans text-slate-500 dark:text-slate-400">
+                        <div className="flex items-center gap-2 text-xs font-sans text-slate-500 dark:text-slate-400">
                           <span className="inline-flex items-center gap-1 font-medium">
                             <span
                               className={`w-2 h-2 rounded-full ${isCash ? 'bg-emerald-500' : 'bg-sky-500'}`}
@@ -1661,15 +1671,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           {activeStatSheet === 'credit' && (
             <div className="space-y-3">
               <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 flex items-center justify-between">
-                <span className="text-[13px] font-sans font-semibold text-rose-800 dark:text-rose-300">
+                <span className="text-xs font-sans font-semibold text-rose-800 dark:text-rose-300">
                   Total Outstanding Credit
                 </span>
-                <span className="text-[18px] font-mono tabular-nums font-bold text-rose-700 dark:text-rose-400">
+                <span className="text-lg font-mono tabular-nums font-bold text-rose-700 dark:text-rose-400">
                   {formatNaira(todayStats.creditOutstanding)}
                 </span>
               </div>
 
-              <div className="text-[12px] font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <div className="text-xs font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 Accounts with Open Balances
               </div>
 
@@ -1686,18 +1696,18 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   return (
                     <div
                       key={cust.id}
-                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-[13px]"
+                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs"
                     >
                       <div className="space-y-0.5">
                         <div className="font-sans font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                           <span>{cust.name}</span>
                           {isOver && (
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-sans font-bold">
+                            <span className="text-xs px-1.5 py-0.2 rounded bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-sans font-bold">
                               Over Limit
                             </span>
                           )}
                         </div>
-                        <div className="text-[11px] font-sans text-slate-500 dark:text-slate-400">
+                        <div className="text-xs font-sans text-slate-500 dark:text-slate-400">
                           Limit: {formatNaira(cust.credit_limit)} · Terms: {cust.credit_term_days}d
                         </div>
                       </div>
@@ -1716,7 +1726,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   setActiveStatSheet(null);
                   onNavigate('customers');
                 }}
-                className="w-full py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-[13px] font-sans font-bold flex items-center justify-center gap-2 shadow-sm"
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-sans font-bold flex items-center justify-center gap-2 shadow-sm"
               >
                 <span>Open Customers & Ledger</span>
                 <ArrowRight className="w-4 h-4" />
@@ -1728,15 +1738,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           {activeStatSheet === 'kegs_out' && (
             <div className="space-y-3">
               <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                <span className="text-[13px] font-sans font-semibold text-slate-700 dark:text-slate-300">
+                <span className="text-xs font-sans font-semibold text-slate-700 dark:text-slate-300">
                   Total in Customer Hands
                 </span>
-                <span className="text-[18px] font-mono tabular-nums font-bold text-slate-900 dark:text-white">
+                <span className="text-lg font-mono tabular-nums font-bold text-slate-900 dark:text-white">
                   {todayStats.companyKegsOut} kegs
                 </span>
               </div>
 
-              <div className="text-[12px] font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <div className="text-xs font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 Custody by Customer
               </div>
 
@@ -1752,7 +1762,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   return (
                     <div
                       key={cust.id}
-                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-[13px]"
+                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs"
                     >
                       <div className="font-sans font-bold text-slate-900 dark:text-white">
                         {cust.name}
@@ -1770,7 +1780,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   setActiveStatSheet(null);
                   onNavigate('kegs');
                 }}
-                className="w-full py-2.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-[13px] font-sans font-bold flex items-center justify-center gap-2 shadow-sm"
+                className="w-full py-2.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-xs font-sans font-bold flex items-center justify-center gap-2 shadow-sm"
               >
                 <span>Open Kegs Tracking</span>
                 <ArrowRight className="w-4 h-4" />
@@ -1789,28 +1799,28 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-[13px] font-sans font-medium text-slate-600 dark:text-slate-300">
+                  <span className="text-xs font-sans font-medium text-slate-600 dark:text-slate-300">
                     Physical Kegs in Yard:
                   </span>
-                  <span className="text-[20px] font-mono tabular-nums font-bold text-slate-900 dark:text-white">
+                  <span className="text-xl font-mono tabular-nums font-bold text-slate-900 dark:text-white">
                     {todayStats.kegsAtDepot} kegs
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-[12px] font-sans text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-700 pt-2">
+                <div className="flex items-center justify-between text-xs font-sans text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-700 pt-2">
                   <span>Minimum Threshold:</span>
                   <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
                     {settings.kegs_at_depot_low_threshold} kegs
                   </span>
                 </div>
                 {kegInventory.isDepotStockCritical && (
-                  <div className="text-[11px] font-sans font-semibold text-rose-700 dark:text-rose-300 flex items-center gap-1.5 pt-1">
+                  <div className="text-xs font-sans font-semibold text-rose-700 dark:text-rose-300 flex items-center gap-1.5 pt-1">
                     <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                     <span>Depot inventory is below safety threshold! Recall customer kegs.</span>
                   </div>
                 )}
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2 text-[12px] font-sans">
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2 text-xs font-sans">
                 <div className="flex justify-between text-slate-600 dark:text-slate-400">
                   <span>Total Registered Fleet:</span>
                   <span className="font-mono tabular-nums font-bold text-slate-900 dark:text-white">
@@ -1837,7 +1847,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   setActiveStatSheet(null);
                   onNavigate('kegs');
                 }}
-                className="w-full py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-[13px] font-sans font-bold flex items-center justify-center gap-2 shadow-sm"
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-sans font-bold flex items-center justify-center gap-2 shadow-sm"
               >
                 <span>Record Keg Returns</span>
                 <ArrowRight className="w-4 h-4" />
@@ -1849,15 +1859,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           {activeStatSheet === 'customer_kegs' && (
             <div className="space-y-3">
               <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                <span className="text-[13px] font-sans font-semibold text-slate-700 dark:text-slate-300">
+                <span className="text-xs font-sans font-semibold text-slate-700 dark:text-slate-300">
                   Total Customer Containers Filled
                 </span>
-                <span className="text-[18px] font-mono tabular-nums font-bold text-slate-900 dark:text-white">
+                <span className="text-lg font-mono tabular-nums font-bold text-slate-900 dark:text-white">
                   {todayStats.customerKegsFilledToday} kegs
                 </span>
               </div>
 
-              <div className="text-[12px] font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <div className="text-xs font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 Today's Customer-Keg Dispenses
               </div>
 
@@ -1871,7 +1881,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   return (
                     <div
                       key={order.id}
-                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-[13px]"
+                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs"
                     >
                       <div className="space-y-0.5">
                         <div className="font-sans font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
@@ -1881,7 +1891,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                           />
                           <span>{cust?.name || 'Walk-in'}</span>
                         </div>
-                        <div className="text-[11px] font-sans text-slate-500 dark:text-slate-400">
+                        <div className="text-xs font-sans text-slate-500 dark:text-slate-400">
                           {isVeg ? 'Veg Oil' : 'Palm Oil'} · {order.litres}L · {formatDepotTime(order.date)}
                         </div>
                       </div>
@@ -1898,15 +1908,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           {activeStatSheet === 'expenses' && (
             <div className="space-y-4">
               <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 flex items-center justify-between">
-                <span className="text-[13px] font-sans font-semibold text-rose-800 dark:text-rose-300">
+                <span className="text-xs font-sans font-semibold text-rose-800 dark:text-rose-300">
                   Total Spent Today
                 </span>
-                <span className="text-[18px] font-mono tabular-nums font-bold text-rose-700 dark:text-rose-400">
+                <span className="text-lg font-mono tabular-nums font-bold text-rose-700 dark:text-rose-400">
                   {formatNaira(todayStats.expensesToday)}
                 </span>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2 text-[12px] font-sans">
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2 text-xs font-sans">
                 <div className="flex justify-between text-slate-600 dark:text-slate-400">
                   <span>Daily Opening Float:</span>
                   <span className="font-mono tabular-nums font-bold text-slate-900 dark:text-white">
@@ -1927,7 +1937,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 </div>
               </div>
 
-              <div className="text-[12px] font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <div className="text-xs font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 Today's Expense Items
               </div>
 
@@ -1938,13 +1948,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 .map(exp => (
                   <div
                     key={exp.id}
-                    className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-[13px]"
+                    className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs"
                   >
                     <div className="space-y-0.5">
                       <div className="font-sans font-bold text-slate-900 dark:text-white">
                         {exp.note || exp.category}
                       </div>
-                      <div className="text-[11px] font-sans text-slate-500 dark:text-slate-400">
+                      <div className="text-xs font-sans text-slate-500 dark:text-slate-400">
                         {exp.category} · {formatDepotTime(exp.date)}
                       </div>
                     </div>
@@ -1960,7 +1970,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   setActiveStatSheet(null);
                   onNavigate('expenses');
                 }}
-                className="w-full py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-[13px] font-sans font-bold flex items-center justify-center gap-2 shadow-sm"
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-sans font-bold flex items-center justify-center gap-2 shadow-sm"
               >
                 <span>Manage Expenses & Float</span>
                 <ArrowRight className="w-4 h-4" />
@@ -1992,15 +2002,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 }`}
               />
               <div className="space-y-1">
-                <div className="text-[14px] font-sans font-bold">{selectedAlert.title}</div>
-                <div className="text-[12px] font-mono tabular-nums font-medium opacity-90">
+                <div className="text-sm font-sans font-bold">{selectedAlert.title}</div>
+                <div className="text-xs font-mono tabular-nums font-medium opacity-90">
                   {selectedAlert.subtitle}
                 </div>
               </div>
             </div>
 
             {selectedAlert.details && (
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 text-[13px] font-sans text-slate-700 dark:text-slate-300 leading-relaxed">
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 text-xs font-sans text-slate-700 dark:text-slate-300 leading-relaxed">
                 {selectedAlert.details}
               </div>
             )}
@@ -2012,7 +2022,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 setSelectedAlert(null);
                 act();
               }}
-              className="w-full py-3 px-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-[14px] font-sans font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
+              className="w-full py-3 px-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-sm font-sans font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
             >
               <span>{selectedAlert.actionLabel}</span>
               <ArrowRight className="w-4 h-4" />
@@ -2050,10 +2060,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   }`}
                 />
                 <div className="min-w-0">
-                  <div className="text-[13px] font-sans font-bold text-slate-900 dark:text-white truncate">
+                  <div className="text-xs font-sans font-bold text-slate-900 dark:text-white truncate">
                     {alert.title}
                   </div>
-                  <div className="text-[11px] font-sans text-slate-500 dark:text-slate-400 truncate">
+                  <div className="text-xs font-sans text-slate-500 dark:text-slate-400 truncate">
                     {alert.subtitle}
                   </div>
                 </div>
