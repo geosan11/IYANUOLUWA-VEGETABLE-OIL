@@ -116,9 +116,23 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
               {settings.company_logo_url ? (
                 <img src={settings.company_logo_url} alt="Company Logo" className="h-12 mx-auto mb-2 object-contain" />
               ) : (
-                <div className="inline-flex items-center justify-center w-11 h-11 rounded-lg bg-brand-500 text-white font-extrabold text-lg mb-2 font-heading">
-                  IO
-                </div>
+                <svg
+                  viewBox="0 0 48 48"
+                  className="w-11 h-11 mx-auto mb-2"
+                  aria-hidden="true"
+                >
+                  <circle cx="24" cy="24" r="24" fill="#00B749" />
+                  <path
+                    d="M24 9c6.5 8 11 14.4 11 19.6A11 11 0 0 1 13 28.6C13 23.4 17.5 17 24 9Z"
+                    fill="#ffffff"
+                    fillOpacity="0.95"
+                  />
+                  <path
+                    d="M24 15.5c3.6 4.9 6 8.7 6 11.9a6 6 0 1 1-12 0c0-3.2 2.4-7 6-11.9Z"
+                    fill="#00893a"
+                    fillOpacity="0.5"
+                  />
+                </svg>
               )}
               <h1 className="text-[15px] font-heading font-extrabold tracking-tight text-slate-950 uppercase leading-tight">
                 {settings.company_name}
@@ -143,32 +157,46 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
               )}
             </div>
 
-            {/* Metadata Grid */}
-            <div className="grid grid-cols-2 gap-2 text-[12px] border-b border-slate-200 pb-3 mb-3 font-mono tabular-nums">
-              <div>
-                <span className="text-slate-500 block text-[11px] font-sans uppercase">
+            {/* Metadata — a flush label:value list reads truer on 80mm paper than a
+                2-column grid, which squeezes longer values (a customer name, a
+                payment-method combo) into an awkward wrap. */}
+            <div className="text-[12px] border-b border-slate-200 pb-3 mb-3 space-y-1.5">
+              <div className="flex justify-between items-baseline gap-3">
+                <span className="text-slate-500 font-sans text-[11px] uppercase shrink-0">
                   {receiptFormat === 'commercial' ? 'Receipt No:' : 'Waybill Ref:'}
                 </span>
-                <span className="font-bold text-slate-900">{receipt.receiptNumber}</span>
+                <span className="font-bold text-slate-900 tabular-nums text-right">{receipt.receiptNumber}</span>
               </div>
-              <div className="text-right">
-                <span className="text-slate-500 block text-[11px] font-sans uppercase">Date & Time:</span>
-                <span className="font-bold text-slate-900">
+              <div className="flex justify-between items-baseline gap-3">
+                <span className="text-slate-500 font-sans text-[11px] uppercase shrink-0">Date & Time:</span>
+                <span className="font-bold text-slate-900 tabular-nums text-right">
                   {formatDepotDate(receipt.date)} {formatDepotTime(receipt.date)}
                 </span>
               </div>
-              <div>
-                <span className="text-slate-500 block text-[11px] font-sans uppercase">Customer / Consignee:</span>
-                <span className="font-bold font-heading text-slate-900">{receipt.customer.name}</span>
-                <span className="text-[11px] text-slate-500 block uppercase font-sans">({receipt.customer.type})</span>
+              <div className="flex justify-between items-baseline gap-3">
+                <span className="text-slate-500 font-sans text-[11px] uppercase shrink-0">Cashier:</span>
+                <span className="font-bold text-slate-900 text-right">{receipt.cashierName || 'Depot Cashier'}</span>
               </div>
-              <div className="text-right">
-                <span className="text-slate-500 block text-[11px] font-sans uppercase">
+              <div className="flex justify-between items-baseline gap-3">
+                <span className="text-slate-500 font-sans text-[11px] uppercase shrink-0">
+                  {isOrder ? 'Customer / Consignee:' : 'Customer:'}
+                </span>
+                <span className="font-bold font-heading text-slate-900 text-right">
+                  {receipt.customer.name}
+                  <span className="text-[10px] text-slate-500 font-sans uppercase font-normal"> ({receipt.customer.type})</span>
+                </span>
+              </div>
+              <div className="flex justify-between items-baseline gap-3">
+                <span className="text-slate-500 font-sans text-[11px] uppercase shrink-0">
                   {receiptFormat === 'commercial' ? 'Payment Method:' : 'Release Status:'}
                 </span>
-                <span className="font-bold uppercase text-slate-900 px-1.5 py-0.5 bg-slate-100 rounded font-sans text-[11px]">
-                  {receiptFormat === 'commercial' ? receipt.paymentMethod : 'VERIFIED & RELEASED'}
+                <span className="font-bold uppercase text-slate-900 text-right font-sans text-[11px]">
+                  {receiptFormat === 'commercial' ? receipt.paymentMethod : 'Verified & Released'}
                 </span>
+              </div>
+              <div className="flex justify-between items-baseline gap-3">
+                <span className="text-slate-500 font-sans text-[11px] uppercase shrink-0">Transaction:</span>
+                <span className="font-bold uppercase text-emerald-700 text-right font-sans text-[11px]">Complete</span>
               </div>
             </div>
 
@@ -187,7 +215,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                       <thead>
                         <tr className="text-slate-500 text-[11px] font-sans uppercase border-b border-slate-200 pb-1">
                           <th className="text-left py-1">Item Description</th>
-                          <th className="text-center py-1">Qty</th>
                           <th className="text-right py-1">Rate</th>
                           <th className="text-right py-1">Total</th>
                         </tr>
@@ -216,9 +243,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                                   <div className="text-[11px] text-slate-500 font-sans">Source: {sourceLine}</div>
                                 )}
                               </td>
-                              <td className="py-2 text-center align-top font-bold">
-                                {l.qty} × {packShort(l.pack_size_id)}
-                              </td>
                               <td className="py-2 text-right align-top">
                                 ₦{l.unit_price.toLocaleString()}/{packShort(l.pack_size_id)}
                               </td>
@@ -236,7 +260,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                                     {packShort(l.pack_size_id)} × {l.qty} · no return obligation
                                   </div>
                                 </td>
-                                <td className="py-2 text-center align-top font-bold text-amber-900">{l.qty}</td>
                                 <td className="py-2 text-right align-top text-amber-900">
                                   {formatNaira(l.container_unit_price || 0)}/unit
                                 </td>
@@ -299,10 +322,28 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                 {/* Balances & Totals */}
                 <div className="space-y-1 text-[13px] font-mono tabular-nums border-b border-slate-200 pb-3 mb-3">
                   {isOrder && order && (() => {
+                    const oilSubtotal = receiptLines.reduce((s, l) => s + l.oil_amount, 0);
+                    const containerSubtotal = receiptLines.reduce((s, l) => s + (l.container_amount || 0), 0);
                     const grandTotal = receiptLines.reduce((s, l) => s + l.line_amount, 0);
                     const paidTotal = receiptLines.reduce((s, l) => s + (l.paid_amount || 0), 0);
                     return (
                     <>
+                      {/* A real breakdown only when it adds information — an
+                          outright-purchased container is a second, separate
+                          charge worth itemizing; otherwise Subtotal would just
+                          repeat Grand Total and add noise. */}
+                      {containerSubtotal > 0 && (
+                        <>
+                          <div className="flex justify-between text-slate-600 text-[12px]">
+                            <span className="font-sans">Oil Subtotal:</span>
+                            <span>{formatNaira(oilSubtotal)}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-600 text-[12px]">
+                            <span className="font-sans">Containers Bought:</span>
+                            <span>{formatNaira(containerSubtotal)}</span>
+                          </div>
+                        </>
+                      )}
                       <div className="flex justify-between font-bold text-[15px] text-slate-950 pt-1">
                         <span className="font-sans">Grand Total:</span>
                         <span>{formatNaira(grandTotal)}</span>
