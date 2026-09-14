@@ -48,11 +48,16 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
   const productName = (id: string) => products.find(p => p.id === id)?.name || 'Oil';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl my-8 animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+      {/* Same shape as Modal.tsx: a height-capped flex column with a pinned
+          header/footer and only the middle scrolling — a tall receipt used
+          to push the header's close button and the footer's Print/Close
+          buttons off-screen, both reachable only by scrolling past the
+          whole ticket first. */}
+      <div className="relative w-full max-w-sm max-h-[90vh] bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
 
-        {/* Top Modal Header (Hidden on print) */}
-        <div className="no-print px-5 pt-4 pb-3 border-b border-slate-800 bg-slate-900/95 rounded-t-2xl space-y-3">
+        {/* Top Modal Header (Hidden on print) — pinned */}
+        <div className="no-print flex-shrink-0 px-5 pt-4 pb-3 border-b border-slate-800 bg-slate-900/95 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-brand-400 font-sans font-semibold text-sm">
               <CheckCircle className="w-5 h-5 text-brand-500" weight="bold" />
@@ -103,8 +108,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
           </div>
         </div>
 
-        {/* Thermal Ticket / Print Area */}
-        <div className="px-4 pt-3 pb-4">
+        {/* Thermal Ticket / Print Area — the one section that scrolls */}
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 pt-3 pb-4">
           <div className="receipt-edge-top no-print" aria-hidden="true" />
           <div
             className="px-5 py-5 text-slate-900 font-mono"
@@ -576,8 +581,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
           <div className="receipt-edge-bottom no-print" aria-hidden="true" />
         </div>
 
-        {/* Modal Action Buttons (Screen only) */}
-        <div className="no-print p-4 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-3 rounded-b-2xl">
+        {/* Modal Action Buttons (Screen only) — pinned */}
+        <div className="no-print flex-shrink-0 p-4 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-3">
           <div className="text-xs font-sans text-slate-400 hidden sm:block">
             Format:{' '}
             <span className="font-semibold text-brand-400">
