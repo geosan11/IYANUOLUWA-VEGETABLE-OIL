@@ -11,6 +11,9 @@ export default {
         'split': '900px',
       },
       colors: {
+        slate: {
+          50: '#FBF7F1',
+        },
         brand: {
           50: '#ecfdf5',
           100: '#d1fae5',
