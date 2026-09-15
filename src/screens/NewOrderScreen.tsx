@@ -17,7 +17,6 @@ import {
   Minus,
   Plus,
   Trash as Trash2,
-  X,
   ShieldWarning as ShieldAlert,
   Check,
   CaretRight as ChevronRight,
@@ -28,8 +27,11 @@ import {
   GasPump,
   Coins,
   UserCheck,
-  ArrowsCounterClockwise
+  ArrowsCounterClockwise,
+  Calculator,
+  Pencil
 } from '@phosphor-icons/react';
+import { MiniNumberPad } from '../components/common/MiniNumberPad';
 
 /** Small numbered step marker for section headers, echoing a terminal-style flow. */
 const StepBadge: React.FC<{ n: number; label: string }> = ({ n, label }) => (
@@ -114,6 +116,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   const [overrideOn, setOverrideOn] = useState(false);
   const [overrideValue, setOverrideValue] = useState('');
   const [priceReason, setPriceReason] = useState('');
+  const [showNumpad, setShowNumpad] = useState(false);
+  const [numpadTarget, setNumpadTarget] = useState<'qty' | 'price'>('qty');
 
   // ---- cart + payment ----
   const [lines, setLines] = useState<DraftLine[]>([]);
@@ -194,7 +198,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     qty > 0 &&
     !!preview &&
     !preview.unpriced &&
-    (!preview.priceAdjusted || priceReason.trim().length > 0);
+    preview.unitPrice > 0;
 
   const addLine = () => {
     if (!product || !preview || !canAddLine) return;
@@ -211,7 +215,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
         qty,
         containerMode: isReturnable ? containerMode : 'none',
         overrideUnitPrice: overrideOn && overrideValue ? Number(overrideValue) : null,
-        priceAdjustReason: preview.priceAdjusted ? priceReason.trim() : null,
+        priceAdjustReason: preview.priceAdjusted ? (priceReason.trim() || 'Counter rate') : null,
         unitPrice: preview.unitPrice,
         lineAmount: preview.lineAmount,
         litres: preview.litres,
@@ -225,7 +229,28 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     setOverrideOn(false);
     setOverrideValue('');
     setPriceReason('');
+    setShowNumpad(false);
     setError(null);
+  };
+
+  const editLine = (lineKey: string) => {
+    const l = lines.find(line => line.key === lineKey);
+    if (!l) return;
+    setProductId(l.productId);
+    setVarietyId(l.varietyId);
+    setPackSizeId(l.packSizeId);
+    setQty(l.qty);
+    setContainerMode(l.containerMode);
+    if (l.overrideUnitPrice !== null && l.overrideUnitPrice !== undefined) {
+      setOverrideOn(true);
+      setOverrideValue(String(l.overrideUnitPrice));
+      setPriceReason(l.priceAdjustReason || '');
+    } else {
+      setOverrideOn(false);
+      setOverrideValue('');
+      setPriceReason('');
+    }
+    removeLine(lineKey);
   };
 
   const removeLine = (key: string) => setLines(prev => prev.filter(l => l.key !== key));
@@ -790,32 +815,76 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                 )}
 
                 {packSizeId && preview && (
-                  <div className="space-y-3 pt-1">
-                    {/* qty stepper */}
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-slate-500 w-16">Packs</span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setQty(q => Math.max(1, q - 1))}
-                          className="w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300"
-                        >
-                          <Minus className="w-4 h-4" />
-                        </button>
-                        <input
-                          type="number"
-                          min={1}
-                          value={qty}
-                          onChange={e => setQty(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
-                          className="w-16 text-center py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-sm"
-                        />
-                        <button
-                          onClick={() => setQty(q => q + 1)}
-                          className="w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
+                  <div className="space-y-3.5 pt-1">
+                    {/* qty stepper + number pad */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-slate-500 w-16">Packs</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setQty(q => Math.max(1, q - 1))}
+                            className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <input
+                            type="number"
+                            min={1}
+                            value={qty}
+                            onFocus={() => {
+                              setShowNumpad(true);
+                              setNumpadTarget('qty');
+                            }}
+                            onChange={e => setQty(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+                            className="w-16 text-center py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-sm focus:border-brand-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setQty(q => q + 1)}
+                            className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+
+                          {/* Quick Number Pad Toggle */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowNumpad(prev => !prev || numpadTarget !== 'qty');
+                              setNumpadTarget('qty');
+                            }}
+                            className={`px-2.5 py-1.5 rounded-xl border text-xs font-sans font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                              showNumpad && numpadTarget === 'qty'
+                                ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
+                                : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-brand-400'
+                            }`}
+                            title="Open number pad for quick entry"
+                          >
+                            <Calculator className="w-4 h-4" weight="bold" />
+                            <span>Pad</span>
+                          </button>
+                        </div>
+                        <span className="text-xs text-slate-400 font-mono">{preview.litres.toLocaleString()} L</span>
                       </div>
-                      <span className="text-xs text-slate-400 font-mono">{preview.litres.toLocaleString()} L</span>
+
+                      {/* Quick Qty Preset Pills */}
+                      <div className="flex items-center gap-1 pl-[76px] flex-wrap">
+                        {[5, 10, 20, 25, 50, 100].map(n => (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => setQty(n)}
+                            className={`px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold border transition-colors cursor-pointer ${
+                              qty === n
+                                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
+                                : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
+                            }`}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     {/* container mode */}
@@ -845,71 +914,120 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       </div>
                     )}
 
-                    {/* price + override */}
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-slate-500 w-16">Price</span>
-                      {!overrideOn ? (
-                        <>
-                          <span className="font-mono font-bold text-sm text-slate-900 dark:text-white">
-                            {formatNaira(preview.unitPrice)}
-                          </span>
-                          <span className="text-xs text-slate-400">/ {packShort(packSizeId)}</span>
+                    {/* price (directly editable) */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-slate-500 w-16">Unit Price</span>
+                        <div className="flex items-center gap-2">
+                          <div className="relative w-36">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono font-bold text-xs">
+                              ₦
+                            </span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={overrideOn ? overrideValue : (preview.matrixUnitPrice != null ? preview.matrixUnitPrice : preview.unitPrice)}
+                              onFocus={() => {
+                                setShowNumpad(true);
+                                setNumpadTarget('price');
+                                if (!overrideOn) {
+                                  setOverrideOn(true);
+                                  setOverrideValue(String(preview.matrixUnitPrice ?? preview.unitPrice ?? ''));
+                                }
+                              }}
+                              onChange={e => {
+                                setOverrideOn(true);
+                                setOverrideValue(e.target.value);
+                              }}
+                              placeholder="0"
+                              className="w-full pl-6 pr-2 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-sm text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                            />
+                          </div>
+                          <span className="text-xs text-slate-400 font-sans">/ {packShort(packSizeId)}</span>
+
+                          {/* Price Pad Button */}
                           <button
+                            type="button"
                             onClick={() => {
-                              setOverrideOn(true);
-                              setOverrideValue(String(preview.matrixUnitPrice ?? preview.unitPrice));
+                              setShowNumpad(prev => !prev || numpadTarget !== 'price');
+                              setNumpadTarget('price');
+                              if (!overrideOn) {
+                                setOverrideOn(true);
+                                setOverrideValue(String(preview.matrixUnitPrice ?? preview.unitPrice ?? ''));
+                              }
                             }}
-                            className="text-xs font-sans font-semibold text-brand-600 dark:text-brand-400"
+                            className={`p-1.5 rounded-xl border text-xs font-sans font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                              showNumpad && numpadTarget === 'price'
+                                ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
+                                : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                            }`}
+                            title="Edit price using number pad"
                           >
-                            Adjust
+                            <Calculator className="w-4 h-4" weight="bold" />
                           </button>
-                        </>
-                      ) : (
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <div className="relative w-32">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
-                                ₦
-                              </span>
-                              <input
-                                type="number"
-                                value={overrideValue}
-                                onChange={e => setOverrideValue(e.target.value)}
-                                className="w-full pl-6 pr-2 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-xs"
-                              />
-                            </div>
+
+                          {overrideOn && preview.priceAdjusted && (
                             <button
+                              type="button"
                               onClick={() => {
                                 setOverrideOn(false);
                                 setOverrideValue('');
                                 setPriceReason('');
                               }}
-                              className="text-slate-400 hover:text-slate-600"
+                              className="text-xs font-sans text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1 cursor-pointer"
+                              title="Reset back to standard tier rate"
                             >
-                              <X className="w-4 h-4" />
+                              ↺ Reset standard
                             </button>
-                            {preview.matrixUnitPrice != null && (
-                              <span className="text-xs text-slate-400 font-mono">
-                                std {formatNaira(preview.matrixUnitPrice)}
-                              </span>
-                            )}
-                          </div>
-                          {preview.priceAdjusted && (
-                            <input
-                              value={priceReason}
-                              onChange={e => setPriceReason(e.target.value)}
-                              placeholder="Reason for the price change (required)"
-                              className="w-full px-3 py-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-700 text-xs"
-                            />
                           )}
+                        </div>
+                      </div>
+
+                      {/* Subtle Price Override Feedback */}
+                      {preview.priceAdjusted && (
+                        <div className="pl-[76px] flex items-center gap-2 flex-wrap text-xs">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-sans font-medium text-[11px]">
+                            Custom rate (Standard: {formatNaira(preview.matrixUnitPrice ?? 0)})
+                          </span>
+                          <input
+                            type="text"
+                            value={priceReason}
+                            onChange={e => setPriceReason(e.target.value)}
+                            placeholder="Reason note (optional)"
+                            className="px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 placeholder-slate-400 max-w-xs"
+                          />
                         </div>
                       )}
                     </div>
 
+                    {/* INTERACTIVE MINI NUMBER PAD (COLLAPSIBLE / ON-DEMAND) */}
+                    {showNumpad && (
+                      <div className="pt-1">
+                        <MiniNumberPad
+                          qty={qty}
+                          onQtyChange={setQty}
+                          price={overrideOn ? overrideValue : (preview.matrixUnitPrice ?? preview.unitPrice ?? '')}
+                          onPriceChange={val => {
+                            setOverrideOn(true);
+                            setOverrideValue(val);
+                          }}
+                          standardPrice={preview.matrixUnitPrice}
+                          onResetPrice={() => {
+                            setOverrideOn(false);
+                            setOverrideValue('');
+                            setPriceReason('');
+                          }}
+                          activeTarget={numpadTarget}
+                          onTargetChange={setNumpadTarget}
+                          onClose={() => setShowNumpad(false)}
+                        />
+                      </div>
+                    )}
+
                     {preview.unpriced && (
                       <div className="text-xs text-rose-600 dark:text-rose-400">
-                        No price for {product.name} / {product.varieties.find(v => v.id === varietyId)?.name} /{' '}
-                        {packLabel(packSizeId)} at the {tier} tier. Set it in Inventory.
+                        No matrix price configured for {product.name} / {product.varieties.find(v => v.id === varietyId)?.name} /{' '}
+                        {packLabel(packSizeId)} at the {tier} tier. Enter a custom price above to sell.
                       </div>
                     )}
 
@@ -920,7 +1038,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       <button
                         onClick={addLine}
                         disabled={!canAddLine}
-                        className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-sans font-bold text-xs flex items-center gap-1.5 shadow-sm"
+                        className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-sans font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
                       >
                         <Plus className="w-4 h-4" weight="bold" /> Add to sale
                       </button>
@@ -988,8 +1106,16 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                             </span>
                             <button
                               type="button"
+                              onClick={() => editLine(l.key)}
+                              className="text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 p-1 cursor-pointer"
+                              title="Edit item price & quantity in builder"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => removeLine(l.key)}
-                              className="text-slate-400 hover:text-rose-500 p-1"
+                              className="text-slate-400 hover:text-rose-500 p-1 cursor-pointer"
                               aria-label="Remove line"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
