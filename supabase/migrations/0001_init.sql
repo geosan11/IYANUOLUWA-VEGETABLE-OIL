@@ -17,7 +17,14 @@
 --
 -- Every table carries `created_at` + `updated_at timestamptz default now()`;
 -- `updated_at` is maintained by the shared `set_updated_at()` trigger below.
+--
+-- Runs as supabase_admin: some tables in this project were created outside
+-- these migrations (e.g. via the Table Editor UI, which runs as
+-- supabase_admin) and are owned by it, not by `postgres` — DDL against them
+-- fails with "must be owner of table ..." otherwise.
 -- ============================================================================
+
+SET ROLE supabase_admin;
 
 -- ---------------------------------------------------------------------------
 -- ENUM TYPES  (mirrors the string unions in src/types/index.ts)
@@ -402,3 +409,5 @@ begin
     );
   end loop;
 end $$;
+
+RESET ROLE;

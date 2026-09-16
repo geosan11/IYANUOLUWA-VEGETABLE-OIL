@@ -8,7 +8,12 @@
 -- Since both the Supabase SQL Editor and `supabase db push` run each file as
 -- one transaction, the ADD VALUE has to commit in its own migration before
 -- 0004 (which references 'hub_manager' in a function body and RLS policy)
--- can run.
+-- can run. Also runs as supabase_admin — see the note at the top of
+-- 0001_init.sql.
 -- ============================================================================
 
+SET ROLE supabase_admin;
+
 ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'hub_manager';
+
+RESET ROLE;

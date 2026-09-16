@@ -344,6 +344,8 @@ psql "$SUPABASE_DB_URL" -f supabase/migrations/0001_init.sql
 psql "$SUPABASE_DB_URL" -f supabase/migrations/0002_auth_rls.sql
 psql "$SUPABASE_DB_URL" -f supabase/migrations/0003_multi_hub.sql
 psql "$SUPABASE_DB_URL" -f supabase/migrations/0004_multi_hub_hubs.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0005_custom_screen_access.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0006_shift_hours_and_closing_readings.sql
 psql "$SUPABASE_DB_URL" -f supabase/seed.sql
 ```
 
@@ -353,6 +355,15 @@ to let a migration *use* a new enum value in the same transaction that added
 it. `0004` (hubs table, hub-scoped RLS, hub seed data) depends on `0003`
 having already committed. This also matters when pasting into the Supabase
 SQL Editor: paste and run `0003` by itself first, then `0004`.
+
+Every migration file opens with `SET ROLE supabase_admin;` and closes with
+`RESET ROLE;`. Some projects have `profiles` / `app_settings` / `shifts` (or
+other base tables) pre-existing from outside these migrations — created via
+the Supabase Table Editor UI, which runs as `supabase_admin` rather than
+`postgres` — so DDL against them fails with `42501: must be owner of table
+...` when run as `postgres` (the SQL Editor's default role). Running as
+`supabase_admin` instead sidesteps that regardless of which role actually
+owns a given table.
 
 `0002` references the `auth.users` table and the `auth.uid()` function, so it
 only runs on a real Supabase database (local `supabase start` or hosted), not a

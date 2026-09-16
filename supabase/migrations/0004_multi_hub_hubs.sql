@@ -2,7 +2,11 @@
 -- 0004_multi_hub_hubs.sql — Multi-Hub Architecture, Hub Scoping & Access Control
 -- Depends on 0001_init.sql, 0002_auth_rls.sql, and 0003_multi_hub.sql (the
 -- 'hub_manager' enum value must already be committed — see that file's header).
+--
+-- Runs as supabase_admin — see the note at the top of 0001_init.sql.
 -- ============================================================================
+
+SET ROLE supabase_admin;
 
 -- ---------------------------------------------------------------------------
 -- 1. Hubs table (Depots / Distribution Centres across Nigeria)
@@ -203,3 +207,5 @@ VALUES
   ('b2c3d4e5-f6a7-4b6c-9d0e-1f2a3b4c5d6e', 'Ikeja Industrial Hub', 'IKEJA-02', 'Lagos', 'Plot 12 Commercial Avenue, Ikeja Industrial Estate', '+234 802 333 4444', 'Funke Adeleke', true),
   ('c3d4e5f6-a7b8-4c7d-0e1f-2a3b4c5d6e7f', 'Ibadan Regional Depot', 'IBADAN-01', 'Oyo', 'Iwo Road Interchange, Ibadan', '+234 805 555 6666', 'Rasheed Olalekan', true)
 ON CONFLICT (code) DO NOTHING;
+
+RESET ROLE;
