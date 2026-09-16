@@ -1085,13 +1085,13 @@ export const SettingsScreen: React.FC = () => {
                             <input
                               id={`product-litres-per-keg-${p.id}`}
                               type="number"
-                              step="0.5"
-                              min="1"
+                              step="1"
+                              min="0"
                               value={currentL}
                               onChange={e =>
                                 setProductLitresPerKeg(prev => ({
                                   ...prev,
-                                  [p.id]: e.target.value
+                                  [p.id]: e.target.value.replace(/[^0-9]/g, '')
                                 }))
                               }
                               className="w-full px-3.5 py-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
@@ -1522,12 +1522,12 @@ export const SettingsScreen: React.FC = () => {
                     <div className="flex gap-2">
                       <input
                         type="number"
-                        step="500"
-                        min="1000"
+                        step="1"
+                        min="0"
                         required
                         placeholder="Capacity (L)"
                         value={newTankCapacity}
-                        onChange={e => setNewTankCapacity(e.target.value)}
+                        onChange={e => setNewTankCapacity(e.target.value.replace(/[^0-9]/g, ''))}
                         className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white"
                       />
                       <button
@@ -1643,10 +1643,10 @@ export const SettingsScreen: React.FC = () => {
                     <input
                       id="low-stock-threshold"
                       type="number"
-                      step="50"
+                      step="1"
                       min="0"
                       value={lowStockThreshold}
-                      onChange={e => setLowStockThreshold(e.target.value)}
+                      onChange={e => setLowStockThreshold(e.target.value.replace(/[^0-9]/g, ''))}
                       className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
                       required
                     />
@@ -1663,10 +1663,10 @@ export const SettingsScreen: React.FC = () => {
                     <input
                       id="truck-shortfall-threshold"
                       type="number"
-                      step="5"
+                      step="1"
                       min="0"
                       value={truckShortfallThreshold}
-                      onChange={e => setTruckShortfallThreshold(e.target.value)}
+                      onChange={e => setTruckShortfallThreshold(e.target.value.replace(/[^0-9]/g, ''))}
                       className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
                       required
                     />
@@ -1683,10 +1683,10 @@ export const SettingsScreen: React.FC = () => {
                     <input
                       id="pump-variance-threshold"
                       type="number"
-                      step="5"
+                      step="1"
                       min="0"
                       value={pumpVarianceThreshold}
-                      onChange={e => setPumpVarianceThreshold(e.target.value)}
+                      onChange={e => setPumpVarianceThreshold(e.target.value.replace(/[^0-9]/g, ''))}
                       className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
                       required
                     />
@@ -1731,10 +1731,10 @@ export const SettingsScreen: React.FC = () => {
                   <input
                     id="default-daily-float"
                     type="number"
-                    step="1000"
+                    step="1"
                     min="0"
                     value={defaultDailyFloat}
-                    onChange={e => setDefaultDailyFloat(e.target.value)}
+                    onChange={e => setDefaultDailyFloat(e.target.value.replace(/[^0-9]/g, ''))}
                     className="w-full pl-8 pr-4 py-3 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
                     required
                   />
@@ -2258,12 +2258,12 @@ export const SettingsScreen: React.FC = () => {
                   <input
                     id="new-product-litres-per-keg"
                     type="number"
-                    step="0.5"
-                    min="1"
+                    step="1"
+                    min="0"
                     required
                     placeholder="e.g. 25 or 30"
                     value={newProductLitresPerKeg}
-                    onChange={e => setNewProductLitresPerKeg(e.target.value)}
+                    onChange={e => setNewProductLitresPerKeg(e.target.value.replace(/[^0-9]/g, ''))}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-mono font-bold"
                   />
                   <span className="text-[10px] text-slate-500 font-sans block mt-0.5">
@@ -2279,12 +2279,12 @@ export const SettingsScreen: React.FC = () => {
                     <input
                       id="new-product-litres-per-ton"
                       type="number"
-                      step="0.1"
-                      min="100"
+                      step="1"
+                      min="0"
                       required
                       placeholder="e.g. 1075"
                       value={newProductLitresPerTon}
-                      onChange={e => setNewProductLitresPerTon(e.target.value)}
+                      onChange={e => setNewProductLitresPerTon(e.target.value.replace(/[^0-9]/g, ''))}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-mono font-bold"
                     />
                     <span className="text-[10px] text-slate-500 font-sans block mt-0.5">
@@ -2312,11 +2312,11 @@ export const SettingsScreen: React.FC = () => {
                   <input
                     id="new-product-keg-sell-price"
                     type="number"
-                    step="100"
+                    step="1"
                     min="0"
                     placeholder="e.g. 3500"
                     value={newProductKegSellPrice}
-                    onChange={e => setNewProductKegSellPrice(e.target.value)}
+                    onChange={e => setNewProductKegSellPrice(e.target.value.replace(/[^0-9]/g, ''))}
                     className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-mono font-bold"
                   />
                 </div>

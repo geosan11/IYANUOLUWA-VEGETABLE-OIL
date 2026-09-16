@@ -112,7 +112,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 pt-3 pb-4">
           <div className="receipt-edge-top no-print" aria-hidden="true" />
           <div
-            className="px-5 py-5 text-slate-900 font-mono"
+            className="px-5 py-5 text-slate-900 font-sans"
             id="receipt-print-area"
             style={{ ['--receipt-bg' as string]: '#fbfbf8', backgroundColor: '#fbfbf8' }}
           >
@@ -139,69 +139,67 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                   />
                 </svg>
               )}
-              <h1 className="text-[15px] font-heading font-extrabold tracking-tight text-slate-950 uppercase leading-tight">
+              <h1 className="text-[14px] font-heading font-extrabold tracking-normal text-slate-950 uppercase leading-snug">
                 {settings.company_name}
               </h1>
-              <p className="text-[11px] font-sans text-slate-600 mt-0.5">{settings.company_address}</p>
-              <p className="text-[11px] tabular-nums text-slate-600">Tel: {settings.company_phone}</p>
+              <p className="text-[10.5px] font-sans text-slate-600 mt-0.5 leading-tight">{settings.company_address}</p>
+              <p className="text-[10.5px] font-mono tabular-nums text-slate-600 leading-tight">Tel: {settings.company_phone}</p>
 
               {/* Format Badge Header */}
               {receiptFormat === 'commercial' ? (
-                <div className="mt-2.5 tracking-[0.3em] text-[11px] font-bold text-slate-800">
-                  * * OFFICIAL COMMERCIAL RECEIPT * *
+                <div className="mt-2.5 py-1 border-y border-dashed border-slate-300 tracking-wider text-[11px] font-mono font-bold text-slate-900 uppercase">
+                  * * OFFICIAL SALES RECEIPT * *
                 </div>
               ) : (
-                <div className="mt-2.5 space-y-0.5">
-                  <div className="tracking-[0.25em] text-[11px] font-bold text-slate-900 uppercase">
+                <div className="mt-2.5 space-y-1">
+                  <div className="py-1 border-y border-dashed border-slate-300 tracking-wide text-[11px] font-mono font-bold text-slate-950 uppercase">
                     * * DELIVERY WAYBILL & DISPATCH * *
                   </div>
-                  <div className="text-[10px] font-sans font-bold text-emerald-800 uppercase tracking-wider bg-emerald-100/80 py-0.5 px-2 rounded inline-block">
+                  <div className="text-[10px] font-sans font-bold text-emerald-800 uppercase tracking-wide bg-emerald-100/80 py-0.5 px-2 rounded inline-block">
                     CONTENTS MANIFEST · NO PRICE TAGS
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Metadata — a flush label:value list reads truer on 80mm paper than a
-                2-column grid, which squeezes longer values (a customer name, a
-                payment-method combo) into an awkward wrap. */}
-            <div className="text-[12px] border-b border-slate-200 pb-3 mb-3 space-y-1.5">
-              <div className="flex justify-between items-baseline gap-3">
-                <span className="text-slate-500 font-sans text-[11px] uppercase shrink-0">
+            {/* Metadata Section */}
+            <div className="text-[11px] border-b border-slate-200 pb-3 mb-3 space-y-1.5 font-mono">
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-slate-500 font-sans text-[10.5px] uppercase tracking-wider shrink-0">
                   {receiptFormat === 'commercial' ? 'Receipt No:' : 'Waybill Ref:'}
                 </span>
                 <span className="font-bold text-slate-900 tabular-nums text-right">{receipt.receiptNumber}</span>
               </div>
-              <div className="flex justify-between items-baseline gap-3">
-                <span className="text-slate-500 font-sans text-[11px] uppercase shrink-0">Date & Time:</span>
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-slate-500 font-sans text-[10.5px] uppercase tracking-wider shrink-0">Date & Time:</span>
                 <span className="font-bold text-slate-900 tabular-nums text-right">
                   {formatDepotDate(receipt.date)} {formatDepotTime(receipt.date)}
                 </span>
               </div>
-              <div className="flex justify-between items-baseline gap-3">
-                <span className="text-slate-500 font-sans text-[11px] uppercase shrink-0">Cashier:</span>
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-slate-500 font-sans text-[10.5px] uppercase tracking-wider shrink-0">Cashier:</span>
                 <span className="font-bold text-slate-900 text-right">{receipt.cashierName || 'Depot Cashier'}</span>
               </div>
-              <div className="flex justify-between items-baseline gap-3">
-                <span className="text-slate-500 font-sans text-[11px] uppercase shrink-0">
-                  {isOrder ? 'Customer / Consignee:' : 'Customer:'}
+              <div className="flex justify-between items-start gap-2">
+                <span className="text-slate-500 font-sans text-[10.5px] uppercase tracking-wider shrink-0 pt-0.5">
+                  {isOrder ? 'Customer:' : 'Consignee:'}
                 </span>
-                <span className="font-bold font-heading text-slate-900 text-right">
+                <span className="font-bold text-slate-950 text-right break-words leading-tight">
                   {receipt.customer.name}
-                  <span className="text-[10px] text-slate-500 font-sans uppercase font-normal"> ({receipt.customer.type})</span>
+                  <span className="text-[10px] text-slate-500 font-sans uppercase font-normal ml-1">({receipt.customer.type})</span>
                 </span>
               </div>
-              <div className="flex justify-between items-baseline gap-3">
-                <span className="text-slate-500 font-sans text-[11px] uppercase shrink-0">
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-slate-500 font-sans text-[10.5px] uppercase tracking-wider shrink-0">
                   {receiptFormat === 'commercial' ? 'Payment Method:' : 'Release Status:'}
                 </span>
-                <span className="font-bold uppercase text-slate-900 text-right font-sans text-[11px]">
+                <span className="font-bold uppercase text-slate-900 text-right text-[11px]">
                   {receiptFormat === 'commercial' ? receipt.paymentMethod : 'Verified & Released'}
                 </span>
               </div>
-              <div className="flex justify-between items-baseline gap-3">
-                <span className="text-slate-500 font-sans text-[11px] uppercase shrink-0">Transaction:</span>
-                <span className="font-bold uppercase text-emerald-700 text-right font-sans text-[11px]">Complete</span>
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-slate-500 font-sans text-[10.5px] uppercase tracking-wider shrink-0">Transaction:</span>
+                <span className="font-bold uppercase text-emerald-700 text-right text-[11px]">Complete</span>
               </div>
             </div>
 
@@ -523,42 +521,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                   </div>
                 )}
 
-                {/* Gate Pass & Dispatch Handover Sign-off Lines */}
-                <div className="space-y-3.5 text-[11px] font-sans border-b border-slate-200 pb-3.5 mb-3">
-                  <div className="text-[10px] uppercase font-bold tracking-wider text-slate-500">
-                    Release & Security Sign-Offs
-                  </div>
-
-                  {/* Dispatcher Line */}
-                  <div className="flex justify-between items-end gap-2">
-                    <span className="text-slate-600 shrink-0">Dispensed By:</span>
-                    <span className="font-bold text-slate-900 border-b border-dotted border-slate-400 flex-1 pb-0.5 text-right">
-                      {receipt.cashierName || 'Depot Storekeeper'}
-                    </span>
-                  </div>
-
-                  {/* Driver / Receiver Line */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-end gap-2">
-                      <span className="text-slate-600 shrink-0">Driver / Receiver:</span>
-                      <span className="border-b border-slate-400 flex-1 h-4"></span>
-                    </div>
-                    <div className="flex justify-between items-end gap-2 pt-1">
-                      <span className="text-slate-500 text-[10px] shrink-0">Signature & Date:</span>
-                      <span className="border-b border-slate-400 flex-1 h-4"></span>
-                    </div>
-                  </div>
-
-                  {/* Gate Security Check */}
-                  <div className="bg-slate-50 border border-slate-300 rounded p-2 text-center">
-                    <span className="text-[10px] uppercase font-bold text-slate-700 tracking-wider block">
-                      Depot Gate Security Clearance
-                    </span>
-                    <span className="text-[11px] font-mono font-bold text-emerald-700">
-                      [ VERIFIED & PERMITTED FOR EXIT ]
-                    </span>
-                  </div>
-                </div>
 
                 {/* Footer Sign-off (Non-Priced) */}
                 <div className="text-center text-[11px] font-sans text-slate-500 pt-1 space-y-1 border-t-2 border-dashed border-slate-300 mt-1">

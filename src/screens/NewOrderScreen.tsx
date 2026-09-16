@@ -9,7 +9,7 @@ import {
   fromDatetimeLocalValue
 } from '../services/businessLogic';
 import { priceSaleLine } from '../services/pricing';
-import { PACK_SIZES, packLabel, packShort, getPaymentModeTheme } from '../constants/config';
+import { PACK_SIZES, packLabel, packShort, getPaymentModeTheme, ONE_TIME_CUSTOMER_ID } from '../constants/config';
 import { ContainerMode, CustomerType, PaymentMethod, ReceiptData } from '../types';
 import { Modal } from '../components/common/Modal';
 import {
@@ -29,7 +29,8 @@ import {
   UserCheck,
   ArrowsCounterClockwise,
   Calculator,
-  Pencil
+  Pencil,
+  ShoppingCart
 } from '@phosphor-icons/react';
 import { MiniNumberPad } from '../components/common/MiniNumberPad';
 
@@ -43,12 +44,11 @@ const StepBadge: React.FC<{ n: number; label: string }> = ({ n, label }) => (
   </div>
 );
 
-const TIERS: CustomerType[] = ['retail', 'agent', 'corporate'];
 const PAYMENT_METHODS: { id: PaymentMethod; label: string }[] = [
   { id: 'cash', label: 'Cash' },
   { id: 'transfer', label: 'Transfer' },
   { id: 'pos', label: 'Card / POS' },
-  { id: 'credit', label: 'Credit' }
+  { id: 'credit', label: 'Debit' }
 ];
 
 interface DraftLine {
@@ -88,7 +88,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     orders,
     setActiveReceipt,
     currentUser,
-    settings
+    settings,
+    addCustomer
   } = useStore();
   const { can } = usePermissions();
 
@@ -96,15 +97,48 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   const [showPreviousTransactions, setShowPreviousTransactions] = useState(false);
   const [txnSearch, setTxnSearch] = useState('');
 
-  // ---- customer + tier ----
+  // ---- customer ----
   const [customerId, setCustomerId] = useState<string>(customers[0]?.id || '');
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerOpen, setCustomerOpen] = useState(false);
-  const [tierOverride, setTierOverride] = useState<CustomerType | null>(null);
 
+  // New Customer Modal state
+  const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
+  const [newCustName, setNewCustName] = useState('');
+  const [newCustPhone, setNewCustPhone] = useState('+234');
+  const [newCustType, setNewCustType] = useState<CustomerType>('agent');
+  const [newCustLimit, setNewCustLimit] = useState('150000');
+  const [newCustTerms, setNewCustTerms] = useState('14');
+  const [addCustomerError, setAddCustomerError] = useState<string | null>(null);
+
+  const isOneTime = customerId === ONE_TIME_CUSTOMER_ID;
   const customer = customers.find(c => c.id === customerId) || null;
   const customerStats = customer ? customerStatsMap[customer.id] : null;
-  const tier: CustomerType = tierOverride || customer?.type || 'retail';
+  const tier: CustomerType = customer?.type || 'retail';
+
+  const handleCreateCustomer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCustName.trim()) {
+      setAddCustomerError('Please enter a customer name.');
+      return;
+    }
+    const limit = Math.round(Number(newCustLimit.replace(/[^0-9]/g, ''))) || 0;
+    const terms = Math.round(Number(newCustTerms.replace(/[^0-9]/g, ''))) || 14;
+    const created = addCustomer({
+      name: newCustName.trim(),
+      type: newCustType,
+      credit_limit: limit,
+      credit_term_days: terms,
+      phone: newCustPhone.trim()
+    });
+    setCustomerId(created.id);
+    setIsAddCustomerOpen(false);
+    setCustomerOpen(false);
+    setCustomerSearch('');
+    setNewCustName('');
+    setNewCustPhone('+234');
+    setNewCustLimit('150000');
+  };
 
   // ---- item builder ----
   const [productId, setProductId] = useState<string>(products[0]?.id || '');
@@ -258,16 +292,19 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   const completeSale = () => {
     setError(null);
     if (!customer) return setError('Select a customer.');
+    if (isOneTime && paymentMethod === 'credit') {
+      return setError('One-time supermarket customers cannot buy on debit. Settle with cash, transfer, or POS.');
+    }
     if (lines.length === 0) return setError('Add at least one item.');
     if (shortTender) return setError('Cash tendered is less than the total.');
-    if (overLimitBlocked) return setError('This sale puts the customer over their credit limit — owner approval required.');
+    if (overLimitBlocked) return setError('This sale puts the customer over their debit limit — owner approval required.');
 
     const result = createSale({
       customerId: customer.id,
       paymentMethod,
       amountTendered: paymentMethod === 'cash' && tenderedNum > 0 ? tenderedNum : null,
       note: note.trim() || undefined,
-      pricingTier: tierOverride || undefined,
+      pricingTier: customer?.type || 'retail',
       date: showBackdate ? fromDatetimeLocalValue(saleDateInput) : undefined,
       lines: lines.map(l => ({
         productId: l.productId,
@@ -287,7 +324,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     setLines([]);
     setAmountTendered('');
     setNote('');
-    setTierOverride(null);
     setShowBackdate(false);
     setSaleDateInput(toDatetimeLocalValue());
   };
@@ -446,10 +482,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   <input
                     type="number"
                     min="0"
-                    step="500"
+                    step="1"
                     required
                     value={gateOpeningFloat}
-                    onChange={e => setGateOpeningFloat(e.target.value)}
+                    onChange={e => setGateOpeningFloat(e.target.value.replace(/[^0-9]/g, ''))}
                     placeholder="e.g. 50000"
                     className="w-full pl-9 pr-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
                   />
@@ -490,9 +526,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     <div className="relative">
                       <input
                         type="number"
+                        min="0"
+                        step="1"
                         required
                         value={gateInputs[p.id] ?? ''}
-                        onChange={e => setGateInputs(prev => ({ ...prev, [p.id]: e.target.value }))}
+                        onChange={e => setGateInputs(prev => ({ ...prev, [p.id]: e.target.value.replace(/[^0-9]/g, '') }))}
                         placeholder={`Min ${p.last_meter_reading} L`}
                         className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
                       />
@@ -664,9 +702,15 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
               <section className="depot-card p-4 space-y-3">
                 <StepBadge n={1} label="Customer" />
                 <div className="relative">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
-                    value={customerOpen ? customerSearch : customer.name}
+                    value={
+                      customerOpen
+                        ? customerSearch
+                        : isOneTime
+                        ? 'One-time Customer (Walk-in / Supermarket)'
+                        : customer?.name || ''
+                    }
                     onChange={e => {
                       setCustomerSearch(e.target.value);
                       setCustomerOpen(true);
@@ -675,63 +719,155 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       setCustomerOpen(true);
                       setCustomerSearch('');
                     }}
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm font-sans font-semibold focus:outline-none focus:border-brand-500"
+                    placeholder="Search debtor or choose Walk-in..."
+                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-base font-sans font-bold focus:outline-none focus:border-brand-500 shadow-2xs"
                   />
                   {customerOpen && (
-                    <div className="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-lg">
-                      {filteredCustomers.map(c => (
+                    <>
+                      <div
+                        className="fixed inset-0 z-10"
+                        onClick={() => setCustomerOpen(false)}
+                      />
+                      <div className="absolute z-20 mt-1.5 w-full max-h-72 overflow-y-auto rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl divide-y divide-slate-100 dark:divide-slate-800">
+                        {/* 1. One-time customer (First item in dropdown) */}
                         <button
-                          key={c.id}
+                          type="button"
                           onClick={() => {
-                            setCustomerId(c.id);
-                            setTierOverride(null);
+                            setCustomerId(ONE_TIME_CUSTOMER_ID);
                             setCustomerOpen(false);
+                            setCustomerSearch('');
                           }}
-                          className="w-full text-left px-3.5 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between"
+                          className={`w-full text-left px-4 py-3 hover:bg-emerald-50/80 dark:hover:bg-emerald-950/40 flex items-center justify-between transition-colors ${
+                            isOneTime ? 'bg-emerald-50 dark:bg-emerald-950/30 font-bold' : ''
+                          }`}
                         >
-                          <span className="font-sans font-semibold text-slate-800 dark:text-slate-200">{c.name}</span>
-                          <span className="text-xs capitalize text-slate-400">{c.type}</span>
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                              <ShoppingCart className="w-4 h-4" weight="bold" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-sans font-bold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                                <span>One-time Customer</span>
+                                <span className="text-[10px] font-mono font-bold uppercase px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                                  Walk-in
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 font-sans truncate">
+                                Supermarket cash & carry · No customer account needed
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-mono font-bold text-slate-400 shrink-0 uppercase">
+                            RETAIL
+                          </span>
                         </button>
-                      ))}
-                      {filteredCustomers.length === 0 && (
-                        <div className="px-3.5 py-3 text-xs text-slate-400">No match</div>
-                      )}
-                    </div>
+
+                        {/* 2. Add Customer Box (Second item in dropdown) */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAddCustomerOpen(true);
+                            setCustomerOpen(false);
+                            setNewCustName(customerSearch.trim());
+                            setAddCustomerError(null);
+                          }}
+                          className="w-full text-left px-4 py-3 bg-brand-50 hover:bg-brand-100/80 dark:bg-brand-950/40 dark:hover:bg-brand-900/50 flex items-center justify-between transition-colors group"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-brand-500 text-slate-950 flex items-center justify-center font-bold shrink-0 shadow-xs">
+                              <Plus className="w-4 h-4" weight="bold" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-sans font-bold text-xs text-brand-800 dark:text-brand-300 flex items-center gap-1.5">
+                                <span>Add Customer</span>
+                                {customerSearch.trim() && (
+                                  <span className="text-[11px] font-normal text-slate-500 truncate max-w-[140px]">
+                                    "{customerSearch.trim()}"
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans truncate">
+                                Register new customer account & debit limit
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-mono font-bold uppercase text-brand-700 dark:text-brand-400 group-hover:underline">
+                            + New
+                          </span>
+                        </button>
+
+                        {/* 3+. Registered customer list */}
+                        {filteredCustomers
+                          .filter(c => c.id !== ONE_TIME_CUSTOMER_ID)
+                          .map(c => (
+                            <button
+                              key={c.id}
+                              onClick={() => {
+                                setCustomerId(c.id);
+                                setCustomerOpen(false);
+                                setCustomerSearch('');
+                              }}
+                              className={`w-full text-left px-4 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between transition-colors ${
+                                c.id === customerId ? 'bg-slate-100/80 dark:bg-slate-800/60 font-semibold' : ''
+                              }`}
+                            >
+                              <div className="min-w-0">
+                                <span className="font-sans font-semibold text-slate-800 dark:text-slate-200 block truncate">
+                                  {c.name}
+                                </span>
+                                {c.phone && c.phone !== '—' && (
+                                  <span className="text-[10px] font-mono text-slate-400">{c.phone}</span>
+                                )}
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="text-[10px] font-mono uppercase font-bold text-slate-400 block">
+                                  {c.type}
+                                </span>
+                                {(customerStatsMap[c.id]?.currentBalance || 0) > 0 && (
+                                  <span className="text-[10px] font-mono font-bold text-rose-600 dark:text-rose-400">
+                                    {formatNaira(customerStatsMap[c.id]?.currentBalance || 0)}
+                                  </span>
+                                )}
+                              </div>
+                            </button>
+                          ))}
+
+                        {filteredCustomers.filter(c => c.id !== ONE_TIME_CUSTOMER_ID).length === 0 && customerSearch && (
+                          <div className="px-4 py-3 text-xs text-slate-400 text-center font-sans">
+                            No matching accounts. Click "+ Add Customer" above to create!
+                          </div>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="text-slate-500">Balance</span>
-                  <span
-                    className={`font-mono font-bold ${
-                      (customerStats?.currentBalance || 0) > 0
-                        ? 'text-rose-600 dark:text-rose-400'
-                        : 'text-emerald-600 dark:text-emerald-400'
-                    }`}
-                  >
-                    {formatNaira(customerStats?.currentBalance || 0)}
-                  </span>
-                  <span className="text-slate-300 dark:text-slate-700">·</span>
-                  <span className="text-slate-500">Limit {formatNaira(customer.credit_limit)}</span>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-slate-500 mr-1">Price tier</span>
-                  {TIERS.map(t => (
-                    <button
-                      key={t}
-                      onClick={() => setTierOverride(t === customer.type ? null : t)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-sans font-bold uppercase border transition-colors ${
-                        tier === t
-                          ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
-                          : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800'
+                {/* Account Status / Balance */}
+                {isOneTime ? (
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      Supermarket Walk-in Sale
+                    </span>
+                    <span className="text-slate-300 dark:text-slate-700">·</span>
+                    <span className="text-slate-500 font-medium">Immediate Settlement (No Debit)</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="text-slate-500">Balance</span>
+                    <span
+                      className={`font-mono font-bold ${
+                        (customerStats?.currentBalance || 0) > 0
+                          ? 'text-rose-600 dark:text-rose-400'
+                          : 'text-emerald-600 dark:text-emerald-400'
                       }`}
                     >
-                      {t}
-                    </button>
-                  ))}
-                  {tierOverride && <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold">overridden</span>}
-                </div>
+                      {formatNaira(customerStats?.currentBalance || 0)}
+                    </span>
+                    <span className="text-slate-300 dark:text-slate-700">·</span>
+                    <span className="text-slate-500">Limit {formatNaira(customer?.credit_limit || 0)}</span>
+                  </div>
+                )}
               </section>
 
               {/* Card 2: Item builder */}
@@ -824,25 +960,26 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           <button
                             type="button"
                             onClick={() => setQty(q => Math.max(1, q - 1))}
-                            className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                            className="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                           >
                             <Minus className="w-4 h-4" />
                           </button>
                           <input
                             type="number"
-                            min={1}
+                            min={0}
+                            step={1}
                             value={qty}
                             onFocus={() => {
                               setShowNumpad(true);
                               setNumpadTarget('qty');
                             }}
                             onChange={e => setQty(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
-                            className="w-16 text-center py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-sm focus:border-brand-500"
+                            className="w-20 text-center py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-black text-base focus:border-brand-500"
                           />
                           <button
                             type="button"
                             onClick={() => setQty(q => q + 1)}
-                            className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                            className="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                           >
                             <Plus className="w-4 h-4" />
                           </button>
@@ -919,13 +1056,14 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       <div className="flex items-center gap-3">
                         <span className="text-xs text-slate-500 w-16">Unit Price</span>
                         <div className="flex items-center gap-2">
-                          <div className="relative w-36">
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono font-bold text-xs">
+                          <div className="relative w-44">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono font-bold text-sm">
                               ₦
                             </span>
                             <input
                               type="number"
                               min={0}
+                              step={1}
                               value={overrideOn ? overrideValue : (preview.matrixUnitPrice != null ? preview.matrixUnitPrice : preview.unitPrice)}
                               onFocus={() => {
                                 setShowNumpad(true);
@@ -940,7 +1078,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                 setOverrideValue(e.target.value);
                               }}
                               placeholder="0"
-                              className="w-full pl-6 pr-2 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-sm text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                              className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-black text-base text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
                             />
                           </div>
                           <span className="text-xs text-slate-400 font-sans">/ {packShort(packSizeId)}</span>
@@ -1165,8 +1303,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       </span>
                       <input
                         type="number"
+                        min="0"
+                        step="1"
                         value={amountTendered}
-                        onChange={e => setAmountTendered(e.target.value)}
+                        onChange={e => setAmountTendered(e.target.value.replace(/[^0-9]/g, ''))}
                         placeholder="Cash tendered"
                         className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-sm"
                       />
@@ -1204,8 +1344,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         }
                       >
                         {overLimitBlocked
-                          ? 'Over credit limit — owner approval required.'
-                          : 'Over credit limit (owner override).'}
+                          ? 'Over debit limit — owner approval required.'
+                          : 'Over debit limit (owner override).'}
                       </div>
                     )}
                   </div>
@@ -1222,9 +1362,15 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   <button
                     type="button"
                     onClick={() => setShowBackdate(v => !v)}
-                    className="text-xs font-sans font-semibold text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
+                    aria-pressed={showBackdate}
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-sans font-bold transition-all active:scale-95 ${
+                      showBackdate
+                        ? 'bg-brand-50 dark:bg-brand-950/40 border-brand-300 dark:border-brand-800 text-brand-700 dark:text-brand-400'
+                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                    }`}
                   >
-                    {showBackdate ? 'Using a specific date & time' : 'Not now? Backdate this sale'}
+                    <ClockCounterClockwise className="w-3.5 h-3.5" weight="bold" />
+                    <span>{showBackdate ? 'Using a specific date & time' : 'Backdate this sale'}</span>
                   </button>
                   {showBackdate && (
                     <input
@@ -1255,6 +1401,110 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
           </div>
         </div>
       )}
+
+      {/* ADD CUSTOMER MODAL */}
+      <Modal
+        isOpen={isAddCustomerOpen}
+        onClose={() => setIsAddCustomerOpen(false)}
+        title="Add New Customer Account"
+      >
+        <form onSubmit={handleCreateCustomer} className="space-y-4">
+          <div>
+            <label className="block text-xs font-sans font-bold uppercase text-slate-500 mb-1">
+              Customer / Business Name *
+            </label>
+            <input
+              type="text"
+              required
+              value={newCustName}
+              onChange={e => setNewCustName(e.target.value)}
+              placeholder="e.g. Alh. Babatunde Trading Ltd"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm font-sans font-semibold focus:outline-none focus:border-brand-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-sans font-bold uppercase text-slate-500 mb-1">
+                Phone Number
+              </label>
+              <input
+                type="tel"
+                value={newCustPhone}
+                onChange={e => setNewCustPhone(e.target.value)}
+                placeholder="+23480..."
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono focus:outline-none focus:border-brand-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-sans font-bold uppercase text-slate-500 mb-1">
+                Customer Category
+              </label>
+              <select
+                value={newCustType}
+                onChange={e => setNewCustType(e.target.value as CustomerType)}
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-sans focus:outline-none focus:border-brand-500"
+              >
+                <option value="retail">Retail</option>
+                <option value="agent">Agent / Wholesaler</option>
+                <option value="corporate">Corporate</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-sans font-bold uppercase text-slate-500 mb-1">
+                Debit Limit (₦)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={newCustLimit}
+                onChange={e => setNewCustLimit(e.target.value.replace(/[^0-9]/g, ''))}
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold focus:outline-none focus:border-brand-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-sans font-bold uppercase text-slate-500 mb-1">
+                Credit Terms (Days)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={newCustTerms}
+                onChange={e => setNewCustTerms(e.target.value.replace(/[^0-9]/g, ''))}
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold focus:outline-none focus:border-brand-500"
+              />
+            </div>
+          </div>
+
+          {addCustomerError && (
+            <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-600 dark:text-rose-400">
+              {addCustomerError}
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsAddCustomerOpen(false)}
+              className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-sans font-semibold text-xs"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-xs shadow-sm flex items-center justify-center gap-1.5"
+            >
+              <Check className="w-4 h-4" weight="bold" />
+              <span>Save & Select</span>
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

@@ -34,6 +34,8 @@ import {
   DEFAULT_PRODUCTS,
   DEFAULT_PACK_PRICES,
   DEFAULT_CUSTOMERS,
+  ONE_TIME_CUSTOMER_ID,
+  ONE_TIME_CUSTOMER,
   DEFAULT_SETTINGS,
   DEFAULT_PUMPS,
   DEFAULT_SUPPLIERS,
@@ -398,7 +400,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [packPrices, setPackPrices] = useState<PackPrice[]>(() => loadPersisted(STORAGE_KEYS.PACK_PRICES, DEFAULT_PACK_PRICES));
 
-  const [customers, setCustomers] = useState<Customer[]>(() => loadPersisted(STORAGE_KEYS.CUSTOMERS, DEFAULT_CUSTOMERS));
+  const [customers, setCustomers] = useState<Customer[]>(() => {
+    const loaded = loadPersisted(STORAGE_KEYS.CUSTOMERS, DEFAULT_CUSTOMERS);
+    if (!loaded.some(c => c.id === ONE_TIME_CUSTOMER_ID)) {
+      return [ONE_TIME_CUSTOMER, ...loaded];
+    }
+    return loaded;
+  });
 
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => loadPersisted(STORAGE_KEYS.SUPPLIERS, DEFAULT_SUPPLIERS));
 
@@ -1007,8 +1015,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       priceAdjustReason?: string;
     }[];
   }) => {
-    const customer = customers.find(c => c.id === data.customerId);
+    const customer = customers.find(c => c.id === data.customerId) || (data.customerId === ONE_TIME_CUSTOMER_ID ? ONE_TIME_CUSTOMER : null);
     if (!customer) return { success: false, error: 'Customer not found' };
+    if (customer.id === ONE_TIME_CUSTOMER_ID && data.paymentMethod === 'credit') {
+      return { success: false, error: 'One-time walk-in customers cannot buy on debit. Settle with cash, transfer, or POS.' };
+    }
     if (!data.lines || data.lines.length === 0) {
       return { success: false, error: 'A sale needs at least one line' };
     }

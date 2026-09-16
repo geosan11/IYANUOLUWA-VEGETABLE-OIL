@@ -342,8 +342,17 @@ supabase db push                      # for a linked remote project
 # Or straight psql (set SUPABASE_DB_URL — see .env.example)
 psql "$SUPABASE_DB_URL" -f supabase/migrations/0001_init.sql
 psql "$SUPABASE_DB_URL" -f supabase/migrations/0002_auth_rls.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0003_multi_hub.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0004_multi_hub_hubs.sql
 psql "$SUPABASE_DB_URL" -f supabase/seed.sql
 ```
+
+Run `0003` and `0004` as two separate statements/files, in that order — `0003`
+only adds `'hub_manager'` to the `user_role` enum, because PostgreSQL refuses
+to let a migration *use* a new enum value in the same transaction that added
+it. `0004` (hubs table, hub-scoped RLS, hub seed data) depends on `0003`
+having already committed. This also matters when pasting into the Supabase
+SQL Editor: paste and run `0003` by itself first, then `0004`.
 
 `0002` references the `auth.users` table and the `auth.uid()` function, so it
 only runs on a real Supabase database (local `supabase start` or hosted), not a

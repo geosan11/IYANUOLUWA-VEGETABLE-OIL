@@ -12,8 +12,6 @@ import {
 
 const STORAGE_KEYS = {
   CACHED_REPORT: 'iyanuoluwa_ai_last_report',
-  PROVIDER_PREF: 'iyanuoluwa_ai_provider_pref',
-  GEMINI_MODEL_PREF: 'iyanuoluwa_ai_gemini_model',
   CLAUDE_MODEL_PREF: 'iyanuoluwa_ai_claude_model'
 };
 
@@ -52,31 +50,24 @@ export function saveCachedReport(report: AIAnalysisReport): void {
 
 export function getProviderPreference(): {
   provider: AIProviderType;
-  geminiModel: string;
   claudeModel: string;
 } {
   try {
-    const provider = (localStorage.getItem(STORAGE_KEYS.PROVIDER_PREF) as AIProviderType) || 'gemini';
-    const geminiModel = localStorage.getItem(STORAGE_KEYS.GEMINI_MODEL_PREF) || 'gemini-1.5-flash';
     const claudeModel = localStorage.getItem(STORAGE_KEYS.CLAUDE_MODEL_PREF) || 'claude-3-5-sonnet-20241022';
-    return { provider, geminiModel, claudeModel };
+    return { provider: 'claude', claudeModel };
   } catch {
     return {
-      provider: 'gemini',
-      geminiModel: 'gemini-1.5-flash',
+      provider: 'claude',
       claudeModel: 'claude-3-5-sonnet-20241022'
     };
   }
 }
 
 export function saveProviderPreference(
-  provider: AIProviderType,
-  geminiModel?: string,
+  _provider?: AIProviderType,
   claudeModel?: string
 ): void {
   try {
-    localStorage.setItem(STORAGE_KEYS.PROVIDER_PREF, provider);
-    if (geminiModel) localStorage.setItem(STORAGE_KEYS.GEMINI_MODEL_PREF, geminiModel);
     if (claudeModel) localStorage.setItem(STORAGE_KEYS.CLAUDE_MODEL_PREF, claudeModel);
   } catch (err) {
     console.warn('Could not save provider preferences:', err);
@@ -86,22 +77,17 @@ export function saveProviderPreference(
 export async function requestOperationsAudit(
   snapshot: SystemSnapshot,
   options?: {
-    provider?: AIProviderType;
-    geminiModel?: string;
     claudeModel?: string;
     userRole?: string;
   }
 ): Promise<AIAnalysisReport> {
   const prefs = getProviderPreference();
-  const provider = options?.provider || prefs.provider;
-  const geminiModel = options?.geminiModel || prefs.geminiModel;
   const claudeModel = options?.claudeModel || prefs.claudeModel;
   const userRole = options?.userRole || 'owner';
 
   const payload: AIRequestPayload = {
     action: 'audit',
-    provider,
-    geminiModel,
+    provider: 'claude',
     claudeModel,
     snapshot
   };
@@ -129,7 +115,7 @@ export async function requestOperationsAudit(
   }
 
   // Fallback to deterministic audit engine
-  const fallbackReport = runDeterministicOperationsAudit(snapshot, provider);
+  const fallbackReport = runDeterministicOperationsAudit(snapshot, 'claude');
   saveCachedReport(fallbackReport);
   return fallbackReport;
 }
@@ -138,22 +124,17 @@ export async function askOperationsQuestion(
   question: string,
   snapshot: SystemSnapshot,
   options?: {
-    provider?: AIProviderType;
-    geminiModel?: string;
     claudeModel?: string;
     userRole?: string;
   }
 ): Promise<string> {
   const prefs = getProviderPreference();
-  const provider = options?.provider || prefs.provider;
-  const geminiModel = options?.geminiModel || prefs.geminiModel;
   const claudeModel = options?.claudeModel || prefs.claudeModel;
   const userRole = options?.userRole || 'owner';
 
   const payload: AIRequestPayload = {
     action: 'chat',
-    provider,
-    geminiModel,
+    provider: 'claude',
     claudeModel,
     snapshot,
     chatMessage: question

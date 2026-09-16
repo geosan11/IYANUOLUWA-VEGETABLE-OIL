@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../services/store';
-import { PlusCircle, Drop, Package, List, Sun, Moon, CaretDown, Buildings, Check } from '@phosphor-icons/react';
+import { useAuth } from '../../services/auth';
+import { isSupabaseConfigured } from '../../services/supabase';
+import { PlusCircle, Drop, Package, List, Sun, Moon, CaretDown, Buildings, Check, Bell, Warning, SignOut, Envelope } from '@phosphor-icons/react';
 import { NAV_ITEMS } from '../../constants/nav';
 
 interface TopHeaderProps {
@@ -31,12 +33,15 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     setCurrentUser,
     activeHubId,
     setActiveHubId,
-    activeHub
+    activeHub,
+    activeAlerts
   } = useStore();
+  const { user, signOut } = useAuth();
   const [currentDateTime, setCurrentDateTime] = useState('');
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [hubMenuOpen, setHubMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [alertMenuOpen, setAlertMenuOpen] = useState(false);
 
   useEffect(() => {
     const updateTime = () => {
@@ -323,40 +328,70 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             <>
               <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} aria-hidden="true" />
               <div className="absolute right-0 top-full mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 animate-in fade-in zoom-in-95">
-                <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 mb-1">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Switch User Account</p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Test role & hub permissions across depots</p>
-                </div>
+                {isSupabaseConfigured ? (
+                  <>
+                    <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 mb-1">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Signed in</p>
+                      <p className="text-xs font-bold text-slate-900 dark:text-white mt-0.5 truncate">
+                        {currentUser.full_name}
+                      </p>
+                      {user?.email && (
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1 truncate">
+                          <Envelope className="w-3 h-3 shrink-0" />
+                          <span className="truncate">{user.email}</span>
+                        </p>
+                      )}
+                      <span className="inline-block mt-1.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-400">
+                        {currentUser.role.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setUserMenuOpen(false); signOut(); }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                    >
+                      <SignOut className="w-4 h-4" weight="bold" />
+                      <span>Sign out</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 mb-1">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Switch User Account</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Test role & hub permissions across depots</p>
+                    </div>
 
-                <div className="space-y-1">
-                  {users.map(u => {
-                    const isCurrent = currentUser.id === u.id;
-                    const assignedHub = hubs.find(h => h.id === u.hub_id);
-                    return (
-                      <button
-                        key={u.id}
-                        type="button"
-                        onClick={() => { setCurrentUser(u); setUserMenuOpen(false); }}
-                        className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
-                          isCurrent
-                            ? 'bg-brand-500 text-slate-950 shadow-sm'
-                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        <div className="min-w-0 pr-2">
-                          <div className="flex items-center gap-1.5">
-                            <span className="truncate">{u.full_name}</span>
-                          </div>
-                          <div className={`text-[10px] font-normal truncate ${isCurrent ? 'text-slate-900' : 'text-slate-400'}`}>
-                            <span className="font-semibold uppercase text-[9px] mr-1">{u.role.replace('_', ' ')}</span>
-                            {assignedHub ? `· 📍 ${assignedHub.name} (${assignedHub.state})` : '· 🌐 All Hubs'}
-                          </div>
-                        </div>
-                        {isCurrent && <Check className="w-4 h-4 font-bold flex-shrink-0" weight="bold" />}
-                      </button>
-                    );
-                  })}
-                </div>
+                    <div className="space-y-1">
+                      {users.map(u => {
+                        const isCurrent = currentUser.id === u.id;
+                        const assignedHub = hubs.find(h => h.id === u.hub_id);
+                        return (
+                          <button
+                            key={u.id}
+                            type="button"
+                            onClick={() => { setCurrentUser(u); setUserMenuOpen(false); }}
+                            className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
+                              isCurrent
+                                ? 'bg-brand-500 text-slate-950 shadow-sm'
+                                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                            }`}
+                          >
+                            <div className="min-w-0 pr-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="truncate">{u.full_name}</span>
+                              </div>
+                              <div className={`text-[10px] font-normal truncate ${isCurrent ? 'text-slate-900' : 'text-slate-400'}`}>
+                                <span className="font-semibold uppercase text-[9px] mr-1">{u.role.replace('_', ' ')}</span>
+                                {assignedHub ? `· 📍 ${assignedHub.name} (${assignedHub.state})` : '· 🌐 All Hubs'}
+                              </div>
+                            </div>
+                            {isCurrent && <Check className="w-4 h-4 font-bold flex-shrink-0" weight="bold" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
             </>
           )}
@@ -365,6 +400,139 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         {/* Live Date / Time Clock (Wide Desktop only) */}
         <div className="hidden 2xl:block text-right whitespace-nowrap flex-shrink-0">
           <div className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400">{currentDateTime}</div>
+        </div>
+
+        {/* Alert Icon Dropdown Button */}
+        <div className="relative flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => setAlertMenuOpen(o => !o)}
+            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all relative ${
+              activeAlerts.totalAlertCount > 0
+                ? 'bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 dark:text-rose-400 border border-rose-300 dark:border-rose-800 shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+            }`}
+            title={activeAlerts.totalAlertCount > 0 ? `${activeAlerts.totalAlertCount} Depot Alerts` : 'No Active Alerts'}
+            aria-label="Depot Alerts"
+          >
+            <Bell className="w-4 h-4" weight={activeAlerts.totalAlertCount > 0 ? 'fill' : 'bold'} />
+            {activeAlerts.totalAlertCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-600 text-white rounded-full text-[10px] font-mono font-bold flex items-center justify-center shadow-sm animate-pulse">
+                {activeAlerts.totalAlertCount}
+              </span>
+            )}
+          </button>
+
+          {alertMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setAlertMenuOpen(false)} aria-hidden="true" />
+              <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-3 z-50 animate-in fade-in zoom-in-95">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <span className="text-xs font-heading font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <Warning className="w-4 h-4 text-amber-500" weight="bold" />
+                    Depot Alerts
+                  </span>
+                  <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                    {activeAlerts.totalAlertCount} Active
+                  </span>
+                </div>
+
+                <div className="py-2 space-y-2 max-h-72 overflow-y-auto pr-1">
+                  {activeAlerts.totalAlertCount === 0 ? (
+                    <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400 flex flex-col items-center gap-1">
+                      <Check className="w-6 h-6 text-emerald-500" weight="bold" />
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">All Operations Normal</span>
+                      <span className="text-[11px]">No overdue debits, pump variances, or shortfalls.</span>
+                    </div>
+                  ) : (
+                    <>
+                      {activeAlerts.overdueCredit.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => { onTabChange('customers'); setAlertMenuOpen(false); }}
+                          className="w-full text-left p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-950/60 transition-colors flex items-center justify-between text-xs"
+                        >
+                          <div>
+                            <div className="font-bold text-rose-800 dark:text-rose-300">
+                              {activeAlerts.overdueCredit.length} Overdue Debit Account(s)
+                            </div>
+                            <div className="text-[11px] text-rose-600 dark:text-rose-400 font-mono">
+                              Exceeded debit terms
+                            </div>
+                          </div>
+                          <CaretDown className="w-3.5 h-3.5 text-rose-600 -rotate-90 flex-shrink-0" />
+                        </button>
+                      )}
+
+                      {activeAlerts.overLimit.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => { onTabChange('customers'); setAlertMenuOpen(false); }}
+                          className="w-full text-left p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 hover:bg-amber-100 dark:hover:bg-amber-950/60 transition-colors flex items-center justify-between text-xs"
+                        >
+                          <div>
+                            <div className="font-bold text-amber-800 dark:text-amber-300">
+                              {activeAlerts.overLimit.length} Debit Cap Breach(es)
+                            </div>
+                            <div className="text-[11px] text-amber-600 dark:text-amber-400 font-mono">
+                              Balances exceeding limit
+                            </div>
+                          </div>
+                          <CaretDown className="w-3.5 h-3.5 text-amber-600 -rotate-90 flex-shrink-0" />
+                        </button>
+                      )}
+
+                      {activeAlerts.deliveryShortfall.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => { onTabChange('intake'); setAlertMenuOpen(false); }}
+                          className="w-full text-left p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-950/60 transition-colors flex items-center justify-between text-xs"
+                        >
+                          <div>
+                            <div className="font-bold text-rose-800 dark:text-rose-300">
+                              {activeAlerts.deliveryShortfall.length} Tank Intake Shortfall(s)
+                            </div>
+                            <div className="text-[11px] text-rose-600 dark:text-rose-400 font-mono">
+                              Supplier volume discrepancy
+                            </div>
+                          </div>
+                          <CaretDown className="w-3.5 h-3.5 text-rose-600 -rotate-90 flex-shrink-0" />
+                        </button>
+                      )}
+
+                      {activeAlerts.pumpVariance && activeAlerts.pumpVariance.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => { onTabChange('pumps'); setAlertMenuOpen(false); }}
+                          className="w-full text-left p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-950/60 transition-colors flex items-center justify-between text-xs"
+                        >
+                          <div>
+                            <div className="font-bold text-rose-800 dark:text-rose-300">
+                              {activeAlerts.pumpVariance.length} Pump Meter Variance(s)
+                            </div>
+                            <div className="text-[11px] text-rose-600 dark:text-rose-400 font-mono">
+                              Meter vs counter mismatch
+                            </div>
+                          </div>
+                          <CaretDown className="w-3.5 h-3.5 text-rose-600 -rotate-90 flex-shrink-0" />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => { onTabChange('dashboard'); setAlertMenuOpen(false); }}
+                    className="w-full py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold text-center transition-colors"
+                  >
+                    View Operations Dashboard →
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Theme Switcher Toggle Button */}

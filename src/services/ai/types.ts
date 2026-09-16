@@ -3,12 +3,12 @@
  * Scalable multi-provider interface supporting Gemini, Claude, or Dual Comparison ("Both")
  */
 
-export type AIProviderType = 'gemini' | 'claude' | 'both';
+export type AIProviderType = 'claude';
 
 export interface AIModelOption {
   id: string;
   name: string;
-  provider: 'gemini' | 'claude';
+  provider: 'claude';
   description: string;
   speed: 'Ultra Fast' | 'Fast' | 'Balanced';
   badge?: string;
@@ -16,27 +16,12 @@ export interface AIModelOption {
 
 export const AVAILABLE_MODELS: AIModelOption[] = [
   {
-    id: 'gemini-1.5-flash',
-    name: 'Gemini 1.5 Flash',
-    provider: 'gemini',
-    description: 'Google high-speed multimodal model with instant throughput for depot operations',
-    speed: 'Ultra Fast',
-    badge: 'Recommended'
-  },
-  {
-    id: 'gemini-1.5-pro',
-    name: 'Gemini 1.5 Pro',
-    provider: 'gemini',
-    description: 'Google advanced reasoning model for deep forensic accounting & logistics audits',
-    speed: 'Balanced'
-  },
-  {
     id: 'claude-3-5-sonnet-20241022',
     name: 'Claude 3.5 Sonnet',
     provider: 'claude',
     description: 'Anthropic flagship intelligence model with nuanced operational strategy',
     speed: 'Fast',
-    badge: 'Strategic'
+    badge: 'Recommended'
   },
   {
     id: 'claude-3-haiku-20240307',
@@ -188,11 +173,6 @@ export interface AIAnalysisReport {
   actionableDecisions: AIActionableDecision[];
   inventoryForecasts: AIInventoryForecast[];
   lossPreventionItems: AILossPreventionItem[];
-  comparison?: {
-    geminiInsights?: string;
-    claudeInsights?: string;
-    consensusAgreement: string;
-  };
 }
 
 export interface AIChatMessage {
@@ -206,7 +186,6 @@ export interface AIChatMessage {
 export interface AIRequestPayload {
   action: 'audit' | 'chat';
   provider: AIProviderType;
-  geminiModel?: string;
   claudeModel?: string;
   snapshot: SystemSnapshot;
   chatMessage?: string;

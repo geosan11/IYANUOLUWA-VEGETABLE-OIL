@@ -98,8 +98,8 @@ export const PAYMENT_MODE_THEME: Record<PaymentMethod, PaymentModeTheme> = {
     borderCls: 'border-purple-200 dark:border-purple-800/60'
   },
   credit: {
-    label: 'Credit',
-    badgeLabel: 'CREDIT',
+    label: 'Debit',
+    badgeLabel: 'DEBIT',
     dotCls: 'bg-amber-500',
     badgeCls: 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800/80',
     buttonActiveCls: 'bg-amber-600 text-white border-amber-600 shadow-md shadow-amber-500/25 ring-2 ring-amber-500/30',
@@ -463,7 +463,19 @@ export const SEED_PUMP_READINGS: PumpReading[] = [
   }
 ];
 
+export const ONE_TIME_CUSTOMER_ID = 'cust-walkin';
+export const ONE_TIME_CUSTOMER: Customer = {
+  id: ONE_TIME_CUSTOMER_ID,
+  name: 'One-time Customer',
+  type: 'retail',
+  credit_limit: 0,
+  credit_term_days: 0,
+  phone: '—',
+  hub_id: 'hub-los-alaba'
+};
+
 export const DEFAULT_CUSTOMERS: Customer[] = [
+  ONE_TIME_CUSTOMER,
   {
     id: 'cust-1',
     name: 'Mr Samson',

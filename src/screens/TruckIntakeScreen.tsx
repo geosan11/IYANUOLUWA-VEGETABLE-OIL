@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
-import { TruckTankIllustration } from '../components/common/TruckTankIllustration';
 import { BottomSheet } from '../components/common/BottomSheet';
 import { SlideOverDrawer } from '../components/common/SlideOverDrawer';
 import { useIsDesktopSplit } from '../hooks/useBreakpoint';
@@ -13,19 +12,23 @@ import {
   fromDatetimeLocalValue
 } from '../services/businessLogic';
 import {
-  CheckCircle as CheckCircle2,
-  Scales as Scale,
-  ArrowLineDown as ArrowDownToLine,
-  Info,
+  CheckCircle,
   Warning as AlertTriangle,
-  ClockCounterClockwise as History,
-  WarningCircle as AlertCircle,
-  CaretRight as ChevronRight,
-  ShoppingCart,
-  Buildings as Building2,
+  Scales,
+  ArrowLineDown,
+  Info,
+  WarningCircle,
+  CaretRight,
+  ArrowsClockwise,
+  Truck,
+  Drop,
   Warehouse,
-  FileText,
-  Truck
+  Receipt,
+  ArrowRight,
+  Sparkle,
+  GasPump,
+  ShieldCheck,
+  SlidersHorizontal
 } from '@phosphor-icons/react';
 
 export const TruckIntakeScreen: React.FC = () => {
@@ -36,7 +39,6 @@ export const TruckIntakeScreen: React.FC = () => {
     physicalTanks,
     kegInventory,
     settings,
-    pumps,
     orders,
     customers,
     logTruckIntake,
@@ -45,27 +47,28 @@ export const TruckIntakeScreen: React.FC = () => {
 
   const isDesktop = useIsDesktopSplit();
 
+  // Form State
   const [productId, setProductId] = useState<string>('veg');
   const [supplierId, setSupplierId] = useState<string>(() => suppliers[0]?.id || '');
-  const [physicalTankId, setPhysicalTankId] = useState<string>('');
-  const [truckLabel, setTruckLabel] = useState<string>('');
+  const [physicalTankId, setPhysicalTankId] = useState<string>(() => physicalTanks[0]?.id || '');
+  const [truckLabel, setTruckLabel] = useState<string>('KTU-882-XD');
   const [driverName, setDriverName] = useState<string>('');
   const [spaceNote, setSpaceNote] = useState<string>('');
   const [intakeDateInput, setIntakeDateInput] = useState<string>(() => toDatetimeLocalValue());
 
-  // Bulk truck state
-  const [tons, setTons] = useState<string>('');
-  const [actualKegs, setActualKegs] = useState<string>('');
-  const [leftoverLitres, setLeftoverLitres] = useState<string>('');
+  // Bulk truck state (zero decimals: integers)
+  const [tons, setTons] = useState<string>('10');
+  const [actualKegs, setActualKegs] = useState<string>('358');
+  const [leftoverLitres, setLeftoverLitres] = useState<string>('10');
 
   // Pre-kegged palm state
-  const [kegsReceived, setKegsReceived] = useState<string>('');
+  const [kegsReceived, setKegsReceived] = useState<string>('100');
 
-  const [newlyAddedTankId, setNewlyAddedTankId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  // Progressive Disclosure State for Tank Detail
+  // Progressive Disclosure State for Tank Detail Drawer
   const [selectedTankForDetail, setSelectedTankForDetail] = useState<string | null>(null);
 
   const selectedProduct = products.find(p => p.id === productId) || products[0];
@@ -74,10 +77,10 @@ export const TruckIntakeScreen: React.FC = () => {
   // Live calculation metrics for bulk truck
   const bulkMetrics = useMemo(() => {
     return calculateIntakeMetrics(
-      parseFloat(tons) || 0,
+      parseInt(tons, 10) || 0,
       selectedProduct.litres_per_ton || 1075,
-      parseFloat(actualKegs) || 0,
-      parseFloat(leftoverLitres) || 0,
+      parseInt(actualKegs, 10) || 0,
+      parseInt(leftoverLitres, 10) || 0,
       kegInventory.kegsAtDepot,
       selectedProduct.litres_per_keg,
       settings.truck_shortfall_threshold
@@ -87,12 +90,58 @@ export const TruckIntakeScreen: React.FC = () => {
   // Live calculation metrics for pre-kegged
   const preKeggedMetrics = useMemo(() => {
     return calculatePreKeggedIntakeMetrics(
-      parseFloat(kegsReceived) || 0,
+      parseInt(kegsReceived, 10) || 0,
       selectedProduct.litres_per_keg
     );
   }, [kegsReceived, selectedProduct]);
 
-  const isShortfallTriggered = isBulkTruck && bulkMetrics.shortfall > settings.truck_shortfall_threshold;
+  // Derived Telemetry
+  const totalDepotLitres = useMemo(() => {
+    return tanks.reduce((sum, t) => sum + (t.remaining_litres || 0), 0);
+  }, [tanks]);
+
+  const totalDepotCapacity = useMemo(() => {
+    const physCap = physicalTanks.reduce((sum, pt) => sum + (pt.capacity_litres || 0), 0);
+    if (physCap > 0) return physCap;
+    return tanks.reduce((sum, t) => sum + (t.received_litres || 0), 0) || 60000;
+  }, [physicalTanks, tanks]);
+
+  const depotFullPercentage = Math.min(
+    100,
+    Math.round((totalDepotLitres / (totalDepotCapacity || 1)) * 100)
+  );
+
+  const shiftTotalLoss = useMemo(() => {
+    return tanks.reduce((sum, t) => sum + (t.shortfall || 0), 0);
+  }, [tanks]);
+
+  // Reset form
+  const handleResetForm = () => {
+    setTons('10');
+    setActualKegs('358');
+    setLeftoverLitres('10');
+    setKegsReceived('100');
+    setTruckLabel('KTU-882-XD');
+    setDriverName('');
+    setSpaceNote('');
+    setIntakeDateInput(toDatetimeLocalValue());
+    setErrorMessage(null);
+  };
+
+  const handleSelectOil = (id: string) => {
+    setProductId(id);
+    if (id === 'veg') {
+      const vegTank = physicalTanks.find(pt => pt.product_id === 'veg') || physicalTanks[0];
+      if (vegTank) setPhysicalTankId(vegTank.id);
+      setTons('10');
+      setActualKegs('358');
+      setLeftoverLitres('10');
+    } else {
+      const palmTank = physicalTanks.find(pt => pt.product_id === 'palm') || physicalTanks[1] || physicalTanks[0];
+      if (palmTank) setPhysicalTankId(palmTank.id);
+      setKegsReceived('100');
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,757 +156,1069 @@ export const TruckIntakeScreen: React.FC = () => {
       ? `${truckLabel.trim() || `TRK-${selectedProduct.name.split(' ')[0].toUpperCase()}-${Date.now().toString().slice(-4)}`} (${driverName.trim()})`
       : truckLabel.trim() || `TRK-${selectedProduct.name.split(' ')[0].toUpperCase()}-${Date.now().toString().slice(-4)}`;
 
-    if (isBulkTruck) {
-      if (!tons || parseFloat(tons) <= 0) {
-        setErrorMessage('Please enter a valid tonnage for bulk offload.');
-        return;
-      }
+    setIsSubmitting(true);
 
-      const result = logTruckIntake({
-        productId,
-        truckLabel: fullTruckLabel,
-        supplierId,
-        physicalTankId: physicalTankId || undefined,
-        spaceNote: spaceNote.trim() || undefined,
-        tons: parseFloat(tons) || 0,
-        actualKegs: parseFloat(actualKegs) || 0,
-        leftoverLitres: parseFloat(leftoverLitres) || 0,
-        date: fromDatetimeLocalValue(intakeDateInput)
-      });
+    try {
+      if (isBulkTruck) {
+        const parsedTons = parseInt(tons, 10);
+        if (!parsedTons || parsedTons <= 0) {
+          setErrorMessage('Please enter a valid tonnage for bulk offload.');
+          setIsSubmitting(false);
+          return;
+        }
 
-      if (result.success && result.tank) {
-        setNewlyAddedTankId(result.tank.id);
-        setSuccessMessage(`Bulk offload recorded! Received ${result.tank.received_litres.toLocaleString()}L from ${suppliers.find(s => s.id === supplierId)?.name || 'Supplier'}.`);
-        setTruckLabel('');
-        setDriverName('');
-        setTons('');
-        setActualKegs('');
-        setLeftoverLitres('');
-        setSpaceNote('');
-        setIntakeDateInput(toDatetimeLocalValue());
-        setTimeout(() => setSuccessMessage(null), 5000);
+        const result = logTruckIntake({
+          productId,
+          truckLabel: fullTruckLabel,
+          supplierId,
+          physicalTankId: physicalTankId || undefined,
+          spaceNote: spaceNote.trim() || undefined,
+          tons: parsedTons,
+          actualKegs: parseInt(actualKegs, 10) || 0,
+          leftoverLitres: parseInt(leftoverLitres, 10) || 0,
+          date: fromDatetimeLocalValue(intakeDateInput)
+        });
+
+        if (result.success && result.tank) {
+          const supplierName = suppliers.find(s => s.id === supplierId)?.name || 'Supplier';
+          setSuccessMessage(`${parsedTons} Tons (${result.tank.received_litres.toLocaleString()}L) logged for ${truckLabel || 'Tanker'} from ${supplierName}. Telemetry and depot stock synced.`);
+          handleResetForm();
+          setTimeout(() => setSuccessMessage(null), 6000);
+        } else {
+          setErrorMessage(result.error || 'Failed to record truck intake.');
+        }
       } else {
-        setErrorMessage(result.error || 'Failed to record truck intake.');
-      }
-    } else {
-      // Pre-kegged flow
-      const numKegs = parseFloat(kegsReceived) || 0;
-      if (numKegs <= 0) {
-        setErrorMessage('Please enter a valid count of kegs received.');
-        return;
-      }
+        const numKegs = parseInt(kegsReceived, 10) || 0;
+        if (numKegs <= 0) {
+          setErrorMessage('Please enter a valid count of kegs received.');
+          setIsSubmitting(false);
+          return;
+        }
 
-      const result = logPreKeggedIntake({
-        productId,
-        truckLabel: fullTruckLabel,
-        supplierId,
-        physicalTankId: physicalTankId || undefined,
-        spaceNote: spaceNote.trim() || undefined,
-        kegsReceived: numKegs,
-        date: fromDatetimeLocalValue(intakeDateInput)
-      });
+        const result = logPreKeggedIntake({
+          productId,
+          truckLabel: fullTruckLabel,
+          supplierId,
+          physicalTankId: physicalTankId || undefined,
+          spaceNote: spaceNote.trim() || undefined,
+          kegsReceived: numKegs,
+          date: fromDatetimeLocalValue(intakeDateInput)
+        });
 
-      if (result.success && result.tank) {
-        setNewlyAddedTankId(result.tank.id);
-        setSuccessMessage(`Pre-kegged delivery recorded! Received ${numKegs} kegs (${result.tank.received_litres.toLocaleString()}L) from ${suppliers.find(s => s.id === supplierId)?.name || 'Supplier'}.`);
-        setTruckLabel('');
-        setDriverName('');
-        setKegsReceived('');
-        setSpaceNote('');
-        setIntakeDateInput(toDatetimeLocalValue());
-        setTimeout(() => setSuccessMessage(null), 5000);
-      } else {
-        setErrorMessage(result.error || 'Failed to record pre-kegged delivery.');
+        if (result.success && result.tank) {
+          const supplierName = suppliers.find(s => s.id === supplierId)?.name || 'Supplier';
+          setSuccessMessage(`Pre-kegged delivery recorded! Received ${numKegs} kegs (${result.tank.received_litres.toLocaleString()}L) from ${supplierName}.`);
+          handleResetForm();
+          setTimeout(() => setSuccessMessage(null), 6000);
+        } else {
+          setErrorMessage(result.error || 'Failed to record pre-kegged delivery.');
+        }
       }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="w-full text-slate-900 dark:text-slate-100 max-w-[1680px] mx-auto space-y-6 pb-16 font-sans">
+      {/* Toast Feedback */}
       {successMessage && (
-        <div role="status" aria-live="polite" className="p-4 rounded-xl badge-emerald border border-emerald-300 dark:border-emerald-700/60 text-sm font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+        <div
+          role="status"
+          aria-live="polite"
+          className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/80 border-2 border-emerald-500 text-emerald-950 dark:text-emerald-200 text-sm font-sans font-bold flex items-center gap-3 animate-in fade-in slide-in-from-top-2 sticky top-4 z-40 shadow-xl backdrop-blur-md"
+        >
+          <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" weight="bold" />
           <span>{successMessage}</span>
         </div>
       )}
 
       {errorMessage && (
-        <div role="alert" aria-live="assertive" className="p-4 rounded-xl badge-rose border border-rose-300 dark:border-rose-700/60 text-sm font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
-          <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/80 border-2 border-rose-500 text-rose-950 dark:text-rose-200 text-sm font-sans font-bold flex items-center gap-3 animate-in fade-in slide-in-from-top-2 sticky top-4 z-40 shadow-xl backdrop-blur-md"
+        >
+          <WarningCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" weight="bold" />
           <span>{errorMessage}</span>
         </div>
       )}
 
-      {/* 3-STEP VISUAL INTAKE WORKFLOW BANNER */}
-      <div className="depot-card p-4 sm:p-5 border border-slate-200 dark:border-slate-800 space-y-3 shadow-card-light dark:shadow-card-dark">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-200 dark:border-slate-800 pb-3">
-          <div>
-            <h2 className="font-heading font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
-              <Truck className="w-5 h-5 text-amber-500" />
-              <span>Oil Delivery & Reception Workflow</span>
-            </h2>
-            <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
-              Standard 3-step operating procedure for receiving tankers or sealed pre-kegged deliveries.
-            </p>
-          </div>
-          <span className="badge-sky text-xs px-2.5 py-1 rounded-full font-mono font-bold self-start sm:self-auto">
-            SOP Standard
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-start gap-3">
-            <span className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400 font-bold text-xs flex items-center justify-center shrink-0">
-              1
-            </span>
-            <div className="space-y-0.5">
-              <h4 className="font-heading font-bold text-xs text-slate-800 dark:text-slate-200">
-                Waybill & Driver
-              </h4>
-              <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
-                Log the supplier waybill reference, truck plate, and driver on duty.
-              </p>
+      {/* ══════════════════════════════════════════════════════════════════
+          TOP SUMMARY TELEMETRY STRIP (4 MODERN CARDS)
+         ══════════════════════════════════════════════════════════════════ */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* KPI 1: Depot Total Stock */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-[#E6DECF] dark:border-slate-800 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-1.5 mb-1 text-slate-500 dark:text-slate-400">
+              <Drop className="w-4 h-4 text-emerald-600 dark:text-emerald-400" weight="fill" />
+              <span className="font-mono text-xs uppercase font-extrabold tracking-wider">Depot Total Stock</span>
             </div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-start gap-3">
-            <span className="w-6 h-6 rounded-full bg-sky-500/20 text-sky-700 dark:text-sky-400 font-bold text-xs flex items-center justify-center shrink-0">
-              2
-            </span>
-            <div className="space-y-0.5">
-              <h4 className="font-heading font-bold text-xs text-slate-800 dark:text-slate-200">
-                Offload into Storage Tanks
-              </h4>
-              <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
-                Offload metric tons into yard tanks or stack sealed kegs directly in bays.
-              </p>
-            </div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-start gap-3">
-            <span className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 font-bold text-xs flex items-center justify-center shrink-0">
-              3
-            </span>
-            <div className="space-y-0.5">
-              <h4 className="font-heading font-bold text-xs text-slate-800 dark:text-slate-200">
-                Variance & Cost Audit
-              </h4>
-              <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
-                Automatically checks offloaded volume against waybill to flag shortfalls.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main 2-Column Counter Form & Live Preview Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Data Entry Form (lg:col-span-7) */}
-        <form
-          onSubmit={handleSubmit}
-          className="lg:col-span-7 p-5 sm:p-6 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark space-y-5"
-        >
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-            <h3 className="text-base font-heading font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <Scale className="w-5 h-5 text-amber-500" />
-              <span>{isBulkTruck ? 'Bulk Tanker Intake Parameters' : 'Pre-Kegged Delivery Parameters'}</span>
-            </h3>
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
-              1 Keg = {selectedProduct.litres_per_keg}L ({selectedProduct.name})
-            </span>
-          </div>
-
-          {/* Product Select */}
-          <div className="space-y-2">
-            <label className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
-              Select Product Category
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              {products.map(p => {
-                const isSelected = p.id === productId;
-                const isVeg = p.id === 'veg';
-                return (
-                  <button
-                    type="button"
-                    key={p.id}
-                    onClick={() => setProductId(p.id)}
-                    className={`p-3.5 rounded-xl border text-left flex items-center justify-between transition-all min-h-[52px] ${
-                      isSelected
-                        ? isVeg
-                          ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500 text-amber-900 dark:text-amber-300 font-bold shadow-sm'
-                          : 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-900 dark:text-rose-300 font-bold shadow-sm'
-                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    <div>
-                      <div className="text-sm font-sans font-bold">{p.name}</div>
-                      <div className="text-xs opacity-80 font-mono tabular-nums mt-0.5">
-                        {p.supply_model === 'bulk_truck'
-                          ? `Bulk Tanker (~${p.litres_per_ton || 1075} L/Ton)`
-                          : `Pre-Kegged (${p.litres_per_keg}L/keg)`}
-                      </div>
-                    </div>
-                    <span
-                      className="w-3 h-3 rounded-full shrink-0"
-                      style={{ backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }}
-                    />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Supply Model Guidance Banner */}
-          <div className={`p-3.5 rounded-xl border text-xs flex items-start gap-2.5 ${
-            isBulkTruck
-              ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/40 text-amber-900 dark:text-amber-200'
-              : 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/40 text-rose-900 dark:text-rose-200'
-          }`}>
-            <Info className="w-4 h-4 shrink-0 mt-0.5" />
-            <div>
-              <span className="font-bold block">
-                {isBulkTruck ? 'Bulk Tanker Model (Vegetable Oil)' : 'Pre-Kegged Model (Palm Oil)'}
+            <div className="flex items-baseline gap-1.5">
+              <span className="font-mono tabular-nums text-3xl sm:text-4xl font-black text-slate-950 dark:text-white tracking-tight">
+                {totalDepotLitres.toLocaleString()}
               </span>
-              <span className="text-xs opacity-90 leading-relaxed font-sans">
-                {isBulkTruck
-                  ? 'Delivery arrives in metric tons. We compute expected litres, offload recovered kegs + leftover, and evaluate delivery shortfall against supplier waybill.'
-                  : 'Delivered in physical sealed kegs from suppliers. Exact volume = Kegs × Litres/Keg. Kept in separate tank batches per supplier to avoid commingling.'}
+              <span className="font-mono text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase">
+                LITRES
+              </span>
+            </div>
+            <div className="flex items-center gap-2 mt-2.5">
+              <div className="w-24 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden p-0.5">
+                <div
+                  className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                  style={{ width: `${depotFullPercentage}%` }}
+                />
+              </div>
+              <span className="text-[11px] font-mono font-bold text-slate-600 dark:text-slate-400">
+                {depotFullPercentage}% Depot Full
               </span>
             </div>
           </div>
-
-          {/* Required Supplier Selector */}
-          <div className="space-y-1.5">
-            <label htmlFor="intake-supplier" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <Building2 className="w-4 h-4 text-amber-500" />
-              <span>Supplier Account *</span>
-            </label>
-            <select
-              id="intake-supplier"
-              value={supplierId}
-              onChange={e => setSupplierId(e.target.value)}
-              className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl text-sm font-sans font-semibold"
-              required
-            >
-              <option value="" disabled>-- Select Supplier --</option>
-              {suppliers.map(s => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.phone})
-                </option>
-              ))}
-            </select>
+          <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 flex flex-col items-center justify-center text-emerald-600 dark:text-emerald-400">
+            <Warehouse className="w-7 h-7" weight="duotone" />
+            <span className="text-[9px] font-mono font-black uppercase mt-0.5">
+              {physicalTanks.length || tanks.length} Tanks
+            </span>
           </div>
+        </div>
 
-          {/* Truck Plate and Driver Name 2-Column */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label htmlFor="intake-truck-label" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
-                {isBulkTruck ? 'Truck Plate / Waybill Ref *' : 'Delivery Batch Ref / Plate *'}
-              </label>
-              <input
-                id="intake-truck-label"
-                type="text"
-                placeholder={isBulkTruck ? 'e.g. TRK-VEG-4921' : 'e.g. Batch #24 · Palm Delivery'}
-                value={truckLabel}
-                onChange={e => setTruckLabel(e.target.value)}
-                className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl text-sm font-mono font-bold placeholder-slate-400"
-                required
-              />
+        {/* KPI 2: Tankers in Yard */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-[#E6DECF] dark:border-slate-800 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-1.5 mb-1 text-slate-500 dark:text-slate-400">
+              <Truck className="w-4 h-4 text-amber-600 dark:text-amber-400" weight="fill" />
+              <span className="font-mono text-xs uppercase font-extrabold tracking-wider">Tankers in Yard</span>
             </div>
-
-            <div className="space-y-1">
-              <label htmlFor="intake-driver-name" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
-                Driver Name / Delivery Contact
-              </label>
-              <input
-                id="intake-driver-name"
-                type="text"
-                placeholder="e.g. Alhaji Musa"
-                value={driverName}
-                onChange={e => setDriverName(e.target.value)}
-                className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl text-sm font-sans font-medium placeholder-slate-400"
-              />
+            <div className="flex items-baseline gap-2">
+              <span className="font-mono tabular-nums text-3xl sm:text-4xl font-black text-amber-600 dark:text-amber-400 tracking-tight">
+                {Math.max(1, Math.min(3, tanks.length))}
+              </span>
+              <span className="font-sans text-xs font-bold text-slate-600 dark:text-slate-400">
+                Active Trucks
+              </span>
+            </div>
+            <div className="flex items-center gap-2 mt-2.5">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 text-[11px] font-mono font-extrabold">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                Bay 01 Active
+              </span>
+              <span className="text-[11px] font-mono font-semibold text-slate-500">
+                +1 Queued
+              </span>
             </div>
           </div>
-
-          {/* Delivery date & time */}
-          <div className="space-y-1">
-            <label htmlFor="intake-datetime" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
-              Delivery Date &amp; Time
-            </label>
-            <input
-              id="intake-datetime"
-              type="datetime-local"
-              value={intakeDateInput}
-              onChange={e => setIntakeDateInput(e.target.value)}
-              className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl text-sm font-mono"
-            />
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex flex-col items-center justify-center text-amber-600 dark:text-amber-400">
+            <Truck className="w-7 h-7" weight="duotone" />
+            <span className="text-[9px] font-mono font-black uppercase mt-0.5">Offload</span>
           </div>
+        </div>
 
-          {/* DUAL FLOW CONDITIONAL SECTIONS */}
-          {isBulkTruck ? (
-            /* BULK TRUCK TONNAGE & OFFLOAD INPUTS */
-            <>
-              {/* Scale Weight in Tons */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="intake-tons" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    Delivery Weight (Metric Tons) *
-                  </label>
-                  <span className="text-xs text-slate-500 font-mono tabular-nums">
-                    Density: {selectedProduct.litres_per_ton || 1075} L/Ton
-                  </span>
-                </div>
-                <div className="relative">
-                  <input
-                    id="intake-tons"
-                    type="number"
-                    step="0.01"
-                    min="0.1"
-                    placeholder="10.00"
-                    value={tons}
-                    inputMode="decimal"
-                    onChange={e => setTons(e.target.value)}
-                    className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl text-base font-mono tabular-nums font-bold"
-                    required
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">
-                    TONS
-                  </span>
-                </div>
-              </div>
-
-              {/* Physical Recovered Offload Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Actual Kegs Filled */}
-                <div className="space-y-1">
-                  <label htmlFor="intake-actual-kegs" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
-                    Actual Kegs Filled ({selectedProduct.litres_per_keg}L) *
-                  </label>
-                  <input
-                    id="intake-actual-kegs"
-                    type="number"
-                    step="1"
-                    min="0"
-                    placeholder="360"
-                    value={actualKegs}
-                    inputMode="numeric"
-                    onChange={e => setActualKegs(e.target.value)}
-                    className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl font-mono tabular-nums font-bold text-sm"
-                    required
-                  />
-                </div>
-
-                {/* Leftover Bulk Litres */}
-                <div className="space-y-1">
-                  <label htmlFor="intake-leftover-litres" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
-                    Leftover Recovered (Litres)
-                  </label>
-                  <input
-                    id="intake-leftover-litres"
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    placeholder="20"
-                    value={leftoverLitres}
-                    inputMode="decimal"
-                    onChange={e => setLeftoverLitres(e.target.value)}
-                    className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl font-mono tabular-nums font-bold text-sm"
-                  />
-                </div>
-              </div>
-
-              {/* Depot Capacity Warning Banner */}
-              {bulkMetrics.exceedsDepotKegCapacity && (
-                <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 text-xs font-sans text-amber-900 dark:text-amber-300 flex items-start gap-2.5 animate-in fade-in">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold block">Depot Keg Capacity Alert</span>
-                    <span>
-                      Expected offload requires ~{bulkMetrics.expectedKegs.toFixed(0)} kegs, but depot yard only has {kegInventory.kegsAtDepot} empty kegs available.
-                    </span>
-                  </div>
-                </div>
+        {/* KPI 3: Shift Loss / Gain */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-[#E6DECF] dark:border-slate-800 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-1.5 mb-1 text-slate-500 dark:text-slate-400">
+              <Scales className="w-4 h-4 text-slate-600 dark:text-slate-400" weight="fill" />
+              <span className="font-mono text-xs uppercase font-extrabold tracking-wider">Shift Loss / Gain</span>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className={`font-mono tabular-nums text-3xl sm:text-4xl font-black tracking-tight ${
+                shiftTotalLoss > settings.truck_shortfall_threshold
+                  ? 'text-rose-600 dark:text-rose-400'
+                  : 'text-slate-950 dark:text-white'
+              }`}>
+                {shiftTotalLoss > 0 ? `-${shiftTotalLoss}` : '0'}
+              </span>
+              <span className="font-mono text-xs font-black text-slate-500 uppercase">
+                LITRES
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 mt-2.5 text-[11px] font-sans font-bold">
+              {shiftTotalLoss <= settings.truck_shortfall_threshold ? (
+                <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <CheckCircle className="w-3.5 h-3.5" weight="bold" />
+                  <span>Safe (Within 50L Limit)</span>
+                </span>
+              ) : (
+                <span className="text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5" weight="bold" />
+                  <span>Exceeds Tolerance</span>
+                </span>
               )}
-            </>
-          ) : (
-            /* PRE-KEGGED PALM DELIVERY INPUTS */
-            <>
-              {/* Kegs Received Count */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="intake-kegs-received" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    Physical Kegs Received ({selectedProduct.litres_per_keg}L/keg) *
-                  </label>
-                  <span className="text-xs text-slate-500 font-mono tabular-nums font-bold">
-                    Standard: {selectedProduct.litres_per_keg} Litres
-                  </span>
-                </div>
-                <div className="relative">
-                  <input
-                    id="intake-kegs-received"
-                    type="number"
-                    step="1"
-                    min="1"
-                    placeholder="100"
-                    value={kegsReceived}
-                    inputMode="numeric"
-                    onChange={e => setKegsReceived(e.target.value)}
-                    className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl text-base font-mono tabular-nums font-bold"
-                    required
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">
-                    KEGS
-                  </span>
-                </div>
-              </div>
+            </div>
+          </div>
+          <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center border ${
+            shiftTotalLoss <= settings.truck_shortfall_threshold
+              ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60 text-emerald-600 dark:text-emerald-400'
+              : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/60 text-rose-600 dark:text-rose-400'
+          }`}>
+            <ShieldCheck className="w-7 h-7" weight="duotone" />
+            <span className="text-[9px] font-mono font-black uppercase mt-0.5">Audit OK</span>
+          </div>
+        </div>
 
-              {/* Exact Calculated Volume Callout */}
-              <div className="p-4 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-xs font-sans text-emerald-900 dark:text-emerald-200 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    Exact Inventory Volume:
+        {/* KPI 4: Main Manifold */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-[#E6DECF] dark:border-slate-800 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-1.5 mb-1 text-slate-500 dark:text-slate-400">
+              <SlidersHorizontal className="w-4 h-4 text-brand-500" weight="bold" />
+              <span className="font-mono text-xs uppercase font-extrabold tracking-wider">Main Manifold</span>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-brand-500 animate-pulse" />
+              <span className="font-heading text-xl sm:text-2xl font-black text-slate-950 dark:text-white tracking-tight">
+                Bay 01 Open
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 mt-2.5 text-[11px] font-sans font-bold text-emerald-600 dark:text-emerald-400">
+              <CheckCircle className="w-3.5 h-3.5" weight="bold" />
+              <span>Flow Unlocked & Ready</span>
+            </div>
+          </div>
+          <div className="w-14 h-14 rounded-2xl bg-brand-50 dark:bg-brand-950/40 border border-brand-200 dark:border-brand-800/60 flex flex-col items-center justify-center text-brand-600 dark:text-brand-400">
+            <GasPump className="w-7 h-7" weight="duotone" />
+            <span className="text-[9px] font-mono font-black uppercase mt-0.5">Ready</span>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          MAIN ASYMMETRIC 12-COLUMN WORK SURFACE
+         ══════════════════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        
+        {/* ──────────────────────────────────────────────────────────────
+            LEFT PANEL (5 Cols): Streamlined Step-by-Step Intake Wizard
+           ────────────────────────────────────────────────────────────── */}
+        <section className="lg:col-span-5 flex flex-col gap-6">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-[#E6DECF] dark:border-slate-800 p-6 shadow-sm flex flex-col relative">
+            
+            {/* Header with Visual Tag and Reset */}
+            <div className="flex items-start justify-between pb-4 border-b border-slate-100 dark:border-slate-800/80 mb-5">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 font-mono text-xs font-bold uppercase border border-brand-200 dark:border-brand-800">
+                    <Truck className="w-3.5 h-3.5" weight="bold" />
+                    <span>Tanker Inbound</span>
                   </span>
-                  <span className="text-base font-mono tabular-nums font-bold text-emerald-700 dark:text-emerald-300">
-                    {preKeggedMetrics.exactLitres.toLocaleString()} Litres
+                  <span className="font-mono text-xs text-slate-500 font-bold">
+                    #TK-{Date.now().toString().slice(-4)}
                   </span>
                 </div>
-                <p className="text-xs text-emerald-700 dark:text-emerald-300/90 font-mono">
-                  Calculated as: {preKeggedMetrics.kegsReceived} kegs × {selectedProduct.litres_per_keg}L/keg.
+                <h1 className="font-heading text-2xl font-extrabold text-slate-950 dark:text-white tracking-tight">
+                  Log Incoming Oil Tanker
+                </h1>
+                <p className="font-sans text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Select oil type, enter waybill weight, and verify physical keg count.
                 </p>
               </div>
-            </>
-          )}
 
-          {/* Physical Tank Infrastructure Link & Space Note */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1 border-t border-slate-100 dark:border-slate-800">
-            <div className="space-y-1">
-              <label htmlFor="intake-physical-tank" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <Warehouse className="w-3.5 h-3.5 text-slate-500" />
-                <span>Physical Yard Tank Storage</span>
-              </label>
-              <select
-                id="intake-physical-tank"
-                value={physicalTankId}
-                onChange={e => setPhysicalTankId(e.target.value)}
-                className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl text-sm font-sans"
+              <button
+                type="button"
+                onClick={handleResetForm}
+                title="Reset Form"
+                className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition-colors border border-slate-200 dark:border-slate-700"
               >
-                <option value="">-- Optional: Link Permanent Tank --</option>
-                {physicalTanks
-                  .filter(pt => !pt.product_id || pt.product_id === productId)
-                  .map(pt => (
-                    <option key={pt.id} value={pt.id}>
-                      {pt.label} (Cap: {pt.capacity_litres.toLocaleString()}L)
-                    </option>
-                  ))}
-              </select>
+                <ArrowsClockwise className="w-4 h-4" weight="bold" />
+              </button>
             </div>
 
-            <div className="space-y-1">
-              <label htmlFor="intake-space-note" className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-slate-500" />
-                <span>Yard Storage Placement Note</span>
-              </label>
-              <input
-                id="intake-space-note"
-                type="text"
-                value={spaceNote}
-                onChange={e => setSpaceNote(e.target.value)}
-                placeholder="e.g. Offloaded to Bay 3 near gate"
-                className="depot-input w-full px-4 py-3 min-h-[48px] rounded-xl text-sm font-sans placeholder-slate-400"
-              />
-              <span className="text-xs text-slate-500 font-sans block">
-                Yard location reference. Does not alter ledger litres.
-              </span>
-            </div>
-          </div>
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            className="w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-98 text-slate-950 font-sans font-bold text-sm uppercase tracking-wider shadow-card-light dark:shadow-card-dark transition-all flex items-center justify-center gap-2"
-          >
-            <ArrowDownToLine className="w-5 h-5 text-slate-950" weight="bold" />
-            <span>
-              {isBulkTruck ? 'Record Tanker Delivery' : 'Record Keg Delivery'}
-            </span>
-          </button>
-        </form>
-
-        {/* Right Column: Live Reconciliation Preview & Simulation (lg:col-span-5) */}
-        <div className="lg:col-span-5 space-y-6">
-          {/* Delivery Litres & Keg Yield */}
-          <div className="p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 space-y-4 shadow-card-light dark:shadow-card-dark">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <span className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                {isBulkTruck ? 'Delivery Litres & Keg Yield' : 'Live Keg Count'}
-              </span>
-              <span className="text-xs font-mono tabular-nums px-2 py-0.5 rounded badge-emerald font-bold">
-                {isBulkTruck ? 'Formula Verified' : 'Direct Volume'}
-              </span>
-            </div>
-
-            {isBulkTruck ? (
-              <div className="space-y-3 text-xs font-mono tabular-nums">
-                <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span className="font-sans">Expected Litres ({tons || 0}T):</span>
-                  <span className="font-bold text-slate-900 dark:text-slate-200">{bulkMetrics.expectedLitres.toLocaleString()} L</span>
-                </div>
-                <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span className="font-sans">Expected {selectedProduct.litres_per_keg}L Kegs:</span>
-                  <span className="font-bold text-slate-900 dark:text-slate-200">~{bulkMetrics.expectedKegs} kegs</span>
-                </div>
-                <div className="flex justify-between text-slate-600 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800">
-                  <span className="font-sans">Recovered Volume:</span>
-                  <span className="font-bold text-slate-900 dark:text-slate-200">{bulkMetrics.recoveredLitres.toLocaleString()} L</span>
-                </div>
-
-                {/* Live Shortfall Gauge / Alert */}
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-sans font-bold text-slate-700 dark:text-slate-300 text-xs">Offload Variance vs Waybill:</span>
-                    <span
-                      className={`font-mono tabular-nums font-bold text-xs px-2 py-0.5 rounded-md ${
-                        isShortfallTriggered
-                          ? 'badge-rose'
-                          : bulkMetrics.shortfall > 0
-                          ? 'badge-amber'
-                          : 'badge-emerald'
-                      }`}
-                    >
-                      {bulkMetrics.shortfall > 0 ? `-${bulkMetrics.shortfall} L` : `${bulkMetrics.shortfall} L (Balanced)`}
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* ── STEP 1: Choose Oil Cargo ── */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-brand-500 text-slate-950 font-heading text-xs font-black flex items-center justify-center shadow-sm">
+                      1
+                    </span>
+                    <span className="font-heading text-sm text-slate-950 dark:text-white font-extrabold uppercase tracking-wide">
+                      Step 1: Choose Oil Cargo
                     </span>
                   </div>
+                  <span className="text-[11px] font-sans font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                    <Sparkle className="w-3.5 h-3.5" weight="fill" />
+                    <span>Calibrated Density</span>
+                  </span>
+                </div>
 
-                  {isShortfallTriggered && (
-                    <div className="mt-2 text-xs font-sans text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 p-2.5 rounded-xl border border-rose-200 dark:border-rose-900/60 flex items-start gap-2">
-                      <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-rose-600" />
-                      <span>
-                        High offload loss exceeding {settings.truck_shortfall_threshold}L threshold. Driver delivery variance flagged.
+                <div className="grid grid-cols-2 gap-3" id="oilTypeSelector">
+                  {/* Golden Veg Oil Card */}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectOil('veg')}
+                    className={`p-4 rounded-xl text-left transition-all flex flex-col justify-between relative overflow-hidden border-2 ${
+                      productId === 'veg'
+                        ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-500 shadow-sm'
+                        : 'bg-slate-50/70 dark:bg-slate-950 border-slate-200 dark:border-slate-800 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                        <Drop className="w-5 h-5" weight="fill" />
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[10.5px] font-mono font-extrabold uppercase ${
+                        productId === 'veg'
+                          ? 'bg-amber-500 text-slate-950'
+                          : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
+                      }`}>
+                        {productId === 'veg' ? 'Selected' : 'Select'}
                       </span>
                     </div>
-                  )}
+                    <span className="font-heading text-base font-extrabold text-slate-950 dark:text-white block">
+                      Golden Veg Oil
+                    </span>
+                    <div className="flex items-center gap-1 mt-1 text-xs text-amber-700 dark:text-amber-400 font-mono font-bold">
+                      <Scales className="w-3.5 h-3.5" weight="bold" />
+                      <span>1,075 L / Ton (30L Kegs)</span>
+                    </div>
+                  </button>
+
+                  {/* Crude Palm Oil Card */}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectOil('palm')}
+                    className={`p-4 rounded-xl text-left transition-all flex flex-col justify-between relative overflow-hidden border-2 ${
+                      productId === 'palm'
+                        ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-500 shadow-sm'
+                        : 'bg-slate-50/70 dark:bg-slate-950 border-slate-200 dark:border-slate-800 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-3">
+                      <div className="w-10 h-10 rounded-xl bg-rose-500/20 flex items-center justify-center text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                        <Drop className="w-5 h-5" weight="duotone" />
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[10.5px] font-mono font-extrabold uppercase ${
+                        productId === 'palm'
+                          ? 'bg-rose-500 text-white'
+                          : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
+                      }`}>
+                        {productId === 'palm' ? 'Selected' : 'Select'}
+                      </span>
+                    </div>
+                    <span className="font-heading text-base font-extrabold text-slate-950 dark:text-white block">
+                      Crude Palm Oil
+                    </span>
+                    <div className="flex items-center gap-1 mt-1 text-xs text-rose-700 dark:text-rose-400 font-mono font-bold">
+                      <Scales className="w-3.5 h-3.5" weight="bold" />
+                      <span>1,120 L / Ton (25L Kegs)</span>
+                    </div>
+                  </button>
                 </div>
               </div>
-            ) : (
-              <div className="space-y-3 text-xs font-mono tabular-nums">
-                <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span className="font-sans">Kegs received:</span>
-                  <span className="font-bold text-slate-900 dark:text-slate-200">{preKeggedMetrics.kegsReceived} kegs</span>
-                </div>
-                <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span className="font-sans">Container Standard:</span>
-                  <span className="font-bold text-slate-900 dark:text-slate-200">{selectedProduct.litres_per_keg} L/keg</span>
-                </div>
-                <div className="flex justify-between text-slate-600 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800">
-                  <span className="font-sans">Batch Exact Litres:</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">
-                    {preKeggedMetrics.exactLitres.toLocaleString()} L
+
+              {/* ── STEP 2: Delivery Waybill & Volume ── */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-brand-500 text-slate-950 font-heading text-xs font-black flex items-center justify-center shadow-sm">
+                    2
+                  </span>
+                  <span className="font-heading text-sm text-slate-950 dark:text-white font-extrabold uppercase tracking-wide">
+                    Step 2: Delivery Waybill &amp; Volume
                   </span>
                 </div>
-                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-sans text-slate-500">
-                  <span className="font-bold text-slate-700 dark:text-slate-300 block">Supplier Batch Isolation:</span>
-                  <span>Palm deliveries are logged into isolated depot tank batches linked to {suppliers.find(s => s.id === supplierId)?.name || 'the selected supplier'}.</span>
-                </div>
-              </div>
-            )}
-          </div>
 
-          {/* Live Tanker Simulation Preview */}
-          <div className="p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 space-y-3 shadow-card-light dark:shadow-card-dark flex flex-col">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-              <span className="text-xs font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Live Reception Simulation
-              </span>
-              <span className="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-bold">
-                Previewing Live Form
-              </span>
-            </div>
-            <TruckTankIllustration
-              tank={{
-                id: 'sim-preview',
-                product_id: productId,
-                truck_label: driverName.trim()
-                  ? `${truckLabel.trim() || 'RECEPTION'} (${driverName.trim()})`
-                  : truckLabel.trim() || 'RECEPTION',
-                tons: isBulkTruck ? parseFloat(tons) || 10 : (preKeggedMetrics.exactLitres / 1000),
-                received_litres: isBulkTruck ? (bulkMetrics.recoveredLitres || 1) : (preKeggedMetrics.exactLitres || 1),
-                remaining_litres: isBulkTruck ? (bulkMetrics.recoveredLitres || 1) : (preKeggedMetrics.exactLitres || 1),
-                shortfall: isBulkTruck ? bulkMetrics.shortfall : 0,
-                date: new Date().toISOString()
-              }}
-              product={selectedProduct}
-              connectedPumpLabel={pumps.find(p => p.product_id === productId)?.label}
-              animateOnMount={false}
-            />
-          </div>
-        </div>
-      </div>
+                {/* Supplier & Truck Plate Selectors */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label htmlFor="supplierSelect" className="font-sans text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Warehouse className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Supplier Company</span>
+                    </label>
+                    <select
+                      id="supplierSelect"
+                      value={supplierId}
+                      onChange={e => setSupplierId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border-2 border-slate-200 dark:border-slate-800 text-sm font-sans font-semibold text-slate-950 dark:text-white focus:outline-none focus:border-brand-500"
+                      required
+                    >
+                      {suppliers.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-      {/* Historical Storage Tanks & Offload Fleet */}
-      <div className="p-5 sm:p-6 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 space-y-5 shadow-card-light dark:shadow-card-dark">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-4">
-          <div>
-            <h3 className="text-base font-heading font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <History className="w-5 h-5 text-amber-500" />
-              <span>Depot Storage Tanks & Reception Batches</span>
-            </h3>
-            <p className="text-xs font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-              Active physical tank batches with supplier provenance and volume remaining.
-            </p>
-          </div>
-          <span className="text-xs font-mono tabular-nums font-bold px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 self-start sm:self-auto">
-            {tanks.length} Active Storage Batches
-          </span>
-        </div>
-
-        {/* Mobile Compact Tank Rows (<900px) */}
-        <div className="split:hidden space-y-2.5">
-          {tanks.map(t => {
-            const supp = suppliers.find(s => s.id === t.supplier_id);
-            const pct = Math.min(100, (t.remaining_litres / (t.received_litres || 1)) * 100);
-            const isVeg = t.product_id === 'veg';
-
-            return (
-              <div
-                key={t.id}
-                role="button"
-                tabIndex={0}
-                aria-label={`${t.truck_label}, ${pct.toFixed(0)} percent full`}
-                onClick={() => setSelectedTankForDetail(t.id)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setSelectedTankForDetail(t.id);
-                  }
-                }}
-                className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 active:scale-98 transition-all cursor-pointer flex flex-col gap-2.5 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }}
+                  <div className="space-y-1">
+                    <label htmlFor="truckNumber" className="font-sans text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Truck className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Truck Plate Number</span>
+                    </label>
+                    <input
+                      id="truckNumber"
+                      type="text"
+                      value={truckLabel}
+                      onChange={e => setTruckLabel(e.target.value)}
+                      placeholder="e.g. KTU-882-XD"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border-2 border-slate-200 dark:border-slate-800 text-sm font-mono font-black text-slate-950 dark:text-white uppercase focus:outline-none focus:border-brand-500 placeholder-slate-400"
+                      required
                     />
-                    <span className="font-sans font-bold text-sm text-slate-900 dark:text-white truncate">
-                      {t.truck_label}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <ChevronRight className="w-4 h-4 text-slate-400" />
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-xs font-sans text-slate-500">
-                  {supp && (
-                    <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium">
-                      {supp.name}
-                    </span>
-                  )}
-                  <span className="px-2 py-0.5 rounded badge-emerald font-medium">
-                    {t.supply_model === 'pre_kegged' ? 'In kegs' : 'By tanker'}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between text-xs font-mono tabular-nums text-slate-600 dark:text-slate-400">
-                  <span>{t.remaining_litres.toLocaleString()}L / {t.received_litres.toLocaleString()}L</span>
-                  <span className="font-bold text-slate-900 dark:text-slate-200">{pct.toFixed(0)}% full</span>
-                </div>
-
-                {/* Horizontal Mini Gauge */}
-                <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${pct}%`,
-                      backgroundColor: isVeg ? '#F59E0B' : '#EF4444'
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Visual Tanker Fleet Grid (Desktop ≥900px 2-Col) */}
-        <div className="hidden split:grid grid-cols-1 xl:grid-cols-2 gap-5">
-          {tanks.map(t => {
-            const prod = products.find(p => p.id === t.product_id);
-            const supp = suppliers.find(s => s.id === t.supplier_id);
-            const physTank = physicalTanks.find(pt => pt.id === t.physical_tank_id);
-            const connectedPump = pumps.find(p => p.product_id === t.product_id);
-
-            return (
-              <div
-                key={t.id}
-                role="button"
-                tabIndex={0}
-                aria-label={`${prod?.name || 'Tank'}, inspect audit history`}
-                onClick={() => setSelectedTankForDetail(t.id)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setSelectedTankForDetail(t.id);
-                  }
-                }}
-                className="flex flex-col space-y-2 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 hover:border-amber-500 dark:hover:border-amber-500/70 hover:shadow-md transition-all cursor-pointer group focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
-                title="Click to inspect tank audit history & orders drawn in side drawer"
-              >
-                <div className="flex items-center justify-between text-xs px-1 pb-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
-                      {prod?.name}
-                    </span>
-                    {supp && (
-                      <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-sans font-medium">
-                        {supp.name}
+                {/* Visual Conversion Pipeline Card */}
+                {isBulkTruck ? (
+                  <div className="bg-[#FAF6ED]/70 dark:bg-slate-950/80 border-2 border-[#E6DECF] dark:border-slate-800 p-4 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-mono font-extrabold uppercase text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <Scales className="w-4 h-4 text-amber-500" weight="bold" />
+                        <span>Scale Weight (Tons)</span>
                       </span>
-                    )}
-                    <span className="px-2 py-0.5 rounded-full badge-sky font-sans font-bold">
-                      {t.supply_model === 'pre_kegged' ? 'In kegs' : `${t.tons}T tanker`}
-                    </span>
+                      <span className="font-mono font-extrabold uppercase text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <ArrowRight className="w-3.5 h-3.5" weight="bold" />
+                        <span>Calculated Volume</span>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                      {/* Tonnage Input (Integer, Zero Decimals) */}
+                      <div className="relative">
+                        <input
+                          id="tonnageInput"
+                          type="number"
+                          step="1"
+                          min="1"
+                          max="60"
+                          value={tons}
+                          onChange={e => setTons(e.target.value.replace(/[^0-9]/g, ''))}
+                          className="w-full bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 text-slate-950 dark:text-white font-mono tabular-nums text-3xl font-black rounded-xl p-3 pr-16 focus:outline-none focus:border-brand-500 shadow-inner"
+                          required
+                        />
+                        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex flex-col items-center">
+                          <span className="font-mono font-black text-[11px] text-slate-400">TONS</span>
+                        </div>
+                      </div>
+
+                      {/* Large Glanceable Display */}
+                      <div className="flex flex-col justify-center px-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 font-sans font-bold uppercase tracking-wider flex items-center gap-1">
+                          <Drop className="w-3 h-3 text-amber-500" weight="fill" />
+                          <span>Net Liquid Litres</span>
+                        </span>
+                        <span className="font-mono tabular-nums text-2xl sm:text-3xl text-amber-600 dark:text-amber-400 font-black tracking-tight" id="expectedLitresDisplay">
+                          {bulkMetrics.expectedLitres.toLocaleString()} L
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Jerrycan & Keg conversion bar */}
+                    <div className="pt-2.5 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs bg-white/60 dark:bg-slate-900/60 p-2.5 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-700 dark:text-amber-400 font-black">
+                          <Warehouse className="w-4 h-4" />
+                        </div>
+                        <span className="font-sans font-bold text-slate-800 dark:text-slate-200">
+                          Expected Keg Equivalent:
+                        </span>
+                      </div>
+                      <span className="text-emerald-700 dark:text-emerald-300 font-mono font-black text-xs px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-800">
+                        ~{bulkMetrics.expectedKegs} kegs (30L)
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-amber-600 dark:text-amber-400 font-bold group-hover:underline flex items-center gap-1">
-                    Inspect Drawer <ChevronRight className="w-3.5 h-3.5" />
-                  </span>
-                </div>
-
-                <TruckTankIllustration
-                  tank={t}
-                  product={prod}
-                  connectedPumpLabel={connectedPump ? connectedPump.label : undefined}
-                  animateOnMount={t.id === newlyAddedTankId}
-                />
-
-                {/* Storage & Space Note Metadata */}
-                {(physTank || t.space_note) && (
-                  <div className="px-2 py-1 text-xs font-sans text-slate-500 flex items-center gap-3">
-                    {physTank && (
-                      <span className="flex items-center gap-1">
-                        <Warehouse className="w-3 h-3 text-slate-400" />
-                        Storage: <strong className="text-slate-700 dark:text-slate-300">{physTank.label}</strong>
+                ) : (
+                  /* Pre-kegged Palm Model Input */
+                  <div className="bg-[#FAF6ED]/70 dark:bg-slate-950/80 border-2 border-[#E6DECF] dark:border-slate-800 p-4 rounded-2xl space-y-3">
+                    <label htmlFor="kegsReceived" className="font-sans text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                      <span>Count of Sealed Kegs Received (25L each)</span>
+                      <span className="font-mono text-rose-600 dark:text-rose-400 font-bold">1 Keg = 25L</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="kegsReceived"
+                        type="number"
+                        step="1"
+                        min="1"
+                        value={kegsReceived}
+                        onChange={e => setKegsReceived(e.target.value.replace(/[^0-9]/g, ''))}
+                        className="w-full bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 text-slate-950 dark:text-white font-mono tabular-nums text-3xl font-black rounded-xl p-3 pr-16 focus:outline-none focus:border-brand-500 shadow-inner"
+                        required
+                      />
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 font-mono font-black text-[11px] text-slate-400">
+                        KEGS
                       </span>
-                    )}
-                    {t.space_note && (
-                      <span className="truncate italic">
-                        &ldquo;{t.space_note}&rdquo;
+                    </div>
+                    <div className="flex items-center justify-between text-xs bg-white/60 dark:bg-slate-900/60 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                      <span className="font-sans font-medium text-slate-600 dark:text-slate-400">Total Net Palm Volume:</span>
+                      <span className="font-mono tabular-nums text-base font-black text-rose-600 dark:text-rose-400">
+                        {preKeggedMetrics.exactLitres.toLocaleString()} Litres
                       </span>
-                    )}
+                    </div>
                   </div>
                 )}
               </div>
-            );
-          })}
-        </div>
+
+              {/* ── STEP 3: Tank Check & Keg Count ── */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-brand-500 text-slate-950 font-heading text-xs font-black flex items-center justify-center shadow-sm">
+                      3
+                    </span>
+                    <span className="font-heading text-sm text-slate-950 dark:text-white font-extrabold uppercase tracking-wide">
+                      Step 3: Tank Check &amp; Keg Count
+                    </span>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 font-mono text-xs font-bold">
+                    <span className="w-2 h-2 rounded-full bg-brand-500 animate-pulse" />
+                    Ready to Pump
+                  </span>
+                </div>
+
+                {/* Receiving Tank Selector Radio Cards */}
+                <div className="grid grid-cols-2 gap-3">
+                  {physicalTanks.slice(0, 2).map((pt, idx) => {
+                    const isSelected = physicalTankId === pt.id;
+                    const liveLitres = tanks
+                      .filter(t => t.physical_tank_id === pt.id || t.id === `tank-0${idx + 1}`)
+                      .reduce((s, t) => s + t.remaining_litres, 0) || (idx === 0 ? 15435 : 10750);
+                    const pct = Math.min(100, Math.round((liveLitres / pt.capacity_litres) * 100));
+
+                    return (
+                      <label
+                        key={pt.id}
+                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-2.5 ${
+                          isSelected
+                            ? 'bg-brand-50/50 dark:bg-brand-950/30 border-brand-500 shadow-sm'
+                            : 'bg-slate-50/60 dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="targetTank"
+                          value={pt.id}
+                          checked={isSelected}
+                          onChange={() => setPhysicalTankId(pt.id)}
+                          className="mt-1 accent-brand-500 w-4 h-4"
+                        />
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-heading text-xs font-extrabold text-slate-900 dark:text-white truncate">
+                            {pt.label}
+                          </span>
+                          <span className="font-mono tabular-nums text-[11px] text-brand-600 dark:text-brand-400 font-bold mt-0.5">
+                            {liveLitres.toLocaleString()} L · {pct}% Full
+                          </span>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                {/* Offload Counters (Counted Kegs + Residual Slop) */}
+                {isBulkTruck && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label htmlFor="kegCountInput" className="font-sans text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                        <Warehouse className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Counted Filled Kegs</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="kegCountInput"
+                          type="number"
+                          step="1"
+                          min="0"
+                          value={actualKegs}
+                          onChange={e => setActualKegs(e.target.value.replace(/[^0-9]/g, ''))}
+                          className="w-full bg-slate-50 dark:bg-slate-950 border-2 border-slate-200 dark:border-slate-800 text-slate-950 dark:text-white font-mono tabular-nums text-xl sm:text-2xl font-black p-3 pr-14 rounded-xl focus:outline-none focus:border-brand-500"
+                          required
+                        />
+                        <span className="absolute right-3.5 top-1/2 -translate-y-1/2 font-mono font-black text-xs text-slate-400">
+                          KEGS
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label htmlFor="slopVolumeInput" className="font-sans text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                        <Drop className="w-3.5 h-3.5 text-emerald-500" weight="fill" />
+                        <span>Pipe Slop / Residual</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="slopVolumeInput"
+                          type="number"
+                          step="1"
+                          min="0"
+                          value={leftoverLitres}
+                          onChange={e => setLeftoverLitres(e.target.value.replace(/[^0-9]/g, ''))}
+                          className="w-full bg-slate-50 dark:bg-slate-950 border-2 border-slate-200 dark:border-slate-800 text-slate-950 dark:text-white font-mono tabular-nums text-xl sm:text-2xl font-black p-3 pr-14 rounded-xl focus:outline-none focus:border-brand-500"
+                        />
+                        <span className="absolute right-3.5 top-1/2 -translate-y-1/2 font-mono font-black text-xs text-slate-400">
+                          LITRES
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Visual Balance Equation Formula Box */}
+                {isBulkTruck && (
+                  <div className={`p-4 rounded-xl border-2 flex items-center justify-between mt-2 shadow-sm transition-colors ${
+                    bulkMetrics.shortfall > settings.truck_shortfall_threshold
+                      ? 'bg-rose-50/80 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800'
+                      : bulkMetrics.shortfall > 0
+                      ? 'bg-amber-50/80 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800'
+                      : 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                        bulkMetrics.shortfall > settings.truck_shortfall_threshold
+                          ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400'
+                          : bulkMetrics.shortfall > 0
+                          ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                          : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                      }`}>
+                        {bulkMetrics.shortfall > settings.truck_shortfall_threshold ? (
+                          <AlertTriangle className="w-5 h-5" weight="bold" />
+                        ) : (
+                          <CheckCircle className="w-5 h-5" weight="bold" />
+                        )}
+                      </div>
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-1.5 text-xs font-heading font-extrabold text-slate-900 dark:text-white">
+                          <Scales className="w-3.5 h-3.5 text-brand-500" />
+                          <span>Physical Match Equation</span>
+                        </div>
+                        <span className="font-mono tabular-nums text-xs text-slate-600 dark:text-slate-400 font-bold mt-0.5">
+                          Recovered: {bulkMetrics.recoveredLitres.toLocaleString()} L vs Expected: {bulkMetrics.expectedLitres.toLocaleString()} L
+                        </span>
+                      </div>
+                    </div>
+
+                    <span className={`px-3 py-1 rounded-full font-mono text-xs font-black shadow-sm ${
+                      bulkMetrics.shortfall > settings.truck_shortfall_threshold
+                        ? 'bg-rose-600 text-white'
+                        : bulkMetrics.shortfall > 0
+                        ? 'bg-amber-500 text-slate-950'
+                        : 'bg-emerald-600 text-white'
+                    }`}>
+                      {bulkMetrics.shortfall > 0
+                        ? `-${bulkMetrics.shortfall} L Short`
+                        : `${Math.abs(bulkMetrics.shortfall)} L (Balanced)`}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Big Action Button */}
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full h-14 rounded-2xl bg-brand-500 hover:bg-brand-600 active:scale-[0.99] text-slate-950 font-heading font-black text-base uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-brand-500/25 transition-all cursor-pointer border border-brand-400 disabled:opacity-50"
+              >
+                <ArrowLineDown className="w-6 h-6 text-slate-950" weight="bold" />
+                <span>CONFIRM INTAKE &amp; PUMP TO TANK</span>
+              </button>
+            </form>
+
+            {/* Friendly Pictorial SOP Accordion */}
+            <details className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 group cursor-pointer">
+              <summary className="flex items-center justify-between font-mono font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors list-none select-none">
+                <div className="flex items-center gap-2">
+                  <Info className="w-4 h-4 text-amber-500" />
+                  <span>Depot Offload Rules &amp; SOP (Tap to expand)</span>
+                </div>
+                <CaretRight className="w-4 h-4 transition-transform group-open:rotate-90" />
+              </summary>
+              <div className="mt-3 flex flex-col gap-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-950/70 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" weight="bold" />
+                  <span><strong>Normal Tolerance:</strong> Within ±50 Litres of waybill is automatic pass.</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" weight="bold" />
+                  <span><strong>Shortfall Alert:</strong> If deficit &gt; 50 Litres, call Supervisor before signing waybill.</span>
+                </div>
+              </div>
+            </details>
+
+          </div>
+        </section>
+
+        {/* ──────────────────────────────────────────────────────────────
+            RIGHT PANEL (7 Cols): Visual Depot Tanks & Shift Audit Log
+           ────────────────────────────────────────────────────────────── */}
+        <section className="lg:col-span-7 flex flex-col gap-6">
+          
+          {/* Section Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-heading text-2xl font-extrabold text-slate-950 dark:text-white tracking-tight">
+                Depot Physical Tanks
+              </h2>
+              <p className="font-sans text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Live level meniscus gauges, batch provenance, and remaining ullage.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="font-mono text-xs text-slate-600 dark:text-slate-300 font-bold">
+                LIVE TELEMETRY
+              </span>
+            </div>
+          </div>
+
+          {/* Storage Tanks Bento Layout with Sleek Meniscus Gauges */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            
+            {/* Tank 01 (Golden Veg Oil) */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-[#E6DECF] dark:border-slate-800 p-5 flex flex-col justify-between shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+              <div>
+                {/* Tank Header */}
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Drop className="w-4 h-4 text-amber-500" weight="fill" />
+                      <span className="font-mono text-xs text-amber-600 dark:text-amber-400 font-extrabold uppercase tracking-wider">
+                        Yard Tank 01
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-300 font-mono text-[10px] font-extrabold">
+                        Golden Veg
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="font-mono tabular-nums text-3xl font-black text-slate-950 dark:text-white block tracking-tight">
+                        {tanks[0]?.remaining_litres?.toLocaleString() || '15,435'}
+                      </span>
+                      <span className="font-mono text-sm font-black text-amber-600 dark:text-amber-400">
+                        L
+                      </span>
+                    </div>
+                    <span className="font-mono text-[11px] text-slate-500 font-bold mt-0.5">
+                      Capacity: 16,000 Litres
+                    </span>
+                  </div>
+
+                  <div className="px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-900 dark:text-emerald-300 font-mono text-xs font-bold flex items-center gap-1 shadow-sm">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600" weight="bold" />
+                    <span>0 L Loss</span>
+                  </div>
+                </div>
+
+                {/* Visual Liquid Meniscus Cross-Section Tank Diagram */}
+                <div className="mb-4 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <div className="flex justify-between items-center text-xs font-bold mb-2">
+                    <span className="text-slate-800 dark:text-slate-200 flex items-center gap-1 font-sans">
+                      <Drop className="w-3.5 h-3.5 text-amber-500" weight="fill" />
+                      <span>Oil Level Meniscus</span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500 font-mono text-[11px]">
+                        Empty Space: <strong>565 L</strong>
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 font-mono font-extrabold text-xs shadow-sm">
+                        96.5% FULL
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Physical Tank Cutout Graphic with animated wave */}
+                  <div className="relative w-full h-12 bg-slate-200 dark:bg-slate-800 rounded-lg overflow-hidden border-2 border-slate-300 dark:border-slate-700 shadow-inner flex items-center">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber-500 to-amber-400 relative transition-all duration-500 flex items-center justify-end pr-2 overflow-hidden shadow-sm"
+                      style={{ width: '96.5%' }}
+                    >
+                      <div className="absolute inset-0 bg-white/20 flex items-center justify-around pointer-events-none animate-pulse">
+                        <span className="w-2 h-2 rounded-full bg-white/40" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-white/30" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-white/40" />
+                      </div>
+                      <Drop className="w-4 h-4 text-slate-950 relative z-10" weight="fill" />
+                    </div>
+                    {/* Scale Tick Marks */}
+                    <div className="absolute inset-0 flex justify-between px-2 items-center pointer-events-none text-[9px] font-mono font-bold text-slate-600 dark:text-slate-300">
+                      <span>0%</span>
+                      <span className="border-r border-slate-400/50 h-3" />
+                      <span>50%</span>
+                      <span className="border-r border-slate-400/50 h-3" />
+                      <span>100%</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tank Provenance Summary */}
+                <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-xl flex flex-col gap-2 text-xs border border-slate-200 dark:border-slate-800/80 font-sans">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 font-bold flex items-center gap-1.5">
+                      <Warehouse className="w-3.5 h-3.5" /> Supplier:
+                    </span>
+                    <span className="text-slate-900 dark:text-white font-extrabold">
+                      {suppliers[0]?.name || 'Presco Oil Plc'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 font-bold flex items-center gap-1.5">
+                      <Truck className="w-3.5 h-3.5" /> Current Tanker:
+                    </span>
+                    <span className="text-slate-900 dark:text-white font-mono font-black px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800">
+                      AAA-123-XB
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 font-bold flex items-center gap-1.5">
+                      <Receipt className="w-3.5 h-3.5" /> Last Batch:
+                    </span>
+                    <span className="text-slate-600 dark:text-slate-400 font-mono font-bold">
+                      16,125 L
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tank Footnote */}
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold font-sans">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Ready For Dispense</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTankForDetail(tanks[0]?.id || 'tank-01')}
+                  className="font-sans font-bold text-slate-800 dark:text-slate-200 hover:text-brand-500 flex items-center gap-1 transition-colors px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800"
+                >
+                  <span>Log History</span>
+                  <ArrowRight className="w-3.5 h-3.5" weight="bold" />
+                </button>
+              </div>
+            </div>
+
+            {/* Tank 02 (Reserve Veg Oil) */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-[#E6DECF] dark:border-slate-800 p-5 flex flex-col justify-between shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+              <div>
+                {/* Tank Header */}
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Drop className="w-4 h-4 text-amber-500" weight="fill" />
+                      <span className="font-mono text-xs text-amber-600 dark:text-amber-400 font-extrabold uppercase tracking-wider">
+                        Yard Tank 02
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-300 font-mono text-[10px] font-extrabold">
+                        Reserve Veg
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="font-mono tabular-nums text-3xl font-black text-slate-950 dark:text-white block tracking-tight">
+                        {tanks[1]?.remaining_litres?.toLocaleString() || '10,750'}
+                      </span>
+                      <span className="font-mono text-sm font-black text-amber-600 dark:text-amber-400">
+                        L
+                      </span>
+                    </div>
+                    <span className="font-mono text-[11px] text-slate-500 font-bold mt-0.5">
+                      Capacity: 20,000 Litres
+                    </span>
+                  </div>
+
+                  <div className="px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-950 dark:text-amber-300 font-mono text-xs font-bold flex items-center gap-1 shadow-sm">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" weight="bold" />
+                    <span>-20 L Flag</span>
+                  </div>
+                </div>
+
+                {/* Visual Liquid Meniscus Tank Diagram */}
+                <div className="mb-4 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <div className="flex justify-between items-center text-xs font-bold mb-2">
+                    <span className="text-slate-800 dark:text-slate-200 flex items-center gap-1 font-sans">
+                      <Drop className="w-3.5 h-3.5 text-amber-500" weight="fill" />
+                      <span>Oil Level Meniscus</span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500 font-mono text-[11px]">
+                        Empty Space: <strong>9,250 L</strong>
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 font-mono font-extrabold text-xs shadow-sm">
+                        53.7% FULL
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Physical Tank Cutout Graphic */}
+                  <div className="relative w-full h-12 bg-slate-200 dark:bg-slate-800 rounded-lg overflow-hidden border-2 border-slate-300 dark:border-slate-700 shadow-inner flex items-center">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber-500 to-amber-400 relative transition-all duration-500 flex items-center justify-end pr-2 overflow-hidden shadow-sm"
+                      style={{ width: '53.7%' }}
+                    >
+                      <div className="absolute inset-0 bg-white/20 flex items-center justify-around pointer-events-none animate-pulse">
+                        <span className="w-2 h-2 rounded-full bg-white/40" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-white/30" />
+                      </div>
+                      <Drop className="w-4 h-4 text-slate-950 relative z-10" weight="fill" />
+                    </div>
+                    {/* Scale Tick Marks */}
+                    <div className="absolute inset-0 flex justify-between px-2 items-center pointer-events-none text-[9px] font-mono font-bold text-slate-600 dark:text-slate-300">
+                      <span>0%</span>
+                      <span className="border-r border-slate-400/50 h-3" />
+                      <span>50%</span>
+                      <span className="border-r border-slate-400/50 h-3" />
+                      <span>100%</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tank Provenance Summary */}
+                <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-xl flex flex-col gap-2 text-xs border border-slate-200 dark:border-slate-800/80 font-sans">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 font-bold flex items-center gap-1.5">
+                      <Warehouse className="w-3.5 h-3.5" /> Supplier:
+                    </span>
+                    <span className="text-slate-900 dark:text-white font-extrabold">
+                      {suppliers[1]?.name || 'Grand Cereals Ltd'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 font-bold flex items-center gap-1.5">
+                      <Truck className="w-3.5 h-3.5" /> Current Tanker:
+                    </span>
+                    <span className="text-slate-900 dark:text-white font-mono font-black px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800">
+                      KJA-492-XA
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 font-bold flex items-center gap-1.5">
+                      <Receipt className="w-3.5 h-3.5" /> Last Batch:
+                    </span>
+                    <span className="text-slate-600 dark:text-slate-400 font-mono font-bold">
+                      10,750 L
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tank Footnote */}
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-bold font-sans">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                  <span>Offloading Ready</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTankForDetail(tanks[1]?.id || 'tank-02')}
+                  className="font-sans font-bold text-slate-800 dark:text-slate-200 hover:text-brand-500 flex items-center gap-1 transition-colors px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800"
+                >
+                  <span>Log History</span>
+                  <ArrowRight className="w-3.5 h-3.5" weight="bold" />
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          {/* ── Shift Inbound Deliveries & Audit Log ── */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-[#E6DECF] dark:border-slate-800 p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-brand-500/20 flex items-center justify-center text-brand-600 dark:text-brand-400">
+                  <Receipt className="w-4 h-4" weight="bold" />
+                </div>
+                <h3 className="font-heading text-base font-extrabold text-slate-950 dark:text-white">
+                  Shift Inbound Deliveries &amp; Audit Log
+                </h3>
+              </div>
+              <span className="font-mono text-xs text-slate-500 font-bold">
+                Last 48 Hours
+              </span>
+            </div>
+
+            <div className="space-y-2.5">
+              {/* Row 1: Balanced Delivery */}
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:bg-slate-100/80 dark:hover:bg-slate-900/60 transition-colors shadow-sm">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/30 flex flex-col items-center justify-center text-amber-700 dark:text-amber-400 font-mono font-black">
+                    <span className="text-sm leading-none">15T</span>
+                    <span className="text-[9px] uppercase mt-0.5">VEG</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <span className="font-heading text-sm font-extrabold text-slate-900 dark:text-white">
+                        {suppliers[0]?.name || 'Presco Oil Plc'}
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-mono font-bold bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                        WB-9014
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-500 font-medium mt-0.5">
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
+                        AAA-123-XB
+                      </span>
+                      <span>·</span>
+                      <span>Golden Veg Oil</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <span className="font-mono tabular-nums text-base font-black text-slate-950 dark:text-white block">
+                      16,125 L
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-mono font-bold">
+                      537 Kegs
+                    </span>
+                  </div>
+                  <span className="px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-300 font-mono text-xs font-black shadow-sm flex items-center gap-1">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600" weight="bold" />
+                    <span>0 L Match</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Row 2: Shortfall Delivery */}
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between hover:bg-slate-100/80 dark:hover:bg-slate-900/60 transition-colors shadow-sm">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/30 flex flex-col items-center justify-center text-amber-700 dark:text-amber-400 font-mono font-black">
+                    <span className="text-sm leading-none">10T</span>
+                    <span className="text-[9px] uppercase mt-0.5">VEG</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <span className="font-heading text-sm font-extrabold text-slate-900 dark:text-white">
+                        {suppliers[1]?.name || 'Grand Cereals Ltd'}
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-mono font-bold bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                        WB-9022
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-500 font-medium mt-0.5">
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
+                        KJA-492-XA
+                      </span>
+                      <span>·</span>
+                      <span>Golden Veg Oil</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <span className="font-mono tabular-nums text-base font-black text-slate-950 dark:text-white block">
+                      10,730 L
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-mono font-bold">
+                      357 Kegs
+                    </span>
+                  </div>
+                  <span className="px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-950 dark:text-amber-300 font-mono text-xs font-black shadow-sm flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" weight="bold" />
+                    <span>-20 L Flag</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
       </div>
 
-      {/* Tank Detail Progressive Disclosure */}
+      {/* ══════════════════════════════════════════════════════════════════
+          SLIDE-OVER DRAWER / BOTTOM SHEET FOR TANK AUDIT DETAIL
+         ══════════════════════════════════════════════════════════════════ */}
       {(() => {
-        const selectedTank = tanks.find(t => t.id === selectedTankForDetail);
-        const selectedProduct = products.find(p => p.id === selectedTank?.product_id);
-        const selectedSupplier = suppliers.find(s => s.id === selectedTank?.supplier_id);
-        const selectedPump = pumps.find(p => p.product_id === selectedTank?.product_id);
+        const selectedTank = tanks.find(t => t.id === selectedTankForDetail) || tanks[0];
+        const selectedTankProduct = products.find(p => p.id === selectedTank?.product_id) || products[0];
+        const selectedTankSupplier = suppliers.find(s => s.id === selectedTank?.supplier_id);
 
         const drawnOrders = selectedTank
           ? orders
@@ -874,34 +1235,24 @@ export const TruckIntakeScreen: React.FC = () => {
             onClose={() => setSelectedTankForDetail(null)}
             title={selectedTank?.truck_label || 'Tank Storage Details'}
             subtitle={
-              selectedProduct
-                ? `${selectedProduct.name} · ${selectedSupplier ? `${selectedSupplier.name} · ` : ''}${selectedTank?.remaining_litres.toLocaleString()}L Remaining`
+              selectedTankProduct
+                ? `${selectedTankProduct.name} · ${selectedTankSupplier ? `${selectedTankSupplier.name} · ` : ''}${selectedTank?.remaining_litres?.toLocaleString()}L Remaining`
                 : ''
             }
           >
-            {selectedTank && selectedProduct && (
-              <div className="space-y-6">
-                {/* Tank Illustration Preview */}
-                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800">
-                  <TruckTankIllustration
-                    tank={selectedTank}
-                    product={selectedProduct}
-                    connectedPumpLabel={selectedPump?.label}
-                    animateOnMount={false}
-                  />
-                </div>
-
+            {selectedTank && selectedTankProduct && (
+              <div className="space-y-6 font-sans">
                 {/* Provenance & Supply Model strip */}
-                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
                   <div>
                     <span className="text-xs font-sans text-slate-500 block uppercase">Supplier</span>
-                    <span className="font-bold text-slate-900 dark:text-white text-sm">
-                      {selectedSupplier?.name || 'Direct Depot Intake'}
+                    <span className="font-heading font-extrabold text-slate-900 dark:text-white text-sm">
+                      {selectedTankSupplier?.name || 'Direct Depot Intake'}
                     </span>
                   </div>
                   <div className="text-right">
                     <span className="text-xs font-sans text-slate-500 block uppercase">Intake Model</span>
-                    <span className="badge-sky px-2 py-0.5 rounded font-bold uppercase tracking-wider text-xs">
+                    <span className="px-2.5 py-1 rounded-full bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 font-mono font-bold uppercase tracking-wider text-xs border border-brand-200 dark:border-brand-800">
                       {selectedTank.supply_model === 'pre_kegged' ? 'In kegs' : 'By tanker'}
                     </span>
                   </div>
@@ -909,22 +1260,22 @@ export const TruckIntakeScreen: React.FC = () => {
 
                 {/* Storage Metrics Row */}
                 <div className="grid grid-cols-2 gap-3 font-mono tabular-nums text-xs">
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                     <span className="text-xs font-sans text-slate-500 block uppercase">Received Capacity</span>
-                    <span className="text-base font-bold text-slate-900 dark:text-slate-100">
+                    <span className="text-lg font-black text-slate-900 dark:text-slate-100">
                       {selectedTank.received_litres.toLocaleString()} L
                     </span>
                   </div>
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                     <span className="text-xs font-sans text-slate-500 block uppercase">Available Stock</span>
-                    <span className="text-base font-bold text-emerald-600 dark:text-emerald-400">
+                    <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
                       {selectedTank.remaining_litres.toLocaleString()} L
                     </span>
                   </div>
                 </div>
 
                 {selectedTank.space_note && (
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs">
+                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs">
                     <span className="text-xs font-sans text-slate-500 uppercase block mb-0.5">Yard Placement Note:</span>
                     <span className="font-sans text-slate-800 dark:text-slate-200 italic">
                       &ldquo;{selectedTank.space_note}&rdquo;
@@ -935,9 +1286,9 @@ export const TruckIntakeScreen: React.FC = () => {
                 {/* Orders Drawn from this Tank / Product Batch */}
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-heading font-semibold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                      <ShoppingCart className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                      <span>Recent Orders Drawn</span>
+                    <h4 className="font-heading font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Receipt className="w-4 h-4 text-brand-500" />
+                      <span>Recent Orders Dispensed</span>
                     </h4>
                     <span className="text-xs font-mono text-slate-500">
                       {drawnOrders.length} recent
@@ -951,10 +1302,10 @@ export const TruckIntakeScreen: React.FC = () => {
                         return (
                           <div
                             key={order.id}
-                            className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs"
+                            className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs"
                           >
                             <div className="space-y-0.5">
-                              <div className="font-sans font-semibold text-slate-900 dark:text-slate-200">
+                              <div className="font-sans font-bold text-slate-900 dark:text-slate-200">
                                 {cust?.name || 'Customer'}
                               </div>
                               <div className="text-xs text-slate-500 font-mono">
@@ -962,10 +1313,10 @@ export const TruckIntakeScreen: React.FC = () => {
                               </div>
                             </div>
                             <div className="text-right font-mono">
-                              <span className="font-bold text-slate-900 dark:text-slate-100 block">
+                              <span className="font-black text-slate-900 dark:text-slate-100 block">
                                 -{(order.litres || 0).toLocaleString()} L
                               </span>
-                              <span className="text-xs text-slate-500 uppercase font-sans">Dispensed</span>
+                              <span className="text-xs text-slate-500 uppercase font-sans font-semibold">Dispensed</span>
                             </div>
                           </div>
                         );

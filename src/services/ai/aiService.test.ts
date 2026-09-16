@@ -172,7 +172,7 @@ assert(snapshot.lossPreventionAudit.intakeShortfalls.length === 1, 'Snapshot cap
 // ---------------------------------------------------------------------------
 // TEST 2: Deterministic Operations Audit Engine
 // ---------------------------------------------------------------------------
-const auditReport = runDeterministicOperationsAudit(snapshot, 'gemini');
+const auditReport = runDeterministicOperationsAudit(snapshot, 'claude');
 
 assert(auditReport.depotHealthScore < 85, 'Health score penalizes delinquent debt, pump variance, and supplier shortfall');
 assert(auditReport.healthVerdict !== 'optimal', 'Health verdict flags attention needed due to multiple depot risks');
@@ -193,15 +193,10 @@ assert(auditReport.inventoryForecasts.length === 2, 'Audit produces runway forec
 assert(auditReport.lossPreventionItems.length >= 2, 'Audit produces loss prevention item list with calculated Naira exposure');
 
 // ---------------------------------------------------------------------------
-// TEST 3: Multi-Provider Model Configuration & Dual Comparison
+// TEST 3: Claude Model Configuration
 // ---------------------------------------------------------------------------
-const dualReport = runDeterministicOperationsAudit(snapshot, 'both');
-assert(dualReport.comparison !== undefined, 'Dual mode produces consensus and comparative insights');
-assert(typeof dualReport.comparison?.consensusAgreement === 'string', 'Dual mode produces synthesized consensus agreement');
-
-assert(AVAILABLE_MODELS.length >= 4, 'Provides at least 4 models across Gemini and Claude');
-assert(AVAILABLE_MODELS.some(m => m.provider === 'gemini'), 'Includes Google Gemini models');
-assert(AVAILABLE_MODELS.some(m => m.provider === 'claude'), 'Includes Anthropic Claude models');
+assert(AVAILABLE_MODELS.length >= 2, 'Provides at least 2 Claude models');
+assert(AVAILABLE_MODELS.every(m => m.provider === 'claude'), 'Includes Anthropic Claude models exclusively');
 
 // ---------------------------------------------------------------------------
 // TEST 4: Copilot Interactive Q&A

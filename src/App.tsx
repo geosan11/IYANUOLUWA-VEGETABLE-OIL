@@ -1,6 +1,8 @@
-import React, { useRef, useState } from 'react';
-import { IconContext } from '@phosphor-icons/react';
+import React, { useEffect, useRef, useState } from 'react';
+import { IconContext, Drop, Spinner } from '@phosphor-icons/react';
 import { StoreProvider, useStore } from './services/store';
+import { AuthProvider, useAuth } from './services/auth';
+import { isSupabaseConfigured } from './services/supabase';
 import { NAV_ITEMS } from './constants/nav';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopHeader } from './components/layout/TopHeader';
@@ -8,6 +10,8 @@ import { MobileNav } from './components/layout/MobileNav';
 import { ScreenTransition } from './components/layout/ScreenTransition';
 import { ReceiptModal } from './components/common/ReceiptModal';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { FloatingAIBuddy } from './components/common/FloatingAIBuddy';
+import { LoginScreen } from './screens/LoginScreen';
 
 import { DashboardScreen } from './screens/DashboardScreen';
 import { TruckIntakeScreen } from './screens/TruckIntakeScreen';
@@ -126,6 +130,9 @@ const MainLayout: React.FC = () => {
         onCloseMenu={() => setIsMobileMenuOpen(false)}
       />
 
+      {/* Floating Circular AI Chat Buddy for Owner/Admin */}
+      {isAdmin && <FloatingAIBuddy onNavigate={setCurrentTab} />}
+
       {/* Global Printable Receipt Modal */}
       <ReceiptModal
         receipt={activeReceipt}
@@ -135,14 +142,87 @@ const MainLayout: React.FC = () => {
   );
 };
 
+/**
+ * Requires a signed-in Supabase session + a loaded `profiles` row before
+ * rendering the app, and mirrors that profile into the local store's
+ * `currentUser`/`userRole` so every existing role-gated screen just works.
+ * A no-op when Supabase isn't configured — local/offline mode is unaffected.
+ */
+const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { ready, session, profile, profileLoading, signOut } = useAuth();
+  const { setCurrentUser } = useStore();
+
+  useEffect(() => {
+    if (!session?.user || !profile) return;
+    setCurrentUser({
+      id: profile.id,
+      full_name: profile.full_name || session.user.email || 'Depot User',
+      email: session.user.email || '',
+      role: profile.role,
+      hub_id: profile.hub_id,
+      active: true
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, session]);
+
+  if (!isSupabaseConfigured) return <>{children}</>;
+
+  if (!ready) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-slate-100 dark:bg-slate-950">
+        <Spinner className="w-8 h-8 text-brand-500 animate-spin" weight="bold" />
+      </div>
+    );
+  }
+
+  if (!session) return <LoginScreen />;
+
+  if (!profile) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-slate-100 dark:bg-slate-950 px-4">
+        <div className="depot-card p-6 max-w-sm text-center space-y-3">
+          {profileLoading ? (
+            <>
+              <Spinner className="w-8 h-8 text-brand-500 animate-spin mx-auto" weight="bold" />
+              <p className="text-sm font-sans text-slate-600 dark:text-slate-300">Loading your account…</p>
+            </>
+          ) : (
+            <>
+              <Drop className="w-8 h-8 text-amber-500 mx-auto" weight="fill" />
+              <p className="text-sm font-sans font-bold text-slate-800 dark:text-white">Account not set up yet</p>
+              <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
+                Signed in, but no depot profile was found for this account. Ask an
+                owner to check the <code>profiles</code> table in Supabase, or sign out and try again.
+              </p>
+              <button
+                type="button"
+                onClick={() => signOut()}
+                className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-sans font-bold transition-all"
+              >
+                Sign out
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+};
+
 export function App() {
   return (
     // App-wide icon convention: thin by default, bold on an active tab,
     // selected tile/chip, or primary action — set explicitly per element.
     <IconContext.Provider value={{ weight: 'thin' }}>
-      <StoreProvider>
-        <MainLayout />
-      </StoreProvider>
+      <AuthProvider>
+        <StoreProvider>
+          <AuthGate>
+            <MainLayout />
+          </AuthGate>
+        </StoreProvider>
+      </AuthProvider>
     </IconContext.Provider>
   );
 }

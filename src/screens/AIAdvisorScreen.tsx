@@ -5,9 +5,7 @@ import { extractSystemSnapshot } from '../services/ai/dataExtractor';
 import {
   requestOperationsAudit,
   askOperationsQuestion,
-  getCachedReport,
-  getProviderPreference,
-  saveProviderPreference
+  getCachedReport
 } from '../services/ai/aiService';
 import {
   AIProviderType,
@@ -23,7 +21,8 @@ import {
   PaperPlaneTilt as Send,
   Copy,
   Check,
-  ChatCircle as MessageSquare
+  ChatCircle as MessageSquare,
+  Globe
 } from '@phosphor-icons/react';
 
 export const AIAdvisorScreen: React.FC = () => {
@@ -34,7 +33,8 @@ export const AIAdvisorScreen: React.FC = () => {
   const { can } = usePermissions();
   const isAdmin = can('viewAIAdvisor');
 
-  const [provider, setProvider] = useState<AIProviderType>(() => getProviderPreference().provider);
+  // Provider is fixed to Claude
+  const provider: AIProviderType = 'claude';
   const [report, setReport] = useState<AIAnalysisReport | null>(() => getCachedReport());
 
   const [isLoading, setIsLoading] = useState(false);
@@ -52,12 +52,6 @@ export const AIAdvisorScreen: React.FC = () => {
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
-
-  // Sync provider preference changes
-  const handleProviderChange = (newProvider: AIProviderType) => {
-    setProvider(newProvider);
-    saveProviderPreference(newProvider);
-  };
 
   // Trigger On-Demand Audit
   const handleRunAudit = async () => {
@@ -81,10 +75,9 @@ export const AIAdvisorScreen: React.FC = () => {
       });
 
       await new Promise(r => setTimeout(r, 450));
-      setLoadingStage(`Formulating strategic decisions with ${provider === 'both' ? 'Gemini + Claude' : provider}...`);
+      setLoadingStage('Formulating strategic decisions with Claude 3.5 Sonnet...');
 
       const newReport = await requestOperationsAudit(snapshot, {
-        provider,
         userRole
       });
 
@@ -130,7 +123,6 @@ export const AIAdvisorScreen: React.FC = () => {
       });
 
       const replyText = await askOperationsQuestion(q, snapshot, {
-        provider,
         userRole
       });
 
@@ -139,7 +131,7 @@ export const AIAdvisorScreen: React.FC = () => {
         role: 'assistant',
         text: replyText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        provider
+        provider: 'claude'
       };
 
       setChatMessages(prev => [...prev, botMsg]);
@@ -222,21 +214,10 @@ export const AIAdvisorScreen: React.FC = () => {
 
         {/* Engine Switcher & Trigger */}
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-          {/* Segmented Model Switcher */}
-          <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
-            {(['gemini', 'claude', 'both'] as AIProviderType[]).map(p => (
-              <button
-                key={p}
-                onClick={() => handleProviderChange(p)}
-                className={`px-3 py-1.5 rounded-lg capitalize font-bold transition-all ${
-                  provider === p
-                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
-                }`}
-              >
-                {p === 'both' ? 'Dual' : p}
-              </button>
-            ))}
+          {/* Dedicated Claude Engine Badge */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs shadow-sm">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />
+            <span className="font-bold text-slate-800 dark:text-slate-200">Claude 3.5 Sonnet</span>
           </div>
 
           {/* Action Trigger */}
@@ -466,27 +447,34 @@ export const AIAdvisorScreen: React.FC = () => {
           </span>
         </div>
 
-        {/* 4 Quick Question Chips */}
+        {/* Quick Question Chips: Operations & External Market Intelligence */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
           {[
-            'Who owes us the most money?',
-            'When should we book our next tanker?',
-            'Is Pump 2 leaking or unmetered?',
-            'What is our unreturned keg exposure?'
+            { text: 'Search live Mile 12 & Daleko oil prices', isWeb: true },
+            { text: 'Search diesel price & freight rates', isWeb: true },
+            { text: 'Benchmark CPO prices & import tariffs', isWeb: true },
+            { text: 'Who owes us the most money on debit?', isWeb: false },
+            { text: 'When should we book our next tanker?', isWeb: false },
+            { text: 'Is Pump 2 leaking or unmetered?', isWeb: false }
           ].map(prompt => (
             <button
-              key={prompt}
-              onClick={() => handleSendChat(prompt)}
+              key={prompt.text}
+              onClick={() => handleSendChat(prompt.text)}
               disabled={isChatLoading}
-              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/80 whitespace-nowrap transition-colors disabled:opacity-50 text-xs"
+              className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors disabled:opacity-50 text-xs flex items-center gap-1.5 ${
+                prompt.isWeb
+                  ? 'bg-amber-950/40 hover:bg-amber-900/60 text-amber-300 border border-amber-600/40'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/80'
+              }`}
             >
-              "{prompt}"
+              {prompt.isWeb && <Globe className="w-3 h-3 text-amber-400" />}
+              <span>{prompt.text}</span>
             </button>
           ))}
         </div>
 
         {/* Conversation Box */}
-        <div className="max-h-56 overflow-y-auto space-y-2.5 p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800/80 text-xs font-sans">
+        <div className="max-h-64 overflow-y-auto space-y-2.5 p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800/80 text-xs font-sans">
           {chatMessages.map(msg => (
             <div
               key={msg.id}
@@ -509,7 +497,7 @@ export const AIAdvisorScreen: React.FC = () => {
           {isChatLoading && (
             <div className="flex items-center gap-2 text-brand-400 text-xs py-1">
               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              <span>Analyzing ledger & drafting executive answer...</span>
+              <span>Claude is researching market records & drafting executive answer...</span>
             </div>
           )}
         </div>
@@ -526,7 +514,7 @@ export const AIAdvisorScreen: React.FC = () => {
             type="text"
             value={chatInput}
             onChange={e => setChatInput(e.target.value)}
-            placeholder="Ask about receivables, tank reordering, or cashier reconciliations..."
+            placeholder="Ask about debit balances, tanks, or search live market prices (Mile 12, Daleko, CPO, Diesel)..."
             className="flex-1 py-2.5 px-4 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
           />
           <button

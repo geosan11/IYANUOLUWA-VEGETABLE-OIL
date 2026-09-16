@@ -12,7 +12,14 @@ export default {
       },
       colors: {
         slate: {
-          50: '#FBF7F1',
+          50: '#FAF6ED',
+        },
+        cream: {
+          50: '#FDFCF7',
+          100: '#FAF6ED',
+          200: '#F4EFE0',
+          300: '#EAE1CC',
+          DEFAULT: '#FAF6ED',
         },
         brand: {
           50: '#ecfdf5',
@@ -69,8 +76,13 @@ export default {
       },
       fontFamily: {
         heading: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
-        sans: ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
-        mono: ['"IBM Plex Mono"', 'Menlo', 'monospace'],
+        display: ['"Space Grotesk"', '"Plus Jakarta Sans"', 'sans-serif'],
+        sans: ['"IBM Plex Sans"', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', '"IBM Plex Mono"', 'Menlo', 'monospace'],
+        headline: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        title: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        body: ['"IBM Plex Sans"', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        label: ['"IBM Plex Sans"', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
       },
       keyframes: {
         wave: {

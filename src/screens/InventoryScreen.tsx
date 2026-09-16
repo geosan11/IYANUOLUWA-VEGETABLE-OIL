@@ -249,7 +249,7 @@ const PriceMatrix: React.FC<{
                         <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[13px] font-bold">₦</span>
                         <input
                           type="number"
-                          step="50"
+                          step="1"
                           min="0"
                           value={val}
                           onChange={e =>
@@ -372,7 +372,7 @@ const PackConfigEditor: React.FC<{
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[13px] font-bold">₦</span>
                     <input
                       type="number"
-                      step="50"
+                      step="1"
                       min="0"
                       value={r.container_buy_price || ''}
                       disabled={!r.enabled}

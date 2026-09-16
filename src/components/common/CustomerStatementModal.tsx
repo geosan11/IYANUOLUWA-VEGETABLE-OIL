@@ -59,10 +59,12 @@ export const CustomerStatementModal: React.FC<Props> = ({ customer, rows, balanc
             style={{ backgroundColor: '#fbfbf8' }}
           >
             <div className="text-center border-b-2 border-dashed border-slate-300 pb-3 mb-3">
-              <h1 className="text-[15px] font-heading font-extrabold uppercase text-slate-950 leading-tight">{company.name}</h1>
-              <p className="text-[11px] font-sans text-slate-600">{company.address}</p>
-              <p className="text-[11px] text-slate-600 tabular-nums">Tel: {company.phone}</p>
-              <div className="mt-2 tracking-[0.3em] text-[11px] font-bold text-slate-800">* * CUSTOMER STATEMENT * *</div>
+              <h1 className="text-[14px] font-heading font-extrabold uppercase text-slate-950 leading-snug">{company.name}</h1>
+              <p className="text-[10.5px] font-sans text-slate-600 mt-0.5 leading-tight">{company.address}</p>
+              <p className="text-[10.5px] font-mono tabular-nums text-slate-600 leading-tight">Tel: {company.phone}</p>
+              <div className="mt-2.5 py-1 border-y border-dashed border-slate-300 tracking-wider text-[11px] font-mono font-bold text-slate-900 uppercase">
+                * * CUSTOMER STATEMENT * *
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-[12px] border-b border-slate-200 pb-3 mb-3 font-mono tabular-nums">

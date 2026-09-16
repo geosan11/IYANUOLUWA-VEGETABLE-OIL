@@ -18,7 +18,8 @@ import {
   PencilSimple as Edit2,
   Check,
   CheckCircle as CheckCircle2,
-  CurrencyDollar as DollarSign
+  CurrencyDollar as DollarSign,
+  ClockCounterClockwise
 } from '@phosphor-icons/react';
 
 export const ExpensesScreen: React.FC = () => {
@@ -133,8 +134,10 @@ export const ExpensesScreen: React.FC = () => {
             <div className="flex items-center gap-2 my-1">
               <input
                 type="number"
+                step="1"
+                min="0"
                 value={editableFloat}
-                onChange={e => setEditableFloat(e.target.value)}
+                onChange={e => setEditableFloat(e.target.value.replace(/[^0-9]/g, ''))}
                 className="w-36 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-brand-500 text-[18px] font-mono tabular-nums font-bold text-slate-900 dark:text-white focus:outline-none"
                 autoFocus
               />
@@ -269,10 +272,10 @@ export const ExpensesScreen: React.FC = () => {
               <input
                 id="expense-amount"
                 type="number"
-                step="100"
-                min="1"
+                step="1"
+                min="0"
                 value={amount}
-                onChange={e => setAmount(e.target.value)}
+                onChange={e => setAmount(e.target.value.replace(/[^0-9]/g, ''))}
                 placeholder="25000"
                 className="w-full pl-9 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[16px] font-mono tabular-nums font-bold focus:outline-none focus:border-brand-500"
                 required
@@ -300,9 +303,15 @@ export const ExpensesScreen: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowDatePicker(v => !v)}
-              className="text-[11px] font-sans font-semibold text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
+              aria-pressed={showDatePicker}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-sans font-bold transition-all active:scale-95 ${
+                showDatePicker
+                  ? 'bg-brand-50 dark:bg-brand-950/40 border-brand-300 dark:border-brand-800 text-brand-700 dark:text-brand-400'
+                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+              }`}
             >
-              {showDatePicker ? 'Using a specific date & time' : "Not now? Backdate this voucher"}
+              <ClockCounterClockwise className="w-3.5 h-3.5" weight="bold" />
+              <span>{showDatePicker ? 'Using a specific date & time' : 'Backdate this voucher'}</span>
             </button>
             {showDatePicker && (
               <input

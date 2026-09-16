@@ -45,7 +45,7 @@ const PAYMENT_MODE_META: Record<PaymentMethod, { label: string; Icon: typeof Cre
   cash: { label: 'Cash', Icon: Banknote, cls: PAYMENT_MODE_THEME.cash.textCls },
   transfer: { label: 'Transfer', Icon: Bank, cls: PAYMENT_MODE_THEME.transfer.textCls },
   pos: { label: 'POS / Card', Icon: DeviceMobile, cls: PAYMENT_MODE_THEME.pos.textCls },
-  credit: { label: 'Credit', Icon: Wallet, cls: PAYMENT_MODE_THEME.credit.textCls }
+  credit: { label: 'Debit', Icon: Wallet, cls: PAYMENT_MODE_THEME.credit.textCls }
 };
 
 interface TxnRow {
@@ -75,7 +75,7 @@ const PAYMENT_MODE_CHIPS: { id: PaymentModeFilter; label: string }[] = [
   { id: 'cash', label: 'Cash' },
   { id: 'transfer', label: 'Transfer' },
   { id: 'pos', label: 'Card / POS' },
-  { id: 'credit', label: 'Credit' }
+  { id: 'credit', label: 'Debit' }
 ];
 
 const KIND_META: Record<Kind, { label: string; Icon: typeof CreditCard; badge: string }> = {
@@ -341,7 +341,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
           ['Gross sales', formatNaira(kpi.gross), 'text-slate-900 dark:text-white'],
           ['Payments in', formatNaira(kpi.received), 'text-sky-600 dark:text-sky-400'],
           ['Expenses', formatNaira(kpi.spent), 'text-rose-600 dark:text-rose-400'],
-          ['Credit owed', formatNaira(kpi.creditOwed), 'text-amber-600 dark:text-amber-400']
+          ['Debit owed', formatNaira(kpi.creditOwed), 'text-amber-600 dark:text-amber-400']
         ].map(([label, val, cls]) => (
           <div key={label} className="depot-card p-3 rounded-xl">
             <div className="text-xs font-sans uppercase tracking-wider text-slate-500">{label}</div>
@@ -581,19 +581,29 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                           {(row.kind === 'sale' || row.kind === 'payment') && (
                             <button
                               onClick={() => setExpanded(isOpen ? null : row.id)}
-                              className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                              aria-label="Expand"
+                              aria-expanded={isOpen}
+                              aria-label={isOpen ? 'Collapse details' : 'Expand details'}
+                              className={`p-1.5 rounded-lg border transition-all active:scale-95 ${
+                                isOpen
+                                  ? 'bg-brand-50 dark:bg-brand-950/40 border-brand-300 dark:border-brand-800 text-brand-700 dark:text-brand-400'
+                                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                              }`}
                             >
-                              {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                              {isOpen ? <ChevronDown className="w-4 h-4" weight="bold" /> : <ChevronRight className="w-4 h-4" weight="bold" />}
                             </button>
                           )}
                           {rowAudits.length > 0 && (
                             <button
                               onClick={() => setAuditFor(showAudit ? null : row.id)}
-                              className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                              aria-expanded={showAudit}
                               title="Edit history"
+                              className={`p-1.5 rounded-lg border transition-all active:scale-95 ${
+                                showAudit
+                                  ? 'bg-brand-50 dark:bg-brand-950/40 border-brand-300 dark:border-brand-800 text-brand-700 dark:text-brand-400'
+                                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                              }`}
                             >
-                              <History className="w-4 h-4" />
+                              <History className="w-4 h-4" weight="bold" />
                             </button>
                           )}
                           {row.kind === 'sale' && row.sale && row.lines && !row.voided && (
@@ -653,6 +663,14 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                                 </span>
                               </div>
                             ))}
+                            <button
+                              type="button"
+                              onClick={() => setExpanded(null)}
+                              className="inline-flex items-center gap-1 mt-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-sans font-bold transition-all active:scale-95"
+                            >
+                              <ChevronDown className="w-3 h-3" weight="bold" />
+                              <span>Collapse</span>
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -691,6 +709,14 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                                 </span>
                               </div>
                             )}
+                            <button
+                              type="button"
+                              onClick={() => setExpanded(null)}
+                              className="inline-flex items-center gap-1 mt-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-sans font-bold transition-all active:scale-95"
+                            >
+                              <ChevronDown className="w-3 h-3" weight="bold" />
+                              <span>Collapse</span>
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -718,6 +744,14 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                                 )}
                               </div>
                             ))}
+                            <button
+                              type="button"
+                              onClick={() => setAuditFor(null)}
+                              className="inline-flex items-center gap-1 mt-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-sans font-bold transition-all active:scale-95"
+                            >
+                              <ChevronDown className="w-3 h-3" weight="bold" />
+                              <span>Collapse</span>
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -903,11 +937,11 @@ const EditModal: React.FC<{
             <div className="grid grid-cols-2 gap-2">
               <label className="text-xs font-sans font-semibold text-slate-500">
                 Packs
-                <input type="number" min={1} value={qty} onChange={e => setQty(e.target.value)} className={field} />
+                <input type="number" min={0} step={1} value={qty} onChange={e => setQty(e.target.value.replace(/[^0-9]/g, ''))} className={field} />
               </label>
               <label className="text-xs font-sans font-semibold text-slate-500">
                 Unit price (₦)
-                <input type="number" value={unitPrice} onChange={e => setUnitPrice(e.target.value)} className={field} />
+                <input type="number" min={0} step={1} value={unitPrice} onChange={e => setUnitPrice(e.target.value.replace(/[^0-9]/g, ''))} className={field} />
               </label>
             </div>
             {line.returnable && (
@@ -938,7 +972,7 @@ const EditModal: React.FC<{
             </label>
             <label className="text-xs font-sans font-semibold text-slate-500 block">
               Amount (₦)
-              <input type="number" value={expAmount} onChange={e => setExpAmount(e.target.value)} className={field} />
+              <input type="number" min={0} step={1} value={expAmount} onChange={e => setExpAmount(e.target.value.replace(/[^0-9]/g, ''))} className={field} />
             </label>
             <label className="text-xs font-sans font-semibold text-slate-500 block">
               Note

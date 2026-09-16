@@ -261,10 +261,11 @@ export const PumpsScreen: React.FC = () => {
               Meter Reading (Litres)
               <input
                 type="number"
-                step="0.5"
+                step="1"
+                min="0"
                 value={loggerReading}
-                onChange={e => setLoggerReading(e.target.value)}
-                placeholder="e.g. 143830.5"
+                onChange={e => setLoggerReading(e.target.value.replace(/[^0-9]/g, ''))}
+                placeholder="e.g. 143830"
                 required
                 className="depot-input mt-1 w-full px-3 py-2.5 rounded-xl font-mono font-bold text-sm"
               />
@@ -436,8 +437,10 @@ export const PumpsScreen: React.FC = () => {
               Opening meter reading (L)
               <input
                 type="number"
+                step="1"
+                min="0"
                 value={newOpening}
-                onChange={e => setNewOpening(e.target.value)}
+                onChange={e => setNewOpening(e.target.value.replace(/[^0-9]/g, ''))}
                 className="depot-input mt-1 w-full px-3 py-2 rounded-xl font-mono font-bold text-sm"
               />
             </label>

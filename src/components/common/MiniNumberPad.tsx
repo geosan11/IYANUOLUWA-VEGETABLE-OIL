@@ -79,49 +79,60 @@ export const MiniNumberPad: React.FC<MiniNumberPadProps> = ({
 
   return (
     <div
-      className={`p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl space-y-2.5 select-none animate-in fade-in zoom-in-95 duration-150 ${className}`}
+      className={`p-4 rounded-2xl bg-[#0B1120] border border-slate-800 shadow-2xl space-y-3.5 select-none animate-in fade-in zoom-in-95 duration-150 max-w-sm ${className}`}
     >
-      {/* Target Selector Tabs */}
-      <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-        <button
-          type="button"
-          onClick={() => onTargetChange('qty')}
-          className={`py-1.5 px-2.5 rounded-lg text-xs font-sans font-bold flex items-center justify-between transition-all cursor-pointer ${
-            activeTarget === 'qty'
-              ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-xs border border-slate-200/80 dark:border-slate-700'
-              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-          }`}
-        >
-          <span>📦 Qty</span>
-          <span className="font-mono tabular-nums text-slate-900 dark:text-white">{qty}</span>
-        </button>
+      {/* Header: Target Tabs & Active Bold Value Display */}
+      <div className="flex items-center justify-between gap-3 bg-[#111A2E] p-2 rounded-xl border border-slate-850">
+        <div className="flex items-center gap-1 bg-[#0B1120] p-1 rounded-lg border border-slate-800">
+          <button
+            type="button"
+            onClick={() => onTargetChange('qty')}
+            className={`px-3 py-1.5 rounded-md text-xs font-sans font-bold transition-all cursor-pointer ${
+              activeTarget === 'qty'
+                ? 'bg-brand-500 text-slate-950 font-black shadow-xs'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Qty
+          </button>
+          <button
+            type="button"
+            onClick={() => onTargetChange('price')}
+            className={`px-3 py-1.5 rounded-md text-xs font-sans font-bold transition-all cursor-pointer ${
+              activeTarget === 'price'
+                ? 'bg-brand-500 text-slate-950 font-black shadow-xs'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Price
+          </button>
+        </div>
 
-        <button
-          type="button"
-          onClick={() => onTargetChange('price')}
-          className={`py-1.5 px-2.5 rounded-lg text-xs font-sans font-bold flex items-center justify-between transition-all cursor-pointer ${
-            activeTarget === 'price'
-              ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-xs border border-slate-200/80 dark:border-slate-700'
-              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-          }`}
-        >
-          <span>₦ Price</span>
-          <span className="font-mono tabular-nums text-slate-900 dark:text-white truncate max-w-[80px]">
-            {price !== '' ? `₦${Number(price).toLocaleString()}` : '—'}
+        {/* Large Bold Display of Current Value */}
+        <div className="text-right pr-1">
+          <span className="text-[10px] font-mono font-bold uppercase text-slate-400 tracking-wider block">
+            {activeTarget === 'qty' ? 'Units' : 'Unit Rate'}
           </span>
-        </button>
+          <span className="font-mono font-black text-xl text-white tracking-tight tabular-nums block leading-tight">
+            {activeTarget === 'qty' ? `${qty} pk` : price !== '' ? `₦${Number(price).toLocaleString()}` : '₦0'}
+          </span>
+        </div>
       </div>
 
-      {/* Quick Action Presets */}
-      <div className="flex flex-wrap items-center gap-1">
+      {/* Streamlined 1-Row Quick Presets */}
+      <div className="flex items-center gap-1.5">
         {activeTarget === 'qty' ? (
           <>
-            {[5, 10, 20, 25, 50, 100].map(n => (
+            {[5, 10, 20, 50].map(n => (
               <button
                 key={n}
                 type="button"
                 onClick={() => onQtyChange(n)}
-                className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+                className={`flex-1 py-1.5 rounded-lg text-xs font-sans font-bold transition-all cursor-pointer ${
+                  qty === n
+                    ? 'bg-brand-500/20 text-brand-300 border border-brand-500/40'
+                    : 'bg-[#152138] hover:bg-[#1C2C4B] text-slate-300 border border-slate-750'
+                }`}
               >
                 {n}
               </button>
@@ -129,31 +140,31 @@ export const MiniNumberPad: React.FC<MiniNumberPadProps> = ({
             <button
               type="button"
               onClick={() => addQtyDelta(5)}
-              className="px-2 py-1 rounded-lg bg-brand-50 hover:bg-brand-100 dark:bg-brand-950/60 dark:hover:bg-brand-900/80 text-brand-700 dark:text-brand-300 text-[11px] font-mono font-bold transition-colors ml-auto cursor-pointer"
+              className="px-2.5 py-1.5 rounded-lg bg-[#152138] hover:bg-[#1C2C4B] text-brand-400 text-xs font-sans font-bold border border-slate-750 cursor-pointer"
             >
               +5
             </button>
           </>
         ) : (
           <>
-            {[-1000, -500, 500, 1000, 5000].map(delta => (
+            {[-1000, 500, 1000, 5000].map(delta => (
               <button
                 key={delta}
                 type="button"
                 onClick={() => addPriceDelta(delta)}
-                className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+                className="flex-1 py-1.5 rounded-lg bg-[#152138] hover:bg-[#1C2C4B] text-slate-300 text-xs font-sans font-bold border border-slate-750 transition-colors cursor-pointer"
               >
-                {delta > 0 ? `+${delta.toLocaleString()}` : delta.toLocaleString()}
+                {delta > 0 ? `+${delta}` : delta}
               </button>
             ))}
             {standardPrice && (
               <button
                 type="button"
                 onClick={onResetPrice}
-                className="px-2 py-1 rounded-lg bg-brand-50 hover:bg-brand-100 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 text-[11px] font-sans font-bold flex items-center gap-1 transition-colors ml-auto cursor-pointer"
+                className="px-2.5 py-1.5 rounded-lg bg-[#152138] hover:bg-[#1C2C4B] text-brand-400 text-xs font-sans font-bold flex items-center gap-1 border border-slate-750 cursor-pointer"
                 title="Reset to standard rate"
               >
-                <ArrowsClockwise className="w-3 h-3" />
+                <ArrowsClockwise className="w-3.5 h-3.5" />
                 <span>Reset</span>
               </button>
             )}
@@ -161,14 +172,14 @@ export const MiniNumberPad: React.FC<MiniNumberPadProps> = ({
         )}
       </div>
 
-      {/* 3x4 Number Grid */}
-      <div className="grid grid-cols-3 gap-1.5">
+      {/* 3x4 Number Grid: Bold, compact, non-wide numbers on dark tiles */}
+      <div className="grid grid-cols-3 gap-2">
         {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(d => (
           <button
             key={d}
             type="button"
             onClick={() => handleDigit(d)}
-            className="h-10 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700 font-mono font-bold text-base text-slate-900 dark:text-white shadow-2xs active:scale-95 transition-all flex items-center justify-center cursor-pointer"
+            className="h-12 rounded-xl bg-[#141E34] hover:bg-[#1C2A48] active:bg-brand-500 active:text-slate-950 border border-slate-750/80 font-sans font-black text-xl text-white tracking-tight shadow-sm active:scale-95 transition-all flex items-center justify-center cursor-pointer"
           >
             {d}
           </button>
@@ -177,7 +188,7 @@ export const MiniNumberPad: React.FC<MiniNumberPadProps> = ({
         <button
           type="button"
           onClick={handleClear}
-          className="h-10 rounded-xl bg-slate-100 hover:bg-rose-50 dark:bg-slate-850 dark:hover:bg-rose-950/40 border border-slate-200 dark:border-slate-700 font-sans font-bold text-xs text-slate-600 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 shadow-2xs active:scale-95 transition-all flex items-center justify-center cursor-pointer"
+          className="h-12 rounded-xl bg-[#182033] hover:bg-rose-950/40 hover:border-rose-700/60 border border-slate-750 font-sans font-bold text-xs uppercase tracking-wider text-slate-400 hover:text-rose-400 shadow-sm active:scale-95 transition-all flex items-center justify-center cursor-pointer"
         >
           Clear
         </button>
@@ -185,7 +196,7 @@ export const MiniNumberPad: React.FC<MiniNumberPadProps> = ({
         <button
           type="button"
           onClick={() => handleDigit('0')}
-          className="h-10 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700 font-mono font-bold text-base text-slate-900 dark:text-white shadow-2xs active:scale-95 transition-all flex items-center justify-center cursor-pointer"
+          className="h-12 rounded-xl bg-[#141E34] hover:bg-[#1C2A48] active:bg-brand-500 active:text-slate-950 border border-slate-750/80 font-sans font-black text-xl text-white tracking-tight shadow-sm active:scale-95 transition-all flex items-center justify-center cursor-pointer"
         >
           0
         </button>
@@ -193,19 +204,19 @@ export const MiniNumberPad: React.FC<MiniNumberPadProps> = ({
         <button
           type="button"
           onClick={handleBackspace}
-          className="h-10 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono font-bold text-slate-600 dark:text-slate-300 shadow-2xs active:scale-95 transition-all flex items-center justify-center cursor-pointer"
+          className="h-12 rounded-xl bg-[#182033] hover:bg-[#222E4A] border border-slate-750 text-slate-300 hover:text-white shadow-sm active:scale-95 transition-all flex items-center justify-center cursor-pointer"
           aria-label="Backspace"
         >
-          <Backspace className="w-5 h-5" />
+          <Backspace className="w-5 h-5" weight="bold" />
         </button>
       </div>
 
-      {/* Done / Close Bar */}
+      {/* Done Confirmation Button */}
       {onClose && (
         <button
           type="button"
           onClick={onClose}
-          className="w-full py-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-xs font-sans font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-98 transition-all cursor-pointer"
+          className="w-full h-11 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-black text-sm flex items-center justify-center gap-1.5 shadow-md active:scale-98 transition-all cursor-pointer"
         >
           <Check className="w-4 h-4" weight="bold" />
           <span>Done</span>
