@@ -3,10 +3,10 @@
 -- Depends on 0001_init.sql, 0002_auth_rls.sql, and 0003_multi_hub.sql (the
 -- 'hub_manager' enum value must already be committed — see that file's header).
 --
--- Runs as supabase_admin — see the note at the top of 0001_init.sql.
+-- Opens with RESET ROLE — see the note at the top of 0001_init.sql.
 -- ============================================================================
 
-SET ROLE supabase_admin;
+RESET ROLE;
 
 -- ---------------------------------------------------------------------------
 -- 1. Hubs table (Depots / Distribution Centres across Nigeria)

@@ -2,10 +2,10 @@
 -- 0005_custom_screen_access.sql — Per-user screen access override.
 -- Depends on 0002_auth_rls.sql (profiles table).
 --
--- Runs as supabase_admin — see the note at the top of 0001_init.sql.
+-- Opens with RESET ROLE — see the note at the top of 0001_init.sql.
 -- ============================================================================
 
-SET ROLE supabase_admin;
+RESET ROLE;
 
 -- NULL (the default) = fall back to the role default (every screen except
 -- the ones the client marks `adminOnly`). A non-empty array = exactly those

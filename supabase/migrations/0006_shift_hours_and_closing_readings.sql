@@ -1,9 +1,9 @@
 -- 0006_shift_hours_and_closing_readings.sql
 -- Add scheduled shift operating hours to app_settings and closing pump meter readings to shifts
 --
--- Runs as supabase_admin — see the note at the top of 0001_init.sql.
+-- Opens with RESET ROLE — see the note at the top of 0001_init.sql.
 
-SET ROLE supabase_admin;
+RESET ROLE;
 
 alter table app_settings
   add column if not exists shift_start_time text not null default '07:00',

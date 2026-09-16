@@ -356,14 +356,15 @@ it. `0004` (hubs table, hub-scoped RLS, hub seed data) depends on `0003`
 having already committed. This also matters when pasting into the Supabase
 SQL Editor: paste and run `0003` by itself first, then `0004`.
 
-Every migration file opens with `SET ROLE supabase_admin;` and closes with
-`RESET ROLE;`. Some projects have `profiles` / `app_settings` / `shifts` (or
-other base tables) pre-existing from outside these migrations — created via
-the Supabase Table Editor UI, which runs as `supabase_admin` rather than
-`postgres` — so DDL against them fails with `42501: must be owner of table
-...` when run as `postgres` (the SQL Editor's default role). Running as
-`supabase_admin` instead sidesteps that regardless of which role actually
-owns a given table.
+Every migration file opens with `RESET ROLE;`. A SQL Editor session can be
+left with `current_user` downgraded to `authenticated` by an earlier, unrelated
+query in that same browser tab (e.g. one that ran `SET ROLE authenticated` to
+test an RLS policy and never reset it) — every table here is owned by
+`postgres`, so DDL then fails with `42501: must be owner of table ...`, even
+though `session_user` (who you actually connected as) is still `postgres`.
+`RESET ROLE;` drops back to that regardless of what a prior query in the same
+session left behind. (Run `SELECT current_user, session_user;` alone to check
+if you ever hit this — if `current_user` isn't `postgres`, that's why.)
 
 `0002` references the `auth.users` table and the `auth.uid()` function, so it
 only runs on a real Supabase database (local `supabase start` or hosted), not a

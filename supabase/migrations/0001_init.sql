@@ -18,13 +18,16 @@
 -- Every table carries `created_at` + `updated_at timestamptz default now()`;
 -- `updated_at` is maintained by the shared `set_updated_at()` trigger below.
 --
--- Runs as supabase_admin: some tables in this project were created outside
--- these migrations (e.g. via the Table Editor UI, which runs as
--- supabase_admin) and are owned by it, not by `postgres` — DDL against them
--- fails with "must be owner of table ..." otherwise.
+-- Opens with RESET ROLE: every table here is owned by `postgres`, but a SQL
+-- Editor session can be left with `current_user` downgraded to `authenticated`
+-- by an earlier query (e.g. one that did `SET ROLE authenticated` to test an
+-- RLS policy and never reset it) — DDL then fails with "must be owner of
+-- table ...", even though `session_user` (who you actually connected as) is
+-- still `postgres`. RESET ROLE drops back to that regardless of what a prior
+-- query in the same session left behind.
 -- ============================================================================
 
-SET ROLE supabase_admin;
+RESET ROLE;
 
 -- ---------------------------------------------------------------------------
 -- ENUM TYPES  (mirrors the string unions in src/types/index.ts)

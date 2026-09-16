@@ -12,7 +12,7 @@
 -- 0001_init.sql.
 -- ============================================================================
 
-SET ROLE supabase_admin;
+RESET ROLE;
 
 ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'hub_manager';
 

@@ -2,10 +2,10 @@
 -- 0002_auth_rls.sql  —  Auth profiles, role helper, Row Level Security.
 -- Depends on 0001_init.sql. PostgreSQL 15 / Supabase (needs the `auth` schema).
 --
--- Runs as supabase_admin — see the note at the top of 0001_init.sql.
+-- Opens with RESET ROLE — see the note at the top of 0001_init.sql.
 -- ============================================================================
 
-SET ROLE supabase_admin;
+RESET ROLE;
 
 -- ---------------------------------------------------------------------------
 -- profiles : one row per Supabase auth user, carrying their app role and the
