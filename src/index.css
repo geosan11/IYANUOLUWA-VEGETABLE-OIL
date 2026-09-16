@@ -118,6 +118,17 @@
 .dark ::-webkit-scrollbar-thumb {
   background: rgba(51, 65, 85, 0.8);
 }
+
+/* Fully hidden scrollbar — for rails/strips where a thumb (even thin) reads
+   as a stray bar rather than a scroll affordance (e.g. the collapsed sidebar
+   icon rail). Content stays wheel/touch scrollable. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 0.8);
 }

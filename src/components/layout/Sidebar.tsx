@@ -62,7 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
         key={item.id}
         onClick={() => onTabChange(item.id)}
         title={item.label}
-        className={`w-full flex items-center justify-center group-hover:justify-between rounded-2xl transition-all duration-150 text-[13.5px] p-2.5 group-hover:px-3.5 group-hover:py-2.5 group/btn ${
+        className={`w-full flex items-center justify-center group-hover:justify-between rounded-2xl transition-all duration-150 text-[13.5px] py-3 px-2 group-hover:px-3.5 group-hover:py-2.5 group/btn ${
           isActive
             ? 'bg-[#382f1d] text-[#f59e0b] font-semibold border border-amber-500/25 shadow-sm'
             : 'text-stone-300 hover:text-white hover:bg-stone-800/50 border border-transparent font-medium'
@@ -70,7 +70,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
       >
         <div className="flex items-center gap-3 min-w-0">
           <Icon
-            className={`w-5 h-5 flex-shrink-0 transition-transform group-hover/btn:scale-110 ${
+            className={`w-[22px] h-[22px] flex-shrink-0 transition-transform group-hover/btn:scale-110 ${
               isActive ? 'text-amber-400' : 'text-stone-400 group-hover/btn:text-stone-200'
             }`}
             weight={isActive ? 'bold' : 'regular'}
@@ -92,16 +92,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
   return (
     <div className="hidden split:block relative flex-shrink-0 z-40 select-none">
       {/* Spacer so the main content reserves the narrow, resting width */}
-      <div className="w-[84px]" />
+      <div className="w-[104px]" />
 
       {/* Floating sidebar panel — expands over content on hover */}
-      <aside className="absolute top-0 left-0 h-screen p-3 z-50 flex flex-col w-[84px] hover:w-[280px] hover:shadow-2xl transition-all duration-300 ease-in-out group">
+      <aside className="absolute top-0 left-0 h-screen p-3 z-50 flex flex-col w-[104px] hover:w-[280px] hover:shadow-2xl transition-all duration-300 ease-in-out group">
         <div className="h-full w-full bg-[#1c1b18] text-stone-200 rounded-[28px] border border-stone-800/90 shadow-2xl flex flex-col justify-between overflow-hidden p-3 backdrop-blur-md">
           {/* Top Brand Card */}
-          <div className="p-3 rounded-2xl bg-[#25231f] border border-stone-800/80 mb-2 flex-shrink-0 overflow-hidden transition-all duration-200">
-            <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-2xl bg-[#25231f] border border-stone-800/80 mb-2 flex-shrink-0 overflow-hidden transition-all duration-200">
+            <div className="flex items-center justify-center group-hover:justify-start gap-3">
               {/* Circular Avatar */}
-              <div className="w-10 h-10 rounded-full bg-amber-400 text-stone-950 font-black text-sm flex items-center justify-center flex-shrink-0 shadow-md">
+              <div className="w-9 h-9 rounded-full bg-amber-400 text-stone-950 font-black text-sm flex items-center justify-center flex-shrink-0 shadow-md">
                 IO
               </div>
 
@@ -126,7 +126,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
           </div>
 
           {/* Nav List */}
-          <nav className="flex-1 overflow-y-auto overflow-x-hidden space-y-4 py-1 pr-0.5 custom-scrollbar">
+          <nav className="flex-1 overflow-y-auto overflow-x-hidden space-y-4 py-1 no-scrollbar">
             {/* Daily work section */}
             <div>
               <div className="px-3 py-1 text-[11px] font-semibold tracking-wider text-stone-400 uppercase hidden group-hover:block transition-opacity duration-200">
@@ -193,11 +193,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
             </div>
 
             {/* Version Pill */}
-            <div className="rounded-2xl bg-[#25231f] border border-stone-800/70 px-3.5 py-2.5 flex items-center justify-between text-xs">
+            <div className="rounded-2xl bg-[#25231f] border border-stone-800/70 px-2 group-hover:px-3.5 py-2.5 flex items-center justify-center group-hover:justify-between text-xs">
               <span className="text-stone-400 font-medium hidden group-hover:inline">
                 Version
               </span>
-              <span className="text-amber-400 font-mono font-semibold mx-auto group-hover:mx-0">
+              <span className="text-amber-400 font-mono font-semibold text-[11px]">
                 1.1.0
               </span>
             </div>
