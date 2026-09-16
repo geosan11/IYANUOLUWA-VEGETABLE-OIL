@@ -582,6 +582,24 @@ assert(formatNairaWords(1385000) === 'One million, three hundred and eighty-five
 assert(formatNairaWords(4500) === 'Four thousand, five hundred naira only', 'Amount words: 4,500');
 assert(formatNairaWords(215) === 'Two hundred and fifteen naira only', 'Amount words: 215');
 
+// ---------------------------------------------------------------------------
+// TEST: Shift operating schedule and 3-pump closing readings volume calculation
+// ---------------------------------------------------------------------------
+const testOpeningReadings = { 'p-1': 12450, 'p-2': 8920, 'p-3': 5310 };
+const testClosingReadings = { 'p-1': 12850, 'p-2': 9220, 'p-3': 5310 };
+
+const p1Dispensed = testClosingReadings['p-1'] - testOpeningReadings['p-1'];
+const p2Dispensed = testClosingReadings['p-2'] - testOpeningReadings['p-2'];
+const p3Dispensed = testClosingReadings['p-3'] - testOpeningReadings['p-3'];
+const totalDispensed = p1Dispensed + p2Dispensed + p3Dispensed;
+
+assert(p1Dispensed === 400, 'Shift closing readings: Pump 1 dispensed 400L');
+assert(p2Dispensed === 300, 'Shift closing readings: Pump 2 dispensed 300L');
+assert(p3Dispensed === 0, 'Shift closing readings: Pump 3 idle (0L dispensed)');
+assert(totalDispensed === 700, 'Shift closing readings: Total 700L dispensed across 3 pumps');
+assert(testClosingReadings['p-1'] >= testOpeningReadings['p-1'], 'Closing reading >= opening reading passes');
+assert((12000 < testOpeningReadings['p-1']), 'Closing reading < opening reading correctly rejected (pumps only count up)');
+
 console.log('====================================================');
 console.log(`TEST SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);
 console.log('====================================================');

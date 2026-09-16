@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useStore } from '../services/store';
 import { usePermissions } from '../services/permissions';
 import { Modal } from '../components/common/Modal';
-import { uploadDepotLogo } from '../services/supabase';
+import { ScreenAccessPanel } from '../components/common/ScreenAccessPanel';
+import { uploadDepotLogo, isSupabaseConfigured } from '../services/supabase';
 import { formatNaira } from '../services/businessLogic';
 import {
   Gear as Settings,
@@ -28,7 +29,8 @@ import {
   Users,
   MapPin,
   GasPump,
-  Info
+  Info,
+  Clock
 } from '@phosphor-icons/react';
 import { UserRole, SupplyModel, ProductVariety, Hub, UserProfile, Pump } from '../types';
 
@@ -175,8 +177,12 @@ export const SettingsScreen: React.FC = () => {
   const [truckShortfallThreshold, setTruckShortfallThreshold] = useState(settings.truck_shortfall_threshold.toString());
   const [pumpVarianceThreshold, setPumpVarianceThreshold] = useState(settings.pump_variance_threshold.toString());
 
-  // 5. Daily Operations Local State
+  // 5. Shift Schedule & Daily Operations Local State
   const [defaultDailyFloat, setDefaultDailyFloat] = useState(settings.default_daily_float.toString());
+  const [shiftStartTime, setShiftStartTime] = useState(settings.shift_start_time || '07:00');
+  const [shiftEndTime, setShiftEndTime] = useState(settings.shift_end_time || '18:00');
+  const [requireStartPumpReadings, setRequireStartPumpReadings] = useState(settings.require_pump_readings_to_start_shift ?? true);
+  const [requireClosePumpReadings, setRequireClosePumpReadings] = useState(settings.require_pump_readings_to_close_shift ?? true);
 
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
@@ -354,15 +360,19 @@ export const SettingsScreen: React.FC = () => {
     setActiveMobileSheet(null);
   };
 
-  // 5. Save Daily Operations Float
-  const handleSaveDailyFloat = (e: React.FormEvent) => {
+  // 5. Save Shift Schedule & Daily Operations Float
+  const handleSaveShiftSchedule = (e: React.FormEvent) => {
     e.preventDefault();
     if (denyIfNotOwner()) return;
     const val = Math.max(0, parseFloat(defaultDailyFloat) || 150000);
     updateSettings({
-      default_daily_float: val
+      default_daily_float: val,
+      shift_start_time: shiftStartTime || '07:00',
+      shift_end_time: shiftEndTime || '18:00',
+      require_pump_readings_to_start_shift: requireStartPumpReadings,
+      require_pump_readings_to_close_shift: requireClosePumpReadings
     });
-    showNotification('Default opening petty cash float updated!');
+    showNotification('Shift schedule & operational controls updated successfully!');
     setActiveMobileSheet(null);
   };
 
@@ -723,21 +733,21 @@ export const SettingsScreen: React.FC = () => {
             <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" />
           </button>
 
-          {/* Row 6: Daily Float & System Controls */}
+          {/* Row 6: Shift Schedule & System Controls */}
           <button
             type="button"
             onClick={() => setActiveMobileSheet('system')}
             className="w-full p-4 flex items-center gap-3.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100"
           >
             <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-500/15 border border-purple-200 dark:border-purple-500/30 flex items-center justify-center flex-shrink-0">
-              <Shield className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              <Clock className="w-5 h-5 text-purple-600 dark:text-purple-400" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-heading font-bold text-slate-900 dark:text-white text-[14px] truncate">
-                Daily Float & System Controls
+                Shift Schedule & Operations
               </div>
               <div className="text-[12px] font-mono tabular-nums text-slate-500 truncate mt-0.5">
-                Float: {formatNaira(parseFloat(defaultDailyFloat) || 0)} · Role: {userRole}
+                Hours: {shiftStartTime} – {shiftEndTime} · Float: {formatNaira(parseFloat(defaultDailyFloat) || 0)}
               </div>
             </div>
             <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" />
@@ -836,9 +846,9 @@ export const SettingsScreen: React.FC = () => {
             },
             {
               id: 'system' as const,
-              title: 'Float & System Tools',
-              subtitle: `Float: ${formatNaira(parseFloat(defaultDailyFloat) || 0)} · ${userRole}`,
-              icon: Shield,
+              title: 'Shift Schedule & Operations',
+              subtitle: `Hours: ${shiftStartTime} – ${shiftEndTime} · Float: ${formatNaira(parseFloat(defaultDailyFloat) || 0)}`,
+              icon: Clock,
               color: 'text-purple-600 dark:text-purple-400',
               bg: 'bg-purple-50 dark:bg-purple-500/15'
             },
@@ -1709,44 +1719,149 @@ export const SettingsScreen: React.FC = () => {
           )}
 
           {activeDesktopTab === 'system' && (
-            /* 6. DAILY OPERATIONS FLOAT & SYSTEM CONTROLS */
+            /* 6. SHIFT SCHEDULE, DAILY OPERATIONS FLOAT & SYSTEM CONTROLS */
             <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
               <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
                 <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                  <span>6. Daily Float & System Tools</span>
+                  <Clock className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  <span>6. Shift Schedule, Daily Float & System Tools</span>
                 </h3>
                 <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-                  Daily petty cash float default, role simulation, and database reset tools.
+                  Configure when shifts are scheduled to begin and end, meter reading policies, morning float, and role simulation.
                 </p>
               </div>
 
-              {/* Default Daily Float Form */}
-              <form onSubmit={handleSaveDailyFloat} className="space-y-3">
-                <label htmlFor="default-daily-float" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                  Default cash in the box each morning (₦)
-                </label>
-                <div className="relative max-w-sm">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₦</span>
-                  <input
-                    id="default-daily-float"
-                    type="number"
-                    step="1"
-                    min="0"
-                    value={defaultDailyFloat}
-                    onChange={e => setDefaultDailyFloat(e.target.value.replace(/[^0-9]/g, ''))}
-                    className="w-full pl-8 pr-4 py-3 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
-                    required
-                  />
+              {/* Shift Schedule & Operational Policies Form */}
+              <form onSubmit={handleSaveShiftSchedule} className="space-y-5">
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/70 dark:border-slate-800/70 pb-3">
+                    <div>
+                      <h4 className="text-[13px] font-heading font-bold uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                        <span>Depot Shift Operating Hours</span>
+                      </h4>
+                      <p className="text-[11px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+                        Define scheduled counter opening and closing times for dispensing and customer transactions.
+                      </p>
+                    </div>
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-700 dark:text-brand-400 text-xs font-mono font-semibold">
+                      <span>Window:</span>
+                      <span className="font-bold">{shiftStartTime} – {shiftEndTime}</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="shift-start-time" className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 block mb-1.5">
+                        Shift Begin Time *
+                      </label>
+                      <div className="relative">
+                        <Clock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          id="shift-start-time"
+                          type="time"
+                          value={shiftStartTime}
+                          onChange={e => setShiftStartTime(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold text-[14px] focus:outline-none focus:border-brand-500"
+                          required
+                        />
+                      </div>
+                      <p className="text-[11px] font-sans text-slate-500 mt-1">
+                        Expected time cashier opens counter and takes opening 3-pump readings.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label htmlFor="shift-end-time" className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 block mb-1.5">
+                        Shift End Time *
+                      </label>
+                      <div className="relative">
+                        <Clock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          id="shift-end-time"
+                          type="time"
+                          value={shiftEndTime}
+                          onChange={e => setShiftEndTime(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold text-[14px] focus:outline-none focus:border-brand-500"
+                          required
+                        />
+                      </div>
+                      <p className="text-[11px] font-sans text-slate-500 mt-1">
+                        Expected time counter closes, taking closing readings and reconciling cash.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Operational Policy Toggles */}
+                  <div className="pt-3 border-t border-slate-200/70 dark:border-slate-800/70 space-y-2.5">
+                    <label className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
+                      Enforcement Policies
+                    </label>
+                    <label className="flex items-start gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-50/70 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={requireStartPumpReadings}
+                        onChange={e => setRequireStartPumpReadings(e.target.checked)}
+                        className="mt-0.5 rounded text-brand-600 focus:ring-brand-500 w-4 h-4"
+                      />
+                      <div className="text-xs">
+                        <span className="font-bold text-slate-900 dark:text-white block">
+                          Mandatory 3-Pump Opening Meter Readings (Lock Sales Screen)
+                        </span>
+                        <span className="text-slate-500 dark:text-slate-400">
+                          Cashiers cannot enter new sales until meter readings for Pump 1, Pump 2, and Pump 3 are entered and verified.
+                        </span>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-50/70 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={requireClosePumpReadings}
+                        onChange={e => setRequireClosePumpReadings(e.target.checked)}
+                        className="mt-0.5 rounded text-brand-600 focus:ring-brand-500 w-4 h-4"
+                      />
+                      <div className="text-xs">
+                        <span className="font-bold text-slate-900 dark:text-white block">
+                          Mandatory 3-Pump Closing Meter Readings (Volume Reconciliation)
+                        </span>
+                        <span className="text-slate-500 dark:text-slate-400">
+                          Cashiers must log closing pump readings to compute litres dispensed before the shift can be closed.
+                        </span>
+                      </div>
+                    </label>
+                  </div>
                 </div>
-                <p className="text-[11px] font-sans text-slate-500">
-                  Pre-fills the counter's opening petty cash float every morning on the Expenses screen.
-                </p>
+
+                {/* Default Daily Float Form */}
+                <div className="space-y-3">
+                  <label htmlFor="default-daily-float" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                    Default Opening Cash Float in Box each Morning (₦)
+                  </label>
+                  <div className="relative max-w-sm">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₦</span>
+                    <input
+                      id="default-daily-float"
+                      type="number"
+                      step="1"
+                      min="0"
+                      value={defaultDailyFloat}
+                      onChange={e => setDefaultDailyFloat(e.target.value.replace(/[^0-9]/g, ''))}
+                      className="w-full pl-8 pr-4 py-3 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
+                      required
+                    />
+                  </div>
+                  <p className="text-[11px] font-sans text-slate-500">
+                    Pre-fills the counter's opening petty cash float every morning on the Expenses screen and start-shift pop-up.
+                  </p>
+                </div>
+
                 <button
                   type="submit"
-                  className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-sm transition-all active:scale-95"
+                  className="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-sm transition-all active:scale-95 flex items-center gap-2"
                 >
-                  Save Default Float
+                  <Save className="w-4 h-4" />
+                  <span>Save Shift Schedule & Float</span>
                 </button>
               </form>
 
@@ -2014,7 +2129,8 @@ export const SettingsScreen: React.FC = () => {
           )}
 
           {activeDesktopTab === 'users' && (
-            /* 8. TEAM & USER ACCESS CONTROL */
+          <div className="space-y-6">
+            {/* 8. TEAM & USER ACCESS CONTROL */}
             <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
                 <div>
@@ -2185,6 +2301,9 @@ export const SettingsScreen: React.FC = () => {
                   })}
               </div>
             </div>
+
+            {isSupabaseConfigured && <ScreenAccessPanel />}
+          </div>
           )}
         </div>
       </div>
@@ -2798,7 +2917,7 @@ export const SettingsScreen: React.FC = () => {
               {activeMobileSheet === 'pricing' && 'Products & Rate Cards'}
               {activeMobileSheet === 'infrastructure' && 'Tanks, Dispensing Pumps & Suppliers'}
               {activeMobileSheet === 'thresholds' && 'Safety & Thresholds'}
-              {activeMobileSheet === 'system' && 'Float & System Tools'}
+              {activeMobileSheet === 'system' && 'Shift Schedule & Operations'}
             </span>
           }
         >

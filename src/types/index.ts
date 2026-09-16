@@ -26,6 +26,14 @@ export interface UserProfile {
   hub_id: string | null; // null for owner (global super-admin); assigned to a hub for manager/staff/driver
   active: boolean;
   created_at?: string;
+  /**
+   * Per-user screen override. `null`/`undefined`/`[]` = fall back to the
+   * role default (every screen except the `adminOnly` ones). A non-empty
+   * list means exactly those nav item ids, however many/few — see
+   * `getVisibleNavItems` in constants/nav.ts. Ignored for `owner`, who
+   * always sees everything.
+   */
+  allowed_screens?: string[] | null;
 }
 
 /** How a returnable container leaves the depot on a sale line. */
@@ -284,6 +292,7 @@ export interface Shift {
   end_time?: string | null;
   opening_float: number;
   opening_readings?: Record<string, number>;
+  closing_readings?: Record<string, number>;
   cash_sales?: number;
   cash_expenses?: number;
   expected_cash?: number;
@@ -319,6 +328,10 @@ export interface AppSettings {
   pump_variance_threshold: number;
   default_daily_float: number;
   daily_float: number;
+  shift_start_time: string;
+  shift_end_time: string;
+  require_pump_readings_to_start_shift?: boolean;
+  require_pump_readings_to_close_shift?: boolean;
 }
 
 export interface KegInventorySummary {

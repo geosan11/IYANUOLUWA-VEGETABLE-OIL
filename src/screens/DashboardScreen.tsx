@@ -99,6 +99,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   const [isCloseShiftModalOpen, setIsCloseShiftModalOpen] = useState(false);
   const [cashCountedInput, setCashCountedInput] = useState('');
   const [closeNotesInput, setCloseNotesInput] = useState('');
+  const [pumpClosingInputs, setPumpClosingInputs] = useState<Record<string, string>>({});
   const [shiftFeedback, setShiftFeedback] = useState<string | null>(null);
   const [shiftError, setShiftError] = useState<string | null>(null);
 
@@ -167,9 +168,24 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     const counted = parseFloat(cashCountedInput);
     if (isNaN(counted) || counted < 0) return;
 
+    const closingReadings: Record<string, number> = {};
+    for (const p of pumps) {
+      const valStr = pumpClosingInputs[p.id];
+      if (valStr) {
+        const val = Number(valStr);
+        const opening = activeShift.opening_readings?.[p.id] ?? p.last_meter_reading ?? 0;
+        if (val < opening) {
+          setShiftError(`Closing meter for ${p.label} cannot be less than opening reading (${opening.toLocaleString()} L).`);
+          return;
+        }
+        closingReadings[p.id] = val;
+      }
+    }
+
     const res = closeShift({
       shiftId: activeShift.id,
       cashCounted: counted,
+      closingReadings: Object.keys(closingReadings).length > 0 ? closingReadings : undefined,
       notes: closeNotesInput.trim() || undefined
     });
 
@@ -177,6 +193,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       setIsCloseShiftModalOpen(false);
       setCashCountedInput('');
       setCloseNotesInput('');
+      setPumpClosingInputs({});
       setShiftFeedback('Shift reconciled and closed successfully.');
       setTimeout(() => setShiftFeedback(null), 4000);
     } else {
@@ -418,6 +435,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 onClick={() => {
                   setCashCountedInput('');
                   setCloseNotesInput('');
+                  const prefill: Record<string, string> = {};
+                  for (const p of pumps) {
+                    prefill[p.id] = p.last_meter_reading.toString();
+                  }
+                  setPumpClosingInputs(prefill);
                   setIsCloseShiftModalOpen(true);
                 }}
                 className="px-3.5 py-2 text-xs font-sans font-semibold rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 hover:border-rose-300 dark:border-rose-800 transition-all shadow-sm flex items-center gap-1.5"
@@ -1291,6 +1313,44 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           subtitle={`Cashier: ${activeShift.cashier_name || 'Counter Staff'} · Started at ${formatDepotTime(activeShift.start_time)}`}
         >
             <form onSubmit={handleCloseShiftSubmit} className="space-y-4">
+              {/* Dispensing Pumps Closing Readings */}
+              {pumps.length > 0 && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Closing Meter Readings (3 Pumps)
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {pumps.map(p => {
+                      const openingVal = activeShift.opening_readings?.[p.id] ?? p.last_meter_reading ?? 0;
+                      const currentVal = Number(pumpClosingInputs[p.id]);
+                      const dispensed = !isNaN(currentVal) && currentVal >= openingVal ? currentVal - openingVal : null;
+                      return (
+                        <div key={p.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
+                          <div className="flex justify-between text-xs font-bold text-slate-900 dark:text-white">
+                            <span className="truncate">{p.label}</span>
+                          </div>
+                          <div className="text-[11px] font-mono text-slate-400">Open: {openingVal.toLocaleString()} L</div>
+                          <input
+                            type="number"
+                            min={openingVal}
+                            step="1"
+                            value={pumpClosingInputs[p.id] ?? ''}
+                            onChange={e => setPumpClosingInputs(prev => ({ ...prev, [p.id]: e.target.value.replace(/[^0-9]/g, '') }))}
+                            placeholder={`Min ${openingVal} L`}
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono font-bold text-slate-900 dark:text-white tabular-nums"
+                          />
+                          {dispensed !== null && (
+                            <div className="text-[10px] font-mono text-slate-500 pt-0.5">
+                              Dispensed: <span className="font-bold text-slate-800 dark:text-slate-200">{dispensed.toLocaleString()} L</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Shift Cash Reconciliation Breakdown */}
               <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2 text-xs font-mono tabular-nums">
                 <div className="flex justify-between text-slate-600 dark:text-slate-400">

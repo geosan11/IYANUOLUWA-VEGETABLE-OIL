@@ -6,7 +6,8 @@ import {
   formatDepotDate,
   formatDepotTime,
   toDatetimeLocalValue,
-  fromDatetimeLocalValue
+  fromDatetimeLocalValue,
+  computeShiftCash
 } from '../services/businessLogic';
 import { priceSaleLine } from '../services/pricing';
 import { PACK_SIZES, packLabel, packShort, getPaymentModeTheme, ONE_TIME_CUSTOMER_ID } from '../constants/config';
@@ -31,7 +32,10 @@ import {
   Calculator,
   Pencil,
   ShoppingCart,
-  Package
+  Package,
+  Money as Banknote,
+  SignOut,
+  Clock
 } from '@phosphor-icons/react';
 import { MiniNumberPad } from '../components/common/MiniNumberPad';
 
@@ -84,9 +88,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     shiftGateStatus,
     activeShift,
     startShift,
+    closeShift,
     recordShiftOpeningReadings,
     createSale,
     physicalTanks,
+    pumps,
+    expenses,
     sales,
     orders,
     setActiveReceipt,
@@ -171,6 +178,15 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   const [showBackdate, setShowBackdate] = useState(false);
   const [saleDateInput, setSaleDateInput] = useState(() => toDatetimeLocalValue());
 
+  // ---- Target 3 dispensing bulk pumps ----
+  const targetPumps = useMemo(() => {
+    const bulk = pumps.filter(p => {
+      const prod = products.find(pr => pr.id === p.product_id);
+      return prod ? prod.supply_model === 'bulk_truck' : true;
+    });
+    return bulk.length > 0 ? bulk : pumps;
+  }, [pumps, products]);
+
   // ---- shift gate & start shift ----
   const [gateInputs, setGateInputs] = useState<Record<string, string>>({});
   const [gateCashierName, setGateCashierName] = useState(() => currentUser?.full_name || '');
@@ -179,9 +195,28 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   const anyBulk = products.some(p => p.supply_model === 'bulk_truck');
   const gateBlocked = anyBulk && !shiftGateStatus.isPassed;
 
+  // ---- Closing Shift Modal State ----
+  const [isCloseShiftModalOpen, setIsCloseShiftModalOpen] = useState(false);
+  const [closeShiftCashCounted, setCloseShiftCashCounted] = useState('');
+  const [closeShiftPumpInputs, setCloseShiftPumpInputs] = useState<Record<string, string>>({});
+  const [closeShiftNotes, setCloseShiftNotes] = useState('');
+  const [closeShiftError, setCloseShiftError] = useState<string | null>(null);
+
+  const liveShiftCash = useMemo(() => {
+    if (!activeShift) return null;
+    return computeShiftCash(activeShift, orders, expenses, new Date());
+  }, [activeShift, orders, expenses]);
+
+  const liveCloseVariance = useMemo(() => {
+    if (!activeShift || !liveShiftCash || !closeShiftCashCounted.trim()) return null;
+    const counted = parseFloat(closeShiftCashCounted);
+    if (isNaN(counted)) return null;
+    return counted - liveShiftCash.expectedCash;
+  }, [activeShift, liveShiftCash, closeShiftCashCounted]);
+
   const copyPreviousReadings = () => {
     const prefilled: Record<string, string> = {};
-    for (const p of shiftGateStatus.missingPumps) {
+    for (const p of targetPumps) {
       prefilled[p.id] = p.last_meter_reading.toString();
     }
     setGateInputs(prev => ({ ...prev, ...prefilled }));
@@ -357,11 +392,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     if (e) e.preventDefault();
     setGateError(null);
     const readings: Record<string, number> = {};
-    for (const p of shiftGateStatus.missingPumps) {
+    for (const p of targetPumps) {
       const valStr = gateInputs[p.id];
       const v = Number(valStr);
       if (!valStr || !Number.isFinite(v) || v <= 0) {
-        setGateError(`Enter a valid opening reading for ${p.label}.`);
+        setGateError(`Enter a valid opening meter reading for ${p.label}.`);
         return;
       }
       if (v < p.last_meter_reading) {
@@ -395,6 +430,51 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
         return;
       }
     }
+  };
+
+  const handleCloseShiftSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeShift) return;
+    setCloseShiftError(null);
+
+    const counted = parseFloat(closeShiftCashCounted);
+    if (isNaN(counted) || counted < 0) {
+      setCloseShiftError('Please enter a valid physical cash amount counted in the drawer.');
+      return;
+    }
+
+    const closingReadings: Record<string, number> = {};
+    for (const p of targetPumps) {
+      const valStr = closeShiftPumpInputs[p.id];
+      const val = Number(valStr);
+      const opening = activeShift.opening_readings?.[p.id] ?? p.last_meter_reading ?? 0;
+      if (!valStr || isNaN(val) || val <= 0) {
+        setCloseShiftError(`Please enter a valid closing reading for ${p.label}.`);
+        return;
+      }
+      if (val < opening) {
+        setCloseShiftError(`Closing meter for ${p.label} (${val.toLocaleString()} L) cannot be less than opening reading (${opening.toLocaleString()} L). Pumps only count up.`);
+        return;
+      }
+      closingReadings[p.id] = val;
+    }
+
+    const res = closeShift({
+      shiftId: activeShift.id,
+      cashCounted: counted,
+      closingReadings,
+      notes: closeShiftNotes.trim() || undefined
+    });
+
+    if (!res.success) {
+      setCloseShiftError(res.error || 'Failed to end shift.');
+      return;
+    }
+
+    setIsCloseShiftModalOpen(false);
+    setCloseShiftCashCounted('');
+    setCloseShiftPumpInputs({});
+    setCloseShiftNotes('');
   };
 
   // ---- Recent Transactions List for in-page view ----
@@ -460,29 +540,39 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
   return (
     <div className="pb-28 split:pb-8">
+      {/* Mandatory 3-Pump Opening Meter Gate Modal */}
       <Modal
         isOpen={gateBlocked}
         onClose={() => {}}
         hideCloseButton
+        size="lg"
         title={
           <span className="flex items-center gap-2.5 text-slate-900 dark:text-white font-heading font-bold text-base">
-            <span className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+            <span className="w-8 h-8 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800 flex items-center justify-center text-brand-600 dark:text-brand-400 shrink-0">
               <GasPump className="w-4 h-4" weight="bold" />
             </span>
-            <span>{!activeShift ? 'Start Morning Shift & Verify Pumps' : 'Verify Morning Pump Readings'}</span>
+            <span>{!activeShift ? 'Start Shift & Input 3-Pump Readings' : 'Input Opening Pump Readings'}</span>
           </span>
         }
         subtitle={
-          !activeShift
-            ? 'To begin inputting sales for the day, depot policy requires starting a shift and logging opening meter readings for all active dispensing pumps.'
-            : `Shift is open for ${activeShift.cashier_name || 'Staff'}. Enter opening meter readings for all active bulk pumps before recording sales.`
+          <div className="space-y-1 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {!activeShift
+                ? 'To unlock the New Sales screen, depot policy requires logging the opening meter readings for the 3 dispensing pumps and confirming opening cash float.'
+                : `Shift is open for ${activeShift.cashier_name || 'Staff'}. Input opening meter readings for all active dispensing pumps to unlock the sales screen.`}
+            </p>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[11px] font-semibold">
+              <Clock className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+              <span>Depot Shift Window: {settings.shift_start_time || '07:00'} – {settings.shift_end_time || '18:00'}</span>
+            </div>
+          </div>
         }
       >
         <form onSubmit={submitGate} className="space-y-4">
           {!activeShift && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800">
               <div>
-                <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">
                   Cashier / Staff on Duty *
                 </label>
                 <div className="relative">
@@ -499,7 +589,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
               </div>
 
               <div>
-                <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">
                   Opening Cash Float (NGN) *
                 </label>
                 <div className="relative">
@@ -515,15 +605,16 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     className="w-full pl-9 pr-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
                   />
                 </div>
-                <p className="text-xs text-slate-400 mt-0.5">Physical cash placed in the drawer for customer change.</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Cash in drawer for customer change.</p>
               </div>
             </div>
           )}
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <div className="text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                Dispensing Pumps Meter Readings ({shiftGateStatus.missingPumps.length})
+              <div className="text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                <GasPump className="w-4 h-4 text-brand-500" weight="bold" />
+                <span>Input 3 Dispensing Pump Readings ({targetPumps.length} Active Pumps)</span>
               </div>
               <button
                 type="button"
@@ -535,20 +626,34 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {shiftGateStatus.missingPumps.map(p => {
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {targetPumps.map((p, idx) => {
                 const sourceTank = physicalTanks.find(t => t.id === p.physical_tank_id);
                 const prod = products.find(pr => pr.id === p.product_id);
                 return (
-                  <div key={p.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                  <div key={p.id} className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2 relative overflow-hidden">
                     <div className="flex items-center justify-between">
-                      <span className="font-sans font-bold text-xs text-slate-900 dark:text-white">{p.label}</span>
-                      <span className="text-xs font-mono text-slate-400">Prev: {p.last_meter_reading.toLocaleString()} L</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-brand-500/15 text-brand-700 dark:text-brand-400 font-sans font-extrabold text-[11px] uppercase tracking-wider">
+                        Pump {idx + 1}
+                      </span>
+                      <span className="text-[11px] font-mono text-slate-400 tabular-nums">
+                        Prev: {p.last_meter_reading.toLocaleString()} L
+                      </span>
                     </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">
-                      {prod?.name || 'Bulk Oil'}{sourceTank ? ` · ${sourceTank.label}` : ''}
+
+                    <div>
+                      <div className="font-heading font-bold text-[13px] text-slate-900 dark:text-white truncate">
+                        {p.label}
+                      </div>
+                      <div className="text-[11px] font-sans text-slate-500 dark:text-slate-400 truncate">
+                        {prod?.name || 'Bulk Oil'}{sourceTank ? ` · ${sourceTank.label}` : ''}
+                      </div>
                     </div>
-                    <div className="relative">
+
+                    <div className="relative pt-1">
+                      <label className="block text-[10px] font-sans font-bold uppercase tracking-wider text-slate-500 mb-1">
+                        Opening Meter (L) *
+                      </label>
                       <input
                         type="number"
                         min="0"
@@ -557,9 +662,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         value={gateInputs[p.id] ?? ''}
                         onChange={e => setGateInputs(prev => ({ ...prev, [p.id]: e.target.value.replace(/[^0-9]/g, '') }))}
                         placeholder={`Min ${p.last_meter_reading} L`}
-                        className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                        className="w-full px-3 py-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-sm font-mono font-bold text-slate-900 dark:text-white tabular-nums focus:outline-none focus:border-brand-500"
                       />
-                      <span className="absolute right-3 top-2 text-xs font-mono text-slate-400">Litres</span>
+                      <span className="absolute right-3 bottom-2 text-xs font-mono text-slate-400">
+                        Litres
+                      </span>
                     </div>
                   </div>
                 );
@@ -568,7 +675,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
           </div>
 
           {gateError && (
-            <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-600 dark:text-rose-400 flex items-center gap-2">
+            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-600 dark:text-rose-400 flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 shrink-0" weight="bold" />
               <span>{gateError}</span>
             </div>
@@ -576,13 +683,184 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
           <button
             type="submit"
-            className="w-full py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-sm shadow-sm flex items-center justify-center gap-2 transition-all active:scale-[0.99]"
+            className="w-full py-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-heading font-extrabold text-sm shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.99]"
           >
             <Check className="w-4 h-4" weight="bold" />
-            <span>{!activeShift ? 'Start Shift & Unlock Counter' : 'Verify Readings & Unlock Counter'}</span>
+            <span>{!activeShift ? 'Start Shift' : 'Input Readings & Unlock Sales'}</span>
           </button>
         </form>
       </Modal>
+
+      {/* Mandatory 3-Pump Closing Shift Modal */}
+      {isCloseShiftModalOpen && activeShift && liveShiftCash && (
+        <Modal
+          isOpen
+          onClose={() => setIsCloseShiftModalOpen(false)}
+          size="lg"
+          title={
+            <span className="flex items-center gap-2.5 text-slate-900 dark:text-white font-heading font-bold text-base">
+              <span className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
+                <SignOut className="w-4 h-4" weight="bold" />
+              </span>
+              <span>Take 3-Pump Readings & End Shift</span>
+            </span>
+          }
+          subtitle={`Cashier: ${activeShift.cashier_name || 'Staff'} · Shift Started at ${formatDepotTime(activeShift.start_time)}`}
+        >
+          <form onSubmit={handleCloseShiftSubmit} className="space-y-4">
+            {/* 3-Pump Closing Readings */}
+            <div className="space-y-2">
+              <div className="text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                <GasPump className="w-4 h-4 text-brand-500" weight="bold" />
+                <span>1. Closing Meter Readings (Reconcile Volume Dispensed)</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {targetPumps.map((p, idx) => {
+                  const openingVal = activeShift.opening_readings?.[p.id] ?? p.last_meter_reading ?? 0;
+                  const currentInput = closeShiftPumpInputs[p.id] ?? '';
+                  const closingVal = Number(currentInput);
+                  const dispensed = !isNaN(closingVal) && closingVal >= openingVal ? closingVal - openingVal : null;
+
+                  return (
+                    <div key={p.id} className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-[12px] text-slate-900 dark:text-white">Pump {idx + 1}</span>
+                        <span className="text-[11px] font-mono text-slate-500 tabular-nums">Open: {openingVal.toLocaleString()} L</span>
+                      </div>
+                      <div className="text-[11px] font-sans text-slate-500 truncate">{p.label}</div>
+                      
+                      <div className="relative pt-1">
+                        <label className="block text-[10px] font-sans font-bold uppercase tracking-wider text-slate-500 mb-1">
+                          Closing Meter (L) *
+                        </label>
+                        <input
+                          type="number"
+                          min={openingVal}
+                          step="1"
+                          required
+                          value={currentInput}
+                          onChange={e => setCloseShiftPumpInputs(prev => ({ ...prev, [p.id]: e.target.value.replace(/[^0-9]/g, '') }))}
+                          placeholder={`Min ${openingVal} L`}
+                          className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white tabular-nums focus:outline-none focus:border-brand-500"
+                        />
+                      </div>
+
+                      <div className="text-[11px] font-mono tabular-nums pt-1 text-slate-600 dark:text-slate-400">
+                        Dispensed:{' '}
+                        <span className="font-bold text-slate-900 dark:text-white">
+                          {dispensed !== null ? `${dispensed.toLocaleString()} L` : '—'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Cash Drawer Reconciliation */}
+            <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <div className="text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                <Banknote className="w-4 h-4 text-emerald-500" />
+                <span>2. Cash Drawer Count & Reconciliation</span>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2 text-xs font-mono tabular-nums">
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                  <span className="font-sans">Opening Float:</span>
+                  <span className="font-semibold text-slate-900 dark:text-slate-100">{formatNaira(activeShift.opening_float)}</span>
+                </div>
+                <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+                  <span className="font-sans">(+) Counter Cash Sales:</span>
+                  <span className="font-semibold">+{formatNaira(liveShiftCash.cashSales)}</span>
+                </div>
+                <div className="flex justify-between text-rose-600 dark:text-rose-400">
+                  <span className="font-sans">(-) Cash Expenses Paid:</span>
+                  <span className="font-semibold">-{formatNaira(liveShiftCash.cashExpenses)}</span>
+                </div>
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between font-bold text-sm">
+                  <span className="font-sans text-slate-900 dark:text-white">(=) Expected Cash in Till:</span>
+                  <span className="text-brand-600 dark:text-brand-400">{formatNaira(liveShiftCash.expectedCash)}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
+                  Physical Cash Counted in Drawer (NGN) *
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    required
+                    value={closeShiftCashCounted}
+                    onChange={e => setCloseShiftCashCounted(e.target.value.replace(/[^0-9]/g, ''))}
+                    placeholder="e.g. 520000"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono tabular-nums text-base font-bold focus:outline-none focus:border-brand-500"
+                  />
+                  <span className="absolute right-3.5 top-2.5 text-xs font-mono text-slate-400">NGN</span>
+                </div>
+              </div>
+
+              {liveCloseVariance !== null && (
+                <div
+                  className={`p-3 rounded-xl border text-xs font-sans flex items-center justify-between ${
+                    Math.abs(liveCloseVariance) < 0.01
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-300'
+                      : liveCloseVariance < 0
+                      ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900/60 text-rose-700 dark:text-rose-300'
+                      : 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-900/60 text-amber-800 dark:text-amber-300'
+                  }`}
+                >
+                  <span className="font-bold">
+                    {Math.abs(liveCloseVariance) < 0.01 ? '✓ Balanced' : liveCloseVariance < 0 ? '⚠ Cash Shortage' : '⚠ Cash Surplus'}:
+                  </span>
+                  <span className="font-mono font-bold tabular-nums">
+                    {liveCloseVariance >= 0 ? `+${formatNaira(liveCloseVariance)}` : `-${formatNaira(Math.abs(liveCloseVariance))}`}
+                  </span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
+                  Handover Notes (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={closeShiftNotes}
+                  onChange={e => setCloseShiftNotes(e.target.value)}
+                  placeholder="Notes for next shift or supervisor..."
+                  className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-sans text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                />
+              </div>
+            </div>
+
+            {closeShiftError && (
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-600 dark:text-rose-400 flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 shrink-0" weight="bold" />
+                <span>{closeShiftError}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsCloseShiftModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-sans font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-heading font-extrabold text-xs shadow-sm flex items-center gap-1.5 transition-all active:scale-95"
+              >
+                <SignOut className="w-4 h-4" weight="bold" />
+                <span>Confirm & End Shift</span>
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {/* ========================================================================= */}
       {/* PREVIOUS TRANSACTION VIEW (IN THIS PAGE)                                   */}
@@ -717,9 +995,67 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
       ) : (
         /* ========================================================================= */
         /* STANDARD NEW SALE BUILDER                                                 */
-        /* (CARD 3 IS REMOVED; PAYMENT IS CARD 3; RECENT TXN BUTTON INCLUDED)        */
         /* ========================================================================= */
         <div>
+          {/* Active Shift Telemetry & Controls Bar */}
+          {activeShift && (
+            <div className="mb-5 p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border border-slate-800 shadow-md text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+                  <GasPump className="w-5 h-5" weight="bold" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-sans font-extrabold text-[11px] uppercase tracking-wider">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      Live Shift Open
+                    </span>
+                    <span className="text-[14px] font-heading font-bold text-white">
+                      {activeShift.cashier_name || 'Staff'}
+                    </span>
+                  </div>
+                  <div className="text-[12px] font-sans text-slate-400 flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span>Started at {formatDepotTime(activeShift.start_time)}</span>
+                    <span>·</span>
+                    <span className="inline-flex items-center gap-1 font-mono text-slate-300">
+                      <Clock className="w-3.5 h-3.5 text-brand-400" />
+                      Hours: {settings.shift_start_time || '07:00'} – {settings.shift_end_time || '18:00'}
+                    </span>
+                    {liveShiftCash && (
+                      <>
+                        <span>·</span>
+                        <span className="font-mono text-emerald-400 font-semibold tabular-nums">
+                          Till Cash: {formatNaira(activeShift.opening_float + liveShiftCash.cashSales - liveShiftCash.cashExpenses)}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  id="btn-end-shift-sales"
+                  onClick={() => {
+                    const prefill: Record<string, string> = {};
+                    for (const p of targetPumps) {
+                      prefill[p.id] = p.last_meter_reading.toString();
+                    }
+                    setCloseShiftPumpInputs(prefill);
+                    setCloseShiftCashCounted('');
+                    setCloseShiftError(null);
+                    setIsCloseShiftModalOpen(true);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 hover:text-rose-200 text-xs font-sans font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-sm"
+                >
+                  <SignOut className="w-4 h-4" weight="bold" />
+                  <span>End Shift</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 split:grid-cols-12 gap-5">
             {/* ---------- BUILDER COLUMN (LEFT) ---------- */}
             <div className="split:col-span-7 space-y-5">

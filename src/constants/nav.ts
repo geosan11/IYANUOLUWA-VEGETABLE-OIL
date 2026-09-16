@@ -12,6 +12,7 @@ import {
   Scroll,
   GasPump
 } from '@phosphor-icons/react';
+import type { UserRole } from '../types';
 
 export interface NavItem {
   id: string;
@@ -34,3 +35,19 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'expenses', label: 'Expenses & Float', icon: Invoice },
   { id: 'settings', label: 'Settings', icon: Gear }
 ];
+
+/**
+ * Which nav items a signed-in user gets to see.
+ * - Owner: always everything (no way to lock the owner out of a screen).
+ * - Everyone else with an explicit `allowed_screens` list on their profile:
+ *   exactly those screens, however many/few — this is the per-user override.
+ * - Everyone else with no list set (`null`/`undefined`/empty): the old
+ *   role default — every screen except the ones marked `adminOnly`.
+ */
+export function getVisibleNavItems(role: UserRole, allowedScreens?: string[] | null): NavItem[] {
+  if (role === 'owner') return NAV_ITEMS;
+  if (allowedScreens && allowedScreens.length > 0) {
+    return NAV_ITEMS.filter(item => allowedScreens.includes(item.id));
+  }
+  return NAV_ITEMS.filter(item => !item.adminOnly);
+}

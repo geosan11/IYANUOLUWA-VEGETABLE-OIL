@@ -3,7 +3,7 @@ import { IconContext, Drop, Spinner } from '@phosphor-icons/react';
 import { StoreProvider, useStore } from './services/store';
 import { AuthProvider, useAuth } from './services/auth';
 import { isSupabaseConfigured } from './services/supabase';
-import { NAV_ITEMS } from './constants/nav';
+import { NAV_ITEMS, getVisibleNavItems } from './constants/nav';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopHeader } from './components/layout/TopHeader';
 import { MobileNav } from './components/layout/MobileNav';
@@ -37,11 +37,13 @@ const MainLayout: React.FC = () => {
   const [slideDirection, setSlideDirection] = useState(1);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
-  const { activeReceipt, setActiveReceipt, userRole } = useStore();
+  const { activeReceipt, setActiveReceipt, userRole, currentUser } = useStore();
 
   // Owner/admin gets the full sidebar; counter staff & drivers get a compact
   // top-bar screen switcher instead (dedicated counter tablet).
   const isAdmin = userRole === 'owner';
+
+  const visibleNavItems = getVisibleNavItems(userRole, currentUser.allowed_screens);
 
   // Slides toward the destination tab's position in the nav bar, and scrolls
   // the content pane back to the top so the motion is actually visible.
@@ -52,6 +54,16 @@ const MainLayout: React.FC = () => {
     }
     setCurrentTabState(tab);
   };
+
+  // If a screen access change (or a role switch) leaves the current tab no
+  // longer visible to this user, snap to the first one that still is —
+  // otherwise they'd be stuck looking at a screen they can't navigate away
+  // from via the nav (it's simply missing from it).
+  useEffect(() => {
+    if (visibleNavItems.some(item => item.id === currentTab)) return;
+    setCurrentTabState(visibleNavItems[0]?.id || 'dashboard');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleNavItems, currentTab]);
 
   const renderActiveScreen = () => {
     switch (currentTab) {
@@ -160,7 +172,8 @@ const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       email: session.user.email || '',
       role: profile.role,
       hub_id: profile.hub_id,
-      active: true
+      active: true,
+      allowed_screens: profile.allowed_screens
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, session]);

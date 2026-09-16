@@ -9,6 +9,36 @@ export interface AuthProfile {
   full_name: string | null;
   hub_id: string | null;
   theme: 'light' | 'dark';
+  allowed_screens: string[] | null;
+}
+
+/**
+ * Every profile row, for the owner's Team & Access screen. Owner-only per
+ * RLS (`profiles_read`: `id = auth.uid() or app_current_role() = 'owner'`) —
+ * a non-owner caller gets back only their own row, not an error.
+ */
+export async function listAllProfiles(): Promise<{ profiles: AuthProfile[]; error: string | null }> {
+  if (!supabase) return { profiles: [], error: 'Supabase is not configured for this deployment.' };
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, role, full_name, hub_id, theme, allowed_screens')
+    .order('full_name', { ascending: true });
+  if (error) return { profiles: [], error: error.message };
+  return { profiles: (data as AuthProfile[]) ?? [], error: null };
+}
+
+/**
+ * Owner-only edit of another user's role, hub, or screen access. RLS
+ * (`profiles_owner_update` + the `profiles_guard_role` trigger) is the real
+ * gate — this just surfaces its result.
+ */
+export async function updateProfileAccess(
+  userId: string,
+  patch: { role?: UserRole; hub_id?: string | null; allowed_screens?: string[] | null }
+): Promise<{ error: string | null }> {
+  if (!supabase) return { error: 'Supabase is not configured for this deployment.' };
+  const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
+  return { error: error?.message ?? null };
 }
 
 interface AuthResult {
@@ -42,7 +72,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfileLoading(true);
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, role, full_name, hub_id, theme')
+      .select('id, role, full_name, hub_id, theme, allowed_screens')
       .eq('id', userId)
       .single();
     setProfileLoading(false);

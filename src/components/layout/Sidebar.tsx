@@ -1,6 +1,6 @@
 import React from 'react';
 import { useStore } from '../../services/store';
-import { NAV_ITEMS } from '../../constants/nav';
+import { getVisibleNavItems } from '../../constants/nav';
 import {
   Warning,
   CaretRight,
@@ -39,8 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
 
   const overdueCount = activeAlerts.overdueCredit.length;
 
-  const accessibleNavItems = NAV_ITEMS
-    .filter(item => !item.adminOnly || userRole === 'owner')
+  const accessibleNavItems = getVisibleNavItems(userRole, currentUser.allowed_screens)
     .map(item => ({
       ...item,
       label: LABEL_OVERRIDES[item.id] || item.label,

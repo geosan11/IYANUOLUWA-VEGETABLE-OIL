@@ -3,7 +3,7 @@ import { useStore } from '../../services/store';
 import { useAuth } from '../../services/auth';
 import { isSupabaseConfigured } from '../../services/supabase';
 import { PlusCircle, Drop, Package, List, Sun, Moon, CaretDown, Buildings, Check, Bell, Warning, SignOut, Envelope } from '@phosphor-icons/react';
-import { NAV_ITEMS } from '../../constants/nav';
+import { NAV_ITEMS, getVisibleNavItems } from '../../constants/nav';
 
 interface TopHeaderProps {
   currentTab: string;
@@ -110,7 +110,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                 <div className="fixed inset-0 z-40" onClick={() => setSwitcherOpen(false)} aria-hidden="true" />
                 <div role="menu" className="absolute left-0 top-full mt-1.5 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 animate-in fade-in zoom-in-95">
                   <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 px-3 py-1.5">Switch Screen</p>
-                  {NAV_ITEMS.filter(item => !item.adminOnly || userRole === 'owner').map(item => {
+                  {getVisibleNavItems(userRole, currentUser.allowed_screens).map(item => {
                     const Icon = item.icon;
                     const active = currentTab === item.id;
                     return (

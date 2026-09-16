@@ -235,6 +235,7 @@ interface StoreContextType {
     shiftId: string;
     cashCounted: number;
     notes?: string;
+    closingReadings?: Record<string, number>;
   }) => { success: boolean; shift?: Shift; error?: string };
 
   recordShiftOpeningReadings: (
@@ -1782,11 +1783,53 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     shiftId: string;
     cashCounted: number;
     notes?: string;
+    closingReadings?: Record<string, number>;
   }) => {
     const shift = shifts.find(s => s.id === data.shiftId);
     if (!shift) return { success: false, error: 'Shift not found' };
 
+    const targetHubId = shift.hub_id || getTargetHubId();
     const shiftEndDate = new Date();
+    const recordedAtIso = shiftEndDate.toISOString();
+    const newPumpReadings: PumpReading[] = [];
+    const validClosingReadings: Record<string, number> = {};
+
+    if (data.closingReadings) {
+      for (const [pumpId, reading] of Object.entries(data.closingReadings)) {
+        const num = Number(reading);
+        if (!isNaN(num) && num > 0) {
+          const pump = allPumps.find(p => p.id === pumpId);
+          const opening = shift.opening_readings?.[pumpId] ?? pump?.last_meter_reading ?? 0;
+          if (num < opening) {
+            return {
+              success: false,
+              error: `Closing reading for ${pump?.label || pumpId} (${num.toLocaleString()} L) cannot be less than opening reading (${opening.toLocaleString()} L). Pumps only count forward.`
+            };
+          }
+          validClosingReadings[pumpId] = num;
+          newPumpReadings.push({
+            id: `pr-shift-close-${Date.now()}-${pumpId}`,
+            pump_id: pumpId,
+            reading: num,
+            recorded_at: recordedAtIso,
+            note: `Shift closing meter reading (${shift.cashier_name || currentUser.full_name || 'Staff'})`,
+            hub_id: targetHubId
+          });
+        }
+      }
+
+      // Update pumps last_meter_reading
+      setPumps(prev => prev.map(p => {
+        const r = validClosingReadings[p.id];
+        return r !== undefined && !isNaN(Number(r)) ? { ...p, last_meter_reading: Number(r) } : p;
+      }));
+
+      // Append to pumpReadings
+      if (newPumpReadings.length > 0) {
+        setPumpReadings(prev => [...prev, ...newPumpReadings]);
+      }
+    }
+
     const { cashSales, cashExpenses } = computeShiftCash(shift, orders, expenses, shiftEndDate);
 
     const summary = calculateShiftSummary(
@@ -1804,6 +1847,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       expected_cash: summary.expectedCash,
       cash_counted: summary.cashCounted,
       cash_variance: summary.cashVariance,
+      closing_readings: Object.keys(validClosingReadings).length > 0 ? validClosingReadings : undefined,
       status: 'closed',
       note: data.notes ? (shift.note ? `${shift.note} | ${data.notes}` : data.notes) : shift.note
     };

@@ -20,6 +20,8 @@ INSERT INTO settings (key, value) VALUES
 ('company_name', '"Iyanuoluwa Vegetable & Palm Oil Depot"'::jsonb),
 ('company_phone', '"+234 802 000 1122"'::jsonb),
 ('company_address', '"Plot 14, Commercial Avenue, Alaba Depot, Lagos"'::jsonb),
-('company_logo_url', 'null'::jsonb)
+('company_logo_url', 'null'::jsonb),
+('shift_start_time', '"07:00"'::jsonb),
+('shift_end_time', '"18:00"'::jsonb)
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 

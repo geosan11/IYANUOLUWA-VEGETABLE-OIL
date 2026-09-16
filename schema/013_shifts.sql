@@ -3,10 +3,13 @@
 
 CREATE TABLE IF NOT EXISTS shifts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    supervisor_name VARCHAR(128) NOT NULL,
+    supervisor_name VARCHAR(128),
+    cashier_name VARCHAR(128),
     start_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     end_time TIMESTAMPTZ,
     opening_float NUMERIC(12, 2) NOT NULL DEFAULT 150000,
+    opening_readings JSONB DEFAULT '{}'::jsonb,
+    closing_readings JSONB DEFAULT '{}'::jsonb,
     cash_sales NUMERIC(14, 2) NOT NULL DEFAULT 0,
     cash_expenses NUMERIC(14, 2) NOT NULL DEFAULT 0,
     expected_cash NUMERIC(14, 2) NOT NULL DEFAULT 0,

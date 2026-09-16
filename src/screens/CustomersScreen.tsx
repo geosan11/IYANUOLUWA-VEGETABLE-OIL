@@ -1394,7 +1394,12 @@ export const CustomersScreen: React.FC = () => {
           rows={buildCustomerStatement(statementCustomer, orders, payments, customerCredits, kegReturns)}
           balance={customerStatsMap[statementCustomer.id]?.currentBalance || 0}
           kegsOut={customerStatsMap[statementCustomer.id]?.totalCompanyKegsOut || 0}
-          company={{ name: settings.company_name, phone: settings.company_phone, address: settings.company_address }}
+          company={{
+            name: settings.company_name,
+            phone: settings.company_phone,
+            address: settings.company_address,
+            logo_url: settings.company_logo_url
+          }}
           onClose={() => setStatementCustomer(null)}
         />
       )}

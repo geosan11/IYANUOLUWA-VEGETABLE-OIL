@@ -1,6 +1,6 @@
 import React from 'react';
 import { useStore } from '../../services/store';
-import { NAV_ITEMS } from '../../constants/nav';
+import { NAV_ITEMS, getVisibleNavItems } from '../../constants/nav';
 import { X, Sun, Moon } from '@phosphor-icons/react';
 
 /** Fixed 5-slot bottom bar — a curated subset of NAV_ITEMS. `order` is the raised centre button. */
@@ -30,14 +30,16 @@ export const MobileNav: React.FC<MobileNavProps> = ({
 
   const overdueCount = activeAlerts.overdueCredit.length;
 
+  const visibleIds = new Set(getVisibleNavItems(userRole, currentUser.allowed_screens).map(item => item.id));
+
   const allNavItems = NAV_ITEMS
-    .filter(item => !item.adminOnly || userRole === 'owner')
+    .filter(item => visibleIds.has(item.id))
     .map(item => ({
       ...item,
       badge: item.id === 'customers' ? overdueCount : 0
     }));
 
-  const primaryNavItems = BOTTOM_BAR_IDS.map(id => {
+  const primaryNavItems = BOTTOM_BAR_IDS.filter(id => visibleIds.has(id)).map(id => {
     const base = NAV_ITEMS.find(n => n.id === id)!;
     return {
       id: base.id,
