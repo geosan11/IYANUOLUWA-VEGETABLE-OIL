@@ -21,7 +21,7 @@ const LABEL_OVERRIDES: Record<string, string> = {
   intake: 'Truck Intake',
   pumps: 'Pumps',
   kegs: 'Kegs Ledger',
-  customers: 'Customers & Debit',
+  customers: 'Customers & Debt',
   ledger: 'Transaction ledger',
   inventory: 'Products & pricing',
   expenses: 'Expenses & float',

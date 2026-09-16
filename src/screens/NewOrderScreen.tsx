@@ -30,7 +30,8 @@ import {
   ArrowsCounterClockwise,
   Calculator,
   Pencil,
-  ShoppingCart
+  ShoppingCart,
+  Package
 } from '@phosphor-icons/react';
 import { MiniNumberPad } from '../components/common/MiniNumberPad';
 
@@ -48,7 +49,7 @@ const PAYMENT_METHODS: { id: PaymentMethod; label: string }[] = [
   { id: 'cash', label: 'Cash' },
   { id: 'transfer', label: 'Transfer' },
   { id: 'pos', label: 'Card / POS' },
-  { id: 'credit', label: 'Debit' }
+  { id: 'credit', label: 'Debt' }
 ];
 
 interface DraftLine {
@@ -66,6 +67,8 @@ interface DraftLine {
   lineAmount: number;
   litres: number;
   priceAdjusted: boolean;
+  /** Selling the empty keg itself — no oil. */
+  kegOnly: boolean;
 }
 
 export interface NewOrderScreenProps {
@@ -146,7 +149,13 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   const [varietyId, setVarietyId] = useState<string>(products[0]?.varieties[0]?.id || '');
   const [packSizeId, setPackSizeId] = useState<string>('');
   const [qty, setQty] = useState<number>(1);
-  const [containerMode, setContainerMode] = useState<ContainerMode>('taken');
+  /**
+   * Selling an empty keg outright (no oil). A returnable pack size otherwise
+   * always goes out "taken" (company keg, returnable) automatically — there's
+   * no per-sale taken/bought choice any more; outright keg sales are their
+   * own item instead.
+   */
+  const [isKegOnlyMode, setIsKegOnlyMode] = useState(false);
   const [overrideOn, setOverrideOn] = useState(false);
   const [overrideValue, setOverrideValue] = useState('');
   const [priceReason, setPriceReason] = useState('');
@@ -179,16 +188,29 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   };
 
   const packConfig = product?.pack_config ?? [];
-  const sellableSizes = PACK_SIZES.filter(s => packConfig.some(c => c.pack_size_id === s.id));
+  const sellableSizes = PACK_SIZES.filter(
+    s => packConfig.some(c => c.pack_size_id === s.id && (!isKegOnlyMode || c.returnable))
+  );
   const activePackCfg = packConfig.find(c => c.pack_size_id === packSizeId) || null;
   const isReturnable = activePackCfg?.returnable ?? false;
+  // A returnable pack always goes out "taken" automatically; an outright keg
+  // sale (Sell Kegs item) is always "bought". Nothing else is user-toggled.
+  const effectiveContainerMode: ContainerMode = !isReturnable ? 'none' : isKegOnlyMode ? 'bought' : 'taken';
 
   const selectProduct = (id: string) => {
     const p = products.find(pr => pr.id === id);
     setProductId(id);
     setVarietyId(p?.varieties[0]?.id || '');
     setPackSizeId('');
-    setContainerMode('taken');
+    setIsKegOnlyMode(false);
+    setOverrideOn(false);
+    setOverrideValue('');
+    setPriceReason('');
+  };
+
+  const selectSellKegs = () => {
+    setIsKegOnlyMode(true);
+    setPackSizeId('');
     setOverrideOn(false);
     setOverrideValue('');
     setPriceReason('');
@@ -210,11 +232,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
       packSizeId,
       tier,
       qty,
-      containerMode: isReturnable ? containerMode : 'none',
+      containerMode: effectiveContainerMode,
       overrideUnitPrice: overrideOn && overrideValue ? Number(overrideValue) : null,
-      packPrices
+      packPrices,
+      kegOnly: isKegOnlyMode
     });
-  }, [product, varietyId, packSizeId, tier, qty, containerMode, isReturnable, overrideOn, overrideValue, packPrices]);
+  }, [product, varietyId, packSizeId, tier, qty, effectiveContainerMode, isKegOnlyMode, overrideOn, overrideValue, packPrices]);
 
   const cartTotal = lines.reduce((s, l) => s + l.lineAmount, 0);
   const tenderedNum = Number(amountTendered) || 0;
@@ -232,7 +255,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     qty > 0 &&
     !!preview &&
     !preview.unpriced &&
-    preview.unitPrice > 0;
+    preview.lineAmount > 0;
 
   const addLine = () => {
     if (!product || !preview || !canAddLine) return;
@@ -247,19 +270,20 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
         varietyName: variety?.name || '',
         packSizeId,
         qty,
-        containerMode: isReturnable ? containerMode : 'none',
+        containerMode: effectiveContainerMode,
         overrideUnitPrice: overrideOn && overrideValue ? Number(overrideValue) : null,
         priceAdjustReason: preview.priceAdjusted ? (priceReason.trim() || 'Counter rate') : null,
         unitPrice: preview.unitPrice,
         lineAmount: preview.lineAmount,
         litres: preview.litres,
-        priceAdjusted: preview.priceAdjusted
+        priceAdjusted: preview.priceAdjusted,
+        kegOnly: isKegOnlyMode
       }
     ]);
     // reset the item panel, keep customer + tier
     setPackSizeId('');
     setQty(1);
-    setContainerMode('taken');
+    setIsKegOnlyMode(false);
     setOverrideOn(false);
     setOverrideValue('');
     setPriceReason('');
@@ -274,7 +298,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     setVarietyId(l.varietyId);
     setPackSizeId(l.packSizeId);
     setQty(l.qty);
-    setContainerMode(l.containerMode);
+    setIsKegOnlyMode(l.kegOnly);
     if (l.overrideUnitPrice !== null && l.overrideUnitPrice !== undefined) {
       setOverrideOn(true);
       setOverrideValue(String(l.overrideUnitPrice));
@@ -293,11 +317,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     setError(null);
     if (!customer) return setError('Select a customer.');
     if (isOneTime && paymentMethod === 'credit') {
-      return setError('One-time supermarket customers cannot buy on debit. Settle with cash, transfer, or POS.');
+      return setError('One-time supermarket customers cannot buy on debt. Settle with cash, transfer, or POS.');
     }
     if (lines.length === 0) return setError('Add at least one item.');
     if (shortTender) return setError('Cash tendered is less than the total.');
-    if (overLimitBlocked) return setError('This sale puts the customer over their debit limit — owner approval required.');
+    if (overLimitBlocked) return setError('This sale puts the customer over their debt limit — owner approval required.');
 
     const result = createSale({
       customerId: customer.id,
@@ -313,7 +337,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
         qty: l.qty,
         containerMode: l.containerMode,
         overrideUnitPrice: l.overrideUnitPrice,
-        priceAdjustReason: l.priceAdjustReason || undefined
+        priceAdjustReason: l.priceAdjustReason || undefined,
+        kegOnly: l.kegOnly
       }))
     });
 
@@ -787,7 +812,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                 )}
                               </div>
                               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans truncate">
-                                Register new customer account & debit limit
+                                Register new customer account & debt limit
                               </p>
                             </div>
                           </div>
@@ -850,7 +875,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       Supermarket Walk-in Sale
                     </span>
                     <span className="text-slate-300 dark:text-slate-700">·</span>
-                    <span className="text-slate-500 font-medium">Immediate Settlement (No Debit)</span>
+                    <span className="text-slate-500 font-medium">Immediate Settlement (No Debt)</span>
                   </div>
                 ) : (
                   <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -881,7 +906,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       key={p.id}
                       onClick={() => selectProduct(p.id)}
                       className={`px-3.5 py-2 rounded-xl text-xs font-sans font-semibold border transition-all ${
-                        p.id === product.id
+                        p.id === product.id && !isKegOnlyMode
                           ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
                           : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                       }`}
@@ -889,24 +914,43 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       {p.name}
                     </button>
                   ))}
+                  <button
+                    onClick={selectSellKegs}
+                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-sans font-semibold border transition-all ${
+                      isKegOnlyMode
+                        ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
+                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    <Package className="w-3.5 h-3.5" />
+                    <span>Sell Kegs</span>
+                  </button>
                 </div>
 
+                {isKegOnlyMode && (
+                  <div className="text-xs font-sans text-slate-500 dark:text-slate-400 -mt-1.5">
+                    Empty {product.name} kegs, no oil. For a different brand, tap that product above, then Sell Kegs again.
+                  </div>
+                )}
+
                 {/* variety selector */}
-                <div className="flex flex-wrap gap-1.5">
-                  {product.varieties.map(v => (
-                    <button
-                      key={v.id}
-                      onClick={() => setVarietyId(v.id)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-sans font-semibold border transition-colors ${
-                        v.id === varietyId
-                          ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
-                          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
-                      }`}
-                    >
-                      {v.name}
-                    </button>
-                  ))}
-                </div>
+                {!isKegOnlyMode && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {product.varieties.map(v => (
+                      <button
+                        key={v.id}
+                        onClick={() => setVarietyId(v.id)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-sans font-semibold border transition-colors ${
+                          v.id === varietyId
+                            ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
+                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                        }`}
+                      >
+                        {v.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {/* pack size tiles */}
                 {sellableSizes.length === 0 ? (
@@ -922,8 +966,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         packSizeId: s.id,
                         tier,
                         qty: 1,
-                        containerMode: 'none',
-                        packPrices
+                        containerMode: isKegOnlyMode ? 'bought' : 'none',
+                        packPrices,
+                        kegOnly: isKegOnlyMode
                       });
                       const selected = s.id === packSizeId;
                       return (
@@ -941,7 +986,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                             {linePrice.unpriced ? (
                               <span className="text-amber-600 dark:text-amber-400">no price</span>
                             ) : (
-                              formatNaira(linePrice.unitPrice)
+                              formatNaira(isKegOnlyMode ? linePrice.containerUnitPrice : linePrice.unitPrice)
                             )}
                           </div>
                         </button>
@@ -1024,34 +1069,24 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       </div>
                     </div>
 
-                    {/* container mode */}
-                    {isReturnable && (
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-slate-500 w-16">Keg</span>
-                        <div className="flex gap-1.5">
-                          {(['taken', 'bought'] as ContainerMode[]).map(m => (
-                            <button
-                              key={m}
-                              onClick={() => setContainerMode(m)}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold border capitalize transition-colors ${
-                                containerMode === m
-                                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
-                                  : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800'
-                              }`}
-                            >
-                              {m}
-                            </button>
-                          ))}
-                        </div>
-                        {containerMode === 'bought' && (
-                          <span className="text-xs text-amber-600 dark:text-amber-400 font-mono">
-                            +{formatNaira(preview.containerAmount)}
-                          </span>
-                        )}
+                    {/* keg disposition — automatic, not a manual choice any more */}
+                    {isReturnable && !isKegOnlyMode && (
+                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                        <Package className="w-3.5 h-3.5" />
+                        <span>Company keg goes out on loan (returnable) — use Sell Kegs to sell one outright.</span>
                       </div>
                     )}
 
-                    {/* price (directly editable) */}
+                    {/* price (directly editable) — oil pricing only; a keg-only line has a fixed keg price, no override */}
+                    {isKegOnlyMode ? (
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-slate-500 w-16">Keg Price</span>
+                        <span className="text-base font-mono font-black text-slate-900 dark:text-white">
+                          {formatNaira(preview.containerUnitPrice)}
+                        </span>
+                        <span className="text-xs text-slate-400 font-sans">/ {packShort(packSizeId)}</span>
+                      </div>
+                    ) : (
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-3">
                         <span className="text-xs text-slate-500 w-16">Unit Price</span>
@@ -1137,6 +1172,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         </div>
                       )}
                     </div>
+                    )}
 
                     {/* INTERACTIVE MINI NUMBER PAD (COLLAPSIBLE / ON-DEMAND) */}
                     {showNumpad && (
@@ -1164,8 +1200,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
                     {preview.unpriced && (
                       <div className="text-xs text-rose-600 dark:text-rose-400">
-                        No matrix price configured for {product.name} / {product.varieties.find(v => v.id === varietyId)?.name} /{' '}
-                        {packLabel(packSizeId)} at the {tier} tier. Enter a custom price above to sell.
+                        {isKegOnlyMode
+                          ? `No keg sell price set for ${product.name}. Set one in Inventory.`
+                          : <>No matrix price configured for {product.name} / {product.varieties.find(v => v.id === varietyId)?.name} /{' '}
+                             {packLabel(packSizeId)} at the {tier} tier. Enter a custom price above to sell.</>}
                       </div>
                     )}
 
@@ -1229,12 +1267,18 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         <div key={l.key} className="flex items-center justify-between gap-2 pt-1.5 first:pt-0">
                           <div className="min-w-0">
                             <div className="text-xs font-sans font-semibold text-slate-900 dark:text-white truncate">
-                              {l.qty} × {packShort(l.packSizeId)} · {l.productName}
+                              {l.qty} × {packShort(l.packSizeId)} {l.kegOnly ? 'empty keg' : `· ${l.productName}`}
                             </div>
                             <div className="text-xs text-slate-500 truncate">
-                              {l.varietyName} · {formatNaira(l.unitPrice)}
-                              {l.containerMode === 'taken' && ' · keg taken'}
-                              {l.containerMode === 'bought' && ' · keg bought'}
+                              {l.kegOnly ? (
+                                `${l.productName} keg · outright sale, no oil`
+                              ) : (
+                                <>
+                                  {l.varietyName} · {formatNaira(l.unitPrice)}
+                                  {l.containerMode === 'taken' && ' · keg taken'}
+                                  {l.containerMode === 'bought' && ' · keg bought'}
+                                </>
+                              )}
                               {l.priceAdjusted && ' · adjusted'}
                             </div>
                           </div>
@@ -1344,8 +1388,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         }
                       >
                         {overLimitBlocked
-                          ? 'Over debit limit — owner approval required.'
-                          : 'Over debit limit (owner override).'}
+                          ? 'Over debt limit — owner approval required.'
+                          : 'Over debt limit (owner override).'}
                       </div>
                     )}
                   </div>
@@ -1455,7 +1499,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-sans font-bold uppercase text-slate-500 mb-1">
-                Debit Limit (₦)
+                Debt Limit (₦)
               </label>
               <input
                 type="number"

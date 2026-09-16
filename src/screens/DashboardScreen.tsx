@@ -197,25 +197,25 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       action: () => void;
     }> = [];
 
-    // 1. Overdue debit invoices (Critical Red)
+    // 1. Overdue debt invoices (Critical Red)
     activeAlerts.overdueCredit.forEach(a => {
       list.push({
         id: `overdue-${a.customer.id}`,
-        type: 'Overdue Debit Invoice',
+        type: 'Overdue Debt Invoice',
         title: `${a.customer.name} (Overdue ${a.overdueDays}d)`,
         subtitle: `Balance: ${formatNaira(a.amount)} · Terms: ${a.customer.credit_term_days}d`,
-        details: `Customer has exceeded their agreed ${a.customer.credit_term_days}-day terms by ${a.overdueDays} days. Debit sales should be paused until this invoice is settled.`,
+        details: `Customer has exceeded their agreed ${a.customer.credit_term_days}-day terms by ${a.overdueDays} days. Debt sales should be paused until this invoice is settled.`,
         severity: 'red',
         actionLabel: 'Open Customer Ledger',
         action: () => onNavigate('customers')
       });
     });
 
-    // 2. Debit limit breaches (Critical Red)
+    // 2. Debt limit breaches (Critical Red)
     activeAlerts.overLimit.forEach(a => {
       list.push({
         id: `limit-${a.customer.id}`,
-        type: 'Debit Limit Breach',
+        type: 'Debt Limit Breach',
         title: `${a.customer.name} (Limit Exceeded)`,
         subtitle: `Balance: ${formatNaira(a.balance)} | Limit: ${formatNaira(a.limit)} (+${formatNaira(a.excess)} over)`,
         details: `Customer open balance of ${formatNaira(a.balance)} exceeds authorized ceiling of ${formatNaira(a.limit)} by ${formatNaira(a.excess)}.`,
@@ -303,7 +303,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5 font-sans">
-                Run on-demand audits across tank depletion runway, pump variances, and customer debit exposure.
+                Run on-demand audits across tank depletion runway, pump variances, and customer debt exposure.
               </p>
             </div>
           </div>
@@ -474,7 +474,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           </div>
         </button>
 
-        {/* 2. Debit Outstanding (Debit Ledger) */}
+        {/* 2. Debt Outstanding (Debt Ledger) */}
         <button
           type="button"
           onClick={() => setActiveStatSheet('credit')}
@@ -482,7 +482,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         >
           <div className="flex items-center justify-between gap-1.5 mb-3">
             <span className="text-xs font-sans font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 truncate">
-              Debit Ledger
+              Debt Ledger
             </span>
             <div className="w-8 h-8 rounded-xl bg-rose-100/70 dark:bg-rose-900/40 border border-rose-200/80 dark:border-rose-800/50 flex items-center justify-center shrink-0">
               <CreditCard className="w-4 h-4 text-rose-600 dark:text-rose-400 group-hover:scale-110 transition-transform" />
@@ -866,7 +866,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
               {activeAlerts.overdueCredit.length === 0 ? (
                 <p className="text-xs font-sans text-slate-400 py-3 text-center">
-                  No overdue debit accounts.
+                  No overdue debt accounts.
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -906,7 +906,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5 mb-3">
                 <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-xs font-sans uppercase tracking-wider">
                   <ShieldAlert className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-                  <span>2. Debit Cap Breaches</span>
+                  <span>2. Debt Cap Breaches</span>
                 </div>
                 <span className="badge-rose px-2 py-0.5 rounded-full text-xs font-mono tabular-nums font-bold">
                   {activeAlerts.overLimit.length}
@@ -915,7 +915,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
               {activeAlerts.overLimit.length === 0 ? (
                 <p className="text-xs font-sans text-slate-400 py-3 text-center">
-                  All accounts within approved debit caps.
+                  All accounts within approved debt caps.
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -1441,7 +1441,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           activeStatSheet === 'cash'
             ? 'Cash & Transfer Sales Today'
             : activeStatSheet === 'credit'
-            ? 'Debit Ledger Outstanding'
+            ? 'Debt Ledger Outstanding'
             : activeStatSheet === 'kegs_out'
             ? 'Company Keg Custody'
             : activeStatSheet === 'depot_kegs'
@@ -1523,12 +1523,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             </div>
           )}
 
-          {/* 2. Debit Breakdown */}
+          {/* 2. Debt Breakdown */}
           {activeStatSheet === 'credit' && (
             <div className="space-y-3">
               <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 flex items-center justify-between">
                 <span className="text-xs font-sans font-semibold text-rose-800 dark:text-rose-300">
-                  Total Outstanding Debit
+                  Total Outstanding Debt
                 </span>
                 <span className="text-lg font-mono tabular-nums font-bold text-rose-700 dark:text-rose-400">
                   {formatNaira(todayStats.creditOutstanding)}

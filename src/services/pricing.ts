@@ -39,6 +39,13 @@ export interface LinePricingInput {
   /** Staff-entered price for ONE pack. When set and different from the matrix, the line is "price adjusted". */
   overrideUnitPrice?: number | null;
   packPrices: PackPrice[];
+  /**
+   * Selling the empty container itself — no oil. Zeroes litres and the oil
+   * charge entirely; the line is priced purely off the container's buy price
+   * (falling back to the product's `keg_sell_price`), same as an outright
+   * ('bought') container today, just without any oil riding along.
+   */
+  kegOnly?: boolean;
 }
 
 export interface LinePricingResult {
@@ -69,11 +76,36 @@ export function priceSaleLine(input: LinePricingInput): LinePricingResult {
     qty,
     containerMode,
     overrideUnitPrice,
-    packPrices
+    packPrices,
+    kegOnly
   } = input;
 
   const litresPerPack = packLitres(packSizeId);
   const packs = Math.max(0, Number(qty) || 0);
+
+  const cfg = product.pack_config.find(c => c.pack_size_id === packSizeId);
+  const returnable = cfg?.returnable ?? false;
+  const containerUnitPrice = cfg?.container_buy_price ?? product.keg_sell_price ?? 0;
+
+  // Selling the empty container itself: no oil at all, priced purely off the
+  // container's buy price. Skips the oil pricing matrix entirely.
+  if (kegOnly) {
+    const containerAmount = round2(packs * containerUnitPrice);
+    return {
+      packLitres: litresPerPack,
+      litres: 0,
+      matrixUnitPrice: null,
+      unitPrice: 0,
+      priceAdjusted: false,
+      oilAmount: 0,
+      returnable,
+      containerUnitPrice: round2(containerUnitPrice),
+      containerAmount,
+      lineAmount: containerAmount,
+      unpriced: containerUnitPrice <= 0
+    };
+  }
+
   const litres = round2(packs * litresPerPack);
 
   const matrixUnitPrice = lookupPackPrice(packPrices, product.id, varietyId, packSizeId, tier);
@@ -88,10 +120,6 @@ export function priceSaleLine(input: LinePricingInput): LinePricingResult {
   const unpriced = !hasOverride && matrixUnitPrice === null;
   const priceAdjusted =
     matrixUnitPrice !== null && Math.abs(unitPrice - matrixUnitPrice) > 0.001;
-
-  const cfg = product.pack_config.find(c => c.pack_size_id === packSizeId);
-  const returnable = cfg?.returnable ?? false;
-  const containerUnitPrice = cfg?.container_buy_price ?? product.keg_sell_price ?? 0;
 
   const oilAmount = round2(packs * unitPrice);
   const containerAmount = containerMode === 'bought' ? round2(packs * containerUnitPrice) : 0;

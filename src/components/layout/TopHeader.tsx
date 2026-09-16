@@ -442,7 +442,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                     <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400 flex flex-col items-center gap-1">
                       <Check className="w-6 h-6 text-emerald-500" weight="bold" />
                       <span className="font-semibold text-slate-700 dark:text-slate-300">All Operations Normal</span>
-                      <span className="text-[11px]">No overdue debits, pump variances, or shortfalls.</span>
+                      <span className="text-[11px]">No overdue debts, pump variances, or shortfalls.</span>
                     </div>
                   ) : (
                     <>
@@ -454,10 +454,10 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                         >
                           <div>
                             <div className="font-bold text-rose-800 dark:text-rose-300">
-                              {activeAlerts.overdueCredit.length} Overdue Debit Account(s)
+                              {activeAlerts.overdueCredit.length} Overdue Debt Account(s)
                             </div>
                             <div className="text-[11px] text-rose-600 dark:text-rose-400 font-mono">
-                              Exceeded debit terms
+                              Exceeded debt terms
                             </div>
                           </div>
                           <CaretDown className="w-3.5 h-3.5 text-rose-600 -rotate-90 flex-shrink-0" />
@@ -472,7 +472,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                         >
                           <div>
                             <div className="font-bold text-amber-800 dark:text-amber-300">
-                              {activeAlerts.overLimit.length} Debit Cap Breach(es)
+                              {activeAlerts.overLimit.length} Debt Cap Breach(es)
                             </div>
                             <div className="text-[11px] text-amber-600 dark:text-amber-400 font-mono">
                               Balances exceeding limit

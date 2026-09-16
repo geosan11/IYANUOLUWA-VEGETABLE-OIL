@@ -98,8 +98,8 @@ export const PAYMENT_MODE_THEME: Record<PaymentMethod, PaymentModeTheme> = {
     borderCls: 'border-purple-200 dark:border-purple-800/60'
   },
   credit: {
-    label: 'Debit',
-    badgeLabel: 'DEBIT',
+    label: 'Debt',
+    badgeLabel: 'DEBT',
     dotCls: 'bg-amber-500',
     badgeCls: 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800/80',
     buttonActiveCls: 'bg-amber-600 text-white border-amber-600 shadow-md shadow-amber-500/25 ring-2 ring-amber-500/30',

@@ -166,6 +166,8 @@ interface StoreContextType {
       containerMode: ContainerMode;
       overrideUnitPrice?: number | null;
       priceAdjustReason?: string;
+      /** Selling the empty keg itself — no oil. See `priceSaleLine`'s `kegOnly`. */
+      kegOnly?: boolean;
     }[];
   }) => { success: boolean; sale?: Sale; lines?: Order[]; receipt?: ReceiptData; error?: string };
 
@@ -1013,6 +1015,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       containerMode: ContainerMode;
       overrideUnitPrice?: number | null;
       priceAdjustReason?: string;
+      kegOnly?: boolean;
     }[];
   }) => {
     const customer = customers.find(c => c.id === data.customerId) || (data.customerId === ONE_TIME_CUSTOMER_ID ? ONE_TIME_CUSTOMER : null);
@@ -1072,13 +1075,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         qty: Number(line.qty),
         containerMode: line.containerMode,
         overrideUnitPrice: line.overrideUnitPrice ?? null,
-        packPrices
+        packPrices,
+        kegOnly: line.kegOnly
       });
 
       if (priced.unpriced) {
         return {
           success: false,
-          error: `Line ${i + 1}: ${product.name} / ${variety.name} / ${packLabelFor(line.packSizeId)} has no price for the ${tier} tier. Set it in Inventory.`
+          error: line.kegOnly
+            ? `Line ${i + 1}: ${product.name} has no keg sell price set. Set it in Inventory.`
+            : `Line ${i + 1}: ${product.name} / ${variety.name} / ${packLabelFor(line.packSizeId)} has no price for the ${tier} tier. Set it in Inventory.`
         };
       }
       if (priced.priceAdjusted && !line.priceAdjustReason?.trim()) {
@@ -1460,6 +1466,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const nextMode: ContainerMode = patch.containerMode ?? line.container_mode;
     const nextUnitOverride =
       patch.unitPrice != null ? patch.unitPrice : line.price_adjusted ? line.unit_price : null;
+    // Fingerprint of a keg-only line (no oil at all) — the Order model has no
+    // dedicated column for this, so it's inferred from the original line.
+    const wasKegOnly = line.litres === 0 && line.oil_amount === 0 && line.container_mode === 'bought';
 
     const priced = priceSaleLine({
       product,
@@ -1468,6 +1477,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       tier: line.pricing_tier,
       qty: nextQty,
       containerMode: nextMode,
+      kegOnly: wasKegOnly,
       overrideUnitPrice: nextUnitOverride,
       packPrices
     });

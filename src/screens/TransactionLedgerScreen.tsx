@@ -45,7 +45,7 @@ const PAYMENT_MODE_META: Record<PaymentMethod, { label: string; Icon: typeof Cre
   cash: { label: 'Cash', Icon: Banknote, cls: PAYMENT_MODE_THEME.cash.textCls },
   transfer: { label: 'Transfer', Icon: Bank, cls: PAYMENT_MODE_THEME.transfer.textCls },
   pos: { label: 'POS / Card', Icon: DeviceMobile, cls: PAYMENT_MODE_THEME.pos.textCls },
-  credit: { label: 'Debit', Icon: Wallet, cls: PAYMENT_MODE_THEME.credit.textCls }
+  credit: { label: 'Debt', Icon: Wallet, cls: PAYMENT_MODE_THEME.credit.textCls }
 };
 
 interface TxnRow {
@@ -75,7 +75,7 @@ const PAYMENT_MODE_CHIPS: { id: PaymentModeFilter; label: string }[] = [
   { id: 'cash', label: 'Cash' },
   { id: 'transfer', label: 'Transfer' },
   { id: 'pos', label: 'Card / POS' },
-  { id: 'credit', label: 'Debit' }
+  { id: 'credit', label: 'Debt' }
 ];
 
 const KIND_META: Record<Kind, { label: string; Icon: typeof CreditCard; badge: string }> = {
@@ -341,7 +341,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
           ['Gross sales', formatNaira(kpi.gross), 'text-slate-900 dark:text-white'],
           ['Payments in', formatNaira(kpi.received), 'text-sky-600 dark:text-sky-400'],
           ['Expenses', formatNaira(kpi.spent), 'text-rose-600 dark:text-rose-400'],
-          ['Debit owed', formatNaira(kpi.creditOwed), 'text-amber-600 dark:text-amber-400']
+          ['Debt owed', formatNaira(kpi.creditOwed), 'text-amber-600 dark:text-amber-400']
         ].map(([label, val, cls]) => (
           <div key={label} className="depot-card p-3 rounded-xl">
             <div className="text-xs font-sans uppercase tracking-wider text-slate-500">{label}</div>

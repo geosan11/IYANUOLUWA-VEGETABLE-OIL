@@ -85,7 +85,7 @@ export const CustomerStatementModal: React.FC<Props> = ({ customer, rows, balanc
                 <tr className="text-slate-500 text-[10px] font-sans uppercase border-b border-slate-200">
                   <th className="text-left py-1">Date</th>
                   <th className="text-left py-1">Detail</th>
-                  <th className="text-right py-1">Debit</th>
+                  <th className="text-right py-1">Debt</th>
                   <th className="text-right py-1">Credit</th>
                   <th className="text-right py-1">Balance</th>
                 </tr>

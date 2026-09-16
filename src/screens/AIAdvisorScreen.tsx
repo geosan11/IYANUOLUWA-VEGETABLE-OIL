@@ -453,7 +453,7 @@ export const AIAdvisorScreen: React.FC = () => {
             { text: 'Search live Mile 12 & Daleko oil prices', isWeb: true },
             { text: 'Search diesel price & freight rates', isWeb: true },
             { text: 'Benchmark CPO prices & import tariffs', isWeb: true },
-            { text: 'Who owes us the most money on debit?', isWeb: false },
+            { text: 'Who owes us the most money on debt?', isWeb: false },
             { text: 'When should we book our next tanker?', isWeb: false },
             { text: 'Is Pump 2 leaking or unmetered?', isWeb: false }
           ].map(prompt => (
@@ -514,7 +514,7 @@ export const AIAdvisorScreen: React.FC = () => {
             type="text"
             value={chatInput}
             onChange={e => setChatInput(e.target.value)}
-            placeholder="Ask about debit balances, tanks, or search live market prices (Mile 12, Daleko, CPO, Diesel)..."
+            placeholder="Ask about debt balances, tanks, or search live market prices (Mile 12, Daleko, CPO, Diesel)..."
             className="flex-1 py-2.5 px-4 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
           />
           <button
