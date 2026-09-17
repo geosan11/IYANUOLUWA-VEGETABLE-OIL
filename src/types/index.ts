@@ -329,6 +329,9 @@ export interface Expense {
   voided?: boolean;
   voided_at?: string | null;
   void_reason?: string | null;
+  recorded_by?: string;
+  customer_id?: string;
+  charge_to_customer?: boolean;
   hub_id?: string;
 }
 
@@ -349,6 +352,8 @@ export interface AppSettings {
   shift_end_time: string;
   require_pump_readings_to_start_shift?: boolean;
   require_pump_readings_to_close_shift?: boolean;
+  outright_keg_price?: number;
+  keg_deposit_price?: number;
 }
 
 export interface KegInventorySummary {

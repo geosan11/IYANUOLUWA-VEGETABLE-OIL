@@ -2,12 +2,13 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
 import { usePermissions } from '../services/permissions';
 import { TankGauge } from '../components/common/TankGauge';
+import { KegPalletStackDiagram } from '../components/common/KegPalletStackDiagram';
 import { PumpOdometerIllustration } from '../components/common/PumpOdometerIllustration';
 import { BottomSheet } from '../components/common/BottomSheet';
 import { SlideOverDrawer } from '../components/common/SlideOverDrawer';
 import { Modal } from '../components/common/Modal';
 import { useIsDesktopSplit } from '../hooks/useBreakpoint';
-import { formatNaira, formatDepotDate, formatDepotTime, computeShiftCash, getDepotToday, depotDateKey } from '../services/businessLogic';
+import { formatNaira, formatDepotDate, formatDepotTime, computeShiftCash, getDepotToday, depotDateKey, formatVolumeWithDrums } from '../services/businessLogic';
 import {
   CurrencyDollar as DollarSign,
   CreditCard,
@@ -650,163 +651,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         </div>
       </div>
 
-      {/* Volumetric Tanks Level Overview Grid */}
-      <div className="grid grid-cols-1 split:grid-cols-2 gap-6">
-        {/* Golden Vegetable Oil Active Tanks Overview */}
-        <div className="p-5 sm:p-6 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col justify-between">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-3.5 h-3.5 rounded-full bg-amber-500 shadow-sm shadow-amber-500/50" />
-              <div>
-                <h3 className="text-base font-heading font-bold text-slate-900 dark:text-white">
-                  Golden Vegetable Oil Tanks
-                </h3>
-                <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
-                  First-In, First-Out: Oldest oil delivered is dispensed first.
-                </p>
-              </div>
-            </div>
-            <div className="text-right font-mono tabular-nums">
-              <span className="text-base font-bold text-slate-900 dark:text-slate-100">
-                {vegStock.toLocaleString()} L
-              </span>
-              <span className="text-xs text-slate-500 dark:text-slate-400 block">
-                ≈ {(vegStock / vegLitresPerKeg).toFixed(0)} Kegs ({vegLitresPerKeg}L)
-              </span>
-              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
-                Sold Today: {vegKegsSoldToday} packs
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center justify-items-center py-2">
-            {/* Primary combined gauge */}
-            <TankGauge
-              productId="veg"
-              productName="Veg Oil Depletion"
-              remainingLitres={vegStock}
-              totalCapacityLitres={30000}
-              size="lg"
-            />
-
-            {/* Individual active veg tanks list */}
-            <div className="w-full space-y-2.5">
-              <div className="text-xs font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Active In-Feed Tanks
-              </div>
-              {tanks
-                .filter(t => t.product_id === 'veg')
-                .map((t, idx) => {
-                  const pct = Math.min(100, (t.remaining_litres / (t.received_litres || 1)) * 100);
-                  return (
-                    <div
-                      key={t.id}
-                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs font-mono tabular-nums"
-                    >
-                      <div className="space-y-0.5 font-sans">
-                        <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">
-                            Tank #{idx + 1}
-                          </span>
-                          <span className="text-xs">{t.truck_label}</span>
-                        </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">
-                          Intake: {formatDepotDate(t.date)} · Received: {t.received_litres.toLocaleString()}L
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                          {t.remaining_litres.toLocaleString()} L
-                        </div>
-                        <div className="text-xs text-slate-400">
-                          {pct.toFixed(0)}% full
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-        </div>
-
-        {/* Red / Palm Oil Active Tanks Overview */}
-        <div className="p-5 sm:p-6 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col justify-between">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-3.5 h-3.5 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50" />
-              <div>
-                <h3 className="text-base font-heading font-bold text-slate-900 dark:text-white">
-                  Red / Palm Oil Tanks
-                </h3>
-                <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
-                  First-In, First-Out: Oldest oil delivered is dispensed first.
-                </p>
-              </div>
-            </div>
-            <div className="text-right font-mono tabular-nums">
-              <span className="text-base font-bold text-slate-900 dark:text-slate-100">
-                {redStock.toLocaleString()} L
-              </span>
-              <span className="text-xs text-slate-500 dark:text-slate-400 block">
-                ≈ {(redStock / redLitresPerKeg).toFixed(0)} Kegs ({redLitresPerKeg}L)
-              </span>
-              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
-                Sold Today: {redKegsSoldToday} packs
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center justify-items-center py-2">
-            {/* Primary combined gauge */}
-            <TankGauge
-              productId="red"
-              productName="Palm Oil Depletion"
-              remainingLitres={redStock}
-              totalCapacityLitres={15000}
-              size="lg"
-            />
-
-            {/* Individual active red tanks list */}
-            <div className="w-full space-y-2.5">
-              <div className="text-xs font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Active In-Feed Tanks
-              </div>
-              {tanks
-                .filter(t => t.product_id === 'red')
-                .map((t, idx) => {
-                  const pct = Math.min(100, (t.remaining_litres / (t.received_litres || 1)) * 100);
-                  return (
-                    <div
-                      key={t.id}
-                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs font-mono tabular-nums"
-                    >
-                      <div className="space-y-0.5 font-sans">
-                        <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">
-                            Tank #{idx + 1}
-                          </span>
-                          <span className="text-xs">{t.truck_label}</span>
-                        </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">
-                          Intake: {formatDepotDate(t.date)} · Received: {t.received_litres.toLocaleString()}L
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                          {t.remaining_litres.toLocaleString()} L
-                        </div>
-                        <div className="text-xs text-slate-400">
-                          {pct.toFixed(0)}% full
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Split Alert Stream: SEVEN DISTINCT ALERT TYPES (Desktop 3-col, Tablet 2-col, Mobile 1-col) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -1160,6 +1004,163 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Volumetric Tanks Level Overview Grid — Positioned at Bottom of Page */}
+      <div className="grid grid-cols-1 split:grid-cols-2 gap-6">
+        {/* Golden Vegetable Oil Active Tanks Overview */}
+        <div className="p-5 sm:p-6 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col justify-between">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-3.5 h-3.5 rounded-full bg-amber-500 shadow-sm shadow-amber-500/50" />
+              <div>
+                <h3 className="text-base font-heading font-bold text-slate-900 dark:text-white">
+                  Golden Vegetable Oil Tanks
+                </h3>
+                <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
+                  First-In, First-Out: Oldest oil delivered is dispensed first.
+                </p>
+              </div>
+            </div>
+            <div className="text-right font-mono tabular-nums">
+              <span className="text-base font-bold text-slate-900 dark:text-slate-100">
+                {formatVolumeWithDrums(vegStock)}
+              </span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 block">
+                ≈ {(vegStock / vegLitresPerKeg).toFixed(0)} Kegs ({vegLitresPerKeg}L)
+              </span>
+              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
+                Sold Today: {vegKegsSoldToday} packs
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center justify-items-center py-2">
+            {/* Primary combined gauge */}
+            <TankGauge
+              productId="veg"
+              productName="Veg Oil Depletion"
+              remainingLitres={vegStock}
+              totalCapacityLitres={30000}
+              size="lg"
+            />
+
+            {/* Individual active veg tanks list */}
+            <div className="w-full space-y-2.5">
+              <div className="text-xs font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Active In-Feed Tanks
+              </div>
+              {tanks
+                .filter(t => t.product_id === 'veg')
+                .map((t, idx) => {
+                  const pct = Math.min(100, (t.remaining_litres / (t.received_litres || 1)) * 100);
+                  return (
+                    <div
+                      key={t.id}
+                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs font-mono tabular-nums"
+                    >
+                      <div className="space-y-0.5 font-sans">
+                        <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">
+                            Tank #{idx + 1}
+                          </span>
+                          <span className="text-xs">{t.truck_label}</span>
+                        </div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                          Intake: {formatDepotDate(t.date)} · Received: {t.received_litres.toLocaleString()}L
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                          {t.remaining_litres.toLocaleString()} L
+                        </div>
+                        <div className="text-xs text-slate-400">
+                          {pct.toFixed(0)}% full
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+
+        {/* Red / Palm Oil Pre-Kegged Fleet Stack Overview */}
+        <div className="p-5 sm:p-6 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col justify-between">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-3.5 h-3.5 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50" />
+              <div>
+                <h3 className="text-base font-heading font-bold text-slate-900 dark:text-white">
+                  Red / Palm Oil Stock
+                </h3>
+                <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
+                  Pre-kegged 25L jerrycans · Pallet stack fleet
+                </p>
+              </div>
+            </div>
+            <div className="text-right font-mono tabular-nums">
+              <span className="text-base font-bold text-slate-900 dark:text-slate-100">
+                {formatVolumeWithDrums(redStock)}
+              </span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 block">
+                ≈ {(redStock / redLitresPerKeg).toFixed(0)} Kegs ({redLitresPerKeg}L)
+              </span>
+              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
+                Sold Today: {redKegsSoldToday} packs
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center justify-items-center py-2">
+            {/* 25L Pallet Stack diagram */}
+            <KegPalletStackDiagram
+              remainingLitres={redStock}
+              totalCapacityLitres={15000}
+              kegSizeLitres={redLitresPerKeg}
+              size="lg"
+            />
+
+            {/* Individual active red intake lots / pallets list */}
+            <div className="w-full space-y-2.5">
+              <div className="text-xs font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Active Pallet Lots & Intakes
+              </div>
+              {tanks
+                .filter(t => t.product_id === 'red')
+                .map((t, idx) => {
+                  const pct = Math.min(100, (t.remaining_litres / (t.received_litres || 1)) * 100);
+                  const kegCount = Math.round(t.remaining_litres / (redLitresPerKeg || 25));
+                  return (
+                    <div
+                      key={t.id}
+                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs font-mono tabular-nums"
+                    >
+                      <div className="space-y-0.5 font-sans">
+                        <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-mono">
+                            Lot #{idx + 1}
+                          </span>
+                          <span className="text-xs">{t.truck_label}</span>
+                        </div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                          Intake: {formatDepotDate(t.date)} · Total: {t.received_litres.toLocaleString()}L
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                          {kegCount} Kegs ({t.remaining_litres.toLocaleString()} L)
+                        </div>
+                        <div className="text-xs text-slate-400">
+                          {pct.toFixed(0)}% available
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           </div>
         </div>

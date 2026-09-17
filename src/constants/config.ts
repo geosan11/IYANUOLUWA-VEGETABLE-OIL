@@ -549,7 +549,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   shift_start_time: '07:00',
   shift_end_time: '18:00',
   require_pump_readings_to_start_shift: true,
-  require_pump_readings_to_close_shift: true
+  require_pump_readings_to_close_shift: true,
+  outright_keg_price: 3500,
+  keg_deposit_price: 2000
 };
 
 // Seed initial tanks to show working depot operation

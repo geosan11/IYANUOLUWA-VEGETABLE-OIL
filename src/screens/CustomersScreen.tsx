@@ -27,7 +27,8 @@ import {
   CheckCircle as CheckCircle2,
   FileText,
   PaperPlaneTilt as Send,
-  ClockCounterClockwise
+  ClockCounterClockwise,
+  PencilSimple as Edit2
 } from '@phosphor-icons/react';
 
 type FilterChip = 'all' | 'overdue' | 'high_balance' | 'corporate' | 'agent';
@@ -43,7 +44,8 @@ export const CustomersScreen: React.FC = () => {
     settings,
     recordCustomerPayment,
     redeemCustomerCredit,
-    addCustomer
+    addCustomer,
+    updateCustomer
   } = useStore();
 
   const [panelTab, setPanelTab] = useState<'overview' | 'ledger'>('overview');
@@ -184,6 +186,36 @@ export const CustomersScreen: React.FC = () => {
     setIsAddCustomerOpen(false);
     setNewCustName('');
     setNewCustPhone('+234');
+  };
+
+  // Edit Customer Modal State
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [editCustName, setEditCustName] = useState('');
+  const [editCustType, setEditCustType] = useState<CustomerType>('retail');
+  const [editCustLimit, setEditCustLimit] = useState('');
+  const [editCustTerms, setEditCustTerms] = useState('14');
+  const [editCustPhone, setEditCustPhone] = useState('');
+
+  const handleOpenEdit = (c: Customer) => {
+    setEditingCustomer(c);
+    setEditCustName(c.name);
+    setEditCustType(c.type);
+    setEditCustLimit(c.credit_limit.toString());
+    setEditCustTerms(c.credit_term_days.toString());
+    setEditCustPhone(c.phone);
+  };
+
+  const handleSaveCustomerEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCustomer || !editCustName.trim()) return;
+    updateCustomer(editingCustomer.id, {
+      name: editCustName.trim(),
+      type: editCustType,
+      credit_limit: parseFloat(editCustLimit) || 0,
+      credit_term_days: parseInt(editCustTerms) || 14,
+      phone: editCustPhone.trim()
+    });
+    setEditingCustomer(null);
   };
 
   return (
@@ -489,8 +521,16 @@ export const CustomersScreen: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Call & WhatsApp Quick Buttons */}
+                  {/* Call, WhatsApp & Edit Quick Buttons */}
                   <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEdit(activeCustomer)}
+                      className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                      title="Edit Customer Profile & Debt Terms"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
                     <a
                       href={`tel:${activeCustomer.phone}`}
                       className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
@@ -956,6 +996,101 @@ export const CustomersScreen: React.FC = () => {
         </Modal>
       )}
 
+      {/* EDIT CUSTOMER MODAL */}
+      {editingCustomer && (
+        <Modal
+          isOpen={!!editingCustomer}
+          onClose={() => setEditingCustomer(null)}
+          title={`Edit Customer: ${editingCustomer.name}`}
+          subtitle="Update customer profile, debt limit and default payment terms"
+        >
+          <form onSubmit={handleSaveCustomerEdit} className="space-y-4">
+            <div className="space-y-1">
+              <label htmlFor="edit-customer-name" className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Customer / Company Name
+              </label>
+              <input
+                id="edit-customer-name"
+                type="text"
+                value={editCustName}
+                onChange={e => setEditCustName(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-sans font-semibold focus:outline-none focus:border-brand-500"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="edit-customer-type" className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Customer Pricing Tier
+              </label>
+              <select
+                id="edit-customer-type"
+                value={editCustType}
+                onChange={e => setEditCustType(e.target.value as CustomerType)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-sans font-semibold focus:outline-none focus:border-brand-500 capitalize"
+              >
+                <option value="retail">Retail</option>
+                <option value="agent">Agent</option>
+                <option value="corporate">Corporate</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label htmlFor="edit-customer-credit-limit" className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Debt Limit (₦)
+                </label>
+                <input
+                  id="edit-customer-credit-limit"
+                  type="number"
+                  value={editCustLimit}
+                  onChange={e => setEditCustLimit(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-mono tabular-nums font-bold focus:outline-none focus:border-brand-500"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label htmlFor="edit-customer-credit-terms" className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Debt Terms (Days)
+                </label>
+                <input
+                  id="edit-customer-credit-terms"
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={editCustTerms}
+                  onChange={e => setEditCustTerms(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-mono tabular-nums font-bold focus:outline-none focus:border-brand-500"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="edit-customer-phone" className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Phone Number (with WhatsApp)
+              </label>
+              <input
+                id="edit-customer-phone"
+                type="text"
+                value={editCustPhone}
+                onChange={e => setEditCustPhone(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-mono tabular-nums focus:outline-none focus:border-brand-500"
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-3.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-sm uppercase tracking-wider transition-all cursor-pointer"
+            >
+              Update Customer Profile
+            </button>
+          </form>
+        </Modal>
+      )}
+
 
       {/* MOBILE CUSTOMER LEDGER & INVOICES BOTTOM SHEET */}
       {selectedCustomerForSheet && (() => {
@@ -1028,7 +1163,7 @@ export const CustomersScreen: React.FC = () => {
               )}
 
               {/* Action Buttons Strip */}
-              <div className="grid grid-cols-2 gap-2 text-xs font-sans font-bold">
+              <div className="grid grid-cols-3 gap-2 text-xs font-sans font-bold">
                 <button
                   type="button"
                   onClick={() => {
@@ -1036,10 +1171,23 @@ export const CustomersScreen: React.FC = () => {
                     setSelectedCustomerForSheet(null);
                     handleOpenPayment(cust, currentBal);
                   }}
-                  className="py-2.5 px-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 flex items-center justify-center gap-1.5 shadow-sm active:scale-95 font-bold"
+                  className="py-2.5 px-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 flex items-center justify-center gap-1 shadow-sm active:scale-95 font-bold"
                 >
-                  <CreditCard className="w-4 h-4" />
-                  <span>Record Payment</span>
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Payment</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cust = selectedCustomerForSheet;
+                    setSelectedCustomerForSheet(null);
+                    handleOpenEdit(cust);
+                  }}
+                  className="py-2.5 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-1 active:scale-95 font-semibold"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>Edit</span>
                 </button>
 
                 <button
@@ -1049,9 +1197,9 @@ export const CustomersScreen: React.FC = () => {
                     setSelectedCustomerForSheet(null);
                     setStatementCustomer(cust);
                   }}
-                  className="py-2.5 px-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 flex items-center justify-center gap-1.5 active:scale-95 font-semibold"
+                  className="py-2.5 px-2 rounded-xl bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 flex items-center justify-center gap-1 active:scale-95 font-semibold"
                 >
-                  <FileText className="w-4 h-4" />
+                  <FileText className="w-3.5 h-3.5" />
                   <span>Statement</span>
                 </button>
               </div>

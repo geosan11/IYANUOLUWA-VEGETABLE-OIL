@@ -261,7 +261,12 @@ interface StoreContextType {
     category: string,
     amount: number,
     note?: string,
-    date?: string
+    date?: string,
+    options?: {
+      recordedBy?: string;
+      chargeToCustomerId?: string;
+      debtReason?: string;
+    }
   ) => { success: boolean; expense?: Expense; error?: string };
 
   addProduct: (productData: Omit<Product, 'id'>) => Product;
@@ -2040,7 +2045,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // 10. Add Expense
-  const addExpense = (category: string, amount: number, note?: string, date?: string) => {
+  const addExpense = (
+    category: string,
+    amount: number,
+    note?: string,
+    date?: string,
+    options?: {
+      recordedBy?: string;
+      chargeToCustomerId?: string;
+      debtReason?: string;
+    }
+  ) => {
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       return { success: false, error: 'Expense amount must be greater than zero' };
@@ -2048,16 +2063,83 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!category.trim()) {
       return { success: false, error: 'Expense category is required' };
     }
+    const staffName = options?.recordedBy || currentUser?.full_name || 'Staff';
+    const expenseDate = date || new Date().toISOString();
     const newExpense: Expense = {
       id: `exp-${Date.now()}`,
-      date: date || new Date().toISOString(),
+      date: expenseDate,
       category: category.trim(),
       amount: numericAmount,
       note,
+      recorded_by: staffName,
+      customer_id: options?.chargeToCustomerId || undefined,
+      charge_to_customer: !!options?.chargeToCustomerId,
       hub_id: getTargetHubId()
     };
 
     setExpenses(prev => [newExpense, ...prev]);
+
+    // If "Charge to Customer Debt" is selected, automatically record a customer debt order line
+    if (options?.chargeToCustomerId) {
+      const cust = customers.find(c => c.id === options.chargeToCustomerId);
+      if (cust) {
+        const debtSaleId = `sale-exp-${Date.now()}`;
+        const reason = options.debtReason?.trim() || note?.trim() || `Expense (${category.trim()})`;
+        const effectiveTerms = cust.credit_term_days || 14;
+        const dueDate = new Date(new Date(expenseDate).getTime() + effectiveTerms * 86400000).toISOString();
+
+        const debtSale: Sale = {
+          id: debtSaleId,
+          customer_id: cust.id,
+          date: expenseDate,
+          payment_method: 'credit',
+          cashier_name: staffName,
+          note: `Debited from expense: ${reason}`,
+          credit_term_days: effectiveTerms,
+          due_date: dueDate,
+          voided: false,
+          hub_id: getTargetHubId()
+        };
+
+        const debtOrder: Order = {
+          id: `ord-exp-${Date.now()}`,
+          sale_id: debtSaleId,
+          customer_id: cust.id,
+          product_id: products[0]?.id || 'veg',
+          variety_id: products[0]?.varieties[0]?.id || 'standard',
+          variety_name: products[0]?.varieties[0]?.name || 'Expense Surcharge',
+          pack_size_id: 'sz_custom',
+          qty: 1,
+          litres: 0,
+          unit_price: numericAmount,
+          original_unit_price: numericAmount,
+          price_adjusted: false,
+          price_adjust_reason: null,
+          oil_amount: numericAmount,
+          container_mode: 'none',
+          returnable: false,
+          container_unit_price: null,
+          container_amount: null,
+          line_amount: numericAmount,
+          amount: numericAmount,
+          pricing_tier: cust.type,
+          payment_method: 'credit',
+          paid_amount: 0,
+          credit_term_days: effectiveTerms,
+          due_date: dueDate,
+          date: expenseDate,
+          source_tank_id: null,
+          tank_allocations: null,
+          voided: false,
+          note: `Expense: ${category} - ${reason}`,
+          hub_id: getTargetHubId()
+        };
+
+        setSales(prev => [debtSale, ...prev]);
+        setOrders(prev => [debtOrder, ...prev]);
+      }
+    }
+
     return { success: true, expense: newExpense };
   };
 
