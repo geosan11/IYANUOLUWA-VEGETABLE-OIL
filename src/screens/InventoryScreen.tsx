@@ -957,20 +957,20 @@ const ContainerPricingView: React.FC<{
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
           <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-500">
-            Total Depot Keg Fleet
+            Total Company Kegs
           </div>
           <div className="text-2xl font-heading font-extrabold text-slate-900 dark:text-white tabular-nums mt-1">
             {kegInventory.totalCompanyKegs.toLocaleString()}{' '}
             <span className="text-sm font-sans font-medium text-slate-400">Kegs (25L)</span>
           </div>
           <div className="text-[11px] text-slate-400 mt-1">
-            Total standard 25L company kegs owned by depot.
+            Total standard 25L company kegs owned.
           </div>
         </div>
 
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
           <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-500">
-            Empty Kegs In Depot Yard
+            Empty Kegs In Store
           </div>
           <div className="text-2xl font-heading font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums mt-1">
             {kegInventory.kegsAtDepot.toLocaleString()}{' '}
@@ -1003,7 +1003,7 @@ const ContainerPricingView: React.FC<{
             <span>Standard 25L Company Keg Pricing Rules</span>
           </h3>
           <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-            Configure financial rules when company containers leave the depot or are redeemed.
+            Configure financial rules when company containers leave the store or are returned.
           </p>
         </div>
 

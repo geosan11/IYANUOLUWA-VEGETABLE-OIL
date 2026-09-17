@@ -49,6 +49,13 @@ export const Modal: React.FC<ModalProps> = ({
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const labelId = useId();
 
+  // Always call the latest onClose without making the focus-trap effect
+  // below re-run just because the caller passed a new inline closure.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   // Focus trap + ESC + focus restore
   useEffect(() => {
     if (!isOpen) return;
@@ -69,7 +76,7 @@ export const Modal: React.FC<ModalProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== 'Tab' || !panel) return;
@@ -100,7 +107,7 @@ export const Modal: React.FC<ModalProps> = ({
       document.removeEventListener('keydown', handleKeyDown, true);
       restoreFocusRef.current?.focus?.();
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   // Body scroll-lock
   useEffect(() => {

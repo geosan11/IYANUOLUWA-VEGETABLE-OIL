@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
 import { usePermissions } from '../services/permissions';
 import { TankGauge } from '../components/common/TankGauge';
+import { KegVisual25L } from '../components/common/KegVisual25L';
 import { PumpOdometerIllustration } from '../components/common/PumpOdometerIllustration';
 import { BottomSheet } from '../components/common/BottomSheet';
 import { SlideOverDrawer } from '../components/common/SlideOverDrawer';
@@ -558,10 +559,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             </div>
             <div>
               <h3 className="text-base font-heading font-bold text-slate-900 dark:text-white">
-                Depot Dispense Pumps &amp; Meter Audit Status
+                Dispense Pumps &amp; Meter Readings
               </h3>
               <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
-                Continuous odometer tracking to verify physical litres against cashier sales.
+                Pump meter readings to verify oil dispensed against sales.
               </p>
             </div>
           </div>
@@ -654,8 +655,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           </h3>
           <span className="text-xs font-sans text-slate-500 dark:text-slate-400">
             {activeAlerts.totalAlertCount === 0
-              ? 'All depot systems operating normally'
-              : `${activeAlerts.totalAlertCount} item${activeAlerts.totalAlertCount === 1 ? '' : 's'} to audit`}
+              ? 'All systems operating normally'
+              : `${activeAlerts.totalAlertCount} item${activeAlerts.totalAlertCount === 1 ? '' : 's'} to check`}
           </span>
         </div>
 
@@ -1082,53 +1083,57 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           </div>
         </div>
 
-        {/* Red / Palm Oil Storage Overview */}
+        {/* Red / Palm Oil 25L Keg Stock Overview (100% Keg Based, No Tanks) */}
         <div className="p-5 sm:p-6 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 mb-4">
             <div className="flex items-center gap-3">
               <div className="w-3.5 h-3.5 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50" />
               <div>
-                <h3 className="text-base font-heading font-bold text-slate-900 dark:text-white">
-                  Red / Palm Oil Stock
+                <h3 className="text-base font-heading font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <span>Red / Palm Oil Stock</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-700 dark:text-rose-300 font-mono font-bold border border-rose-500/25">
+                    25L Kegs Only
+                  </span>
                 </h3>
                 <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
-                  Direct Warehouse Stock & In-Feed Tanks · 25L Company Kegs
+                  Pre-Kegged 25L Jerrycans · Available in Warehouse
                 </p>
               </div>
             </div>
             <div className="text-right font-mono tabular-nums">
-              <span className="text-base font-bold text-slate-900 dark:text-slate-100">
-                {redStock.toLocaleString()} L
+              <span className="text-xl font-heading font-black text-slate-900 dark:text-slate-100">
+                {Math.round(redStock / (redLitresPerKeg || 25)).toLocaleString()} Kegs
               </span>
               <span className="text-xs text-slate-500 dark:text-slate-400 block">
-                ≈ {Math.round(redStock / redLitresPerKeg).toLocaleString()} Kegs ({redLitresPerKeg}L)
+                {redStock.toLocaleString()} L (25L per keg)
               </span>
               <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
-                Sold Today: {redKegsSoldToday} packs
+                Sold Today: {redKegsSoldToday} kegs
               </span>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center justify-items-center py-2">
-            {/* Primary Palm Oil Tank Gauge */}
-            <TankGauge
-              productId="red"
-              productName="Palm Oil Storage"
+            {/* Dedicated 25L Heavy-Duty Jerrycan / Keg Visual (NOT a Tank) */}
+            <KegVisual25L
               remainingLitres={redStock}
               totalCapacityLitres={15000}
-              size="lg"
+              kegSizeLitres={redLitresPerKeg || 25}
+              size="md"
             />
 
             {/* Individual active red intake lots / pallets list */}
             <div className="w-full space-y-2.5">
-              <div className="text-xs font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Active Pallet Lots & Intakes
+              <div className="text-xs font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                <Package className="w-3.5 h-3.5 text-rose-500" weight="bold" />
+                <span>Active 25L Keg Lots & Deliveries</span>
               </div>
               {tanks
                 .filter(t => t.product_id === 'red')
                 .map((t, idx) => {
                   const pct = Math.min(100, (t.remaining_litres / (t.received_litres || 1)) * 100);
                   const kegCount = Math.round(t.remaining_litres / (redLitresPerKeg || 25));
+                  const totalKegs = Math.round(t.received_litres / (redLitresPerKeg || 25));
                   return (
                     <div
                       key={t.id}
@@ -1136,21 +1141,21 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                     >
                       <div className="space-y-0.5 font-sans">
                         <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-mono">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-700 dark:text-rose-300 font-mono font-bold">
                             Lot #{idx + 1}
                           </span>
                           <span className="text-xs">{t.truck_label}</span>
                         </div>
                         <div className="text-xs text-slate-500 dark:text-slate-400">
-                          Intake: {formatDepotDate(t.date)} · Total: {t.received_litres.toLocaleString()}L
+                          Delivery: {formatDepotDate(t.date)} · Initial: {totalKegs.toLocaleString()} Kegs ({t.received_litres.toLocaleString()}L)
                         </div>
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                          {kegCount} Kegs ({t.remaining_litres.toLocaleString()} L)
+                          {kegCount.toLocaleString()} Kegs
                         </div>
                         <div className="text-xs text-slate-400">
-                          {pct.toFixed(0)}% available
+                          {t.remaining_litres.toLocaleString()} L · {pct.toFixed(0)}% in stock
                         </div>
                       </div>
                     </div>
@@ -1492,11 +1497,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             : activeStatSheet === 'kegs_out'
             ? 'Company Keg Custody'
             : activeStatSheet === 'depot_kegs'
-            ? 'Depot Yard Keg Inventory'
+            ? 'Kegs Available In Store'
             : activeStatSheet === 'customer_kegs'
-            ? 'Customer-Owned Kegs Dispensed'
+            ? 'Customer Kegs Filled'
             : activeStatSheet === 'expenses'
-            ? "Today's Operating Expenses"
+            ? "Today's Expenses"
             : ''
         }
         subtitle={
@@ -1505,9 +1510,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             : activeStatSheet === 'credit'
             ? `${formatNaira(todayStats.creditOutstanding)} total open balance`
             : activeStatSheet === 'kegs_out'
-            ? `${todayStats.companyKegsOut} kegs in customer custody`
+            ? `${todayStats.companyKegsOut} kegs with customers`
             : activeStatSheet === 'depot_kegs'
-            ? `${todayStats.kegsAtDepot} kegs available on yard`
+            ? `${todayStats.kegsAtDepot} kegs ready in store`
             : activeStatSheet === 'customer_kegs'
             ? `${todayStats.customerKegsFilledToday} containers filled today`
             : activeStatSheet === 'expenses'
@@ -1718,14 +1723,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 {kegInventory.isDepotStockCritical && (
                   <div className="text-xs font-sans font-semibold text-rose-700 dark:text-rose-300 flex items-center gap-1.5 pt-1">
                     <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                    <span>Depot inventory is below safety threshold! Recall customer kegs.</span>
+                    <span>Store keg inventory is low! Collect empty kegs from customers.</span>
                   </div>
                 )}
               </div>
 
               <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2 text-xs font-sans">
                 <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span>Total Registered Fleet:</span>
+                  <span>Total Company Kegs:</span>
                   <span className="font-mono tabular-nums font-bold text-slate-900 dark:text-white">
                     {settings.total_company_kegs} kegs
                   </span>
@@ -1737,7 +1742,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   </span>
                 </div>
                 <div className="flex justify-between text-slate-800 dark:text-slate-200 font-bold border-t border-slate-200 dark:border-slate-700 pt-1.5">
-                  <span>Available at Depot:</span>
+                  <span>Available In Store:</span>
                   <span className="font-mono tabular-nums text-slate-900 dark:text-white">
                     {todayStats.kegsAtDepot} kegs
                   </span>

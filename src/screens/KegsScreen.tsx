@@ -262,7 +262,7 @@ export const KegsScreen: React.FC = () => {
             <span>Keg Containers & Fleet Asset Tracker</span>
           </h2>
           <p className="text-xs font-sans text-slate-500 dark:text-slate-400 mt-1">
-            Track depot-owned jerrycans on loan with customers, yard stock, and returns at the gate.
+            Track company-owned jerrycans on loan with customers, available stock, and returned kegs.
           </p>
         </div>
       </div>
@@ -457,7 +457,7 @@ export const KegsScreen: React.FC = () => {
                 kegInventory.isDepotStockCritical ? 'text-rose-700 dark:text-rose-300 font-bold' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
-              Kegs at Depot Yard
+              Kegs In Store
             </span>
             <RotateCcw
               className={`w-4 h-4 ${
@@ -479,7 +479,7 @@ export const KegsScreen: React.FC = () => {
           >
             {kegInventory.isDepotStockCritical
               ? `CRITICAL ALERT: Stock < ${settings.kegs_at_depot_low_threshold}`
-              : `Physical inventory ready in yard (Safe > ${settings.kegs_at_depot_low_threshold})`}
+              : `Empty kegs ready in store (Safe > ${settings.kegs_at_depot_low_threshold})`}
           </div>
         </div>
       </div>
@@ -495,7 +495,7 @@ export const KegsScreen: React.FC = () => {
                 <span>Customer Container Balance Matrix</span>
               </h3>
               <p className="text-xs font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-                Kegs loaned out vs returned. Click a row to log a gate return.
+                Kegs loaned out vs returned. Click a row to record returned kegs.
               </p>
             </div>
 
@@ -787,7 +787,7 @@ export const KegsScreen: React.FC = () => {
                     className="w-full py-2.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-xs shadow-md shadow-brand-500/20 transition-all flex items-center justify-center gap-2 active:scale-98"
                   >
                     <Plus className="w-4 h-4 text-slate-950" weight="bold" />
-                    <span>Confirm Gate Return &amp; Restock Yard</span>
+                    <span>Confirm Return &amp; Restock Store</span>
                   </button>
                 </form>
               </div>
@@ -817,7 +817,7 @@ export const KegsScreen: React.FC = () => {
             </div>
           ) : (
             <div className="p-8 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 text-center text-slate-400 text-sm">
-              Select a customer to view container balance and log gate returns.
+              Select a customer to view container balance and record returns.
             </div>
           )}
         </div>
@@ -832,7 +832,7 @@ export const KegsScreen: React.FC = () => {
               <span>Gate Movement History (In & Out)</span>
             </h3>
             <p className="text-xs font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-              Physical depot gate returns across the entire fleet.
+              Keg movements and returns across the entire fleet.
             </p>
           </div>
           <span className="text-xs font-mono text-slate-500">

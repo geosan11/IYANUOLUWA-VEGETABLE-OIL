@@ -29,6 +29,13 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const labelId = useId();
 
+  // Always call the latest onClose without making the focus-trap effect
+  // below re-run just because the caller passed a new inline closure.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   // ESC to close, Tab focus-trap, restore focus to the trigger on close
   useEffect(() => {
     if (!isOpen) return;
@@ -46,7 +53,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== 'Tab' || !panel) return;
@@ -75,7 +82,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
       window.removeEventListener('keydown', handleKeyDown, true);
       restoreFocusRef.current?.focus?.();
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   // Lock body scroll when open
   useEffect(() => {

@@ -11,8 +11,8 @@ import {
   toDatetimeLocalValue,
   fromDatetimeLocalValue
 } from '../services/businessLogic';
-import { packShort, PAYMENT_MODE_THEME, getPaymentModeTheme } from '../constants/config';
-import { Sale, Order, Payment, Expense, Tank, KegReturn, ReceiptData, ContainerMode, PaymentMethod } from '../types';
+import { packShort, PAYMENT_MODE_THEME, getPaymentModeTheme, ONE_TIME_CUSTOMER_ID } from '../constants/config';
+import { Sale, Order, Payment, Expense, Tank, KegReturn, ReceiptData, ContainerMode, PaymentMethod, CustomerType } from '../types';
 import {
   Scroll as ScrollText,
   MagnifyingGlass as Search,
@@ -65,6 +65,10 @@ interface TxnRow {
   tone: 'in' | 'out' | 'neutral';
   voided: boolean;
   paymentMethod?: PaymentMethod;
+  agentName?: string;
+  isAgent?: boolean;
+  customerType?: CustomerType;
+  customerPhone?: string;
   staffName?: string;
   sale?: Sale;
   lines?: Order[];
@@ -140,6 +144,11 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
       if (lines.length === 0) continue;
       const total = lines.reduce((s, l) => s + l.line_amount, 0);
       const outstanding = lines.reduce((s, l) => s + Math.max(0, l.line_amount - (l.paid_amount || 0)), 0);
+      const cust = customers.find(c => c.id === sale.customer_id);
+      const agentName = cust ? cust.name : (sale.customer_id === ONE_TIME_CUSTOMER_ID ? 'Walk-in Retail' : 'Walk-in');
+      const isAgent = cust?.type === 'agent';
+      const customerType = cust?.type || 'retail';
+      const customerPhone = cust?.phone;
       rows.push({
         id: `sale:${sale.id}`,
         kind: 'sale',
@@ -155,6 +164,10 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         tone: 'in',
         voided: !!sale.voided,
         paymentMethod: sale.payment_method,
+        agentName,
+        isAgent,
+        customerType,
+        customerPhone,
         staffName: sale.cashier_name || 'Counter Staff',
         sale,
         lines
@@ -162,6 +175,11 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
     }
 
     for (const p of payments) {
+      const cust = customers.find(c => c.id === p.customer_id);
+      const agentName = cust ? cust.name : (p.customer_id === ONE_TIME_CUSTOMER_ID ? 'Walk-in Retail' : 'Walk-in');
+      const isAgent = cust?.type === 'agent';
+      const customerType = cust?.type || 'retail';
+      const customerPhone = cust?.phone;
       rows.push({
         id: `pay:${p.id}`,
         kind: 'payment',
@@ -175,12 +193,21 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         tone: 'in',
         voided: !!p.voided,
         paymentMethod: p.method,
+        agentName,
+        isAgent,
+        customerType,
+        customerPhone,
         staffName: (p as any).recorded_by || 'Cashier',
         payment: p
       });
     }
 
     for (const e of expenses) {
+      const debitedCust = e.customer_id ? customers.find(c => c.id === e.customer_id) : undefined;
+      const agentName = debitedCust ? debitedCust.name : 'Store Expense';
+      const isAgent = debitedCust?.type === 'agent';
+      const customerType = debitedCust?.type;
+      const customerPhone = debitedCust?.phone;
       rows.push({
         id: `exp:${e.id}`,
         kind: 'expense',
@@ -194,6 +221,10 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         tone: 'out',
         voided: !!e.voided,
         paymentMethod: 'cash',
+        agentName,
+        isAgent,
+        customerType,
+        customerPhone,
         staffName: (e as any).recorded_by || 'Staff',
         expense: e
       });
@@ -201,6 +232,8 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
 
     for (const t of tanks) {
       const supplier = suppliers.find(s => s.id === t.supplier_id)?.name;
+      const agentName = supplier || t.truck_label || 'Direct Delivery';
+      const staffName = (t as any).driver_name || t.space_note || 'Logistics / Driver';
       rows.push({
         id: `tank:${t.id}`,
         kind: 'intake',
@@ -214,12 +247,21 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         tone: 'neutral',
         voided: false,
         paymentMethod: undefined,
-        staffName: (t as any).driver_name || t.space_note || 'Depot Logistics',
+        agentName,
+        isAgent: false,
+        customerType: undefined,
+        customerPhone: suppliers.find(s => s.id === t.supplier_id)?.phone,
+        staffName,
         tank: t
       });
     }
 
     for (const kr of kegReturns) {
+      const cust = customers.find(c => c.id === kr.customer_id);
+      const agentName = cust ? cust.name : 'Customer';
+      const isAgent = cust?.type === 'agent';
+      const customerType = cust?.type || 'retail';
+      const customerPhone = cust?.phone;
       rows.push({
         id: `keg_return:${kr.id}`,
         kind: 'keg_return',
@@ -227,13 +269,17 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         auditIds: [kr.id],
         date: kr.date,
         title: custName(kr.customer_id),
-        subtitle: `${kr.qty} × 25L Jerrycan${kr.qty === 1 ? '' : 's'} returned to depot${kr.note ? ` · ${kr.note}` : ''}`,
+        subtitle: `${kr.qty} × 25L Jerrycan${kr.qty === 1 ? '' : 's'} returned to store${kr.note ? ` · ${kr.note}` : ''}`,
         amount: 0,
         amountLabel: `+${kr.qty} Kegs (25L)`,
         tone: 'in',
         voided: false,
         paymentMethod: undefined,
-        staffName: 'Gate Officer / Staff',
+        agentName,
+        isAgent,
+        customerType,
+        customerPhone,
+        staffName: 'Store Staff',
         kegReturn: kr
       });
     }
@@ -267,6 +313,8 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
           r.title.toLowerCase().includes(q) ||
           r.subtitle.toLowerCase().includes(q) ||
           r.entityId.toLowerCase().includes(q) ||
+          (r.agentName && r.agentName.toLowerCase().includes(q)) ||
+          (r.customerPhone && r.customerPhone.toLowerCase().includes(q)) ||
           (r.staffName && r.staffName.toLowerCase().includes(q))
         );
       }
@@ -432,7 +480,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search customer, category, truck…"
+            placeholder="Search by agent, customer, cashier, items…"
             className="depot-input w-full pl-9 pr-3 py-2.5 rounded-xl text-sm font-sans placeholder-slate-400"
           />
         </div>
@@ -540,8 +588,9 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
               <tr>
                 <th className="text-left px-3.5 py-2.5 font-bold whitespace-nowrap">Date &amp; time</th>
                 <th className="text-left px-3.5 py-2.5 font-bold whitespace-nowrap">Type</th>
+                <th className="text-left px-3.5 py-2.5 font-bold whitespace-nowrap">Agent / Customer</th>
                 <th className="text-left px-3.5 py-2.5 font-bold whitespace-nowrap">Mode of Payment</th>
-                <th className="text-left px-3.5 py-2.5 font-bold">Description</th>
+                <th className="text-left px-3.5 py-2.5 font-bold">Details</th>
                 <th className="text-right px-3.5 py-2.5 font-bold whitespace-nowrap">Amount</th>
                 <th className="text-right px-3.5 py-2.5 font-bold whitespace-nowrap">Actions</th>
               </tr>
@@ -549,7 +598,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {scopedRows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-xs text-slate-400">
+                  <td colSpan={7} className="py-12 text-center text-xs text-slate-400">
                     Nothing in this window.
                   </td>
                 </tr>
@@ -581,6 +630,33 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                           </span>
                         )}
                       </td>
+                      <td className="px-3.5 py-3 align-top min-w-[175px]">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`text-sm font-sans font-bold text-slate-900 dark:text-white ${row.voided ? 'line-through' : ''}`}>
+                            {row.agentName || row.title}
+                          </span>
+                          {row.isAgent && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-sans font-extrabold uppercase tracking-wide bg-amber-100 text-amber-900 dark:bg-amber-900/60 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                              Agent
+                            </span>
+                          )}
+                          {row.customerType === 'corporate' && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-sans font-bold uppercase tracking-wide bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                              Corporate
+                            </span>
+                          )}
+                          {row.kind === 'intake' && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-sans font-semibold uppercase tracking-wide bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                              Supplier
+                            </span>
+                          )}
+                        </div>
+                        {row.customerPhone && row.customerPhone !== '—' && (
+                          <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">
+                            {row.customerPhone}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-3.5 py-3 align-top whitespace-nowrap">
                         {row.paymentMethod ? (
                           (() => {
@@ -601,9 +677,13 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                           <span className="text-slate-400 font-mono text-xs">—</span>
                         )}
                       </td>
-                      <td className="px-3.5 py-3 align-top min-w-[180px]">
-                        <div className={`text-sm font-sans font-bold text-slate-900 dark:text-white truncate ${row.voided ? 'line-through' : ''}`}>
-                          {row.title}
+                      <td className="px-3.5 py-3 align-top min-w-[190px]">
+                        <div className={`text-xs font-sans font-semibold text-slate-800 dark:text-slate-200 truncate ${row.voided ? 'line-through' : ''}`}>
+                          {row.kind === 'sale' ? (
+                            <span>{row.lines ? `${row.lines.length} pack type${row.lines.length === 1 ? '' : 's'}` : 'Sale order'}</span>
+                          ) : (
+                            <span>{row.title}</span>
+                          )}
                         </div>
                         <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{row.subtitle}</div>
                         {row.staffName && (
@@ -700,7 +780,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
 
                     {isOpen && row.lines && (
                       <tr>
-                        <td colSpan={6} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
+                        <td colSpan={7} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
                           <div className="space-y-1.5 pt-2">
                             {row.lines.map(l => (
                               <div key={l.id} className="flex items-center justify-between text-xs font-sans">
@@ -730,7 +810,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
 
                     {isOpen && row.kind === 'payment' && row.payment && (
                       <tr>
-                        <td colSpan={6} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
+                        <td colSpan={7} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
                           <div className="space-y-1.5 pt-2">
                             <div className="text-xs font-sans font-bold uppercase tracking-wider text-slate-400">
                               Applied to
@@ -776,7 +856,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
 
                     {showAudit && (
                       <tr>
-                        <td colSpan={6} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
+                        <td colSpan={7} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
                           <div className="space-y-1.5 pt-2">
                             <div className="text-xs font-sans font-bold uppercase tracking-wider text-slate-400">Edit history</div>
                             {rowAudits.map(a => (

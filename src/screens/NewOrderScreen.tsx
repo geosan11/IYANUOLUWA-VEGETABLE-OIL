@@ -708,7 +708,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
           <div className="space-y-1 mt-0.5">
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {!activeShift
-                ? 'Depot policy requires recording opening meter readings for active pumps and drawer cash float before unlocking sales.'
+                ? 'Please enter opening pump readings and cash for customer change to start sales.'
                 : `Shift active. Verify pump readings to unlock the sales terminal.`}
             </p>
             <div className="flex flex-wrap items-center gap-2 pt-0.5">
@@ -751,11 +751,23 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
               </div>
 
               <div>
-                <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
-                  Cash for Customer Change (NGN) *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Cash for Customer Change (NGN) *
+                  </label>
+                  {/* Invisible spacer matching the "Account Login" badge on the left column, so both inputs align at the same height. */}
+                  <span
+                    aria-hidden="true"
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-md border border-transparent opacity-0 select-none flex items-center gap-1 pointer-events-none"
+                  >
+                    <UserCheck className="w-3 h-3" />
+                    Account Login
+                  </span>
+                </div>
                 <div className="relative">
-                  <Coins className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono font-bold text-xs">
+                    ₦
+                  </span>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -763,7 +775,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     value={gateOpeningFloat}
                     onChange={e => setGateOpeningFloat(formatWithCommas(e.target.value))}
                     placeholder="e.g. 50,000"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500 shadow-2xs"
+                    className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500 shadow-2xs"
                   />
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1">Physical cash placed in drawer to make customer change.</p>
@@ -795,9 +807,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         P{idx + 1}
                       </div>
                       <div className="min-w-0">
-                        <div className="font-heading font-bold text-sm text-slate-900 dark:text-white truncate flex items-center gap-2">
-                          <span>{p.label}</span>
-                          <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold">
+                        <div className="font-heading font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 min-w-0">
+                          <span className="truncate">{p.label}</span>
+                          <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold shrink-0">
                             {prod?.name || 'Bulk Oil'}
                           </span>
                         </div>
@@ -1488,7 +1500,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           <div className="text-sm font-sans font-bold text-slate-900 dark:text-white flex items-center gap-2">
                             <span>25L Company Keg</span>
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 font-semibold">
-                              Only Depot Keg Type
+                              Standard 25L Keg
                             </span>
                           </div>
                           <div className="text-xs text-slate-500 dark:text-slate-400 font-sans">
