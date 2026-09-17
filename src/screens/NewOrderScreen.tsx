@@ -1454,13 +1454,13 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     }`}
                   >
                     <Package className="w-4 h-4 text-amber-500" weight="bold" />
-                    <span>Sell Kegs</span>
+                    <span>Sell Empty Kegs</span>
                   </button>
                 </div>
 
                 {isKegOnlyMode && (
                   <div className="text-xs font-sans text-slate-500 dark:text-slate-400 -mt-1.5">
-                    Empty {product.name} kegs, no oil. For a different brand, tap that product above, then Sell Kegs again.
+                    Empty {product.name} kegs, no oil. For a different brand, tap that product above, then Sell Empty Kegs again.
                   </div>
                 )}
 
@@ -1604,7 +1604,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     {isReturnable && !isKegOnlyMode && (
                       <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                         <Package className="w-3.5 h-3.5" />
-                        <span>Company keg goes out on loan (returnable) — use Sell Kegs to sell one outright.</span>
+                        <span>Company keg goes out on loan (returnable) — use Sell Empty Kegs to sell one outright.</span>
                       </div>
                     )}
 
