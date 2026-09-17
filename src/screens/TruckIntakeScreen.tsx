@@ -242,8 +242,8 @@ export const TruckIntakeScreen: React.FC = () => {
 
   const currentSelectedTank = physicalTanks.find(pt => pt.id === physicalTankId) || physicalTanks[0];
   const currentTankLitres = tanks
-    .filter(t => t.physical_tank_id === currentSelectedTank?.id || t.id === 'tank-01')
-    .reduce((s, t) => s + t.remaining_litres, 0) || 15435;
+    .filter(t => t.physical_tank_id === currentSelectedTank?.id)
+    .reduce((s, t) => s + t.remaining_litres, 0);
   const currentTankPct = currentSelectedTank?.capacity_litres
     ? Math.min(100, Math.round((currentTankLitres / currentSelectedTank.capacity_litres) * 100))
     : 50;
@@ -984,8 +984,8 @@ export const TruckIntakeScreen: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {physicalTanks.map((pt, idx) => {
                 const liveLitres = tanks
-                  .filter(t => t.physical_tank_id === pt.id || t.id === `tank-0${idx + 1}`)
-                  .reduce((s, t) => s + t.remaining_litres, 0) || (idx === 0 ? 15435 : 10750);
+                  .filter(t => t.physical_tank_id === pt.id)
+                  .reduce((s, t) => s + t.remaining_litres, 0);
                 const pct = Math.min(100, Math.round((liveLitres / pt.capacity_litres) * 100));
                 const sup = suppliers[idx % suppliers.length];
 
@@ -1046,7 +1046,7 @@ export const TruckIntakeScreen: React.FC = () => {
                       </span>
                       <button
                         type="button"
-                        onClick={() => setSelectedTankForDetail(tanks[idx]?.id || `tank-0${idx + 1}`)}
+                        onClick={() => setSelectedTankForDetail(tanks.find(t => t.physical_tank_id === pt.id)?.id || null)}
                         className="font-sans font-bold text-slate-700 dark:text-slate-200 hover:text-amber-600 flex items-center gap-1 transition-colors px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 cursor-pointer"
                       >
                         <span>Audit history</span>

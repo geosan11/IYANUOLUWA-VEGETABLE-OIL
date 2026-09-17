@@ -466,7 +466,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return loaded.filter(t => t.id !== 'trf-1');
   });
 
-  const [customerCredits, setCustomerCredits] = useState<CustomerCredit[]>(() => loadPersisted<CustomerCredit[]>(STORAGE_KEYS.CUSTOMER_CREDITS, []));
+  const [allCustomerCredits, setCustomerCredits] = useState<CustomerCredit[]>(() => loadPersisted<CustomerCredit[]>(STORAGE_KEYS.CUSTOMER_CREDITS, []));
 
   const [allShifts, setShifts] = useState<Shift[]>(() => loadPersisted(STORAGE_KEYS.SHIFTS, SEED_SHIFTS));
 
@@ -559,8 +559,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [allTransfers]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CUSTOMER_CREDITS, JSON.stringify(customerCredits));
-  }, [customerCredits]);
+    localStorage.setItem(STORAGE_KEYS.CUSTOMER_CREDITS, JSON.stringify(allCustomerCredits));
+  }, [allCustomerCredits]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.SHIFTS, JSON.stringify(allShifts));
@@ -717,6 +717,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (activeHubId === 'all') return allShifts;
     return allShifts.filter(s => !s.hub_id || s.hub_id === activeHubId);
   }, [allShifts, activeHubId]);
+
+  const customerCredits = useMemo(() => {
+    if (activeHubId === 'all') return allCustomerCredits;
+    return allCustomerCredits.filter(cc => !cc.hub_id || cc.hub_id === activeHubId);
+  }, [allCustomerCredits, activeHubId]);
 
   // ==========================================
   // COMPUTED BUSINESS LOGIC DERIVATIONS
@@ -1299,7 +1304,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const paymentResult = applyFifoPayment(orders, customerId, numericAmount);
 
-    setOrders(paymentResult.updatedOrders);
+    const updatedOrdersMap = new Map(paymentResult.updatedOrders.map(o => [o.id, o]));
+    setOrders(prev => prev.map(o => updatedOrdersMap.get(o.id) || o));
 
     const newBalance = Math.max(0, previousBalance - paymentResult.totalApplied);
     const receiptNumber = `PAY-${Date.now().toString().slice(-6)}`;
@@ -1315,7 +1321,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           amount: overpayment,
           source_payment_id: receiptNumber,
           created_at: effectiveDate,
-          note: 'Overpayment added to store credit'
+          note: 'Overpayment added to store credit',
+          hub_id: getTargetHubId()
         },
         ...prev
       ]);
@@ -1331,7 +1338,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       applied_to: paymentResult.appliedOrders.map(a => ({ order_id: a.orderId, amount: a.amountApplied })),
       overpayment_to_credit: overpayment,
       source: 'payment',
-      recorded_by: userRole === 'owner' ? 'Managing Director' : 'Depot Cashier'
+      recorded_by: userRole === 'owner' ? 'Managing Director' : 'Depot Cashier',
+      hub_id: getTargetHubId()
     };
     setPayments(prev => [payment, ...prev]);
     logAudit({ entity_type: 'payment', entity_id: payment.id, action: 'create', changes: [] });
@@ -1375,7 +1383,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     const paymentResult = applyFifoPayment(orders, customerId, numericAmount);
-    setOrders(paymentResult.updatedOrders);
+    const updatedOrdersMap = new Map(paymentResult.updatedOrders.map(o => [o.id, o]));
+    setOrders(prev => prev.map(o => updatedOrdersMap.get(o.id) || o));
 
     // Draw the redeemed amount down on the credit ledger (negative entry).
     const redeemed = paymentResult.totalApplied;
@@ -1388,7 +1397,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           amount: -Number(redeemed.toFixed(2)),
           source_payment_id: receiptNumber,
           created_at: new Date().toISOString(),
-          note: 'Store credit applied to invoices'
+          note: 'Store credit applied to invoices',
+          hub_id: getTargetHubId()
         },
         ...prev
       ]);
@@ -1403,7 +1413,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         overpayment_to_credit: 0,
         source: 'credit_redeem',
         recorded_by: userRole === 'owner' ? 'Managing Director' : 'Depot Cashier',
-        note: 'Store credit applied to invoices'
+        note: 'Store credit applied to invoices',
+        hub_id: getTargetHubId()
       };
       setPayments(prev => [payment, ...prev]);
       logAudit({ entity_type: 'payment', entity_id: payment.id, action: 'create', changes: [] });
@@ -1495,7 +1506,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           amount: -Number(payment.overpayment_to_credit.toFixed(2)),
           source_payment_id: payment.id,
           created_at: new Date().toISOString(),
-          note: 'Reversal of voided overpayment credit'
+          note: 'Reversal of voided overpayment credit',
+          hub_id: payment.hub_id || getTargetHubId()
         },
         ...prev
       ]);
