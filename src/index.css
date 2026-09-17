@@ -30,6 +30,17 @@
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   }
+
+  /* Unmistakable default input affordance across the app */
+  input[type="text"],
+  input[type="number"],
+  input[type="search"],
+  input[type="password"],
+  input[type="datetime-local"],
+  select,
+  textarea {
+    @apply border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-950 dark:text-slate-100 shadow-xs focus:border-brand-500 dark:focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 transition-all;
+  }
 }
 
 /* Depot Design System Utilities */
@@ -43,9 +54,9 @@
     @apply hover:border-[#D8CEBC] dark:hover:border-slate-700/80 hover:shadow-card-elevated-light dark:hover:shadow-card-elevated-dark;
   }
 
-  /* Form Input with tactile depth and focus glow */
+  /* Form Input with tactile depth, high contrast, and unmistakable input affordance */
   .depot-input {
-    @apply w-full px-4 py-3 min-h-[46px] rounded-xl bg-[#FAF6ED]/60 dark:bg-slate-950 border border-[#DDD5C5] dark:border-slate-800 text-slate-950 dark:text-slate-100 font-sans text-sm focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600;
+    @apply w-full px-4 py-2.5 min-h-[44px] rounded-xl bg-white dark:bg-slate-950 border-2 border-slate-300 dark:border-slate-700 text-slate-950 dark:text-slate-100 font-sans text-sm shadow-xs hover:border-slate-400 dark:hover:border-slate-600 focus:outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500;
   }
 
   /* Section Title with Brand Accent Bar */
