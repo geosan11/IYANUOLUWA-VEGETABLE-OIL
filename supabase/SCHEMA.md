@@ -15,6 +15,7 @@ Postgres target the app will migrate onto.
 | `supabase/migrations/0007_double_split_payments.sql` | `split` payment method, `orders.payment_splits`, `sale_payments` table, expense-to-customer debt fields. |
 | `supabase/migrations/0008_relational_hardening.sql` | Relational-integrity audit fixes: RLS on `sale_payments`, `hub_isolation_transfers`, narrows `hub_isolation_pumps`/`hub_isolation_physical_tanks` to read-only, missing FK indexes. |
 | `supabase/seed.sql` | Demo data mirroring the seed constants in `src/constants/config.ts`. |
+| `supabase/functions/invite-user/` | Edge Function: sends a real Supabase auth invite email to a new team member and sets their role/hub/screen access. Needs a one-time `supabase functions deploy invite-user` — see `supabase/functions/README.md`. |
 
 > A pre-existing `schema/*.sql` folder in the repo root is an earlier, partial,
 > internally inconsistent draft (uuid PKs, only 13 tables, `litres_per_ton`

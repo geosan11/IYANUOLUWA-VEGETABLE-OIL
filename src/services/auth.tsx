@@ -41,6 +41,34 @@ export async function updateProfileAccess(
   return { error: error?.message ?? null };
 }
 
+/**
+ * Owner-only: sends a real Supabase auth invite email to a new team member
+ * via the `invite-user` Edge Function (needs the service-role key, which the
+ * browser never has — see `supabase/functions/README.md` for deployment).
+ * Also sets the invited person's role/hub/screen access on the profile row
+ * the invite creates, so they land with the right access on first login.
+ */
+export async function inviteUser(
+  email: string,
+  role: UserRole,
+  hubId: string | null,
+  allowedScreens: string[] | null
+): Promise<{ error: string | null }> {
+  if (!supabase) return { error: 'Supabase is not configured for this deployment.' };
+  const { data, error } = await supabase.functions.invoke('invite-user', {
+    body: {
+      email,
+      role,
+      hub_id: hubId,
+      allowed_screens: allowedScreens,
+      redirectTo: `${window.location.origin}/`
+    }
+  });
+  if (error) return { error: error.message };
+  if (data?.error) return { error: data.error };
+  return { error: null };
+}
+
 interface AuthResult {
   error: string | null;
 }

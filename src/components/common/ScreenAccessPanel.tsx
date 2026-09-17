@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { listAllProfiles, updateProfileAccess, AuthProfile } from '../../services/auth';
+import { listAllProfiles, updateProfileAccess, inviteUser, AuthProfile } from '../../services/auth';
 import { useStore } from '../../services/store';
 import { NAV_ITEMS, getVisibleNavItems } from '../../constants/nav';
 import type { UserRole } from '../../types';
-import { ShieldCheck, ArrowsClockwise, Check, WarningCircle } from '@phosphor-icons/react';
+import { ShieldCheck, ArrowsClockwise, Check, WarningCircle, PaperPlaneTilt, Plus } from '@phosphor-icons/react';
 
 const ROLE_OPTIONS: { id: UserRole; label: string }[] = [
   { id: 'owner', label: 'Owner' },
@@ -34,6 +34,13 @@ export const ScreenAccessPanel: React.FC = () => {
   const [drafts, setDrafts] = useState<Record<string, DraftRow>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [rowMessage, setRowMessage] = useState<Record<string, string>>({});
+
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<UserRole>('staff');
+  const [inviteHubId, setInviteHubId] = useState<string>('');
+  const [inviteSending, setInviteSending] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -79,6 +86,27 @@ export const ScreenAccessPanel: React.FC = () => {
     setDrafts(prev => ({ ...prev, [userId]: { ...prev[userId], allowedScreens: null } }));
   };
 
+  const submitInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setInviteSending(true);
+    setInviteMessage(null);
+    const { error } = await inviteUser(
+      inviteEmail.trim(),
+      inviteRole,
+      inviteRole === 'owner' ? null : inviteHubId || null,
+      null
+    );
+    setInviteSending(false);
+    if (error) {
+      setInviteMessage({ kind: 'err', text: error });
+      return;
+    }
+    setInviteMessage({ kind: 'ok', text: `Invite sent to ${inviteEmail.trim()}. They'll appear below once they accept it.` });
+    setInviteEmail('');
+    setInviteRole('staff');
+    setInviteHubId('');
+  };
+
   const save = async (p: AuthProfile) => {
     const d = drafts[p.id];
     if (!d) return;
@@ -113,15 +141,83 @@ export const ScreenAccessPanel: React.FC = () => {
             on its default set. Owner always sees everything.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={load}
-          className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 shrink-0"
-          title="Refresh list"
-        >
-          <ArrowsClockwise className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setInviteOpen(v => !v)}
+            className="px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-sans font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+          >
+            <Plus className="w-4 h-4" weight="bold" />
+            <span>Invite New Member</span>
+          </button>
+          <button
+            type="button"
+            onClick={load}
+            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700"
+            title="Refresh list"
+          >
+            <ArrowsClockwise className="w-4 h-4" />
+          </button>
+        </div>
       </div>
+
+      {inviteOpen && (
+        <form onSubmit={submitInvite} className="p-4 rounded-xl bg-cyan-50/60 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-900/60 space-y-3">
+          <div className="flex items-center gap-2 text-xs font-sans font-bold text-cyan-800 dark:text-cyan-300">
+            <PaperPlaneTilt className="w-4 h-4" weight="bold" />
+            <span>Send a real sign-up invite by email</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <input
+              type="email"
+              required
+              value={inviteEmail}
+              onChange={e => setInviteEmail(e.target.value)}
+              placeholder="teammate@example.com"
+              className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-sans sm:col-span-1"
+            />
+            <select
+              value={inviteRole}
+              onChange={e => setInviteRole(e.target.value as UserRole)}
+              className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-sans font-semibold"
+            >
+              {ROLE_OPTIONS.map(r => (
+                <option key={r.id} value={r.id}>{r.label}</option>
+              ))}
+            </select>
+            {inviteRole === 'owner' ? (
+              <span className="px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs font-sans font-semibold flex items-center">
+                All hubs (owner)
+              </span>
+            ) : (
+              <select
+                value={inviteHubId}
+                onChange={e => setInviteHubId(e.target.value)}
+                className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-sans font-semibold"
+              >
+                <option value="">No hub assigned</option>
+                {hubs.map(h => (
+                  <option key={h.id} value={h.id}>[{h.code}] {h.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            {inviteMessage && (
+              <span className={`text-[11px] font-sans ${inviteMessage.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>
+                {inviteMessage.text}
+              </span>
+            )}
+            <button
+              type="submit"
+              disabled={inviteSending}
+              className="ml-auto px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white text-xs font-sans font-bold transition-all active:scale-95"
+            >
+              {inviteSending ? 'Sending…' : 'Send Invite'}
+            </button>
+          </div>
+        </form>
+      )}
 
       {loading && (
         <p className="text-xs font-sans text-slate-400 py-4 text-center">Loading accounts…</p>
