@@ -127,6 +127,7 @@ interface StoreContextType {
     customerKegsFilledToday: number;
     expensesToday: number;
     dailyFloatRemaining: number;
+    grossSalesToday: number;
   };
 
   // Actions
@@ -906,6 +907,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       .filter(o => o.payment_method === 'cash' || o.payment_method === 'transfer' || o.payment_method === 'pos' || o.payment_method === 'split')
       .reduce((sum, o) => sum + (o.paid_amount || 0), 0);
 
+    // Total revenue billed today, regardless of payment method — includes the
+    // full value of credit sales (not yet collected), unlike cashTransferSales.
+    const grossSalesToday = todayOrders.reduce((sum, o) => sum + Number(o.line_amount || 0), 0);
+
     // Total Credit Outstanding across all customers
     const creditOutstanding = Object.values(customerStatsMap).reduce(
       (sum, s) => sum + s.currentBalance,
@@ -941,7 +946,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       purchasedKegsToday,
       customerKegsFilledToday,
       expensesToday,
-      dailyFloatRemaining
+      dailyFloatRemaining,
+      grossSalesToday
     };
   }, [orders, expenses, settings.daily_float, customerStatsMap, kegInventory]);
 

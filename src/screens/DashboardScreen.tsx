@@ -168,7 +168,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
   // Progressive Disclosure States (Side Drawer on Desktop ≥900px, Bottom Sheet on Mobile)
   const [activeStatSheet, setActiveStatSheet] = useState<
-    'cash' | 'credit' | 'kegs_out' | 'depot_kegs' | 'customer_kegs' | 'expenses' | null
+    'cash' | 'credit' | 'kegs_out' | 'depot_kegs' | 'customer_kegs' | 'expenses' | 'profit' | null
   >(null);
   const [selectedAlert, setSelectedAlert] = useState<{
     id: string;
@@ -567,7 +567,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
       {/* KPI Stat Grid (7 Metric Cards - Responsive Grid with Clean Typography & Alignment) */}
       {/* KPI Stat Grid (3 Clean Financial Metric Cards) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* 1. Cash / Transfer Sales Today */}
         <button
           type="button"
@@ -651,6 +651,48 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             </span>
           </div>
         </button>
+
+        {/* 4. Net Profit Today (Gross Sales - Expenses) */}
+        {(() => {
+          const netProfitToday = todayStats.grossSalesToday - todayStats.expensesToday;
+          const isPositive = netProfitToday >= 0;
+          return (
+            <button
+              type="button"
+              onClick={() => setActiveStatSheet('profit')}
+              className={`w-full text-left p-4 sm:p-5 rounded-2xl depot-card border transition-all shadow-card-light dark:shadow-card-dark cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between ${
+                isPositive
+                  ? 'border-slate-200 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-800/80'
+                  : 'border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-700'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-1.5 mb-3">
+                <span className={`text-xs font-sans font-bold uppercase tracking-wider truncate ${isPositive ? 'text-slate-500 dark:text-slate-400' : 'text-rose-700 dark:text-rose-400'}`}>
+                  Net Profit Today
+                </span>
+                <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${
+                  isPositive
+                    ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200/60 dark:border-emerald-800/50'
+                    : 'bg-rose-100/70 dark:bg-rose-900/40 border-rose-200/80 dark:border-rose-800/50'
+                }`}>
+                  <ChartLineUp className={`w-4 h-4 group-hover:scale-110 transition-transform ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`} />
+                </div>
+              </div>
+              <div
+                title={formatNaira(netProfitToday)}
+                className={`text-2xl sm:text-3xl font-heading font-black tabular-nums tracking-tight leading-none truncate my-1.5 ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}
+              >
+                {formatNaira(netProfitToday)}
+              </div>
+              <div className={`flex items-center justify-between text-xs mt-2 pt-2 border-t font-sans ${isPositive ? 'text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-800/60' : 'text-rose-600/80 dark:text-rose-400/80 border-rose-100 dark:border-rose-950/60'}`}>
+                <span className="truncate font-medium">Gross − Expenses</span>
+                <span className={`inline-flex items-center gap-0.5 font-bold shrink-0 ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-300'}`}>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </span>
+              </div>
+            </button>
+          );
+        })()}
       </div>
 
       {/* INSIGHTS ROW: recent sales, sales trend, tank availability, top varieties */}
@@ -1690,6 +1732,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             ? 'Customer Kegs Filled'
             : activeStatSheet === 'expenses'
             ? "Today's Expenses"
+            : activeStatSheet === 'profit'
+            ? 'Net Profit Today'
             : ''
         }
         subtitle={
@@ -1705,6 +1749,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             ? `${todayStats.customerKegsFilledToday} containers filled today`
             : activeStatSheet === 'expenses'
             ? `${formatNaira(todayStats.expensesToday)} total spent today`
+            : activeStatSheet === 'profit'
+            ? `${formatNaira(todayStats.grossSalesToday - todayStats.expensesToday)} gross minus expenses`
             : ''
         }
       >
@@ -2073,6 +2119,55 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
               </button>
             </div>
           )}
+
+          {/* 7. Net Profit Breakdown */}
+          {activeStatSheet === 'profit' && (() => {
+            const netProfitToday = todayStats.grossSalesToday - todayStats.expensesToday;
+            const isPositive = netProfitToday >= 0;
+            return (
+              <div className="space-y-4">
+                <div className={`p-3.5 rounded-xl border flex items-center justify-between ${
+                  isPositive
+                    ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50'
+                    : 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/50'
+                }`}>
+                  <span className={`text-xs font-sans font-semibold ${isPositive ? 'text-emerald-800 dark:text-emerald-300' : 'text-rose-800 dark:text-rose-300'}`}>
+                    Net Profit Today
+                  </span>
+                  <span className={`text-lg font-mono tabular-nums font-bold ${isPositive ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>
+                    {formatNaira(netProfitToday)}
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2 text-xs font-sans">
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>Gross Sales Today (all payment methods, incl. credit):</span>
+                    <span className="font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400">
+                      {formatNaira(todayStats.grossSalesToday)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>Expenses Today:</span>
+                    <span className="font-mono tabular-nums font-bold text-rose-600 dark:text-rose-400">
+                      -{formatNaira(todayStats.expensesToday)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-800 dark:text-slate-200 font-bold border-t border-slate-200 dark:border-slate-700 pt-1.5">
+                    <span>Net Profit Today:</span>
+                    <span className={`font-mono tabular-nums ${isPositive ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>
+                      {formatNaira(netProfitToday)}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-[11px] font-sans text-slate-400">
+                  Gross Sales Today counts every sale billed today at its full value, including credit sales not yet
+                  collected — that's why it can differ from the Cash &amp; Transfer figure, which only counts money
+                  actually collected today.
+                </p>
+              </div>
+            );
+          })()}
         </div>
       </DisclosureContainer>
 
