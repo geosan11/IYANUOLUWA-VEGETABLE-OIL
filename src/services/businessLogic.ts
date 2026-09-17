@@ -549,7 +549,7 @@ export function applyFifoPayment(
  */
 export function calculatePumpMeterVariance(
   pump: { id: string; label: string; product_id?: string },
-  readings: { id: string; pump_id: string; reading: number; recorded_at: string; note?: string }[],
+  readings: { id: string; pump_id: string; reading: number; recorded_at: string; note?: string; is_reset?: boolean }[],
   orders: Order[],
   thresholdLitres = 20
 ): PumpVarianceAudit[] {
@@ -557,35 +557,32 @@ export function calculatePumpMeterVariance(
     .filter(r => r.pump_id === pump.id)
     .sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime());
 
-  const days: string[] = [];
-  const byDay = new Map<string, typeof pumpReadings>();
-  for (const r of pumpReadings) {
-    const day = depotDateKey(r.recorded_at);
-    if (!byDay.has(day)) {
-      byDay.set(day, []);
-      days.push(day);
-    }
-    byDay.get(day)!.push(r);
-  }
-
   const audits: PumpVarianceAudit[] = [];
   let baseline: (typeof pumpReadings)[number] | null = null;
+  let currentDay: string | null = null;
+  let dayBuffer: typeof pumpReadings = [];
 
-  for (const day of days) {
-    const dayReadings = byDay.get(day)!;
-    if (!baseline && dayReadings.length === 1) {
-      // First reading ever logged for this pump — nothing to compare it to yet.
-      baseline = dayReadings[0];
-      continue;
+  // Closes out whatever day is currently buffered, emitting an audit row if
+  // there's a baseline to diff against (or seeding one from this day's own
+  // first reading, matching the pre-existing "first reading ever" behavior).
+  const flushDay = () => {
+    if (!currentDay || dayBuffer.length === 0) return;
+    if (!baseline) {
+      if (dayBuffer.length === 1) {
+        baseline = dayBuffer[0];
+        dayBuffer = [];
+        return;
+      }
+      baseline = dayBuffer[0];
     }
 
-    const startReadingObj = baseline || dayReadings[0];
-    const endReadingObj = dayReadings[dayReadings.length - 1];
+    const startReadingObj = baseline;
+    const endReadingObj = dayBuffer[dayBuffer.length - 1];
     const meterDelta = Number((endReadingObj.reading - startReadingObj.reading).toFixed(2));
 
     const expectedLitres = Number(
       orders
-        .filter(o => !o.voided && o.product_id === pump.product_id && depotDateKey(o.date) === day)
+        .filter(o => !o.voided && o.product_id === pump.product_id && depotDateKey(o.date) === currentDay)
         .reduce((sum, o) => sum + Number(o.litres || 0), 0)
         .toFixed(2)
     );
@@ -604,12 +601,33 @@ export function calculatePumpMeterVariance(
       isOverThreshold,
       startDate: startReadingObj.recorded_at,
       endDate: endReadingObj.recorded_at,
-      day,
-      note: dayReadings[dayReadings.length - 1].note
+      day: currentDay,
+      note: endReadingObj.note
     });
 
     baseline = endReadingObj;
+    dayBuffer = [];
+  };
+
+  for (const r of pumpReadings) {
+    if (r.is_reset) {
+      // A deliberate meter reset (new/replaced meter) — never diff across
+      // this boundary, or a legitimate reset reads as a giant theft/shortage
+      // variance. Close out whatever was in progress, then start a fresh
+      // baseline at the reset reading itself.
+      flushDay();
+      currentDay = null;
+      baseline = r;
+      continue;
+    }
+    const day = depotDateKey(r.recorded_at);
+    if (day !== currentDay) {
+      flushDay();
+      currentDay = day;
+    }
+    dayBuffer.push(r);
   }
+  flushDay();
 
   return audits;
 }

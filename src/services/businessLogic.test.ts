@@ -305,6 +305,25 @@ assert(auditC[1].expectedLitres === 300 && auditC[1].variance === 0, 'Pump Recon
 assert(validateNewPumpReading(10600, 10500).isValid === true, 'Pump Validation: higher reading passes');
 assert(validateNewPumpReading(10400, 10500).isValid === false, 'Pump Validation: lower reading fails (meters only count up)');
 
+// A meter reset (new/replaced meter) never diffs across the boundary — it starts a fresh
+// baseline instead of reading as a giant theft/shortage (10800 -> 0 would otherwise be a -10800L "variance").
+const readingsWithReset = [
+  ...twoDayReadings,
+  { id: 'pr-reset', pump_id: 'p-test', reading: 0, recorded_at: '2026-09-10T06:00:00Z', is_reset: true },
+  { id: 'pr-5', pump_id: 'p-test', reading: 200, recorded_at: '2026-09-10T18:00:00Z' }
+];
+const dayThreeOrders: Order[] = [
+  mkOrder({
+    id: 'po-4', customer_id: 'c-test', product_id: 'veg', qty: 8, litres: 200, amount: 32000,
+    paid_amount: 32000, payment_method: 'cash', date: '2026-09-10T12:00:00Z', source_tank_id: 'tank-1'
+  })
+];
+const auditD = calculatePumpMeterVariance(mockPump, readingsWithReset, [...pumpOrdersExact, ...dayTwoOrders, ...dayThreeOrders], 20);
+assert(auditD.length === 3, 'Pump Reconciliation: meter reset adds one more audit row, not a break');
+assert(auditD[2].startReading === 0, 'Pump Reconciliation: reset day audit starts from the reset reading (0), not the pre-reset value');
+assert(auditD[2].meterDelta === 200, 'Pump Reconciliation: reset day meter delta is 200L (200 - 0), not a negative jump across the reset');
+assert(auditD[2].variance === 0 && auditD[2].isOverThreshold === false, "Pump Reconciliation: reset day reconciles clean against that day's sales, no false theft flag");
+
 // 10. PACK-SIZE PRICING
 const vegProduct: Product = {
   id: 'veg',

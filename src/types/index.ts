@@ -155,6 +155,11 @@ export interface PumpReading {
   note?: string;
   recorded_by?: string;
   hub_id?: string;
+  /** True only for a deliberate meter reset/replacement — reconciliation
+   * treats this reading as a fresh baseline instead of diffing against
+   * whatever the pump last read, so a real meter swap doesn't get flagged
+   * as a giant theft/shortage variance. */
+  is_reset?: boolean;
 }
 
 export interface PumpVarianceAudit {

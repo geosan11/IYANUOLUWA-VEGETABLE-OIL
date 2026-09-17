@@ -14,11 +14,12 @@ import {
   ClockCounterClockwise as History,
   Warning as AlertTriangle,
   CheckCircle as CheckCircle2,
-  Lock
+  Lock,
+  ArrowsClockwise
 } from '@phosphor-icons/react';
 
 export const PumpsScreen: React.FC = () => {
-  const { pumps, pumpReadings, orders, products, physicalTanks, settings, recordPumpReading, addPump, updatePump, deletePump } =
+  const { pumps, pumpReadings, orders, products, physicalTanks, settings, recordPumpReading, resetPumpMeter, addPump, updatePump, deletePump } =
     useStore();
   const { isOwner } = usePermissions();
 
@@ -38,6 +39,11 @@ export const PumpsScreen: React.FC = () => {
   const [editProductId, setEditProductId] = useState('');
   const [editTankId, setEditTankId] = useState('');
   const [editErr, setEditErr] = useState<string | null>(null);
+
+  const [resetTarget, setResetTarget] = useState<Pump | null>(null);
+  const [resetReading, setResetReading] = useState('0');
+  const [resetReason, setResetReason] = useState('');
+  const [resetErr, setResetErr] = useState<string | null>(null);
 
   const productName = (id?: string) => products.find(p => p.id === id)?.name || 'Unassigned';
   const tankLabel = (id?: string | null) => physicalTanks.find(t => t.id === id)?.label;
@@ -94,6 +100,23 @@ export const PumpsScreen: React.FC = () => {
     if (!window.confirm(`Remove ${pump.label}?`)) return;
     const res = deletePump(pump.id);
     if (!res.success) setEditErr(res.error || 'Could not remove pump.');
+  };
+
+  const openReset = (pump: Pump) => {
+    setResetTarget(pump);
+    setResetReading('0');
+    setResetReason('');
+    setResetErr(null);
+  };
+
+  const submitReset = () => {
+    if (!resetTarget) return;
+    const res = resetPumpMeter(resetTarget.id, Number(resetReading), resetReason);
+    if (!res.success) {
+      setResetErr(res.error || 'Could not reset the meter.');
+      return;
+    }
+    setResetTarget(null);
   };
 
   // Reconciliation per pump, per day.
@@ -201,6 +224,9 @@ export const PumpsScreen: React.FC = () => {
                 </div>
                 {isOwner && (
                   <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => openReset(pump)} title="Reset meter (new/replaced meter)" className="p-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400">
+                      <ArrowsClockwise className="w-3.5 h-3.5" />
+                    </button>
                     <button onClick={() => openEdit(pump)} className="p-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400">
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
@@ -364,6 +390,11 @@ export const PumpsScreen: React.FC = () => {
                   {readings.map(r => (
                     <div key={r.id} className="flex items-center justify-between text-xs py-1.5 border-b border-slate-100 dark:border-slate-800/70 last:border-0">
                       <span className="text-slate-600 dark:text-slate-300 font-sans">
+                        {r.is_reset && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-[10px] font-bold uppercase mr-1.5">
+                            <ArrowsClockwise className="w-3 h-3" /> Reset
+                          </span>
+                        )}
                         {pumps.find(p => p.id === r.pump_id)?.label || 'Unknown pump'}
                         {r.note ? ` — ${r.note}` : ''}
                       </span>
@@ -506,6 +537,53 @@ export const PumpsScreen: React.FC = () => {
               </button>
               <button onClick={submitEdit} className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 text-sm font-sans font-bold">
                 Save
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {resetTarget && (
+        <Modal
+          isOpen
+          onClose={() => setResetTarget(null)}
+          title={<span className="flex items-center gap-2"><ArrowsClockwise className="w-4 h-4 text-blue-500" /> Reset Meter — {resetTarget.label}</span>}
+        >
+          <div className="space-y-3">
+            <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 text-xs font-sans">
+              Only use this when the pump's physical meter was actually replaced, recalibrated, or restarted (e.g. a new
+              dispenser unit). Current reading is <strong>{resetTarget.last_meter_reading.toLocaleString()} L</strong>.
+              This is the one place a lower number is allowed — every future reading will be compared against the new
+              value below, not the old one.
+            </div>
+            <label className="text-xs font-sans font-semibold text-slate-600 dark:text-slate-400 block">
+              New starting meter reading (L)
+              <input
+                type="number"
+                step="1"
+                min="0"
+                value={resetReading}
+                onChange={e => setResetReading(e.target.value.replace(/[^0-9]/g, ''))}
+                className="depot-input mt-1 w-full px-3 py-2 rounded-xl font-mono font-bold text-sm"
+              />
+            </label>
+            <label className="text-xs font-sans font-semibold text-slate-600 dark:text-slate-400 block">
+              Reason (required — kept in the audit log)
+              <input
+                value={resetReason}
+                onChange={e => setResetReason(e.target.value)}
+                placeholder="e.g. Meter unit replaced after fault, new dispenser installed"
+                required
+                className="depot-input mt-1 w-full px-3 py-2 rounded-xl text-sm"
+              />
+            </label>
+            {resetErr && <div className="text-xs text-rose-600 dark:text-rose-400">{resetErr}</div>}
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setResetTarget(null)} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-sm font-sans font-semibold">
+                Cancel
+              </button>
+              <button onClick={submitReset} className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-sans font-bold">
+                Reset Meter
               </button>
             </div>
           </div>

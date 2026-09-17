@@ -253,6 +253,12 @@ interface StoreContextType {
     note?: string
   ) => { success: boolean; pumpReading?: PumpReading; error?: string };
 
+  resetPumpMeter: (
+    pumpId: string,
+    newReading: number,
+    reason: string
+  ) => { success: boolean; pumpReading?: PumpReading; error?: string };
+
   addPump: (data: { label: string; productId?: string; openingReading?: number; physicalTankId?: string | null; hubId?: string }) => Pump;
   updatePump: (pumpId: string, updates: { label?: string; product_id?: string | null; physical_tank_id?: string | null; hub_id?: string }) => void;
   deletePump: (pumpId: string) => { success: boolean; error?: string };
@@ -1839,6 +1845,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       for (const [pumpId, reading] of Object.entries(data.openingReadings)) {
         const num = Number(reading);
         if (!isNaN(num) && num > 0) {
+          const pump = allPumps.find(p => p.id === pumpId);
+          const validation = validateNewPumpReading(num, pump?.last_meter_reading ?? 0);
+          if (!validation.isValid) {
+            return { success: false, error: validation.error };
+          }
           validReadings[pumpId] = num;
           newPumpReadings.push({
             id: `pr-shift-open-${Date.now()}-${pumpId}`,
@@ -1900,11 +1911,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (!isNaN(num) && num > 0) {
           const pump = allPumps.find(p => p.id === pumpId);
           const opening = shift.opening_readings?.[pumpId] ?? pump?.last_meter_reading ?? 0;
-          if (num < opening) {
-            return {
-              success: false,
-              error: `Closing reading for ${pump?.label || pumpId} (${num.toLocaleString()} L) cannot be less than opening reading (${opening.toLocaleString()} L). Pumps only count forward.`
-            };
+          const validation = validateNewPumpReading(num, opening);
+          if (!validation.isValid) {
+            return { success: false, error: validation.error };
           }
           validClosingReadings[pumpId] = num;
           newPumpReadings.push({
@@ -1973,6 +1982,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     for (const [pumpId, reading] of Object.entries(readings)) {
       const num = Number(reading);
       if (!isNaN(num) && num > 0) {
+        const pump = allPumps.find(p => p.id === pumpId);
+        const validation = validateNewPumpReading(num, pump?.last_meter_reading ?? 0);
+        if (!validation.isValid) {
+          return { success: false, error: validation.error };
+        }
         newPumpReadings.push({
           id: `pr-shift-open-${Date.now()}-${pumpId}`,
           pump_id: pumpId,
@@ -2031,6 +2045,40 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setPumpReadings(prev => [...prev, newReading]);
 
     return { success: true, pumpReading: newReading };
+  };
+
+  // 9a. Reset a pump's meter (new/replaced meter, recalibration, new market —
+  //     a deliberate break in the monotonic sequence). Owner-only in the UI.
+  //     Bypasses validateNewPumpReading on purpose: this is the one place a
+  //     lower reading is legitimate. Reconciliation (calculatePumpMeterVariance)
+  //     treats the is_reset row as a fresh baseline, not a giant shortfall.
+  const resetPumpMeter = (pumpId: string, newReading: number, reason: string) => {
+    const pump = pumps.find(p => p.id === pumpId);
+    if (!pump) return { success: false, error: 'Pump not found' };
+
+    const numReading = Number(newReading);
+    if (isNaN(numReading) || numReading < 0) {
+      return { success: false, error: 'Please enter a valid meter reading (0 or higher)' };
+    }
+    if (!reason.trim()) {
+      return { success: false, error: 'A reason is required to reset a pump meter' };
+    }
+
+    const resetReading: PumpReading = {
+      id: `pr-${Date.now()}`,
+      pump_id: pumpId,
+      reading: numReading,
+      recorded_at: new Date().toISOString(),
+      note: reason.trim(),
+      recorded_by: currentUser.full_name || (userRole === 'owner' ? 'Managing Director' : 'Depot Cashier'),
+      hub_id: pump.hub_id || getTargetHubId(),
+      is_reset: true
+    };
+
+    setPumps(prev => prev.map(p => (p.id === pumpId ? { ...p, last_meter_reading: numReading } : p)));
+    setPumpReadings(prev => [...prev, resetReading]);
+
+    return { success: true, pumpReading: resetReading };
   };
 
   // 9b. Pumps CRUD (named register)
@@ -2407,6 +2455,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         closeShift,
         recordShiftOpeningReadings,
         recordPumpReading,
+        resetPumpMeter,
         addPump,
         updatePump,
         deletePump,
