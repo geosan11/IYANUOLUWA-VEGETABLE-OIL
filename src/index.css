@@ -171,6 +171,10 @@
   margin: 0;
 }
 @media print {
+  html, body {
+    background: white !important;
+  }
+
   body * {
     visibility: hidden !important;
   }

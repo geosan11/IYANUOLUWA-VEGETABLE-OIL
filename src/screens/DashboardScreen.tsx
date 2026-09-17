@@ -92,6 +92,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   } | null>(null);
   const [isAllAlertsOpen, setIsAllAlertsOpen] = useState(false);
 
+  // Progressive disclosure: which stock-overview row (tank or keg lot) is expanded to show its detail line
+  const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+
   // Shift Management State
   const activeCashier = currentUser?.full_name || currentUser?.email || 'Counter Staff';
   const [isStartShiftModalOpen, setIsStartShiftModalOpen] = useState(false);
@@ -1052,31 +1055,37 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 .filter(t => t.product_id === 'veg')
                 .map((t, idx) => {
                   const pct = Math.min(100, (t.remaining_litres / (t.received_litres || 1)) * 100);
+                  const isExpanded = expandedRowId === t.id;
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={t.id}
-                      className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-start justify-between gap-3 text-xs"
+                      onClick={() => setExpandedRowId(isExpanded ? null : t.id)}
+                      className="w-full text-left p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 text-xs cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
                     >
-                      <div className="space-y-1 font-sans min-w-0">
-                        <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-1.5 min-w-0 font-sans font-bold text-slate-800 dark:text-slate-200">
                           <span className="text-xs px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono shrink-0">
                             Tank #{idx + 1}
                           </span>
-                          <span className="text-xs truncate" title={t.truck_label}>{t.truck_label}</span>
+                          <span className="truncate" title={t.truck_label}>{t.truck_label}</span>
                         </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
+                        <div className="flex items-center gap-2 shrink-0 font-mono tabular-nums">
+                          <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                            {t.remaining_litres.toLocaleString()} L
+                          </span>
+                          <span className="text-xs text-slate-400">
+                            {pct.toFixed(0)}%
+                          </span>
+                          <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                        </div>
+                      </div>
+                      {isExpanded && (
+                        <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums animate-in fade-in duration-150">
                           Intake: {formatDepotDate(t.date)} · Received: {t.received_litres.toLocaleString()}L
                         </div>
-                      </div>
-                      <div className="text-right shrink-0 font-mono tabular-nums">
-                        <div className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                          {t.remaining_litres.toLocaleString()} L
-                        </div>
-                        <div className="text-xs text-slate-400">
-                          {pct.toFixed(0)}% full
-                        </div>
-                      </div>
-                    </div>
+                      )}
+                    </button>
                   );
                 })}
             </div>
@@ -1134,31 +1143,37 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   const pct = Math.min(100, (t.remaining_litres / (t.received_litres || 1)) * 100);
                   const kegCount = Math.round(t.remaining_litres / (redLitresPerKeg || 25));
                   const totalKegs = Math.round(t.received_litres / (redLitresPerKeg || 25));
+                  const isExpanded = expandedRowId === t.id;
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={t.id}
-                      className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-start justify-between gap-3 text-xs"
+                      onClick={() => setExpandedRowId(isExpanded ? null : t.id)}
+                      className="w-full text-left p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 text-xs cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
                     >
-                      <div className="space-y-1 font-sans min-w-0">
-                        <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-1.5 min-w-0 font-sans font-bold text-slate-800 dark:text-slate-200">
                           <span className="text-xs px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-700 dark:text-rose-300 font-mono font-bold shrink-0">
                             Lot #{idx + 1}
                           </span>
-                          <span className="text-xs truncate" title={t.truck_label}>{t.truck_label}</span>
+                          <span className="truncate" title={t.truck_label}>{t.truck_label}</span>
                         </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
-                          Delivery: {formatDepotDate(t.date)} · Initial: {totalKegs.toLocaleString()} Kegs ({t.received_litres.toLocaleString()}L)
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0 font-mono tabular-nums">
-                        <div className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                          {kegCount.toLocaleString()} Kegs
-                        </div>
-                        <div className="text-xs text-slate-400">
-                          {t.remaining_litres.toLocaleString()} L · {pct.toFixed(0)}% in stock
+                        <div className="flex items-center gap-2 shrink-0 font-mono tabular-nums">
+                          <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                            {kegCount.toLocaleString()} Kegs
+                          </span>
+                          <span className="text-xs text-slate-400">
+                            {pct.toFixed(0)}%
+                          </span>
+                          <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                         </div>
                       </div>
-                    </div>
+                      {isExpanded && (
+                        <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums animate-in fade-in duration-150">
+                          Delivery: {formatDepotDate(t.date)} · Initial: {totalKegs.toLocaleString()} Kegs ({t.received_litres.toLocaleString()}L) · Remaining: {t.remaining_litres.toLocaleString()}L
+                        </div>
+                      )}
+                    </button>
                   );
                 })}
             </div>
