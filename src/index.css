@@ -45,6 +45,7 @@
   textarea {
     @apply border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-950 dark:text-slate-100 shadow-xs focus:border-brand-500 dark:focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 transition-all;
   }
+}
 
 /* Depot Design System Utilities */
 @layer components {
