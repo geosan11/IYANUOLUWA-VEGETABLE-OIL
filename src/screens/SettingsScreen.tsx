@@ -177,6 +177,7 @@ export const SettingsScreen: React.FC = () => {
   const [newTankLabel, setNewTankLabel] = useState('');
   const [newTankProductId, setNewTankProductId] = useState('veg');
   const [newTankCapacity, setNewTankCapacity] = useState('15000');
+  const [newTankHubId, setNewTankHubId] = useState(() => activeHubId !== 'all' ? activeHubId : (hubs[0]?.id || ''));
 
   // Add Supplier Form State
   const [newSupplierName, setNewSupplierName] = useState('');
@@ -347,7 +348,8 @@ export const SettingsScreen: React.FC = () => {
     addPhysicalTank({
       label: newTankLabel.trim(),
       product_id: newTankProductId,
-      capacity_litres: parseFloat(newTankCapacity) || 15000
+      capacity_litres: parseFloat(newTankCapacity) || 15000,
+      hub_id: newTankHubId || undefined
     });
     setNewTankLabel('');
     showNotification('Physical yard tank registered successfully.');
@@ -1501,7 +1503,7 @@ export const SettingsScreen: React.FC = () => {
                   <div className="text-[13px] font-sans font-bold text-slate-800 dark:text-slate-200">
                     Register Permanent Yard Tank
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <input
                       type="text"
                       required
@@ -1517,6 +1519,16 @@ export const SettingsScreen: React.FC = () => {
                     >
                       {products.map(p => (
                         <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={newTankHubId}
+                      onChange={e => setNewTankHubId(e.target.value)}
+                      title="Assigned Depot Hub"
+                      className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                    >
+                      {hubs.map(h => (
+                        <option key={h.id} value={h.id}>[{h.code}] {h.name}</option>
                       ))}
                     </select>
                     <div className="flex gap-2">

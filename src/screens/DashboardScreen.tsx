@@ -4,11 +4,14 @@ import { usePermissions } from '../services/permissions';
 import { TankGauge } from '../components/common/TankGauge';
 import { KegVisual25L } from '../components/common/KegVisual25L';
 import { PumpOdometerIllustration } from '../components/common/PumpOdometerIllustration';
+import { MiniBarChart } from '../components/common/MiniBarChart';
+import { DonutChart } from '../components/common/DonutChart';
 import { BottomSheet } from '../components/common/BottomSheet';
 import { SlideOverDrawer } from '../components/common/SlideOverDrawer';
 import { Modal } from '../components/common/Modal';
 import { useIsDesktopSplit } from '../hooks/useBreakpoint';
-import { formatNaira, formatDepotDate, formatDepotTime, computeShiftCash, getDepotToday, depotDateKey, formatWithCommas, parseFromCommas } from '../services/businessLogic';
+import { formatNaira, formatDepotDate, formatDepotTime, computeShiftCash, getDepotToday, depotDateKey, formatWithCommas, parseFromCommas, DEPOT_TZ } from '../services/businessLogic';
+import { getPaymentModeTheme } from '../constants/config';
 import {
   CurrencyDollar as DollarSign,
   CreditCard,
@@ -26,7 +29,11 @@ import {
   ShieldCheck,
   CaretRight as ChevronRight,
   Sparkle as Sparkles,
-  PlusCircle
+  PlusCircle,
+  ChartLineUp,
+  ChartBar,
+  ChartPieSlice,
+  Receipt
 } from '@phosphor-icons/react';
 
 interface DashboardScreenProps {
@@ -75,6 +82,89 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   const redKegsSoldToday = orders
     .filter(o => !o.voided && depotDateKey(o.date) === todayStr && o.product_id === 'red')
     .reduce((sum, o) => sum + Number(o.qty || 0), 0);
+
+  // Time-of-day greeting, Lagos-local
+  const greeting = useMemo(() => {
+    const hour = Number(
+      new Date().toLocaleString('en-US', { timeZone: DEPOT_TZ, hour: 'numeric', hour12: false })
+    );
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }, []);
+
+  // Last 7 days' revenue, oldest first, bucketed by Lagos depot-day
+  const salesTrend = useMemo(() => {
+    const days: string[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      days.push(depotDateKey(d));
+    }
+    return days.map(dayKey => {
+      const total = orders
+        .filter(o => !o.voided && depotDateKey(o.date) === dayKey)
+        .reduce((sum, o) => sum + Number(o.line_amount || 0), 0);
+      const label = new Date(`${dayKey}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short' });
+      return { label, value: total };
+    });
+  }, [orders]);
+
+  // Top 5 varieties by litres sold, last 30 days
+  const topVarieties = useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+    const totals = new Map<string, number>();
+    orders
+      .filter(o => !o.voided && new Date(o.date) >= cutoff)
+      .forEach(o => {
+        const name = o.variety_name || products.find(p => p.id === o.product_id)?.name || o.product_id;
+        totals.set(name, (totals.get(name) || 0) + Number(o.litres || 0));
+      });
+    return Array.from(totals.entries())
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+  }, [orders, products]);
+
+  // Tank fill-level health, bucketed the same way the tank/lot list rows below compute % (remaining/received)
+  const tankHealthBuckets = useMemo(() => {
+    let healthy = 0;
+    let low = 0;
+    let critical = 0;
+    tanks.forEach(t => {
+      const pct = Math.min(100, (t.remaining_litres / (t.received_litres || 1)) * 100);
+      if (pct < 15) critical++;
+      else if (pct < 40) low++;
+      else healthy++;
+    });
+    return [
+      { label: 'Healthy', value: healthy, colorCls: 'text-emerald-500' },
+      { label: 'Low', value: low, colorCls: 'text-amber-500' },
+      { label: 'Critical', value: critical, colorCls: 'text-rose-500' }
+    ];
+  }, [tanks]);
+
+  // Last 6 sales, newest first — same sale -> lines -> customer join TransactionLedgerScreen uses
+  const recentSalesFeed = useMemo(() => {
+    return [...sales]
+      .filter(s => !s.voided)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 6)
+      .map(s => {
+        const lines = orders.filter(o => o.sale_id === s.id);
+        const total = lines.reduce((sum, l) => sum + l.line_amount, 0);
+        const customer = customers.find(c => c.id === s.customer_id);
+        return {
+          id: s.id,
+          date: s.date,
+          customerName: customer?.name || 'Walk-in',
+          itemCount: lines.length,
+          amount: total,
+          paymentMethod: s.payment_method
+        };
+      });
+  }, [sales, orders, customers]);
 
   // Progressive Disclosure States (Side Drawer on Desktop ≥900px, Bottom Sheet on Mobile)
   const [activeStatSheet, setActiveStatSheet] = useState<
@@ -303,6 +393,16 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
   return (
     <div className="space-y-6 pb-20">
+      {/* WELCOME BANNER */}
+      <div>
+        <h1 className="text-xl sm:text-2xl font-heading font-bold text-slate-900 dark:text-white">
+          {greeting}, {currentUser.full_name?.split(' ')[0] || 'there'}
+        </h1>
+        <p className="text-xs sm:text-sm font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+          Here's what's happening at the depot today, {new Date().toLocaleDateString('en-US', { timeZone: DEPOT_TZ, weekday: 'long', month: 'long', day: 'numeric' })}.
+        </p>
+      </div>
+
       {/* EXECUTIVE AI INTELLIGENCE BANNER (OWNER ONLY) */}
       {can('viewAIAdvisor') && (
         <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950 text-white border border-slate-800 shadow-card-dark flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -551,6 +651,79 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             </span>
           </div>
         </button>
+      </div>
+
+      {/* INSIGHTS ROW: recent sales, sales trend, tank availability, top varieties */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Sales */}
+        <div className="p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark space-y-3">
+          <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800">
+            <Receipt className="w-4 h-4 text-brand-600 dark:text-brand-400" weight="bold" />
+            <h3 className="text-sm font-heading font-bold text-slate-900 dark:text-white">Recent Sales</h3>
+          </div>
+          {recentSalesFeed.length === 0 ? (
+            <p className="text-xs font-sans text-slate-400 py-6 text-center">No sales recorded yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {recentSalesFeed.map(row => {
+                const theme = getPaymentModeTheme(row.paymentMethod);
+                return (
+                  <div key={row.id} className="flex items-center justify-between gap-3 text-xs">
+                    <div className="min-w-0">
+                      <div className="font-sans font-semibold text-slate-800 dark:text-slate-200 truncate">
+                        {row.customerName}
+                      </div>
+                      <div className="text-slate-400 font-mono">
+                        {formatDepotDate(row.date)} · {formatDepotTime(row.date)} · {row.itemCount} item{row.itemCount === 1 ? '' : 's'}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-mono tabular-nums font-bold text-slate-900 dark:text-white">
+                        {formatNaira(row.amount)}
+                      </div>
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold border ${theme.badgeCls}`}>
+                        {theme.badgeLabel}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Sales Trend (last 7 days) */}
+        <div className="p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark space-y-3">
+          <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800">
+            <ChartLineUp className="w-4 h-4 text-brand-600 dark:text-brand-400" weight="bold" />
+            <h3 className="text-sm font-heading font-bold text-slate-900 dark:text-white">Sales Trend (7 Days)</h3>
+          </div>
+          <MiniBarChart data={salesTrend} colorCls="bg-brand-500" formatValue={v => formatNaira(v)} />
+        </div>
+
+        {/* Tank Availability */}
+        <div className="p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark space-y-3">
+          <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800">
+            <ChartPieSlice className="w-4 h-4 text-brand-600 dark:text-brand-400" weight="bold" />
+            <h3 className="text-sm font-heading font-bold text-slate-900 dark:text-white">Tank Availability</h3>
+          </div>
+          <div className="py-2">
+            <DonutChart
+              segments={tankHealthBuckets}
+              centerValue={String(tanks.length)}
+              centerLabel="Tanks"
+            />
+          </div>
+        </div>
+
+        {/* Top Varieties (last 30 days) */}
+        <div className="p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark space-y-3">
+          <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800">
+            <ChartBar className="w-4 h-4 text-brand-600 dark:text-brand-400" weight="bold" />
+            <h3 className="text-sm font-heading font-bold text-slate-900 dark:text-white">Top Varieties (30 Days)</h3>
+          </div>
+          <MiniBarChart data={topVarieties} colorCls="bg-amber-500" formatValue={v => `${v.toLocaleString()}L`} />
+        </div>
       </div>
 
       {/* DEPOT PUMPS LIVE METER STATUS SECTION */}

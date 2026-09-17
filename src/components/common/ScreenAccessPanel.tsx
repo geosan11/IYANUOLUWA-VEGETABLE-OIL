@@ -14,25 +14,26 @@ const ROLE_OPTIONS: { id: UserRole; label: string }[] = [
 
 interface DraftRow {
   role: UserRole;
+  hubId: string | null;
   /** null = "use the role default"; an array (however short) = an explicit override. */
   allowedScreens: string[] | null;
 }
 
 /**
  * Owner-only screen: every real Supabase account (from `profiles`), with a
- * role picker and a per-user screen checklist that overrides the role
- * default. Writes straight to Supabase — RLS (`profiles_owner_update` +
- * the role-change guard trigger) is the real backstop; this is the UI for it.
+ * role picker, a hub assignment picker, and a per-user screen checklist that
+ * overrides the role default. Writes straight to Supabase — RLS
+ * (`profiles_owner_update` + the role-change guard trigger) is the real
+ * backstop; this is the UI for it.
  */
 export const ScreenAccessPanel: React.FC = () => {
-  const { currentUser } = useStore();
+  const { currentUser, hubs } = useStore();
   const [profiles, setProfiles] = useState<AuthProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, DraftRow>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [rowMessage, setRowMessage] = useState<Record<string, string>>({});
-  const [customizingId, setCustomizingId] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -46,7 +47,7 @@ export const ScreenAccessPanel: React.FC = () => {
       setProfiles(rows);
       setDrafts(
         Object.fromEntries(
-          rows.map(p => [p.id, { role: p.role, allowedScreens: p.allowed_screens ?? null }])
+          rows.map(p => [p.id, { role: p.role, hubId: p.hub_id, allowedScreens: p.allowed_screens ?? null }])
         )
       );
     });
@@ -58,6 +59,7 @@ export const ScreenAccessPanel: React.FC = () => {
     const d = drafts[p.id];
     if (!d) return false;
     if (d.role !== p.role) return true;
+    if (d.hubId !== p.hub_id) return true;
     const a = d.allowedScreens ?? [];
     const b = p.allowed_screens ?? [];
     return a.length !== b.length || a.some(id => !b.includes(id));
@@ -73,17 +75,8 @@ export const ScreenAccessPanel: React.FC = () => {
     });
   };
 
-  const startCustomizing = (userId: string, role: UserRole) => {
-    setDrafts(prev => ({
-      ...prev,
-      [userId]: { ...prev[userId], allowedScreens: getVisibleNavItems(role, null).map(i => i.id) }
-    }));
-    setCustomizingId(userId);
-  };
-
   const resetToDefault = (userId: string) => {
     setDrafts(prev => ({ ...prev, [userId]: { ...prev[userId], allowedScreens: null } }));
-    setCustomizingId(null);
   };
 
   const save = async (p: AuthProfile) => {
@@ -93,6 +86,7 @@ export const ScreenAccessPanel: React.FC = () => {
     setRowMessage(prev => ({ ...prev, [p.id]: '' }));
     const { error } = await updateProfileAccess(p.id, {
       role: d.role,
+      hub_id: d.role === 'owner' ? null : d.hubId,
       allowed_screens: d.allowedScreens
     });
     setSavingId(null);
@@ -100,9 +94,10 @@ export const ScreenAccessPanel: React.FC = () => {
       setRowMessage(prev => ({ ...prev, [p.id]: error }));
       return;
     }
-    setProfiles(prev => prev.map(row => (row.id === p.id ? { ...row, role: d.role, allowed_screens: d.allowedScreens } : row)));
+    setProfiles(prev =>
+      prev.map(row => (row.id === p.id ? { ...row, role: d.role, hub_id: d.role === 'owner' ? null : d.hubId, allowed_screens: d.allowedScreens } : row))
+    );
     setRowMessage(prev => ({ ...prev, [p.id]: 'Saved. Takes effect next time they load the app.' }));
-    setCustomizingId(null);
   };
 
   return (
@@ -149,7 +144,6 @@ export const ScreenAccessPanel: React.FC = () => {
         {profiles.map(p => {
           const draft = drafts[p.id];
           if (!draft) return null;
-          const isCustomizing = customizingId === p.id || draft.allowedScreens !== null;
           const isCurrent = p.id === currentUser.id;
           const dirty = isDirty(p);
 
@@ -176,53 +170,62 @@ export const ScreenAccessPanel: React.FC = () => {
                   </div>
                 </div>
 
-                <select
-                  value={draft.role}
-                  disabled={isCurrent}
-                  onChange={e =>
-                    setDrafts(prev => ({ ...prev, [p.id]: { ...prev[p.id], role: e.target.value as UserRole } }))
-                  }
-                  title={isCurrent ? "You can't change your own role here" : 'Change role'}
-                  className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-sans font-semibold text-slate-700 dark:text-slate-300 disabled:opacity-50"
-                >
-                  {ROLE_OPTIONS.map(r => (
-                    <option key={r.id} value={r.id}>{r.label}</option>
-                  ))}
-                </select>
+                <div className="flex items-center gap-2">
+                  {draft.role === 'owner' ? (
+                    <span className="px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-[11px] font-sans font-semibold">
+                      All hubs (owner)
+                    </span>
+                  ) : (
+                    <select
+                      value={draft.hubId ?? ''}
+                      onChange={e =>
+                        setDrafts(prev => ({ ...prev, [p.id]: { ...prev[p.id], hubId: e.target.value || null } }))
+                      }
+                      title="Assigned depot hub"
+                      className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-sans font-semibold text-slate-700 dark:text-slate-300"
+                    >
+                      <option value="">No hub assigned</option>
+                      {hubs.map(h => (
+                        <option key={h.id} value={h.id}>[{h.code}] {h.name}</option>
+                      ))}
+                    </select>
+                  )}
+                  <select
+                    value={draft.role}
+                    disabled={isCurrent}
+                    onChange={e =>
+                      setDrafts(prev => ({ ...prev, [p.id]: { ...prev[p.id], role: e.target.value as UserRole } }))
+                    }
+                    title={isCurrent ? "You can't change your own role here" : 'Change role'}
+                    className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-sans font-semibold text-slate-700 dark:text-slate-300 disabled:opacity-50"
+                  >
+                    {ROLE_OPTIONS.map(r => (
+                      <option key={r.id} value={r.id}>{r.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {draft.role === 'owner' ? (
                 <p className="text-[11px] font-sans text-slate-500 dark:text-slate-400 pl-[46px]">
                   Owners always see every screen — nothing to configure.
                 </p>
-              ) : !isCustomizing ? (
-                <div className="flex items-center justify-between gap-2 pl-[46px]">
-                  <span className="text-[11px] font-sans text-slate-500 dark:text-slate-400">
-                    Using the {ROLE_OPTIONS.find(r => r.id === draft.role)?.label} default — every screen except AI Advisor and Inventory.
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => startCustomizing(p.id, draft.role)}
-                    className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-sans font-bold shrink-0"
-                  >
-                    Customize
-                  </button>
-                </div>
               ) : (
                 <div className="pl-[46px] space-y-2">
                   <div className="flex flex-wrap gap-1.5">
                     {NAV_ITEMS.map(item => {
-                      const checked = (draft.allowedScreens ?? []).includes(item.id);
+                      const effective = draft.allowedScreens ?? getVisibleNavItems(draft.role, null).map(i => i.id);
+                      const checked = effective.includes(item.id);
                       return (
                         <button
                           key={item.id}
                           type="button"
                           onClick={() => toggleScreen(p.id, item.id)}
                           aria-pressed={checked}
-                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-sans font-bold border transition-all ${
+                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-sans font-bold border transition-all cursor-pointer ${
                             checked
                               ? 'bg-cyan-600 text-white border-cyan-600 shadow-sm'
-                              : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800'
+                              : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                           }`}
                         >
                           {checked && <Check className="w-3 h-3" weight="bold" />}
@@ -231,13 +234,15 @@ export const ScreenAccessPanel: React.FC = () => {
                       );
                     })}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => resetToDefault(p.id)}
-                    className="text-[11px] font-sans text-cyan-700 dark:text-cyan-400 hover:underline"
-                  >
-                    ↺ Use role default instead
-                  </button>
+                  {draft.allowedScreens !== null && (
+                    <button
+                      type="button"
+                      onClick={() => resetToDefault(p.id)}
+                      className="text-[11px] font-sans text-cyan-700 dark:text-cyan-400 hover:underline"
+                    >
+                      ↺ Use role default instead
+                    </button>
+                  )}
                 </div>
               )}
 
