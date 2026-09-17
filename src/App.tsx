@@ -66,6 +66,12 @@ const MainLayout: React.FC = () => {
   }, [visibleNavItems, currentTab]);
 
   const renderActiveScreen = () => {
+    // A screen that isn't in this user's visible set must never render,
+    // even for one frame — don't rely solely on the nav link being hidden
+    // plus the post-render safety-redirect effect above to catch it.
+    if (!visibleNavItems.some(item => item.id === currentTab)) {
+      return <DashboardScreen onNavigate={setCurrentTab} />;
+    }
     switch (currentTab) {
       case 'dashboard':
         return <DashboardScreen onNavigate={setCurrentTab} />;

@@ -33,7 +33,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'kegs', label: 'Kegs Ledger', icon: Package },
   { id: 'inventory', label: 'Inventory', icon: Stack, adminOnly: true },
   { id: 'expenses', label: 'Expenses & Float', icon: Invoice },
-  { id: 'settings', label: 'Settings', icon: Gear }
+  { id: 'settings', label: 'Settings', icon: Gear, adminOnly: true }
 ];
 
 /**
