@@ -8,6 +8,12 @@ Postgres target the app will migrate onto.
 |---|---|
 | `supabase/migrations/0001_init.sql` | Enum types, 19 operational tables, FKs, indexes, shared `set_updated_at()` trigger. |
 | `supabase/migrations/0002_auth_rls.sql` | `profiles` table, `app_current_role()` helper, RLS on every table, role policies, `SECURITY DEFINER` RPC stubs. |
+| `supabase/migrations/0003_multi_hub.sql` | Adds the `'hub_manager'` value to the `user_role` enum (isolated in its own file/transaction — see note below). |
+| `supabase/migrations/0004_multi_hub_hubs.sql` | `hubs` table, `hub_id` columns + indexes on operational tables, hub-scoped RLS, hub seed data. |
+| `supabase/migrations/0005_custom_screen_access.sql` | `profiles.allowed_screens text[]` for per-user screen access. |
+| `supabase/migrations/0006_shift_hours_and_closing_readings.sql` | Shift-hour settings on `app_settings`, `shifts.closing_readings`. |
+| `supabase/migrations/0007_double_split_payments.sql` | `split` payment method, `orders.payment_splits`, `sale_payments` table, expense-to-customer debt fields. |
+| `supabase/migrations/0008_relational_hardening.sql` | Relational-integrity audit fixes: RLS on `sale_payments`, `hub_isolation_transfers`, narrows `hub_isolation_pumps`/`hub_isolation_physical_tanks` to read-only, missing FK indexes. |
 | `supabase/seed.sql` | Demo data mirroring the seed constants in `src/constants/config.ts`. |
 
 > A pre-existing `schema/*.sql` folder in the repo root is an earlier, partial,
@@ -346,6 +352,8 @@ psql "$SUPABASE_DB_URL" -f supabase/migrations/0003_multi_hub.sql
 psql "$SUPABASE_DB_URL" -f supabase/migrations/0004_multi_hub_hubs.sql
 psql "$SUPABASE_DB_URL" -f supabase/migrations/0005_custom_screen_access.sql
 psql "$SUPABASE_DB_URL" -f supabase/migrations/0006_shift_hours_and_closing_readings.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0007_double_split_payments.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0008_relational_hardening.sql
 psql "$SUPABASE_DB_URL" -f supabase/seed.sql
 ```
 
