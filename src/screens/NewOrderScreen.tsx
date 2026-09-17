@@ -1703,7 +1703,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         {/* qty stepper + number pad */}
                         <div className="space-y-1.5">
                           <div className="flex items-center gap-3">
-                            <span className="text-xs text-slate-500 w-16">Packs</span>
+                            <span className="text-xs text-slate-500 w-16">Quantity</span>
                             <div className="flex items-center gap-2">
                               <button
                                 type="button"

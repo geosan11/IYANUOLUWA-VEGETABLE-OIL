@@ -1068,7 +1068,7 @@ const EditModal: React.FC<{
             )}
             <div className="grid grid-cols-2 gap-2">
               <label className="text-xs font-sans font-semibold text-slate-500">
-                Packs
+                Quantity
                 <input type="number" min={0} step={1} value={qty} onChange={e => setQty(e.target.value.replace(/[^0-9]/g, ''))} className={field} />
               </label>
               <label className="text-xs font-sans font-semibold text-slate-500">

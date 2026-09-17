@@ -473,9 +473,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                         Cargo Handover Summary
                       </div>
                       <div className="flex justify-between font-medium">
-                        <span className="text-slate-600">Total Packaged Units:</span>
+                        <span className="text-slate-600">Total Quantity:</span>
                         <span className="font-mono font-bold text-slate-950">
-                          {receiptLines.reduce((s, l) => s + l.qty, 0)} packs
+                          {receiptLines.reduce((s, l) => s + l.qty, 0)}
                         </span>
                       </div>
                       <div className="flex justify-between font-medium">

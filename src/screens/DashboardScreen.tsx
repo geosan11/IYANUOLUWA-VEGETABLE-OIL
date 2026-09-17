@@ -1028,7 +1028,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 ≈ {Math.round(vegStock / vegLitresPerKeg).toLocaleString()} Kegs ({vegLitresPerKeg}L)
               </span>
               <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
-                Sold Today: {vegKegsSoldToday} packs
+                Quantity Sold Today: {vegKegsSoldToday}
               </span>
             </div>
           </div>

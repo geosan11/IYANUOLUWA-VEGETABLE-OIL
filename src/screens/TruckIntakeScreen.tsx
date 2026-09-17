@@ -494,11 +494,11 @@ export const TruckIntakeScreen: React.FC = () => {
                       </span>
                     </div>
                     <span className="font-heading text-base font-extrabold text-slate-950 dark:text-white block">
-                      Crude Palm Oil
+                      Palm Oil
                     </span>
                     <div className="flex items-center gap-1 mt-1 text-xs text-rose-700 dark:text-rose-400 font-mono font-bold">
                       <Scales className="w-3.5 h-3.5" weight="bold" />
-                      <span>1,120 L / Ton (25L Kegs)</span>
+                      <span>Kegs × 25L = Total Litres</span>
                     </div>
                   </button>
                 </div>
@@ -899,9 +899,6 @@ export const TruckIntakeScreen: React.FC = () => {
                       <span>Oil level</span>
                     </span>
                     <div className="flex items-center gap-2 font-sans">
-                      <span className="text-slate-500 text-[11px]">
-                        Empty space: <strong className="text-slate-700 dark:text-slate-300">565 L</strong>
-                      </span>
                       <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 font-bold text-xs">
                         96.5% full
                       </span>
@@ -1005,9 +1002,6 @@ export const TruckIntakeScreen: React.FC = () => {
                       <span>Oil level</span>
                     </span>
                     <div className="flex items-center gap-2 font-sans">
-                      <span className="text-slate-500 text-[11px]">
-                        Empty space: <strong className="text-slate-700 dark:text-slate-300">9,250 L</strong>
-                      </span>
                       <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 font-bold text-xs">
                         53.7% full
                       </span>
