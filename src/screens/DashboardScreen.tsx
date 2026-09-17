@@ -706,16 +706,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           {recentSalesFeed.length === 0 ? (
             <p className="text-xs font-sans text-slate-400 py-6 text-center">No sales recorded yet.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800/70">
               {recentSalesFeed.map(row => {
                 const theme = getPaymentModeTheme(row.paymentMethod);
                 return (
-                  <div key={row.id} className="flex items-center justify-between gap-3 text-xs">
-                    <div className="min-w-0">
+                  <div key={row.id} className="flex items-center gap-3 text-xs py-2.5 first:pt-0 last:pb-0">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-heading font-bold text-xs shrink-0 ${theme.badgeCls}`}>
+                      {row.customerName.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
                       <div className="font-sans font-semibold text-slate-800 dark:text-slate-200 truncate">
                         {row.customerName}
                       </div>
-                      <div className="text-slate-400 font-mono">
+                      <div className="text-slate-400 font-mono text-[11px]">
                         {formatDepotDate(row.date)} · {formatDepotTime(row.date)} · {row.itemCount} item{row.itemCount === 1 ? '' : 's'}
                       </div>
                     </div>
@@ -740,7 +743,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             <ChartLineUp className="w-4 h-4 text-brand-600 dark:text-brand-400" weight="bold" />
             <h3 className="text-sm font-heading font-bold text-slate-900 dark:text-white">Sales Trend (7 Days)</h3>
           </div>
-          <MiniBarChart data={salesTrend} colorCls="bg-brand-500" formatValue={v => formatNaira(v)} />
+          <MiniBarChart data={salesTrend} colorCls="bg-brand-500" formatValue={v => formatNaira(v)} highlightLast />
         </div>
 
         {/* Tank Availability */}

@@ -11,6 +11,8 @@ interface MiniBarChartProps {
   formatValue?: (value: number) => string;
   height?: number;
   emptyLabel?: string;
+  /** Highlights the last bar (e.g. "today") with a distinct color/ring. */
+  highlightLast?: boolean;
 }
 
 /**
@@ -23,10 +25,12 @@ export const MiniBarChart: React.FC<MiniBarChartProps> = ({
   data,
   colorCls = 'bg-brand-500',
   formatValue = (v) => v.toLocaleString(),
-  height = 120,
-  emptyLabel = 'No data yet'
+  height = 140,
+  emptyLabel = 'No data yet',
+  highlightLast = false
 }) => {
   const max = Math.max(1, ...data.map(d => d.value));
+  const total = data.reduce((s, d) => s + d.value, 0);
   const hasData = data.some(d => d.value > 0);
 
   if (!hasData) {
@@ -41,28 +45,49 @@ export const MiniBarChart: React.FC<MiniBarChartProps> = ({
   }
 
   return (
-    <div className="w-full" style={{ height }}>
-      <div className="flex items-end justify-between gap-1.5 h-full">
-        {data.map((d, i) => {
-          const pct = Math.max(2, Math.round((d.value / max) * 100));
-          return (
-            <div key={i} className="flex-1 min-w-0 flex flex-col items-center justify-end h-full gap-1 group">
-              <span className="text-[9px] font-mono tabular-nums text-slate-500 dark:text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                {formatValue(d.value)}
-              </span>
-              <div className="w-full flex items-end justify-center h-full">
-                <div
-                  className={`w-full max-w-[26px] rounded-t-md ${colorCls} transition-all duration-500`}
-                  style={{ height: `${pct}%` }}
-                  title={`${d.label}: ${formatValue(d.value)}`}
-                />
+    <div className="w-full space-y-2">
+      <div className="flex items-baseline justify-between">
+        <span className="text-[10px] font-sans font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          Total
+        </span>
+        <span className="text-sm font-mono tabular-nums font-bold text-slate-900 dark:text-white">
+          {formatValue(total)}
+        </span>
+      </div>
+      <div className="w-full" style={{ height }}>
+        <div className="flex items-end justify-between gap-1.5 h-full">
+          {data.map((d, i) => {
+            const isLast = highlightLast && i === data.length - 1;
+            const pct = d.value > 0 ? Math.max(6, Math.round((d.value / max) * 100)) : 0;
+            return (
+              <div key={i} className="flex-1 min-w-0 flex flex-col items-center justify-end h-full gap-1">
+                <span
+                  className={`text-[9px] font-mono tabular-nums leading-tight text-center truncate w-full ${
+                    d.value > 0 ? 'text-slate-600 dark:text-slate-300 font-bold' : 'text-slate-300 dark:text-slate-700'
+                  }`}
+                >
+                  {d.value > 0 ? formatValue(d.value) : '·'}
+                </span>
+                <div className="w-full flex items-end justify-center h-full">
+                  {d.value > 0 ? (
+                    <div
+                      className={`w-full max-w-[28px] rounded-t-md transition-all duration-500 ${
+                        isLast ? `${colorCls} ring-2 ring-offset-1 ring-offset-white dark:ring-offset-slate-900 ring-amber-400` : colorCls
+                      }`}
+                      style={{ height: `${pct}%` }}
+                      title={`${d.label}: ${formatValue(d.value)}`}
+                    />
+                  ) : (
+                    <div className="w-full max-w-[28px] h-[3px] rounded-full bg-slate-200 dark:bg-slate-800" title={`${d.label}: ${formatValue(0)}`} />
+                  )}
+                </div>
+                <span className={`text-[9px] font-sans truncate w-full text-center ${isLast ? 'font-bold text-slate-700 dark:text-slate-200' : 'text-slate-500 dark:text-slate-400'}`}>
+                  {d.label}
+                </span>
               </div>
-              <span className="text-[9px] font-sans text-slate-500 dark:text-slate-400 truncate w-full text-center">
-                {d.label}
-              </span>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );
