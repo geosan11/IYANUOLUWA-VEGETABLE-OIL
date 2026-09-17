@@ -88,6 +88,10 @@
   .badge-rose {
     @apply bg-rose-100/90 text-rose-950 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-300/90 dark:border-rose-700/50 font-semibold;
   }
+
+  .badge-indigo {
+    @apply bg-indigo-100/90 text-indigo-900 dark:bg-indigo-950/80 dark:text-indigo-300 border border-indigo-300/90 dark:border-indigo-700/50 font-semibold;
+  }
 }
 
 /*

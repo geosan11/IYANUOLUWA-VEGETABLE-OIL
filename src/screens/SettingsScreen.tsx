@@ -34,6 +34,25 @@ import {
 } from '@phosphor-icons/react';
 import { UserRole, SupplyModel, ProductVariety, Hub, UserProfile, Pump } from '../types';
 
+type SettingsSectionId = 'company' | 'kegs' | 'pricing' | 'infrastructure' | 'thresholds' | 'system' | 'hubs' | 'users';
+
+// Single source of truth for every configuration section's icon + color, so
+// the desktop nav, mobile nav, and each tab's content-pane header can never
+// drift out of sync with one another. Eight distinct Tailwind hue families —
+// none repeated, none aliasing another (in particular, `company` uses real
+// `emerald` rather than the `brand` class, since `brand-600` in
+// tailwind.config.js is byte-identical to stock `emerald-600`).
+const SECTION_THEME: Record<SettingsSectionId, { icon: React.ComponentType<any>; textCls: string; bgCls: string; borderCls: string }> = {
+  company: { icon: Building, textCls: 'text-emerald-600 dark:text-emerald-400', bgCls: 'bg-emerald-50 dark:bg-emerald-500/15', borderCls: 'border-emerald-200 dark:border-emerald-500/30' },
+  kegs: { icon: Package, textCls: 'text-amber-600 dark:text-amber-400', bgCls: 'bg-amber-50 dark:bg-amber-500/15', borderCls: 'border-amber-200 dark:border-amber-500/30' },
+  pricing: { icon: DollarSign, textCls: 'text-violet-600 dark:text-violet-400', bgCls: 'bg-violet-50 dark:bg-violet-500/15', borderCls: 'border-violet-200 dark:border-violet-500/30' },
+  infrastructure: { icon: GasPump, textCls: 'text-sky-600 dark:text-sky-400', bgCls: 'bg-sky-50 dark:bg-sky-500/15', borderCls: 'border-sky-200 dark:border-sky-500/30' },
+  thresholds: { icon: AlertTriangle, textCls: 'text-rose-600 dark:text-rose-400', bgCls: 'bg-rose-50 dark:bg-rose-500/15', borderCls: 'border-rose-200 dark:border-rose-500/30' },
+  system: { icon: Clock, textCls: 'text-orange-600 dark:text-orange-400', bgCls: 'bg-orange-50 dark:bg-orange-500/15', borderCls: 'border-orange-200 dark:border-orange-500/30' },
+  hubs: { icon: Building2, textCls: 'text-indigo-600 dark:text-indigo-400', bgCls: 'bg-indigo-50 dark:bg-indigo-500/15', borderCls: 'border-indigo-200 dark:border-indigo-500/30' },
+  users: { icon: Users, textCls: 'text-cyan-600 dark:text-cyan-400', bgCls: 'bg-cyan-50 dark:bg-cyan-500/15', borderCls: 'border-cyan-200 dark:border-cyan-500/30' }
+};
+
 export const SettingsScreen: React.FC = () => {
   const {
     products,
@@ -639,8 +658,8 @@ export const SettingsScreen: React.FC = () => {
             onClick={() => setActiveMobileSheet('company')}
             className="w-full p-4 flex items-center gap-3.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100"
           >
-            <div className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-brand-500/15 border border-brand-200 dark:border-brand-500/30 flex items-center justify-center flex-shrink-0">
-              <Building className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+            <div className={`w-10 h-10 rounded-xl ${SECTION_THEME.company.bgCls} border ${SECTION_THEME.company.borderCls} flex items-center justify-center flex-shrink-0`}>
+              <Building className={`w-5 h-5 ${SECTION_THEME.company.textCls}`} weight="bold" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-heading font-bold text-slate-900 dark:text-white text-[14px] truncate">
@@ -659,8 +678,8 @@ export const SettingsScreen: React.FC = () => {
             onClick={() => setActiveMobileSheet('kegs')}
             className="w-full p-4 flex items-center gap-3.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100"
           >
-            <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 flex items-center justify-center flex-shrink-0">
-              <Package className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+            <div className={`w-10 h-10 rounded-xl ${SECTION_THEME.kegs.bgCls} border ${SECTION_THEME.kegs.borderCls} flex items-center justify-center flex-shrink-0`}>
+              <Package className={`w-5 h-5 ${SECTION_THEME.kegs.textCls}`} weight="bold" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-heading font-bold text-slate-900 dark:text-white text-[14px] truncate">
@@ -679,8 +698,8 @@ export const SettingsScreen: React.FC = () => {
             onClick={() => setActiveMobileSheet('pricing')}
             className="w-full p-4 flex items-center gap-3.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100"
           >
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center flex-shrink-0">
-              <DollarSign className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            <div className={`w-10 h-10 rounded-xl ${SECTION_THEME.pricing.bgCls} border ${SECTION_THEME.pricing.borderCls} flex items-center justify-center flex-shrink-0`}>
+              <DollarSign className={`w-5 h-5 ${SECTION_THEME.pricing.textCls}`} weight="bold" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-heading font-bold text-slate-900 dark:text-white text-[14px] truncate">
@@ -699,8 +718,8 @@ export const SettingsScreen: React.FC = () => {
             onClick={() => setActiveMobileSheet('infrastructure')}
             className="w-full p-4 flex items-center gap-3.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100"
           >
-            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/15 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center flex-shrink-0">
-              <GasPump className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div className={`w-10 h-10 rounded-xl ${SECTION_THEME.infrastructure.bgCls} border ${SECTION_THEME.infrastructure.borderCls} flex items-center justify-center flex-shrink-0`}>
+              <GasPump className={`w-5 h-5 ${SECTION_THEME.infrastructure.textCls}`} weight="bold" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-heading font-bold text-slate-900 dark:text-white text-[14px] truncate">
@@ -719,8 +738,8 @@ export const SettingsScreen: React.FC = () => {
             onClick={() => setActiveMobileSheet('thresholds')}
             className="w-full p-4 flex items-center gap-3.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100"
           >
-            <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 flex items-center justify-center flex-shrink-0">
-              <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+            <div className={`w-10 h-10 rounded-xl ${SECTION_THEME.thresholds.bgCls} border ${SECTION_THEME.thresholds.borderCls} flex items-center justify-center flex-shrink-0`}>
+              <AlertTriangle className={`w-5 h-5 ${SECTION_THEME.thresholds.textCls}`} weight="bold" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-heading font-bold text-slate-900 dark:text-white text-[14px] truncate">
@@ -739,8 +758,8 @@ export const SettingsScreen: React.FC = () => {
             onClick={() => setActiveMobileSheet('system')}
             className="w-full p-4 flex items-center gap-3.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100"
           >
-            <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-500/15 border border-purple-200 dark:border-purple-500/30 flex items-center justify-center flex-shrink-0">
-              <Clock className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            <div className={`w-10 h-10 rounded-xl ${SECTION_THEME.system.bgCls} border ${SECTION_THEME.system.borderCls} flex items-center justify-center flex-shrink-0`}>
+              <Clock className={`w-5 h-5 ${SECTION_THEME.system.textCls}`} weight="bold" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-heading font-bold text-slate-900 dark:text-white text-[14px] truncate">
@@ -759,8 +778,8 @@ export const SettingsScreen: React.FC = () => {
             onClick={() => setActiveMobileSheet('hubs')}
             className="w-full p-4 flex items-center gap-3.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100"
           >
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 flex items-center justify-center flex-shrink-0">
-              <Building2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            <div className={`w-10 h-10 rounded-xl ${SECTION_THEME.hubs.bgCls} border ${SECTION_THEME.hubs.borderCls} flex items-center justify-center flex-shrink-0`}>
+              <Building2 className={`w-5 h-5 ${SECTION_THEME.hubs.textCls}`} weight="bold" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-heading font-bold text-slate-900 dark:text-white text-[14px] truncate">
@@ -779,8 +798,8 @@ export const SettingsScreen: React.FC = () => {
             onClick={() => setActiveMobileSheet('users')}
             className="w-full p-4 flex items-center gap-3.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100"
           >
-            <div className="w-10 h-10 rounded-xl bg-cyan-50 dark:bg-cyan-500/15 border border-cyan-200 dark:border-cyan-500/30 flex items-center justify-center flex-shrink-0">
-              <Users className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+            <div className={`w-10 h-10 rounded-xl ${SECTION_THEME.users.bgCls} border ${SECTION_THEME.users.borderCls} flex items-center justify-center flex-shrink-0`}>
+              <Users className={`w-5 h-5 ${SECTION_THEME.users.textCls}`} weight="bold" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-heading font-bold text-slate-900 dark:text-white text-[14px] truncate">
@@ -807,69 +826,46 @@ export const SettingsScreen: React.FC = () => {
             {
               id: 'company' as const,
               title: 'Company & Branding',
-              subtitle: companyName || 'Iyanuoluwa Oil',
-              icon: Building,
-              color: 'text-brand-600 dark:text-brand-400',
-              bg: 'bg-brand-50 dark:bg-brand-500/15'
+              subtitle: companyName || 'Iyanuoluwa Oil'
             },
             {
               id: 'kegs' as const,
               title: 'Keg Fleet Standards',
-              subtitle: `Palm: ${productLitresPerKeg['red'] || '25'}L · Veg: ${productLitresPerKeg['veg'] || '30'}L`,
-              icon: Package,
-              color: 'text-amber-600 dark:text-amber-400',
-              bg: 'bg-amber-50 dark:bg-amber-500/15'
+              subtitle: `Palm: ${productLitresPerKeg['red'] || '25'}L · Veg: ${productLitresPerKeg['veg'] || '30'}L`
             },
             {
               id: 'pricing' as const,
               title: 'Products & Rate Cards',
-              subtitle: `${products.length} products · Catalog CRUD`,
-              icon: DollarSign,
-              color: 'text-emerald-600 dark:text-emerald-400',
-              bg: 'bg-emerald-50 dark:bg-emerald-500/15'
+              subtitle: `${products.length} products · Catalog CRUD`
             },
             {
               id: 'infrastructure' as const,
               title: 'Tanks, Pumps & Suppliers',
-              subtitle: `${pumps.length} pumps · ${physicalTanks.length} tanks · ${suppliers.length} suppliers`,
-              icon: GasPump,
-              color: 'text-blue-600 dark:text-blue-400',
-              bg: 'bg-blue-50 dark:bg-blue-500/15'
+              subtitle: `${pumps.length} pumps · ${physicalTanks.length} tanks · ${suppliers.length} suppliers`
             },
             {
               id: 'thresholds' as const,
               title: 'Safety & Thresholds',
-              subtitle: `Low: ${lowStockThreshold}L · Pump: ${pumpVarianceThreshold}L`,
-              icon: AlertTriangle,
-              color: 'text-rose-600 dark:text-rose-400',
-              bg: 'bg-rose-50 dark:bg-rose-500/15'
+              subtitle: `Low: ${lowStockThreshold}L · Pump: ${pumpVarianceThreshold}L`
             },
             {
               id: 'system' as const,
               title: 'Shift Schedule & Operations',
-              subtitle: `Hours: ${shiftStartTime} – ${shiftEndTime} · Float: ${formatNaira(parseFloat(defaultDailyFloat) || 0)}`,
-              icon: Clock,
-              color: 'text-purple-600 dark:text-purple-400',
-              bg: 'bg-purple-50 dark:bg-purple-500/15'
+              subtitle: `Hours: ${shiftStartTime} – ${shiftEndTime} · Float: ${formatNaira(parseFloat(defaultDailyFloat) || 0)}`
             },
             {
               id: 'hubs' as const,
               title: 'Hubs & Depots',
-              subtitle: `${hubs.length} depots · Multi-depot network`,
-              icon: Building2,
-              color: 'text-indigo-600 dark:text-indigo-400',
-              bg: 'bg-indigo-50 dark:bg-indigo-500/15'
+              subtitle: `${hubs.length} depots · Multi-depot network`
             },
             {
               id: 'users' as const,
               title: 'Team & User Access',
-              subtitle: `${users.length} members · Role & hub scoping`,
-              icon: Users,
-              color: 'text-cyan-600 dark:text-cyan-400',
-              bg: 'bg-cyan-50 dark:bg-cyan-500/15'
+              subtitle: `${users.length} members · Role & hub scoping`
             }
           ].map(item => {
-            const Icon = item.icon;
+            const theme = SECTION_THEME[item.id];
+            const Icon = theme.icon;
             const isActive = activeDesktopTab === item.id;
 
             return (
@@ -883,8 +879,8 @@ export const SettingsScreen: React.FC = () => {
                     : 'border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                <div className={`w-9 h-9 rounded-lg ${item.bg} flex items-center justify-center flex-shrink-0`}>
-                  <Icon className={`w-4 h-4 ${item.color}`} weight={isActive ? 'bold' : 'thin'} />
+                <div className={`w-9 h-9 rounded-lg ${theme.bgCls} border ${theme.borderCls} flex items-center justify-center flex-shrink-0`}>
+                  <Icon className={`w-4 h-4 ${theme.textCls}`} weight="bold" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-heading font-semibold text-[13px] truncate">
@@ -911,7 +907,7 @@ export const SettingsScreen: React.FC = () => {
             <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm">
               <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
                 <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Building className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+                  <Building className={`w-5 h-5 ${SECTION_THEME.company.textCls}`} weight="bold" />
                   <span>1. Company Profile & Official Branding</span>
                 </h3>
                 <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
@@ -1033,7 +1029,7 @@ export const SettingsScreen: React.FC = () => {
             >
               <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
                 <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Package className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+                  <Package className={`w-5 h-5 ${SECTION_THEME.kegs.textCls}`} weight="bold" />
                   <span>2. Keg Configuration & Fleet Standards</span>
                 </h3>
                 <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
@@ -1068,10 +1064,7 @@ export const SettingsScreen: React.FC = () => {
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: isPalm ? '#EF4444' : '#F59E0B' }}
-                            />
+                            <span className={`w-3 h-3 rounded-full ${isPalm ? 'bg-palmoil-500' : 'bg-vegoil-500'}`} />
                             <span className="font-heading font-bold text-[14px] text-slate-900 dark:text-white">
                               {p.name}
                             </span>
@@ -1211,7 +1204,7 @@ export const SettingsScreen: React.FC = () => {
               <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                    <DollarSign className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+                    <DollarSign className={`w-5 h-5 ${SECTION_THEME.pricing.textCls}`} weight="bold" />
                     <span>3. Products & prices</span>
                   </h3>
                   <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
@@ -1247,10 +1240,7 @@ export const SettingsScreen: React.FC = () => {
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }}
-                            />
+                            <span className={`w-3 h-3 rounded-full ${isVeg ? 'bg-vegoil-500' : 'bg-palmoil-500'}`} />
                             <span className="font-heading font-bold text-[15px] text-slate-900 dark:text-white">
                               {p.name}
                             </span>
@@ -1260,7 +1250,7 @@ export const SettingsScreen: React.FC = () => {
                               type="button"
                               onClick={() => handleOpenEditProduct(p.id)}
                               disabled={!isOwner}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                               title={isOwner ? 'Edit Product' : 'Only the owner can edit products'}
                             >
                               <Edit2 className="w-4 h-4" />
@@ -1347,7 +1337,7 @@ export const SettingsScreen: React.FC = () => {
             <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
               <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
                 <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                  <GasPump className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  <GasPump className={`w-5 h-5 ${SECTION_THEME.infrastructure.textCls}`} weight="bold" />
                   <span>4. Yard Storage Tanks, Dispensing Pumps & Verified Suppliers</span>
                 </h3>
                 <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
@@ -1360,7 +1350,7 @@ export const SettingsScreen: React.FC = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <h4 className="text-[15px] font-sans font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <GasPump className="w-4 h-4 text-emerald-600 dark:text-emerald-400" weight="bold" />
+                      <GasPump className={`w-4 h-4 ${SECTION_THEME.infrastructure.textCls}`} weight="bold" />
                       <span>Dispensing Pumps & Counter Flow Meters ({pumps.length} Active, Scalable)</span>
                     </h4>
                     <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
@@ -1407,7 +1397,7 @@ export const SettingsScreen: React.FC = () => {
                               <GasPump className="w-3.5 h-3.5 text-emerald-600" />
                               <span>{pump.label}</span>
                             </span>
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                            <span className="badge-emerald inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] uppercase">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                               Operational
                             </span>
@@ -1443,7 +1433,7 @@ export const SettingsScreen: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleOpenEditPumpModal(pump)}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950/40 transition-colors"
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors"
                               title="Edit Pump Details"
                             >
                               <Edit2 className="w-4 h-4" />
@@ -1497,7 +1487,7 @@ export const SettingsScreen: React.FC = () => {
                               showNotification(`Tank "${t.label}" removed.`);
                             }
                           }}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -1586,7 +1576,7 @@ export const SettingsScreen: React.FC = () => {
                             showNotification(`Supplier "${s.name}" removed.`);
                           }
                         }}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -1636,7 +1626,7 @@ export const SettingsScreen: React.FC = () => {
             >
               <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
                 <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-amber-500 dark:text-amber-400" />
+                  <AlertTriangle className={`w-5 h-5 ${SECTION_THEME.thresholds.textCls}`} weight="bold" />
                   <span>5. Operational Alert & Variance Thresholds</span>
                 </h3>
                 <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
@@ -1723,7 +1713,7 @@ export const SettingsScreen: React.FC = () => {
             <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
               <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
                 <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  <Clock className={`w-5 h-5 ${SECTION_THEME.system.textCls}`} weight="bold" />
                   <span>6. Shift Schedule, Daily Float & System Tools</span>
                 </h3>
                 <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
@@ -1928,7 +1918,7 @@ export const SettingsScreen: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
                 <div>
                   <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Building2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                    <Building2 className={`w-5 h-5 ${SECTION_THEME.hubs.textCls}`} weight="bold" />
                     <span>7. Hubs & Multi-Depot Operations</span>
                   </h3>
                   <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
@@ -2022,7 +2012,7 @@ export const SettingsScreen: React.FC = () => {
                                       <h4 className="font-heading font-bold text-slate-900 dark:text-white text-[15px]">
                                         {hub.name}
                                       </h4>
-                                      <span className="px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-300 font-mono font-bold text-[11px]">
+                                      <span className="badge-indigo px-2 py-0.5 rounded-md font-mono text-[11px]">
                                         {hub.code}
                                       </span>
                                     </div>
@@ -2033,10 +2023,10 @@ export const SettingsScreen: React.FC = () => {
                                   </div>
 
                                   <span
-                                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                    className={`px-2 py-0.5 rounded-full text-[10px] uppercase ${
                                       hub.is_active
-                                        ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
-                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                                        ? 'badge-emerald'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 font-semibold'
                                     }`}
                                   >
                                     {hub.is_active ? 'Active' : 'Inactive'}
@@ -2100,7 +2090,7 @@ export const SettingsScreen: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => handleOpenEditHub(hub)}
-                                    className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors"
                                     title="Edit Hub Details"
                                   >
                                     <Edit2 className="w-4 h-4" />
@@ -2135,7 +2125,7 @@ export const SettingsScreen: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
                 <div>
                   <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Users className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+                    <Users className={`w-5 h-5 ${SECTION_THEME.users.textCls}`} weight="bold" />
                     <span>8. Team Members & Hub Access Control</span>
                   </h3>
                   <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
@@ -2201,10 +2191,10 @@ export const SettingsScreen: React.FC = () => {
                     const isCurrentUser = currentUser.id === u.id;
 
                     const roleBadge = {
-                      owner: { label: 'Owner (Global)', bg: 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300' },
-                      hub_manager: { label: 'Hub Manager', bg: 'bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300' },
-                      staff: { label: 'Counter Staff', bg: 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300' },
-                      driver: { label: 'Driver / Logistics', bg: 'bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300' }
+                      owner: { label: 'Owner (Global)', bg: 'badge-amber' },
+                      hub_manager: { label: 'Hub Manager', bg: 'badge-indigo' },
+                      staff: { label: 'Counter Staff', bg: 'badge-emerald' },
+                      driver: { label: 'Driver / Logistics', bg: 'badge-sky' }
                     }[u.role] || { label: u.role, bg: 'bg-slate-100 text-slate-800' };
 
                     return (
@@ -2278,7 +2268,7 @@ export const SettingsScreen: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleOpenEditUser(u)}
-                              className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors"
                               title="Edit User"
                             >
                               <Edit2 className="w-4 h-4" />
