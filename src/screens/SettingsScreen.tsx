@@ -2132,16 +2132,20 @@ export const SettingsScreen: React.FC = () => {
 
           {activeDesktopTab === 'users' && (
           <div className="space-y-6">
-            {/* 8. TEAM & USER ACCESS CONTROL */}
+            {/* 8. TEAM & USER ACCESS CONTROL — local/offline-only roster.
+                This has no Supabase account behind it (no login, no password),
+                so it only makes sense to show when there's no real account
+                system to manage instead (see ScreenAccessPanel below). */}
+            {!isSupabaseConfigured && (
             <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
                 <div>
                   <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                     <Users className={`w-5 h-5 ${SECTION_THEME.users.textCls}`} weight="bold" />
-                    <span>8. Team Members & Hub Access Control</span>
+                    <span>8. Local Team Roster (Offline Mode)</span>
                   </h3>
                   <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-                    Assign managers and staff to specific depots. Operational transactions (sales, pump meter readings, and cash registers) are strictly tied to the assigned hub.
+                    No Supabase connection is configured for this deployment, so there are no real logins yet — this roster is a local, device-only stand-in with no password or account behind it. Connect Supabase to manage real team accounts instead.
                   </p>
                 </div>
                 <button
@@ -2303,6 +2307,7 @@ export const SettingsScreen: React.FC = () => {
                   })}
               </div>
             </div>
+            )}
 
             {isSupabaseConfigured && <ScreenAccessPanel />}
           </div>
