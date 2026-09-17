@@ -148,8 +148,9 @@ export const TruckIntakeScreen: React.FC = () => {
       setActualKegs('358');
       setLeftoverLitres('10');
     } else {
-      const palmTank = physicalTanks.find(pt => pt.product_id === 'red' || pt.product_id === 'palm') || physicalTanks[1] || physicalTanks[0];
-      if (palmTank) setPhysicalTankId(palmTank.id);
+      // Palm oil arrives pre-kegged — it isn't decanted into a yard tank,
+      // so there's no physical tank to associate with this delivery.
+      setPhysicalTankId('');
       setKegsReceived('100');
     }
   };
@@ -221,7 +222,6 @@ export const TruckIntakeScreen: React.FC = () => {
           productId,
           truckLabel: fullTruckLabel,
           supplierId,
-          physicalTankId: physicalTankId || undefined,
           spaceNote: spaceNote.trim() || undefined,
           kegsReceived: numKegs,
           date: fromDatetimeLocalValue(intakeDateInput)
@@ -382,14 +382,14 @@ export const TruckIntakeScreen: React.FC = () => {
 
                   <button
                     type="button"
-                    onClick={() => handleSelectOil('palm')}
+                    onClick={() => handleSelectOil('red')}
                     className={`py-3 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                      productId === 'palm'
+                      productId === 'red'
                         ? 'bg-white dark:bg-slate-800 text-slate-950 dark:text-white shadow-sm border-2 border-amber-500'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border-2 border-transparent'
                     }`}
                   >
-                    <span className={`w-2.5 h-2.5 rounded-full ${productId === 'palm' ? 'bg-amber-500' : 'bg-slate-400'}`} />
+                    <span className={`w-2.5 h-2.5 rounded-full ${productId === 'red' ? 'bg-amber-500' : 'bg-slate-400'}`} />
                     <span>Red Palm Oil (25L Pre-Kegged)</span>
                   </button>
                 </div>
@@ -582,67 +582,69 @@ export const TruckIntakeScreen: React.FC = () => {
                 )}
               </div>
 
-              {/* 4. Target Tank & Counted Kegs Verification */}
-              <div className="space-y-3">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                  4. Receiving Tank &amp; Offload Verification
-                </label>
+              {/* 4. Target Tank & Counted Kegs Verification — bulk tanker deliveries only.
+                     Pre-kegged palm oil isn't decanted into a yard tank, so there's
+                     nothing to select here for that flow. */}
+              {isBulkTruck && (
+                <div className="space-y-3">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    4. Receiving Tank &amp; Offload Verification
+                  </label>
 
-                {/* Target Tank Confirmation with Progressive Disclosure */}
-                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border-2 border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <Warehouse className="w-4 h-4 text-slate-500" />
-                    <div className="text-xs">
-                      <span className="font-semibold text-slate-500 mr-1.5">Receiving Tank:</span>
-                      <strong className="font-bold text-slate-900 dark:text-white">
-                        {currentSelectedTank?.label || 'Main Tank 1'}
-                      </strong>
-                      <span className="font-mono text-slate-500 ml-2">
-                        ({currentTankLitres.toLocaleString()} L · {currentTankPct}% full)
-                      </span>
+                  {/* Target Tank Confirmation with Progressive Disclosure */}
+                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border-2 border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <Warehouse className="w-4 h-4 text-slate-500" />
+                      <div className="text-xs">
+                        <span className="font-semibold text-slate-500 mr-1.5">Receiving Tank:</span>
+                        <strong className="font-bold text-slate-900 dark:text-white">
+                          {currentSelectedTank?.label || 'Main Tank 1'}
+                        </strong>
+                        <span className="font-mono text-slate-500 ml-2">
+                          ({currentTankLitres.toLocaleString()} L · {currentTankPct}% full)
+                        </span>
+                      </div>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsChangingTank(!isChangingTank)}
+                      className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+                    >
+                      {isChangingTank ? 'Done' : 'Change Tank'}
+                    </button>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setIsChangingTank(!isChangingTank)}
-                    className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
-                  >
-                    {isChangingTank ? 'Done' : 'Change Tank'}
-                  </button>
-                </div>
+                  {/* Progressive Disclosure for Tank Selection */}
+                  {isChangingTank && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 animate-in fade-in">
+                      {physicalTanks.map(pt => (
+                        <label
+                          key={pt.id}
+                          className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-2.5 ${
+                            physicalTankId === pt.id
+                              ? 'bg-white dark:bg-slate-800 border-amber-500 shadow-xs'
+                              : 'bg-white/60 dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="targetTank"
+                            value={pt.id}
+                            checked={physicalTankId === pt.id}
+                            onChange={() => setPhysicalTankId(pt.id)}
+                            className="accent-amber-500 w-4 h-4"
+                          />
+                          <div className="text-xs">
+                            <div className="font-bold text-slate-900 dark:text-white">{pt.label}</div>
+                            <div className="text-slate-500 font-mono text-[11px]">{pt.capacity_litres.toLocaleString()} L capacity</div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  )}
 
-                {/* Progressive Disclosure for Tank Selection */}
-                {isChangingTank && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 animate-in fade-in">
-                    {physicalTanks.map(pt => (
-                      <label
-                        key={pt.id}
-                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-2.5 ${
-                          physicalTankId === pt.id
-                            ? 'bg-white dark:bg-slate-800 border-amber-500 shadow-xs'
-                            : 'bg-white/60 dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-slate-300'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="targetTank"
-                          value={pt.id}
-                          checked={physicalTankId === pt.id}
-                          onChange={() => setPhysicalTankId(pt.id)}
-                          className="accent-amber-500 w-4 h-4"
-                        />
-                        <div className="text-xs">
-                          <div className="font-bold text-slate-900 dark:text-white">{pt.label}</div>
-                          <div className="text-slate-500 font-mono text-[11px]">{pt.capacity_litres.toLocaleString()} L capacity</div>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                )}
-
-                {/* Counted Filled Kegs for Bulk Truck */}
-                {isBulkTruck && (
+                  {/* Counted Filled Kegs for Bulk Truck */}
                   <div className="space-y-1.5 pt-1">
                     <label htmlFor="kegCountInput" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                       Counted Filled 25L Kegs Offloaded at Discharge Point <span className="text-amber-500 font-bold">*</span>
@@ -666,8 +668,8 @@ export const TruckIntakeScreen: React.FC = () => {
                       Actual count of 25L jerrycans filled directly during tanker discharge.
                     </span>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* 5. Live Waybill Reconciliation Summary (Integrated directly above submit) */}
               <div className="pt-2">
