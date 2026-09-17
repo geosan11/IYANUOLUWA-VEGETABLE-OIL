@@ -16,7 +16,8 @@ import {
   CaretRight as ChevronRight,
   ArrowsDownUp as ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  PencilSimple
 } from '@phosphor-icons/react';
 
 type SortField = 'customer' | 'supplied' | 'returned' | 'balance';
@@ -30,7 +31,8 @@ export const KegsScreen: React.FC = () => {
     settings,
     kegInventory,
     customerStatsMap,
-    logKegReturn
+    logKegReturn,
+    updateSettings
   } = useStore();
 
   // Search & Filter State
@@ -48,6 +50,20 @@ export const KegsScreen: React.FC = () => {
   const [detailReturnNotes, setDetailReturnNotes] = useState<string>('');
   const [detailReturnFeedback, setDetailReturnFeedback] = useState<string | null>(null);
   const [detailReturnPack, setDetailReturnPack] = useState<string>('');
+
+  // Editable Total Company Fleet State
+  const [isEditingFleet, setIsEditingFleet] = useState(false);
+  const [fleetInput, setFleetInput] = useState<string>(() => String(settings.total_company_kegs || 500));
+  const [fleetFeedback, setFleetFeedback] = useState<string | null>(null);
+
+  const handleSaveFleet = () => {
+    const val = parseInt(fleetInput, 10);
+    if (isNaN(val) || val < 0) return;
+    updateSettings({ total_company_kegs: val });
+    setIsEditingFleet(false);
+    setFleetFeedback('Saved');
+    setTimeout(() => setFleetFeedback(null), 2500);
+  };
 
   // Company containers on loan for the active customer, per (product, pack size).
   const packBuckets = (custId: string): { key: string; productId: string; packSizeId: string; qty: number }[] =>
@@ -320,25 +336,147 @@ export const KegsScreen: React.FC = () => {
 
       {/* Top Summary Cards (3 Pillars) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* 1. Total Company Kegs Asset */}
-        <div className="p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col justify-between">
+        {/* 1. Total Company Kegs Asset (Editable on-the-fly) */}
+        <div className="p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col justify-between relative">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-sans font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Total Company Fleet
             </span>
-            <span className="text-xs font-sans text-slate-400">Settings Fixed</span>
+            {!isEditingFleet ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setFleetInput(String(settings.total_company_kegs));
+                  setIsEditingFleet(true);
+                }}
+                className="flex items-center gap-1 text-xs font-sans font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:underline cursor-pointer transition-colors"
+                title="Edit total company fleet count"
+              >
+                <PencilSimple className="w-3.5 h-3.5" />
+                <span>Edit Fleet</span>
+              </button>
+            ) : (
+              <span className="text-xs font-sans font-bold text-amber-600 dark:text-amber-400">
+                Editing Asset
+              </span>
+            )}
           </div>
 
-          <div className="text-3xl font-mono tabular-nums font-bold leading-tight text-slate-900 dark:text-slate-100">
-            {settings.total_company_kegs} <span className="text-sm font-sans font-normal text-slate-500 dark:text-slate-400">kegs</span>
-          </div>
+          {!isEditingFleet ? (
+            <>
+              <div
+                onClick={() => {
+                  setFleetInput(String(settings.total_company_kegs));
+                  setIsEditingFleet(true);
+                }}
+                className="cursor-pointer group"
+                title="Click to edit total fleet count"
+              >
+                <div className="text-3xl font-mono tabular-nums font-bold leading-tight text-slate-900 dark:text-slate-100 flex items-baseline gap-2">
+                  <span>{settings.total_company_kegs}</span>
+                  <span className="text-sm font-sans font-normal text-slate-500 dark:text-slate-400">kegs</span>
+                  <span className="text-[11px] font-sans text-amber-600 dark:text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                    (tap to edit)
+                  </span>
+                </div>
+              </div>
 
-          <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 mt-2 text-xs">
-            <span className="text-slate-500 font-sans">Fleet asset capital</span>
-            <span className="text-amber-600 dark:text-amber-400 font-semibold font-sans">
-              Protected Asset
-            </span>
-          </div>
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 mt-2 text-xs">
+                <span className="text-slate-500 font-sans">Fleet asset capital</span>
+                <span className="text-amber-600 dark:text-amber-400 font-semibold font-sans">
+                  {fleetFeedback ? `✓ ${fleetFeedback}` : 'Editable Fleet Asset'}
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-3 pt-1">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setFleetInput(f => String(Math.max(0, (parseInt(f, 10) || 0) - 10)))}
+                  className="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-mono font-bold text-xs cursor-pointer"
+                  title="-10 kegs"
+                >
+                  -10
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFleetInput(f => String(Math.max(0, (parseInt(f, 10) || 0) - 1)))}
+                  className="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer text-xs font-bold"
+                  title="-1 keg"
+                >
+                  -1
+                </button>
+                <div className="relative flex-1">
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={fleetInput}
+                    autoFocus
+                    onChange={e => setFleetInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleSaveFleet();
+                      if (e.key === 'Escape') setIsEditingFleet(false);
+                    }}
+                    className="w-full text-center py-1.5 px-2 rounded-xl bg-white dark:bg-slate-950 border border-amber-500 font-mono font-black text-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-inner"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFleetInput(f => String((parseInt(f, 10) || 0) + 1))}
+                  className="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer text-xs font-bold"
+                  title="+1 keg"
+                >
+                  +1
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFleetInput(f => String((parseInt(f, 10) || 0) + 10))}
+                  className="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-mono font-bold text-xs cursor-pointer"
+                  title="+10 kegs"
+                >
+                  +10
+                </button>
+              </div>
+
+              {/* Quick Presets */}
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Presets:</span>
+                {[100, 250, 500, 750, 1000].map(cnt => (
+                  <button
+                    key={cnt}
+                    type="button"
+                    onClick={() => setFleetInput(String(cnt))}
+                    className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold border transition-colors cursor-pointer ${
+                      parseInt(fleetInput, 10) === cnt
+                        ? 'bg-amber-500 text-slate-950 border-amber-500'
+                        : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
+                    }`}
+                  >
+                    {cnt}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsEditingFleet(false)}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-sans font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveFleet}
+                  className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-sans font-bold shadow-sm cursor-pointer transition-all active:scale-95"
+                >
+                  Save Fleet
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 2. Total Kegs Out in Field */}

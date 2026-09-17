@@ -270,8 +270,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     const p = products.find(pr => pr.id === id);
     setProductId(id);
     setVarietyId(p?.varieties[0]?.id || '');
-    setPackSizeId('');
-    setIsKegOnlyMode(false);
+    if (isKegOnlyMode) {
+      setPackSizeId('sz_25');
+    } else {
+      setPackSizeId('');
+    }
     setOverrideOn(false);
     setOverrideValue('');
     setPriceReason('');
@@ -279,7 +282,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
   const selectSellKegs = () => {
     setIsKegOnlyMode(true);
-    setPackSizeId('');
+    setPackSizeId('sz_25');
+    setQty(1);
     setOverrideOn(false);
     setOverrideValue('');
     setPriceReason('');
@@ -346,6 +350,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   const overLimit = !!customer && creditPortion > 0 && projectedBalance > customer.credit_limit;
   const overLimitBlocked = overLimit && !can('authorizeCreditOverride');
 
+  const priceAdjustMissingReason = !!preview?.priceAdjusted && !priceReason.trim();
+
   const canAddLine =
     !!product &&
     !!varietyId &&
@@ -353,7 +359,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     qty > 0 &&
     !!preview &&
     !preview.unpriced &&
-    preview.lineAmount > 0;
+    preview.lineAmount > 0 &&
+    !priceAdjustMissingReason;
 
   const addLine = () => {
     if (!product || !preview || !canAddLine) return;
@@ -1446,7 +1453,14 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   ))}
                   <button
                     type="button"
-                    onClick={selectSellKegs}
+                    onClick={() => {
+                      if (isKegOnlyMode) {
+                        setIsKegOnlyMode(false);
+                        setPackSizeId('');
+                      } else {
+                        selectSellKegs();
+                      }
+                    }}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-sans font-bold border transition-all cursor-pointer ${
                       isKegOnlyMode
                         ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm ring-2 ring-amber-500/20'
@@ -1458,91 +1472,59 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   </button>
                 </div>
 
-                {isKegOnlyMode && (
-                  <div className="text-xs font-sans text-slate-500 dark:text-slate-400 -mt-1.5">
-                    Empty {product.name} kegs, no oil. For a different brand, tap that product above, then Sell Empty Kegs again.
-                  </div>
-                )}
-
-                {/* variety selector */}
-                {!isKegOnlyMode && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {product.varieties.map(v => (
-                      <button
-                        key={v.id}
-                        onClick={() => setVarietyId(v.id)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-sans font-semibold border transition-colors ${
-                          v.id === varietyId
-                            ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
-                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
-                        }`}
-                      >
-                        {v.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* pack size tiles */}
-                {sellableSizes.length === 0 ? (
-                  <div className="text-xs text-amber-700 dark:text-amber-400">
-                    This product has no pack sizes set. Configure them in the Inventory tab.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {sellableSizes.map(s => {
-                      const linePrice = priceSaleLine({
-                        product,
-                        varietyId,
-                        packSizeId: s.id,
-                        tier,
-                        qty: 1,
-                        containerMode: isKegOnlyMode ? 'bought' : 'none',
-                        packPrices,
-                        kegOnly: isKegOnlyMode
-                      });
-                      const selected = s.id === packSizeId;
-                      return (
-                        <button
-                          key={s.id}
-                          onClick={() => setPackSizeId(s.id)}
-                          className={`p-2.5 rounded-xl border text-left transition-all ${
-                            selected
-                              ? 'border-brand-500 bg-brand-50/60 dark:bg-brand-950/40 shadow-sm'
-                              : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700'
-                          }`}
-                        >
-                          <div className="text-xs font-sans font-bold text-slate-900 dark:text-white">{s.short}</div>
-                          <div className="text-xs font-mono text-slate-500">
-                            {linePrice.unpriced ? (
-                              <span className="text-amber-600 dark:text-amber-400">no price</span>
-                            ) : (
-                              formatNaira(isKegOnlyMode ? linePrice.containerUnitPrice : linePrice.unitPrice)
-                            )}
+                {/* When Selling Empty Kegs: Dedicated 25L Keg Counter Stepper */}
+                {isKegOnlyMode ? (
+                  <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-700 dark:text-amber-300">
+                          <Package className="w-5 h-5" weight="bold" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-sans font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span>25L Company Keg</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 font-semibold">
+                              Only Depot Keg Type
+                            </span>
                           </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                          <div className="text-xs text-slate-500 dark:text-slate-400 font-sans">
+                            Outright empty keg purchase • No oil included
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 font-sans">Unit Price</div>
+                        <div className="text-base font-mono font-bold text-slate-900 dark:text-white">
+                          {formatNaira(preview?.containerUnitPrice ?? 3000)}
+                        </div>
+                      </div>
+                    </div>
 
-                {packSizeId && preview && (
-                  <div className="space-y-3.5 pt-1">
-                    {/* qty stepper + number pad */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-slate-500 w-16">Packs</span>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setQty(q => Math.max(1, q - 1))}
-                            className="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-                          >
-                            <Minus className="w-4 h-4" />
-                          </button>
+                    {/* Stepper with + and - buttons to increase or decrease the number purchased */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-sans font-medium text-slate-700 dark:text-slate-300">
+                          Number of Kegs:
+                        </span>
+                        <span className="text-xs font-mono font-bold text-amber-700 dark:text-amber-300">
+                          {qty} {qty === 1 ? 'keg' : 'kegs'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => setQty(q => Math.max(1, q - 1))}
+                          className="w-12 h-12 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95 transition-all shadow-sm cursor-pointer"
+                          aria-label="Decrease keg quantity"
+                        >
+                          <Minus className="w-5 h-5" weight="bold" />
+                        </button>
+
+                        <div className="relative flex-1">
                           <input
                             type="number"
-                            min={0}
+                            min={1}
                             step={1}
                             value={qty}
                             onFocus={() => {
@@ -1550,48 +1532,50 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                               setNumpadTarget('qty');
                             }}
                             onChange={e => setQty(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
-                            className="w-20 text-center py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-black text-base focus:border-brand-500"
+                            className="w-full text-center py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-black text-xl text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 shadow-sm"
                           />
-                          <button
-                            type="button"
-                            onClick={() => setQty(q => q + 1)}
-                            className="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-                          >
-                            <Plus className="w-4 h-4" />
-                          </button>
-
-                          {/* Quick Number Pad Toggle */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowNumpad(prev => !prev || numpadTarget !== 'qty');
-                              setNumpadTarget('qty');
-                            }}
-                            className={`px-2.5 py-1.5 rounded-xl border text-xs font-sans font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                              showNumpad && numpadTarget === 'qty'
-                                ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
-                                : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-brand-400'
-                            }`}
-                            title="Open number pad for quick entry"
-                          >
-                            <Calculator className="w-4 h-4" weight="bold" />
-                            <span>Pad</span>
-                          </button>
                         </div>
-                        <span className="text-xs text-slate-400 font-mono">{preview.litres.toLocaleString()} L</span>
+
+                        <button
+                          type="button"
+                          onClick={() => setQty(q => q + 1)}
+                          className="w-12 h-12 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95 transition-all shadow-sm cursor-pointer"
+                          aria-label="Increase keg quantity"
+                        >
+                          <Plus className="w-5 h-5" weight="bold" />
+                        </button>
+
+                        {/* Quick Pad toggle */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowNumpad(prev => !prev || numpadTarget !== 'qty');
+                            setNumpadTarget('qty');
+                          }}
+                          className={`px-3 py-3 rounded-xl border text-xs font-sans font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                            showNumpad && numpadTarget === 'qty'
+                              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
+                              : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-amber-400'
+                          }`}
+                          title="Open number pad"
+                        >
+                          <Calculator className="w-4 h-4" weight="bold" />
+                          <span>Pad</span>
+                        </button>
                       </div>
 
-                      {/* Quick Qty Preset Pills */}
-                      <div className="flex items-center gap-1 pl-[76px] flex-wrap">
-                        {[5, 10, 20, 25, 50, 100].map(n => (
+                      {/* Quick Quantity Presets */}
+                      <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                        <span className="text-[11px] text-slate-400 font-sans mr-1">Quick:</span>
+                        {[1, 5, 10, 20, 50, 100].map(n => (
                           <button
                             key={n}
                             type="button"
                             onClick={() => setQty(n)}
-                            className={`px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold border transition-colors cursor-pointer ${
+                            className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-colors cursor-pointer ${
                               qty === n
-                                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
-                                : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
+                                ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
+                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
                             }`}
                           >
                             {n}
@@ -1600,157 +1584,335 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       </div>
                     </div>
 
-                    {/* keg disposition — automatic, not a manual choice any more */}
-                    {isReturnable && !isKegOnlyMode && (
-                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                        <Package className="w-3.5 h-3.5" />
-                        <span>Company keg goes out on loan (returnable) — use Sell Empty Kegs to sell one outright.</span>
-                      </div>
-                    )}
-
-                    {/* price (directly editable) — oil pricing only; a keg-only line has a fixed keg price, no override */}
-                    {isKegOnlyMode ? (
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-slate-500 w-16">Keg Price</span>
-                        <span className="text-base font-mono font-black text-slate-900 dark:text-white">
-                          {formatNaira(preview.containerUnitPrice)}
-                        </span>
-                        <span className="text-xs text-slate-400 font-sans">/ {packShort(packSizeId)}</span>
-                      </div>
-                    ) : (
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-slate-500 w-16">Unit Price</span>
-                        <div className="flex items-center gap-2">
-                          <div className="relative w-44">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono font-bold text-sm">
-                              ₦
-                            </span>
-                            <input
-                              type="number"
-                              min={0}
-                              step={1}
-                              value={overrideOn ? overrideValue : (preview.matrixUnitPrice != null ? preview.matrixUnitPrice : preview.unitPrice)}
-                              onFocus={() => {
-                                setShowNumpad(true);
-                                setNumpadTarget('price');
-                                if (!overrideOn) {
-                                  setOverrideOn(true);
-                                  setOverrideValue(String(preview.matrixUnitPrice ?? preview.unitPrice ?? ''));
-                                }
-                              }}
-                              onChange={e => {
-                                setOverrideOn(true);
-                                setOverrideValue(e.target.value);
-                              }}
-                              placeholder="0"
-                              className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-black text-base text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
-                            />
-                          </div>
-                          <span className="text-xs text-slate-400 font-sans">/ {packShort(packSizeId)}</span>
-
-                          {/* Price Pad Button */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowNumpad(prev => !prev || numpadTarget !== 'price');
-                              setNumpadTarget('price');
-                              if (!overrideOn) {
-                                setOverrideOn(true);
-                                setOverrideValue(String(preview.matrixUnitPrice ?? preview.unitPrice ?? ''));
-                              }
-                            }}
-                            className={`p-1.5 rounded-xl border text-xs font-sans font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                              showNumpad && numpadTarget === 'price'
-                                ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
-                                : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                            }`}
-                            title="Edit price using number pad"
-                          >
-                            <Calculator className="w-4 h-4" weight="bold" />
-                          </button>
-
-                          {overrideOn && preview.priceAdjusted && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOverrideOn(false);
-                                setOverrideValue('');
-                                setPriceReason('');
-                              }}
-                              className="text-xs font-sans text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1 cursor-pointer"
-                              title="Reset back to standard tier rate"
-                            >
-                              ↺ Reset standard
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Subtle Price Override Feedback */}
-                      {preview.priceAdjusted && (
-                        <div className="pl-[76px] flex items-center gap-2 flex-wrap text-xs">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-sans font-medium text-[11px]">
-                            Custom rate (Standard: {formatNaira(preview.matrixUnitPrice ?? 0)})
-                          </span>
-                          <input
-                            type="text"
-                            value={priceReason}
-                            onChange={e => setPriceReason(e.target.value)}
-                            placeholder="Reason note (optional)"
-                            className="px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 placeholder-slate-400 max-w-xs"
-                          />
-                        </div>
-                      )}
-                    </div>
-                    )}
-
-                    {/* INTERACTIVE MINI NUMBER PAD (COLLAPSIBLE / ON-DEMAND) */}
+                    {/* Interactive Number Pad if open */}
                     {showNumpad && (
                       <div className="pt-1">
                         <MiniNumberPad
                           qty={qty}
                           onQtyChange={setQty}
-                          price={overrideOn ? overrideValue : (preview.matrixUnitPrice ?? preview.unitPrice ?? '')}
-                          onPriceChange={val => {
-                            setOverrideOn(true);
-                            setOverrideValue(val);
-                          }}
-                          standardPrice={preview.matrixUnitPrice}
-                          onResetPrice={() => {
-                            setOverrideOn(false);
-                            setOverrideValue('');
-                            setPriceReason('');
-                          }}
-                          activeTarget={numpadTarget}
+                          price={preview?.containerUnitPrice ?? 3000}
+                          onPriceChange={() => {}}
+                          standardPrice={preview?.containerUnitPrice ?? 3000}
+                          onResetPrice={() => {}}
+                          activeTarget="qty"
                           onTargetChange={setNumpadTarget}
                           onClose={() => setShowNumpad(false)}
                         />
                       </div>
                     )}
 
-                    {preview.unpriced && (
-                      <div className="text-xs text-rose-600 dark:text-rose-400">
-                        {isKegOnlyMode
-                          ? `No keg sell price set for ${product.name}. Set one in Inventory.`
-                          : <>No matrix price configured for {product.name} / {product.varieties.find(v => v.id === varietyId)?.name} /{' '}
-                             {packLabel(packSizeId)} at the {tier} tier. Enter a custom price above to sell.</>}
+                    {/* Cost Summary & Add to Sale Button */}
+                    <div className="flex items-center justify-between pt-2 border-t border-amber-500/20">
+                      <div>
+                        <div className="text-[10px] uppercase font-bold text-slate-400 font-sans">Subtotal</div>
+                        <div className="text-base font-mono font-black text-slate-900 dark:text-white">
+                          {formatNaira((preview?.containerUnitPrice ?? 3000) * qty)}
+                        </div>
                       </div>
-                    )}
 
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">
-                        Line: {formatNaira(preview.lineAmount)}
-                      </span>
                       <button
+                        type="button"
                         onClick={addLine}
                         disabled={!canAddLine}
-                        className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-sans font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
+                        className="px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-sans font-bold text-xs flex items-center gap-2 shadow-sm active:scale-95 transition-all cursor-pointer"
                       >
-                        <Plus className="w-4 h-4" weight="bold" /> Add to sale
+                        <Plus className="w-4 h-4" weight="bold" />
+                        <span>Add {qty} Empty Keg{qty > 1 ? 's' : ''} to Sale</span>
                       </button>
                     </div>
                   </div>
+                ) : (
+                  <>
+                    {/* variety selector */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {product.varieties.map(v => (
+                        <button
+                          key={v.id}
+                          onClick={() => setVarietyId(v.id)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-sans font-semibold border transition-colors ${
+                            v.id === varietyId
+                              ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
+                              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                          }`}
+                        >
+                          {v.name}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* pack size tiles */}
+                    {sellableSizes.length === 0 ? (
+                      <div className="text-xs text-amber-700 dark:text-amber-400">
+                        This product has no pack sizes set. Configure them in the Inventory tab.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {sellableSizes.map(s => {
+                          const linePrice = priceSaleLine({
+                            product,
+                            varietyId,
+                            packSizeId: s.id,
+                            tier,
+                            qty: 1,
+                            containerMode: 'none',
+                            packPrices
+                          });
+                          const selected = s.id === packSizeId;
+                          return (
+                            <button
+                              key={s.id}
+                              onClick={() => setPackSizeId(s.id)}
+                              className={`p-2.5 rounded-xl border text-left transition-all ${
+                                selected
+                                  ? 'border-brand-500 bg-brand-50/60 dark:bg-brand-950/40 shadow-sm'
+                                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700'
+                              }`}
+                            >
+                              <div className="text-xs font-sans font-bold text-slate-900 dark:text-white">{s.short}</div>
+                              <div className="text-xs font-mono text-slate-500">
+                                {linePrice.unpriced ? (
+                                  <span className="text-amber-600 dark:text-amber-400">no price</span>
+                                ) : (
+                                  formatNaira(linePrice.unitPrice)
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {packSizeId && preview && (
+                      <div className="space-y-3.5 pt-1">
+                        {/* qty stepper + number pad */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-slate-500 w-16">Packs</span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setQty(q => Math.max(1, q - 1))}
+                                className="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                              >
+                                <Minus className="w-4 h-4" />
+                              </button>
+                              <input
+                                type="number"
+                                min={0}
+                                step={1}
+                                value={qty}
+                                onFocus={() => {
+                                  setShowNumpad(true);
+                                  setNumpadTarget('qty');
+                                }}
+                                onChange={e => setQty(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+                                className="w-20 text-center py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-black text-base focus:border-brand-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setQty(q => q + 1)}
+                                className="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                              >
+                                <Plus className="w-4 h-4" />
+                              </button>
+
+                              {/* Quick Number Pad Toggle */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowNumpad(prev => !prev || numpadTarget !== 'qty');
+                                  setNumpadTarget('qty');
+                                }}
+                                className={`px-2.5 py-1.5 rounded-xl border text-xs font-sans font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                  showNumpad && numpadTarget === 'qty'
+                                    ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
+                                    : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-brand-400'
+                                }`}
+                                title="Open number pad for quick entry"
+                              >
+                                <Calculator className="w-4 h-4" weight="bold" />
+                                <span>Pad</span>
+                              </button>
+                            </div>
+                            <span className="text-xs text-slate-400 font-mono">{preview.litres.toLocaleString()} L</span>
+                          </div>
+
+                          {/* Quick Qty Preset Pills */}
+                          <div className="flex items-center gap-1 pl-[76px] flex-wrap">
+                            {[5, 10, 20, 25, 50, 100].map(n => (
+                              <button
+                                key={n}
+                                type="button"
+                                onClick={() => setQty(n)}
+                                className={`px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold border transition-colors cursor-pointer ${
+                                  qty === n
+                                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
+                                    : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
+                                }`}
+                              >
+                                {n}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* keg disposition — automatic, not a manual choice any more */}
+                        {isReturnable && (
+                          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                            <Package className="w-3.5 h-3.5" />
+                            <span>Company keg goes out on loan (returnable) — use Sell Empty Kegs to sell one outright.</span>
+                          </div>
+                        )}
+
+                        {/* price (directly editable) */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-slate-500 w-16">Unit Price</span>
+                            <div className="flex items-center gap-2">
+                              <div className="relative w-44">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono font-bold text-sm">
+                                  ₦
+                                </span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={1}
+                                  value={overrideOn ? overrideValue : (preview.matrixUnitPrice != null ? preview.matrixUnitPrice : preview.unitPrice)}
+                                  onFocus={() => {
+                                    setShowNumpad(true);
+                                    setNumpadTarget('price');
+                                    if (!overrideOn) {
+                                      setOverrideOn(true);
+                                      setOverrideValue(String(preview.matrixUnitPrice ?? preview.unitPrice ?? ''));
+                                    }
+                                  }}
+                                  onChange={e => {
+                                    setOverrideOn(true);
+                                    setOverrideValue(e.target.value);
+                                  }}
+                                  placeholder="0"
+                                  className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-black text-base text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                                />
+                              </div>
+                              <span className="text-xs text-slate-400 font-sans">/ {packShort(packSizeId)}</span>
+
+                              {/* Price Pad Button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowNumpad(prev => !prev || numpadTarget !== 'price');
+                                  setNumpadTarget('price');
+                                  if (!overrideOn) {
+                                    setOverrideOn(true);
+                                    setOverrideValue(String(preview.matrixUnitPrice ?? preview.unitPrice ?? ''));
+                                  }
+                                }}
+                                className={`p-1.5 rounded-xl border text-xs font-sans font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                                  showNumpad && numpadTarget === 'price'
+                                    ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
+                                    : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                                }`}
+                                title="Edit price using number pad"
+                              >
+                                <Calculator className="w-4 h-4" weight="bold" />
+                              </button>
+
+                              {overrideOn && preview.priceAdjusted && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOverrideOn(false);
+                                    setOverrideValue('');
+                                    setPriceReason('');
+                                  }}
+                                  className="text-xs font-sans text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1 cursor-pointer"
+                                  title="Reset back to standard tier rate"
+                                >
+                                  ↺ Reset standard
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Mandatory Price Override Feedback with Glowing Compulsory Input */}
+                          {preview.priceAdjusted && (
+                            <div className="pl-[76px] space-y-1.5 text-xs">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-sans font-medium text-[11px]">
+                                  Custom rate (Standard: {formatNaira(preview.matrixUnitPrice ?? 0)})
+                                </span>
+                                <div className="relative flex-1 min-w-[210px] max-w-sm">
+                                  <input
+                                    type="text"
+                                    required
+                                    value={priceReason}
+                                    onChange={e => setPriceReason(e.target.value)}
+                                    placeholder="Reason note (Required)*"
+                                    className={`w-full px-3 py-1.5 rounded-xl text-xs font-sans border transition-all duration-300 outline-none ${
+                                      !priceReason.trim()
+                                        ? 'border-amber-500 dark:border-amber-400 bg-amber-50/90 dark:bg-amber-950/60 text-amber-950 dark:text-amber-100 placeholder-amber-700 dark:placeholder-amber-300 ring-2 ring-amber-500/60 shadow-md shadow-amber-500/20 animate-pulse'
+                                        : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-brand-500'
+                                    }`}
+                                  />
+                                </div>
+                              </div>
+                              {!priceReason.trim() && (
+                                <div className="text-[11px] font-sans font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1 animate-pulse">
+                                  <span>⚠</span>
+                                  <span>Reason note is mandatory for custom rate before adding to sale.</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* INTERACTIVE MINI NUMBER PAD (COLLAPSIBLE / ON-DEMAND) */}
+                        {showNumpad && (
+                          <div className="pt-1">
+                            <MiniNumberPad
+                              qty={qty}
+                              onQtyChange={setQty}
+                              price={overrideOn ? overrideValue : (preview.matrixUnitPrice ?? preview.unitPrice ?? '')}
+                              onPriceChange={val => {
+                                setOverrideOn(true);
+                                setOverrideValue(val);
+                              }}
+                              standardPrice={preview.matrixUnitPrice}
+                              onResetPrice={() => {
+                                setOverrideOn(false);
+                                setOverrideValue('');
+                                setPriceReason('');
+                              }}
+                              activeTarget={numpadTarget}
+                              onTargetChange={setNumpadTarget}
+                              onClose={() => setShowNumpad(false)}
+                            />
+                          </div>
+                        )}
+
+                        {preview.unpriced && (
+                          <div className="text-xs text-rose-600 dark:text-rose-400">
+                            No matrix price configured for {product.name} / {product.varieties.find(v => v.id === varietyId)?.name} /{' '}
+                            {packLabel(packSizeId)} at the {tier} tier. Enter a custom price above to sell.
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">
+                            Line: {formatNaira(preview.lineAmount)}
+                          </span>
+                          <button
+                            onClick={addLine}
+                            disabled={!canAddLine}
+                            className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-sans font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
+                          >
+                            <Plus className="w-4 h-4" weight="bold" />
+                            {preview.priceAdjusted && !priceReason.trim() ? 'Reason Required' : 'Add to sale'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </section>
             </div>
