@@ -7,7 +7,9 @@ import {
   getDepotToday,
   depotDateKey,
   toDatetimeLocalValue,
-  fromDatetimeLocalValue
+  fromDatetimeLocalValue,
+  formatWithCommas,
+  parseFromCommas
 } from '../services/businessLogic';
 import {
   Invoice as ReceiptText,
@@ -40,7 +42,7 @@ export const ExpensesScreen: React.FC = () => {
 
   const currentFloat = settings.default_daily_float ?? settings.daily_float ?? 150000;
   const [isEditingFloat, setIsEditingFloat] = useState(false);
-  const [editableFloat, setEditableFloat] = useState(currentFloat.toString());
+  const [editableFloat, setEditableFloat] = useState(() => formatWithCommas(currentFloat));
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -54,12 +56,12 @@ export const ExpensesScreen: React.FC = () => {
   }, [expenses, todayStr]);
 
   const handleQuickAddAmount = (addValue: number) => {
-    const current = parseFloat(amount) || 0;
-    setAmount((current + addValue).toString());
+    const current = parseFromCommas(amount);
+    setAmount(formatWithCommas(current + addValue));
   };
 
   const handleSaveFloat = () => {
-    const val = parseFloat(editableFloat) || 150000;
+    const val = parseFromCommas(editableFloat) || 150000;
     updateSettings({ daily_float: val, default_daily_float: val });
     setIsEditingFloat(false);
   };
@@ -67,7 +69,7 @@ export const ExpensesScreen: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
-    const numAmount = parseFloat(amount) || 0;
+    const numAmount = parseFromCommas(amount);
     if (numAmount <= 0) {
       setErrorMsg('Enter an amount greater than zero.');
       return;
@@ -152,11 +154,11 @@ export const ExpensesScreen: React.FC = () => {
                 if (isEditingFloat) {
                   handleSaveFloat();
                 } else {
-                  setEditableFloat(currentFloat.toString());
+                  setEditableFloat(formatWithCommas(currentFloat));
                   setIsEditingFloat(true);
                 }
               }}
-              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700"
+              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700 cursor-pointer"
             >
               {isEditingFloat ? <Check className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" /> : <Edit2 className="w-3.5 h-3.5" />}
             </button>
@@ -165,17 +167,17 @@ export const ExpensesScreen: React.FC = () => {
           {isEditingFloat ? (
             <div className="flex items-center gap-2 my-1">
               <input
-                type="number"
-                step="1"
-                min="0"
+                type="text"
+                inputMode="numeric"
                 value={editableFloat}
-                onChange={e => setEditableFloat(e.target.value.replace(/[^0-9]/g, ''))}
-                className="w-36 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-brand-500 text-[18px] font-mono tabular-nums font-bold text-slate-900 dark:text-white focus:outline-none"
+                onChange={e => setEditableFloat(formatWithCommas(e.target.value))}
+                placeholder="150,000"
+                className="w-44 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-brand-500 text-[18px] font-mono tabular-nums font-bold text-slate-900 dark:text-white focus:outline-none"
                 autoFocus
               />
               <button
                 onClick={handleSaveFloat}
-                className="px-3 py-1.5 rounded-lg bg-brand-500 text-slate-950 text-[12px] font-sans font-bold shadow-sm"
+                className="px-3 py-1.5 rounded-lg bg-brand-500 text-slate-950 text-[12px] font-sans font-bold shadow-sm cursor-pointer"
               >
                 Save
               </button>
@@ -309,12 +311,11 @@ export const ExpensesScreen: React.FC = () => {
               </span>
               <input
                 id="expense-amount"
-                type="number"
-                step="1"
-                min="0"
+                type="text"
+                inputMode="numeric"
                 value={amount}
-                onChange={e => setAmount(e.target.value.replace(/[^0-9]/g, ''))}
-                placeholder="25000"
+                onChange={e => setAmount(formatWithCommas(e.target.value))}
+                placeholder="25,000"
                 className="w-full pl-9 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[16px] font-mono tabular-nums font-bold focus:outline-none focus:border-brand-500"
                 required
               />

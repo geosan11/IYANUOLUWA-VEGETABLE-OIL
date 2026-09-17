@@ -119,6 +119,9 @@ export const TankGauge: React.FC<TankGaugeProps> = ({
               Litres
             </span>
           </div>
+          <div className="text-xs font-mono font-medium text-slate-500 dark:text-slate-400">
+            ≈ {Math.round(remainingLitres / (product?.litres_per_keg || 25)).toLocaleString()} Kegs (25L)
+          </div>
           {truckLabel && (
             <div className="text-xs text-slate-600 dark:text-slate-400 font-sans truncate max-w-[180px] mx-auto">
               {truckLabel}

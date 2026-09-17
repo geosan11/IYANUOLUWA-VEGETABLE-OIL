@@ -670,6 +670,27 @@ export function formatNaira(amount: number): string {
 }
 
 /**
+ * Format a numeric input string with commas every 3 digits (e.g. 100000 -> "100,000", 500 -> "500").
+ * Preserves empty strings. Strips any non-digit characters.
+ */
+export function formatWithCommas(value: string | number | null | undefined): string {
+  if (value === '' || value === null || value === undefined) return '';
+  const digits = String(value).replace(/[^0-9]/g, '');
+  if (!digits) return '';
+  return Number(digits).toLocaleString('en-US');
+}
+
+/**
+ * Strips commas and parses an integer or float from a comma-separated string.
+ */
+export function parseFromCommas(value: string | number | null | undefined): number {
+  if (value === '' || value === null || value === undefined) return 0;
+  const cleaned = String(value).replace(/,/g, '').trim();
+  const num = Number(cleaned);
+  return Number.isFinite(num) ? num : 0;
+}
+
+/**
  * Spell a Naira amount in words for receipts, e.g. 1385000 -> "One million,
  * three hundred and eighty-five thousand naira only". Kobo is rounded off.
  */
@@ -921,21 +942,14 @@ export function checkShiftOpeningMetersGate(
 }
 
 /**
- * 14. DRUMS VOLUME SIMPLIFIER
- * Automates 256 L to 1 drum, and 112.5 L to half a drum.
- * Instead of only seeing big numbers, simplifies large volumes to drums while
- * still clearly stating the exact litres.
+ * 14. VOLUME FORMATTER
+ * Formats litres cleanly with company standard 25L keg equivalents.
+ * Drums are completely eliminated per company standard.
  */
 export function formatVolumeWithDrums(litres: number): string {
   if (litres <= 0) return '0 L';
-  if (litres >= 256) {
-    const drums = (litres / 256).toFixed(1).replace(/\.0$/, '');
-    return `${drums} drum${Number(drums) === 1 ? '' : 's'} (${litres.toLocaleString()} L)`;
-  }
-  if (litres >= 112.5) {
-    return `½ drum (${litres.toLocaleString()} L)`;
-  }
-  return `${litres.toLocaleString()} L`;
+  const kegs = Math.round(litres / 25);
+  return `${litres.toLocaleString()} L (≈ ${kegs.toLocaleString()} kegs)`;
 }
 
 

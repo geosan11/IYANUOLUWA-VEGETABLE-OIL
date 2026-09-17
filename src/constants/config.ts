@@ -23,27 +23,28 @@ import {
   PaymentMethod
 } from '../types';
 
-export const LITRES_PER_KEG = 30;
+export const LITRES_PER_KEG = 25;
 
 /* ------------------------------------------------------------------ *
  * PACK SIZES — the fixed set of containers the depot sells oil in.
+ * Standard company size is strictly 25L for kegs and 1L for bottles.
  * Frozen constant, referenced by id everywhere.
  * ------------------------------------------------------------------ */
 
 export const PACK_SIZES: readonly PackSize[] = Object.freeze([
   { id: 'sz_1', litres: 1, short: '1L', label: '1 L' },
-  { id: 'sz_12_5', litres: 12.5, short: '12.5L', label: '12.5 L' },
-  { id: 'sz_14', litres: 14, short: '14L', label: '14 L' },
-  { id: 'sz_25', litres: 25, short: '25L', label: '25 L' },
-  { id: 'sz_28', litres: 28, short: '28L', label: '28 L' },
-  { id: 'sz_30', litres: 30, short: '30L', label: '30 L' },
-  { id: 'sz_56', litres: 56, short: '56L', label: '56 L (¼ drum)' },
-  { id: 'sz_112_5', litres: 112.5, short: '112.5L', label: '112.5 L (½ drum)' },
-  { id: 'sz_256', litres: 256, short: '256L', label: '256 L (1 drum)' }
+  { id: 'sz_25', litres: 25, short: '25L', label: '25 L' }
 ]);
 
-export const packSizeById = (id: string): PackSize | null =>
-  PACK_SIZES.find(s => s.id === id) ?? null;
+export const packSizeById = (id: string): PackSize | null => {
+  const found = PACK_SIZES.find(s => s.id === id);
+  if (found) return found;
+  if (id === 'sz_30') return { id: 'sz_30', litres: 30, short: '30L', label: '30 L' };
+  if (id === 'sz_56') return { id: 'sz_56', litres: 56, short: '56L', label: '56 L' };
+  if (id === 'sz_112_5') return { id: 'sz_112_5', litres: 112.5, short: '112.5L', label: '112.5 L' };
+  if (id === 'sz_256') return { id: 'sz_256', litres: 256, short: '256L', label: '256 L' };
+  return null;
+};
 
 export const packLitres = (id: string): number => packSizeById(id)?.litres ?? 0;
 
@@ -145,7 +146,7 @@ export const DEFAULT_PRODUCTS: Product[] = [
     name: 'Golden Vegetable Oil',
     supply_model: 'bulk_truck',
     litres_per_ton: 1075,
-    litres_per_keg: 30,
+    litres_per_keg: 25,
     keg_sell_price: 3500,
     varieties: [
       { id: 'veg-soya', name: 'Pure Soya (Grade A)' },
@@ -155,11 +156,7 @@ export const DEFAULT_PRODUCTS: Product[] = [
     ],
     pack_config: [
       { pack_size_id: 'sz_1', returnable: false, container_buy_price: 0, sort: 0 },
-      { pack_size_id: 'sz_25', returnable: true, container_buy_price: 3500, sort: 1 },
-      { pack_size_id: 'sz_30', returnable: true, container_buy_price: 3800, sort: 2 },
-      { pack_size_id: 'sz_56', returnable: true, container_buy_price: 6000, sort: 3 },
-      { pack_size_id: 'sz_112_5', returnable: true, container_buy_price: 11000, sort: 4 },
-      { pack_size_id: 'sz_256', returnable: true, container_buy_price: 22000, sort: 5 }
+      { pack_size_id: 'sz_25', returnable: true, container_buy_price: 3500, sort: 1 }
     ],
     color_light: '#FCD34D',
     color_dark: '#B45309'
@@ -176,10 +173,7 @@ export const DEFAULT_PRODUCTS: Product[] = [
       { id: 'red-ondo', name: 'Ondo Local Producer' }
     ],
     pack_config: [
-      { pack_size_id: 'sz_25', returnable: true, container_buy_price: 3000, sort: 0 },
-      { pack_size_id: 'sz_56', returnable: true, container_buy_price: 5500, sort: 1 },
-      { pack_size_id: 'sz_112_5', returnable: true, container_buy_price: 10500, sort: 2 },
-      { pack_size_id: 'sz_256', returnable: true, container_buy_price: 21000, sort: 3 }
+      { pack_size_id: 'sz_25', returnable: true, container_buy_price: 3000, sort: 0 }
     ],
     color_light: '#F87171',
     color_dark: '#7F1D1D'
@@ -197,17 +191,10 @@ const TIER_BASE_PER_LITRE: Record<string, Record<CustomerType, number>> = {
   red: { retail: 5600, agent: 5100, corporate: 4800 }
 };
 
-// A litre in a small pack costs a little more; a drum a little less.
+// A litre in a small pack costs a little more; 25L is standard baseline.
 const SIZE_FACTOR: Record<string, number> = {
   sz_1: 1.15,
-  sz_12_5: 1.05,
-  sz_14: 1.04,
-  sz_25: 1.0,
-  sz_28: 0.99,
-  sz_30: 0.985,
-  sz_56: 0.97,
-  sz_112_5: 0.955,
-  sz_256: 0.94
+  sz_25: 1.0
 };
 
 // Per-litre premium/discount for each variety, applied on top of the tier base.
@@ -538,7 +525,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   company_phone: '+234 802 000 1122',
   company_address: 'Plot 14, Commercial Avenue, Alaba Depot, Lagos',
   company_logo_url: null,
-  litres_per_keg: 30,
+  litres_per_keg: 25,
   total_company_kegs: 500,
   kegs_at_depot_low_threshold: 20,
   low_stock_litres_threshold: 500,
@@ -860,21 +847,7 @@ export const SEED_KEG_RETURNS: KegReturn[] = [
   }
 ];
 
-export const SEED_TRANSFERS: Transfer[] = [
-  {
-    id: 'trf-1',
-    from_customer_id: 'cust-1', // Mr Samson
-    to_customer_id: 'cust-2', // Arena
-    item_type: 'keg',
-    qty: 2,
-    product_id: 'veg',
-    pack_size_id: 'sz_30',
-    date: '2026-09-03T14:00:00Z',
-    note: 'Direct market transfer from Samson to Arena',
-    from_hub_id: 'hub-los-alaba',
-    to_hub_id: 'hub-los-alaba'
-  }
-];
+export const SEED_TRANSFERS: Transfer[] = [];
 
 export const SEED_PAYMENTS: Payment[] = [];
 

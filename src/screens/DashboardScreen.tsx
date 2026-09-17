@@ -2,13 +2,12 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
 import { usePermissions } from '../services/permissions';
 import { TankGauge } from '../components/common/TankGauge';
-import { KegPalletStackDiagram } from '../components/common/KegPalletStackDiagram';
 import { PumpOdometerIllustration } from '../components/common/PumpOdometerIllustration';
 import { BottomSheet } from '../components/common/BottomSheet';
 import { SlideOverDrawer } from '../components/common/SlideOverDrawer';
 import { Modal } from '../components/common/Modal';
 import { useIsDesktopSplit } from '../hooks/useBreakpoint';
-import { formatNaira, formatDepotDate, formatDepotTime, computeShiftCash, getDepotToday, depotDateKey, formatVolumeWithDrums } from '../services/businessLogic';
+import { formatNaira, formatDepotDate, formatDepotTime, computeShiftCash, getDepotToday, depotDateKey, formatWithCommas, parseFromCommas } from '../services/businessLogic';
 import {
   CurrencyDollar as DollarSign,
   CreditCard,
@@ -51,7 +50,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     closeShift,
     customers,
     customerStatsMap,
-    products
+    products,
+    currentUser
   } = useStore();
   const { can } = usePermissions();
 
@@ -64,7 +64,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
   const vegProduct = products.find(p => p.id === 'veg') || products[0];
   const redProduct = products.find(p => p.id === 'red') || products[1] || products[0];
-  const vegLitresPerKeg = vegProduct?.litres_per_keg || 30;
+  const vegLitresPerKeg = vegProduct?.litres_per_keg || 25;
   const redLitresPerKeg = redProduct?.litres_per_keg || 25;
 
   const vegKegsSoldToday = orders
@@ -92,9 +92,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   const [isAllAlertsOpen, setIsAllAlertsOpen] = useState(false);
 
   // Shift Management State
+  const activeCashier = currentUser?.full_name || currentUser?.email || 'Counter Staff';
   const [isStartShiftModalOpen, setIsStartShiftModalOpen] = useState(false);
-  const [cashierInput, setCashierInput] = useState('Counter Staff');
-  const [openingFloatInput, setOpeningFloatInput] = useState(settings.default_daily_float?.toString() || '50000');
+  const [openingFloatInput, setOpeningFloatInput] = useState(() => formatWithCommas(settings.default_daily_float || 50000));
   const [startNotesInput, setStartNotesInput] = useState('');
   const [pumpOpeningInputs, setPumpOpeningInputs] = useState<Record<string, string>>({});
 
@@ -112,29 +112,23 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   }, [activeShift, orders, expenses, sales]);
 
   const liveCloseVariance = useMemo(() => {
-    if (!shiftMetrics || !cashCountedInput) return null;
-    const counted = parseFloat(cashCountedInput);
+    if (!shiftMetrics || !cashCountedInput.trim()) return null;
+    const counted = parseFromCommas(cashCountedInput);
     if (isNaN(counted)) return null;
     return counted - shiftMetrics.expectedCash;
   }, [shiftMetrics, cashCountedInput]);
 
-  const copyDashboardPreviousReadings = () => {
-    const prefilled: Record<string, string> = {};
-    pumps.forEach(p => {
-      prefilled[p.id] = p.last_meter_reading.toString();
-    });
-    setPumpOpeningInputs(prev => ({ ...prev, ...prefilled }));
-  };
+
 
   const handleStartShiftSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setShiftError(null);
-    const floatNum = parseFloat(openingFloatInput) || 0;
+    const floatNum = parseFromCommas(openingFloatInput);
 
     const readings: Record<string, number> = {};
     for (const p of pumps) {
       const valStr = pumpOpeningInputs[p.id];
-      const v = Number(valStr);
+      const v = parseFromCommas(valStr);
       if (!valStr || !Number.isFinite(v) || v <= 0) {
         setShiftError(`Enter a valid opening reading for ${p.label}.`);
         return;
@@ -147,7 +141,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     }
 
     const res = startShift({
-      cashierName: cashierInput.trim() || 'Counter Staff',
+      cashierName: activeCashier,
       openingFloat: floatNum,
       notes: startNotesInput.trim() || undefined,
       openingReadings: readings
@@ -167,14 +161,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     e.preventDefault();
     setShiftError(null);
     if (!activeShift) return;
-    const counted = parseFloat(cashCountedInput);
-    if (isNaN(counted) || counted < 0) return;
+    const counted = parseFromCommas(cashCountedInput);
+    if (isNaN(counted) || counted < 0 || !cashCountedInput.trim()) return;
 
     const closingReadings: Record<string, number> = {};
     for (const p of pumps) {
       const valStr = pumpClosingInputs[p.id];
       if (valStr) {
-        const val = Number(valStr);
+        const val = parseFromCommas(valStr);
         const opening = activeShift.opening_readings?.[p.id] ?? p.last_meter_reading ?? 0;
         if (val < opening) {
           setShiftError(`Closing meter for ${p.label} cannot be less than opening reading (${opening.toLocaleString()} L).`);
@@ -1027,10 +1021,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             </div>
             <div className="text-right font-mono tabular-nums">
               <span className="text-base font-bold text-slate-900 dark:text-slate-100">
-                {formatVolumeWithDrums(vegStock)}
+                {vegStock.toLocaleString()} L
               </span>
               <span className="text-xs text-slate-500 dark:text-slate-400 block">
-                ≈ {(vegStock / vegLitresPerKeg).toFixed(0)} Kegs ({vegLitresPerKeg}L)
+                ≈ {Math.round(vegStock / vegLitresPerKeg).toLocaleString()} Kegs ({vegLitresPerKeg}L)
               </span>
               <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
                 Sold Today: {vegKegsSoldToday} packs
@@ -1088,7 +1082,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           </div>
         </div>
 
-        {/* Red / Palm Oil Pre-Kegged Fleet Stack Overview */}
+        {/* Red / Palm Oil Storage Overview */}
         <div className="p-5 sm:p-6 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 mb-4">
             <div className="flex items-center gap-3">
@@ -1098,16 +1092,16 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   Red / Palm Oil Stock
                 </h3>
                 <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
-                  Pre-kegged 25L jerrycans · Pallet stack fleet
+                  Direct Warehouse Stock & In-Feed Tanks · 25L Company Kegs
                 </p>
               </div>
             </div>
             <div className="text-right font-mono tabular-nums">
               <span className="text-base font-bold text-slate-900 dark:text-slate-100">
-                {formatVolumeWithDrums(redStock)}
+                {redStock.toLocaleString()} L
               </span>
               <span className="text-xs text-slate-500 dark:text-slate-400 block">
-                ≈ {(redStock / redLitresPerKeg).toFixed(0)} Kegs ({redLitresPerKeg}L)
+                ≈ {Math.round(redStock / redLitresPerKeg).toLocaleString()} Kegs ({redLitresPerKeg}L)
               </span>
               <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
                 Sold Today: {redKegsSoldToday} packs
@@ -1116,11 +1110,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center justify-items-center py-2">
-            {/* 25L Pallet Stack diagram */}
-            <KegPalletStackDiagram
+            {/* Primary Palm Oil Tank Gauge */}
+            <TankGauge
+              productId="red"
+              productName="Palm Oil Storage"
               remainingLitres={redStock}
               totalCapacityLitres={15000}
-              kegSizeLitres={redLitresPerKeg}
               size="lg"
             />
 
@@ -1183,34 +1178,38 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         >
             <form onSubmit={handleStartShiftSubmit} className="space-y-4">
               <div>
-                <label htmlFor="shift-cashier-name" className="block text-xs font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Cashier Name / On-Duty Staff *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label htmlFor="shift-cashier-name" className="block text-xs font-sans font-semibold text-slate-700 dark:text-slate-300">
+                    Cashier Name / On-Duty Staff *
+                  </label>
+                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                    Account Login
+                  </span>
+                </div>
                 <input
                   id="shift-cashier-name"
                   type="text"
-                  required
-                  value={cashierInput}
-                  onChange={e => setCashierInput(e.target.value)}
-                  placeholder="e.g. Fatima Yusuf"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-sans text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  readOnly
+                  disabled
+                  value={activeCashier}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-sans text-sm cursor-not-allowed select-none"
                 />
+                <p className="text-[11px] text-slate-400 mt-1">Verified account login (non-editable for accountability).</p>
               </div>
 
               <div>
                 <label htmlFor="shift-opening-float" className="block text-xs font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Opening Cash Float (NGN) *
+                  Cash for Customer Change (NGN) *
                 </label>
                 <div className="relative">
                   <input
                     id="shift-opening-float"
-                    type="number"
-                    step="100"
-                    min="0"
+                    type="text"
+                    inputMode="numeric"
                     required
                     value={openingFloatInput}
-                    onChange={e => setOpeningFloatInput(e.target.value)}
-                    placeholder="e.g. 50000"
+                    onChange={e => setOpeningFloatInput(formatWithCommas(e.target.value))}
+                    placeholder="e.g. 50,000"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tabular-nums text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
                   <span className="absolute right-3 top-2.5 text-xs font-mono text-slate-400">
@@ -1218,7 +1217,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   </span>
                 </div>
                 <p className="text-xs font-sans text-slate-500 dark:text-slate-400 mt-1">
-                  Physical cash placed in the cash drawer at shift start to make customer change.
+                  Physical cash placed in drawer to make customer change.
                 </p>
               </div>
 
@@ -1242,13 +1241,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   <div className="text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
                     Opening Pump Meter Readings ({pumps.length}) *
                   </div>
-                  <button
-                    type="button"
-                    onClick={copyDashboardPreviousReadings}
-                    className="text-xs font-sans font-semibold text-brand-600 dark:text-brand-400 hover:underline"
-                  >
-                    Prefill Previous Readings
-                  </button>
+                  <span className="text-xs font-mono text-slate-400">
+                    Check physical counter
+                  </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {pumps.map(p => {
@@ -1256,14 +1251,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                       <div key={p.id} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
                         <div className="flex items-center justify-between text-xs">
                           <span className="font-bold text-slate-800 dark:text-slate-200">{p.label}</span>
-                          <span className="text-slate-400 font-mono">Last: {p.last_meter_reading.toLocaleString()} L</span>
+                          <span className="text-slate-400 font-mono text-[11px]">Inspect physical meter</span>
                         </div>
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
                           required
                           value={pumpOpeningInputs[p.id] ?? ''}
-                          onChange={e => setPumpOpeningInputs(prev => ({ ...prev, [p.id]: e.target.value }))}
-                          placeholder={`Min ${p.last_meter_reading} L`}
+                          onChange={e => setPumpOpeningInputs(prev => ({ ...prev, [p.id]: formatWithCommas(e.target.value) }))}
+                          placeholder="Enter meter reading..."
                           className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
                         />
                       </div>
@@ -1323,29 +1319,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     {pumps.map(p => {
-                      const openingVal = activeShift.opening_readings?.[p.id] ?? p.last_meter_reading ?? 0;
-                      const currentVal = Number(pumpClosingInputs[p.id]);
-                      const dispensed = !isNaN(currentVal) && currentVal >= openingVal ? currentVal - openingVal : null;
                       return (
                         <div key={p.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
                           <div className="flex justify-between text-xs font-bold text-slate-900 dark:text-white">
                             <span className="truncate">{p.label}</span>
                           </div>
-                          <div className="text-[11px] font-mono text-slate-400">Open: {openingVal.toLocaleString()} L</div>
                           <input
-                            type="number"
-                            min={openingVal}
-                            step="1"
+                            type="text"
+                            inputMode="numeric"
                             value={pumpClosingInputs[p.id] ?? ''}
-                            onChange={e => setPumpClosingInputs(prev => ({ ...prev, [p.id]: e.target.value.replace(/[^0-9]/g, '') }))}
-                            placeholder={`Min ${openingVal} L`}
+                            onChange={e => setPumpClosingInputs(prev => ({ ...prev, [p.id]: formatWithCommas(e.target.value) }))}
+                            placeholder="Enter closing meter..."
                             className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono font-bold text-slate-900 dark:text-white tabular-nums"
                           />
-                          {dispensed !== null && (
-                            <div className="text-[10px] font-mono text-slate-500 pt-0.5">
-                              Dispensed: <span className="font-bold text-slate-800 dark:text-slate-200">{dispensed.toLocaleString()} L</span>
-                            </div>
-                          )}
                         </div>
                       );
                     })}
@@ -1356,7 +1342,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
               {/* Shift Cash Reconciliation Breakdown */}
               <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2 text-xs font-mono tabular-nums">
                 <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span className="font-sans">Opening Float:</span>
+                  <span className="font-sans">Cash for Customer Change:</span>
                   <span className="font-semibold text-slate-900 dark:text-slate-100">
                     {formatNaira(activeShift.opening_float)}
                   </span>
@@ -1388,13 +1374,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 <div className="relative">
                   <input
                     id="shift-cash-counted"
-                    type="number"
-                    step="1"
-                    min="0"
+                    type="text"
+                    inputMode="numeric"
                     required
                     value={cashCountedInput}
-                    onChange={e => setCashCountedInput(e.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="e.g. 524000"
+                    onChange={e => setCashCountedInput(formatWithCommas(e.target.value))}
+                    placeholder="e.g. 524,000"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tabular-nums text-base font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
                   <span className="absolute right-3 top-2.5 text-xs font-mono text-slate-400">

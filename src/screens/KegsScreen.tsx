@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
 import { Customer } from '../types';
 import { BottomSheet } from '../components/common/BottomSheet';
-import { formatDepotDate, formatDepotTime } from '../services/businessLogic';
+import { formatDepotDate, formatDepotTime, formatWithCommas, parseFromCommas } from '../services/businessLogic';
 import { packLabel, ONE_TIME_CUSTOMER_ID } from '../constants/config';
 import {
   Package,
@@ -12,7 +12,6 @@ import {
   CheckCircle as CheckCircle2,
   ClockCounterClockwise as History,
   Plus,
-  ArrowsLeftRight as ArrowRightLeft,
   CaretRight as ChevronRight,
   ArrowsDownUp as ArrowUpDown,
   ArrowUp,
@@ -27,7 +26,6 @@ export const KegsScreen: React.FC = () => {
     customers,
     orders,
     kegReturns,
-    transfers,
     settings,
     kegInventory,
     customerStatsMap,
@@ -53,11 +51,11 @@ export const KegsScreen: React.FC = () => {
 
   // Editable Total Company Fleet State
   const [isEditingFleet, setIsEditingFleet] = useState(false);
-  const [fleetInput, setFleetInput] = useState<string>(() => String(settings.total_company_kegs || 500));
+  const [fleetInput, setFleetInput] = useState<string>(() => formatWithCommas(settings.total_company_kegs || 500));
   const [fleetFeedback, setFleetFeedback] = useState<string | null>(null);
 
   const handleSaveFleet = () => {
-    const val = parseInt(fleetInput, 10);
+    const val = parseFromCommas(fleetInput);
     if (isNaN(val) || val < 0) return;
     updateSettings({ total_company_kegs: val });
     setIsEditingFleet(false);
@@ -93,33 +91,19 @@ export const KegsScreen: React.FC = () => {
     return { supplied, returned, balance };
   };
 
-  // Combined gate history: physical depot returns + inter-customer transfers
+  // Gate movement history: physical depot returns
   const gateHistoryEvents = useMemo(() => {
-    const returnEvents = kegReturns.map(r => ({
-      id: r.id,
-      type: 'return' as const,
-      date: r.date,
-      qty: r.qty,
-      notes: r.note,
-      customerName: customers.find(c => c.id === r.customer_id)?.name || 'Customer'
-    }));
-
-    const transferEvents = transfers
-      .filter(t => t.item_type === 'keg')
-      .map(t => ({
-        id: t.id,
-        type: 'transfer' as const,
-        date: t.date,
-        qty: t.qty,
-        fromName: customers.find(c => c.id === t.from_customer_id)?.name || 'Sender',
-        toName: customers.find(c => c.id === t.to_customer_id)?.name || 'Receiver',
-        notes: t.note
-      }));
-
-    return [...returnEvents, ...transferEvents].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-  }, [kegReturns, transfers, customers]);
+    return kegReturns
+      .map(r => ({
+        id: r.id,
+        type: 'return' as const,
+        date: r.date,
+        qty: r.qty,
+        notes: r.note,
+        customerName: customers.find(c => c.id === r.customer_id)?.name || 'Customer'
+      }))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [kegReturns, customers]);
 
   // Active customer for desktop detail panel (skipping walk-in retail)
   const activeCustomer = useMemo(() => {
@@ -136,15 +120,10 @@ export const KegsScreen: React.FC = () => {
   const activeCustomerHistory = useMemo(() => {
     if (!activeCustomer) return [];
     return gateHistoryEvents.filter(ev => {
-      if (ev.type === 'return') {
-        const ret = kegReturns.find(r => r.id === ev.id);
-        return ret?.customer_id === activeCustomer.id;
-      } else {
-        const tr = transfers.find(t => t.id === ev.id);
-        return tr?.from_customer_id === activeCustomer.id || tr?.to_customer_id === activeCustomer.id;
-      }
+      const ret = kegReturns.find(r => r.id === ev.id);
+      return ret?.customer_id === activeCustomer.id;
     });
-  }, [activeCustomer, gateHistoryEvents, kegReturns, transfers]);
+  }, [activeCustomer, gateHistoryEvents, kegReturns]);
 
   // Sorting logic
   const handleSort = (field: SortField) => {
@@ -248,56 +227,25 @@ export const KegsScreen: React.FC = () => {
   };
 
   const renderGateEventItem = (item: (typeof gateHistoryEvents)[0]) => {
-    if (item.type === 'return') {
-      return (
-        <div
-          key={item.id}
-          className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs"
-        >
-          <div className="space-y-0.5">
-            <div className="font-heading font-semibold text-sm text-slate-900 dark:text-slate-200">
-              {item.customerName}
-            </div>
-            <div className="text-xs text-slate-500 font-mono tabular-nums">
-              {formatDepotDate(item.date)} · {formatDepotTime(item.date)}
-              {item.notes && <span className="text-slate-400 font-sans italic ml-1.5">({item.notes})</span>}
-            </div>
-          </div>
-
-          <div className="text-right">
-            <div className="inline-flex items-center gap-1 font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 text-xs">
-              <ArrowDownLeft className="w-3.5 h-3.5" />
-              <span>+{item.qty} Kegs (25L)</span>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
     return (
       <div
         key={item.id}
-        className="p-3.5 rounded-xl bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/50 flex items-center justify-between text-xs"
+        className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs"
       >
         <div className="space-y-0.5">
-          <div className="font-heading font-semibold text-xs text-slate-900 dark:text-slate-200 flex items-center gap-1.5">
-            <span>{item.fromName}</span>
-            <span className="text-purple-600 dark:text-purple-400 font-bold">➔</span>
-            <span>{item.toName}</span>
+          <div className="font-heading font-semibold text-sm text-slate-900 dark:text-slate-200">
+            {item.customerName}
           </div>
           <div className="text-xs text-slate-500 font-mono tabular-nums">
             {formatDepotDate(item.date)} · {formatDepotTime(item.date)}
-            {item.notes && <span className="text-slate-400 font-sans italic ml-1">({item.notes})</span>}
-          </div>
-          <div className="text-[10px] text-purple-700 dark:text-purple-300/80 font-sans">
-            Inter-customer transfer · Depot stock unchanged
+            {item.notes && <span className="text-slate-400 font-sans italic ml-1.5">({item.notes})</span>}
           </div>
         </div>
 
         <div className="text-right">
-          <div className="inline-flex items-center gap-1 font-mono tabular-nums font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/60 px-2.5 py-1 rounded-lg border border-purple-300 dark:border-purple-800 text-xs">
-            <ArrowRightLeft className="w-3.5 h-3.5" />
-            <span>{item.qty} Transfer</span>
+          <div className="inline-flex items-center gap-1 font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 text-xs">
+            <ArrowDownLeft className="w-3.5 h-3.5" />
+            <span>+{item.qty} Kegs (25L)</span>
           </div>
         </div>
       </div>
@@ -393,7 +341,7 @@ export const KegsScreen: React.FC = () => {
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setFleetInput(f => String(Math.max(0, (parseInt(f, 10) || 0) - 10)))}
+                  onClick={() => setFleetInput(f => formatWithCommas(Math.max(0, (parseFromCommas(f) || 0) - 10)))}
                   className="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-mono font-bold text-xs cursor-pointer"
                   title="-10 kegs"
                 >
@@ -401,7 +349,7 @@ export const KegsScreen: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setFleetInput(f => String(Math.max(0, (parseInt(f, 10) || 0) - 1)))}
+                  onClick={() => setFleetInput(f => formatWithCommas(Math.max(0, (parseFromCommas(f) || 0) - 1)))}
                   className="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer text-xs font-bold"
                   title="-1 keg"
                 >
@@ -409,22 +357,22 @@ export const KegsScreen: React.FC = () => {
                 </button>
                 <div className="relative flex-1">
                   <input
-                    type="number"
-                    min={0}
-                    step={1}
+                    type="text"
+                    inputMode="numeric"
                     value={fleetInput}
                     autoFocus
-                    onChange={e => setFleetInput(e.target.value)}
+                    onChange={e => setFleetInput(formatWithCommas(e.target.value))}
                     onKeyDown={e => {
                       if (e.key === 'Enter') handleSaveFleet();
                       if (e.key === 'Escape') setIsEditingFleet(false);
                     }}
+                    placeholder="500"
                     className="w-full text-center py-1.5 px-2 rounded-xl bg-white dark:bg-slate-950 border border-amber-500 font-mono font-black text-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-inner"
                   />
                 </div>
                 <button
                   type="button"
-                  onClick={() => setFleetInput(f => String((parseInt(f, 10) || 0) + 1))}
+                  onClick={() => setFleetInput(f => formatWithCommas((parseFromCommas(f) || 0) + 1))}
                   className="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer text-xs font-bold"
                   title="+1 keg"
                 >
@@ -884,7 +832,7 @@ export const KegsScreen: React.FC = () => {
               <span>Gate Movement History (In & Out)</span>
             </h3>
             <p className="text-xs font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-              Physical depot gate returns & inter-customer yard transfers across the entire fleet.
+              Physical depot gate returns across the entire fleet.
             </p>
           </div>
           <span className="text-xs font-mono text-slate-500">

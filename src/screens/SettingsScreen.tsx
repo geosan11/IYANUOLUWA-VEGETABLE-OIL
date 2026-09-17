@@ -122,11 +122,11 @@ export const SettingsScreen: React.FC = () => {
   const [totalCompanyKegs, setTotalCompanyKegs] = useState(settings.total_company_kegs.toString());
   const [kegsAtDepotLowThreshold, setKegsAtDepotLowThreshold] = useState(settings.kegs_at_depot_low_threshold.toString());
 
-  // Per-product Litres per Keg (Palm Oil 25L vs Vegetable Oil 30L customizable by admin)
+  // Per-product Litres per Keg (Company standard: 25L kegs)
   const [productLitresPerKeg, setProductLitresPerKeg] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
     products.forEach(p => {
-      map[p.id] = (p.litres_per_keg ?? (p.id === 'red' ? 25 : 30)).toString();
+      map[p.id] = (p.litres_per_keg ?? 25).toString();
     });
     return map;
   });
@@ -136,7 +136,7 @@ export const SettingsScreen: React.FC = () => {
       const next = { ...prev };
       products.forEach(p => {
         if (next[p.id] === undefined) {
-          next[p.id] = (p.litres_per_keg ?? (p.id === 'red' ? 25 : 30)).toString();
+          next[p.id] = (p.litres_per_keg ?? 25).toString();
         }
       });
       return next;
@@ -667,7 +667,7 @@ export const SettingsScreen: React.FC = () => {
                 Keg Fleet & Container Standards
               </div>
               <div className="text-[12px] font-mono tabular-nums text-slate-500 truncate mt-0.5">
-                Palm: {productLitresPerKeg['red'] || '25'}L · Veg: {productLitresPerKeg['veg'] || '30'}L · {totalCompanyKegs} fleet
+                Palm: {productLitresPerKeg['red'] || '25'}L · Veg: {productLitresPerKeg['veg'] || '25'}L · {totalCompanyKegs} fleet
               </div>
             </div>
             <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" />
@@ -1056,7 +1056,7 @@ export const SettingsScreen: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {products.map(p => {
                     const isPalm = p.id === 'red' || p.supply_model === 'pre_kegged';
-                    const currentL = productLitresPerKeg[p.id] ?? (p.litres_per_keg?.toString() || (isPalm ? '25' : '30'));
+                    const currentL = productLitresPerKeg[p.id] ?? (p.litres_per_keg?.toString() || '25');
                     return (
                       <div
                         key={p.id}

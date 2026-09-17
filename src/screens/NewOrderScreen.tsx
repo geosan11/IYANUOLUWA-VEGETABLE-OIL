@@ -7,7 +7,9 @@ import {
   formatDepotTime,
   toDatetimeLocalValue,
   fromDatetimeLocalValue,
-  computeShiftCash
+  computeShiftCash,
+  formatWithCommas,
+  parseFromCommas
 } from '../services/businessLogic';
 import { priceSaleLine } from '../services/pricing';
 import { PACK_SIZES, packLabel, packShort, getPaymentModeTheme, ONE_TIME_CUSTOMER_ID } from '../constants/config';
@@ -28,16 +30,15 @@ import {
   GasPump,
   Coins,
   UserCheck,
-  ArrowsCounterClockwise,
   Calculator,
   Pencil,
   ShoppingCart,
   Package,
-  Money as Banknote,
   SignOut,
   Clock,
   Users,
-  Lightning
+  Lightning,
+  Gauge
 } from '@phosphor-icons/react';
 import { MiniNumberPad } from '../components/common/MiniNumberPad';
 
@@ -118,7 +119,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   const [newCustName, setNewCustName] = useState('');
   const [newCustPhone, setNewCustPhone] = useState('+234');
   const [newCustType, setNewCustType] = useState<CustomerType>('agent');
-  const [newCustLimit, setNewCustLimit] = useState('150000');
+  const [newCustLimit, setNewCustLimit] = useState('150,000');
   const [newCustTerms, setNewCustTerms] = useState('14');
   const [addCustomerError, setAddCustomerError] = useState<string | null>(null);
 
@@ -133,7 +134,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
       setAddCustomerError('Please enter a customer name.');
       return;
     }
-    const limit = Math.round(Number(newCustLimit.replace(/[^0-9]/g, ''))) || 0;
+    const limit = Math.round(parseFromCommas(newCustLimit)) || 0;
     const terms = Math.round(Number(newCustTerms.replace(/[^0-9]/g, ''))) || 14;
     const created = addCustomer({
       name: newCustName.trim(),
@@ -222,9 +223,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   }, [pumps, products]);
 
   // ---- shift gate & start shift ----
+  const currentCashierName = currentUser?.full_name || currentUser?.email || 'Staff';
   const [gateInputs, setGateInputs] = useState<Record<string, string>>({});
-  const [gateCashierName, setGateCashierName] = useState(() => currentUser?.full_name || '');
-  const [gateOpeningFloat, setGateOpeningFloat] = useState(() => (settings?.default_daily_float || 50000).toString());
+  const [gateOpeningFloat, setGateOpeningFloat] = useState(() => formatWithCommas(settings?.default_daily_float || 50000));
   const [gateError, setGateError] = useState<string | null>(null);
   const anyBulk = products.some(p => p.supply_model === 'bulk_truck');
   const gateBlocked = anyBulk && !shiftGateStatus.isPassed;
@@ -243,18 +244,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
   const liveCloseVariance = useMemo(() => {
     if (!activeShift || !liveShiftCash || !closeShiftCashCounted.trim()) return null;
-    const counted = parseFloat(closeShiftCashCounted);
+    const counted = parseFromCommas(closeShiftCashCounted);
     if (isNaN(counted)) return null;
     return counted - liveShiftCash.expectedCash;
   }, [activeShift, liveShiftCash, closeShiftCashCounted]);
 
-  const copyPreviousReadings = () => {
-    const prefilled: Record<string, string> = {};
-    for (const p of targetPumps) {
-      prefilled[p.id] = p.last_meter_reading.toString();
-    }
-    setGateInputs(prev => ({ ...prev, ...prefilled }));
-  };
+
 
   const packConfig = product?.pack_config ?? [];
   const sellableSizes = PACK_SIZES.filter(
@@ -313,30 +308,30 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   }, [product, varietyId, packSizeId, tier, qty, effectiveContainerMode, isKegOnlyMode, overrideOn, overrideValue, packPrices]);
 
   const cartTotal = lines.reduce((s, l) => s + l.lineAmount, 0);
-  const tenderedNum = Number(amountTendered) || 0;
+  const tenderedNum = parseFromCommas(amountTendered);
   const changeDue = paymentMethod === 'cash' ? Math.max(0, tenderedNum - cartTotal) : 0;
   const shortTender = paymentModeTab === 'single' && paymentMethod === 'cash' && amountTendered !== '' && tenderedNum < cartTotal;
 
   // Partial mode calculations
-  const partialDepositNum = Number(partialDepositAmount) || 0;
+  const partialDepositNum = parseFromCommas(partialDepositAmount);
   const partialDebtNum = Math.max(0, Number((cartTotal - partialDepositNum).toFixed(2)));
-  const partialTenderedNum = Number(partialTendered) || partialDepositNum;
+  const partialTenderedNum = parseFromCommas(partialTendered) || partialDepositNum;
   const partialChangeDue = partialDepositMethod === 'cash' ? Math.max(0, partialTenderedNum - partialDepositNum) : 0;
   const partialShortTender = partialDepositMethod === 'cash' && partialTendered !== '' && partialTenderedNum < partialDepositNum;
 
   // Split mode calculations
-  const splitLeg1Num = Number(splitLeg1Amount) || 0;
-  const splitLeg2Num = Number(splitLeg2Amount) || 0;
+  const splitLeg1Num = parseFromCommas(splitLeg1Amount);
+  const splitLeg2Num = parseFromCommas(splitLeg2Amount);
   const splitTotalAssigned = Number((splitLeg1Num + splitLeg2Num).toFixed(2));
   const splitRemaining = Math.max(0, Number((cartTotal - splitTotalAssigned).toFixed(2)));
   const splitOver = Math.max(0, Number((splitTotalAssigned - cartTotal).toFixed(2)));
   const isSplitBalanced = cartTotal > 0 && Math.abs(splitTotalAssigned - cartTotal) < 0.01;
 
-  const splitLeg1TenderedNum = Number(splitLeg1Tendered) || splitLeg1Num;
+  const splitLeg1TenderedNum = parseFromCommas(splitLeg1Tendered) || splitLeg1Num;
   const splitLeg1ChangeDue = splitLeg1Method === 'cash' ? Math.max(0, splitLeg1TenderedNum - splitLeg1Num) : 0;
   const splitLeg1ShortTender = splitLeg1Method === 'cash' && splitLeg1Tendered !== '' && splitLeg1TenderedNum < splitLeg1Num;
 
-  const splitLeg2TenderedNum = Number(splitLeg2Tendered) || splitLeg2Num;
+  const splitLeg2TenderedNum = parseFromCommas(splitLeg2Tendered) || splitLeg2Num;
   const splitLeg2ChangeDue = splitLeg2Method === 'cash' ? Math.max(0, splitLeg2TenderedNum - splitLeg2Num) : 0;
   const splitLeg2ShortTender = splitLeg2Method === 'cash' && splitLeg2Tendered !== '' && splitLeg2TenderedNum < splitLeg2Num;
 
@@ -376,7 +371,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
         packSizeId,
         qty,
         containerMode: effectiveContainerMode,
-        overrideUnitPrice: overrideOn && overrideValue ? Number(overrideValue) : null,
+        overrideUnitPrice: overrideOn && overrideValue ? parseFromCommas(overrideValue) : null,
         priceAdjustReason: preview.priceAdjusted ? (priceReason.trim() || 'Counter rate') : null,
         unitPrice: preview.unitPrice,
         lineAmount: preview.lineAmount,
@@ -406,7 +401,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     setIsKegOnlyMode(l.kegOnly);
     if (l.overrideUnitPrice !== null && l.overrideUnitPrice !== undefined) {
       setOverrideOn(true);
-      setOverrideValue(String(l.overrideUnitPrice));
+      setOverrideValue(formatWithCommas(l.overrideUnitPrice));
       setPriceReason(l.priceAdjustReason || '');
     } else {
       setOverrideOn(false);
@@ -549,7 +544,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     const readings: Record<string, number> = {};
     for (const p of targetPumps) {
       const valStr = gateInputs[p.id];
-      const v = Number(valStr);
+      const v = parseFromCommas(valStr);
       if (!valStr || !Number.isFinite(v) || v <= 0) {
         setGateError(`Enter a valid opening meter reading for ${p.label}.`);
         return;
@@ -562,10 +557,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     }
 
     if (!activeShift) {
-      const cashier = gateCashierName.trim() || currentUser?.full_name || 'Staff';
-      const floatVal = parseFloat(gateOpeningFloat) || 0;
+      const cashier = currentCashierName;
+      const floatVal = parseFromCommas(gateOpeningFloat);
       if (floatVal < 0) {
-        setGateError('Opening cash float cannot be negative.');
+        setGateError('Cash for customer change cannot be negative.');
         return;
       }
       const res = startShift({
@@ -592,8 +587,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     if (!activeShift) return;
     setCloseShiftError(null);
 
-    const counted = parseFloat(closeShiftCashCounted);
-    if (isNaN(counted) || counted < 0) {
+    const counted = parseFromCommas(closeShiftCashCounted);
+    if (isNaN(counted) || counted < 0 || !closeShiftCashCounted.trim()) {
       setCloseShiftError('Please enter a valid physical cash amount counted in the drawer.');
       return;
     }
@@ -601,7 +596,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     const closingReadings: Record<string, number> = {};
     for (const p of targetPumps) {
       const valStr = closeShiftPumpInputs[p.id];
-      const val = Number(valStr);
+      const val = parseFromCommas(valStr);
       const opening = activeShift.opening_readings?.[p.id] ?? p.last_meter_reading ?? 0;
       if (!valStr || isNaN(val) || val <= 0) {
         setCloseShiftError(`Please enter a valid closing reading for ${p.label}.`);
@@ -723,7 +718,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
               </span>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-400 font-sans text-[11px] font-bold border border-brand-200 dark:border-brand-800">
                 <UserCheck className="w-3.5 h-3.5" />
-                <span>Staff: {gateCashierName || currentUser?.full_name || 'Counter Cashier'}</span>
+                <span>Staff: {currentCashierName}</span>
               </span>
             </div>
           </div>
@@ -733,40 +728,45 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
           {!activeShift && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800">
               <div>
-                <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
-                  Cashier / Staff on Duty *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Cashier / Staff on Duty *
+                  </label>
+                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                    <UserCheck className="w-3 h-3" />
+                    Account Login
+                  </span>
+                </div>
                 <div className="relative">
-                  <UserCheck className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
-                    required
-                    value={gateCashierName}
-                    onChange={e => setGateCashierName(e.target.value)}
-                    placeholder="e.g. Fatima Yusuf"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500 shadow-2xs"
+                    readOnly
+                    disabled
+                    value={currentCashierName}
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-not-allowed select-none shadow-2xs"
                   />
                 </div>
+                <p className="text-[11px] text-slate-400 mt-1">Verified account login (non-editable for accountability).</p>
               </div>
 
               <div>
                 <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
-                  Opening Cash Float (NGN) *
+                  Cash for Customer Change (NGN) *
                 </label>
                 <div className="relative">
                   <Coins className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
-                    type="number"
-                    min="0"
-                    step="1"
+                    type="text"
+                    inputMode="numeric"
                     required
                     value={gateOpeningFloat}
-                    onChange={e => setGateOpeningFloat(e.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="e.g. 50000"
+                    onChange={e => setGateOpeningFloat(formatWithCommas(e.target.value))}
+                    placeholder="e.g. 50,000"
                     className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500 shadow-2xs"
                   />
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">Cash in drawer for customer change.</p>
+                <p className="text-[11px] text-slate-400 mt-1">Physical cash placed in drawer to make customer change.</p>
               </div>
             </div>
           )}
@@ -777,14 +777,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                 <GasPump className="w-4 h-4 text-brand-500" weight="bold" />
                 <span>Pumps Meter Readings ({targetPumps.length} Active Pumps)</span>
               </div>
-              <button
-                type="button"
-                onClick={copyPreviousReadings}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-50 hover:bg-brand-100 dark:bg-brand-950/60 dark:hover:bg-brand-900/60 text-brand-700 dark:text-brand-300 text-xs font-sans font-bold border border-brand-200 dark:border-brand-800/80 transition-colors cursor-pointer"
-              >
-                <ArrowsCounterClockwise className="w-3.5 h-3.5" />
-                <span>Match Previous Readings (1-Click)</span>
-              </button>
+              <span className="text-[11px] font-mono text-slate-500">
+                Check physical pump counter
+              </span>
             </div>
 
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
@@ -807,10 +802,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           </span>
                         </div>
                         <div className="text-xs font-mono text-slate-500 flex items-center gap-1.5 mt-0.5">
-                          <span>Previous Meter:</span>
-                          <span className="font-bold text-slate-700 dark:text-slate-300 tabular-nums">
-                            {p.last_meter_reading.toLocaleString()} L
-                          </span>
+                          <span>Inspect physical pump meter</span>
                         </div>
                       </div>
                     </div>
@@ -818,29 +810,18 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     <div className="flex items-center gap-2 shrink-0 sm:w-56">
                       <div className="relative flex-1">
                         <input
-                          type="number"
-                          min="0"
-                          step="1"
+                          type="text"
+                          inputMode="numeric"
                           required
                           value={gateInputs[p.id] ?? ''}
-                          onChange={e => setGateInputs(prev => ({ ...prev, [p.id]: e.target.value.replace(/[^0-9]/g, '') }))}
-                          placeholder={`Min ${p.last_meter_reading}`}
+                          onChange={e => setGateInputs(prev => ({ ...prev, [p.id]: formatWithCommas(e.target.value) }))}
+                          placeholder="Enter meter reading..."
                           className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-sm font-mono font-black text-slate-900 dark:text-white tabular-nums focus:outline-none focus:border-brand-500 shadow-2xs pr-8"
                         />
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">
                           L
                         </span>
                       </div>
-                      {gateInputs[p.id] !== String(p.last_meter_reading) && (
-                        <button
-                          type="button"
-                          onClick={() => setGateInputs(prev => ({ ...prev, [p.id]: String(p.last_meter_reading) }))}
-                          className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[11px] font-sans font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shrink-0"
-                          title="Copy previous reading"
-                        >
-                          Match
-                        </button>
-                      )}
                     </div>
                   </div>
                 );
@@ -866,94 +847,108 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
       </Modal>
 
       {/* Mandatory Closing Shift Modal */}
+      {/* Mandatory Closing Shift Modal */}
       {isCloseShiftModalOpen && activeShift && liveShiftCash && (
         <Modal
           isOpen
           onClose={() => setIsCloseShiftModalOpen(false)}
           size="lg"
           title={
-            <span className="flex items-center gap-2.5 text-slate-900 dark:text-white font-heading font-bold text-base">
-              <span className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
-                <SignOut className="w-4 h-4" weight="bold" />
-              </span>
-              <span>Take Pump Readings & End Shift</span>
-            </span>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/30 border border-emerald-500/40 flex items-center justify-center text-emerald-700 dark:text-emerald-300 shadow-sm shrink-0">
+                <Gauge className="w-5 h-5" weight="bold" />
+              </div>
+              <div>
+                <div className="text-slate-900 dark:text-white font-heading font-black text-base sm:text-lg tracking-tight">
+                  Take Pump Readings & End Shift
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400 font-sans mt-0.5">
+                  Complete meter reconciliation and cash drawer handover
+                </div>
+              </div>
+            </div>
           }
-          subtitle={`Staff Accountability: ${activeShift.cashier_name || currentUser?.full_name || 'Staff'} · Shift Started at ${formatDepotTime(activeShift.start_time)}`}
+          subtitle={
+            <div className="flex items-center gap-2 flex-wrap pt-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/80 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300 font-sans font-semibold text-xs shadow-2xs">
+                <UserCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Cashier: {activeShift.cashier_name || currentUser?.full_name || 'Staff'}</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-mono text-xs">
+                <Clock className="w-3.5 h-3.5 text-slate-500" />
+                <span>Started: {formatDepotTime(activeShift.start_time)}</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 font-sans font-semibold text-xs">
+                <GasPump className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span>{targetPumps.length} Active {targetPumps.length === 1 ? 'Pump' : 'Pumps'}</span>
+              </span>
+            </div>
+          }
         >
           <form onSubmit={handleCloseShiftSubmit} className="space-y-4">
-            {/* Closing Readings */}
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-                  <GasPump className="w-4 h-4 text-brand-500" weight="bold" />
-                  <span>1. Closing Meter Readings ({targetPumps.length} Active Pumps)</span>
+            {/* Step 1: Physical Meter Readings */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between pb-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-lg bg-emerald-600 text-white font-mono font-bold text-xs flex items-center justify-center shadow-xs">
+                    1
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-heading font-bold text-slate-900 dark:text-white">
+                      Physical Pump Meter Readings
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans">
+                      Inspect pump physical counters and enter the exact numerical digits
+                    </p>
+                  </div>
                 </div>
-                <span className="text-[11px] text-slate-400 font-sans">Enter latest meter numbers</span>
+                <span className="text-[11px] font-sans font-semibold px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                  Must Check Physical Meters
+                </span>
               </div>
 
               <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
                 {targetPumps.map((p, idx) => {
-                  const openingVal = activeShift.opening_readings?.[p.id] ?? p.last_meter_reading ?? 0;
                   const currentInput = closeShiftPumpInputs[p.id] ?? '';
-                  const closingVal = Number(currentInput);
-                  const dispensed = !isNaN(closingVal) && closingVal >= openingVal ? closingVal - openingVal : null;
                   const prod = products.find(pr => pr.id === p.product_id);
 
                   return (
                     <div
                       key={p.id}
-                      className="p-3 sm:px-4 rounded-2xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-sm hover:border-emerald-300 dark:hover:border-emerald-800 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                     >
+                      {/* Left: Pump identity */}
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-brand-700 dark:text-brand-400 font-heading font-black text-sm shrink-0">
+                        <span className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/80 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-heading font-black text-xs flex items-center justify-center shrink-0">
                           P{idx + 1}
-                        </div>
+                        </span>
                         <div className="min-w-0">
-                          <div className="font-heading font-bold text-sm text-slate-900 dark:text-white truncate flex items-center gap-2">
+                          <div className="font-heading font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
                             <span>{p.label}</span>
-                            <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold">
+                            <span className="text-[10px] font-sans uppercase px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold">
                               {prod?.name || 'Bulk Oil'}
                             </span>
                           </div>
-                          <div className="text-xs font-mono text-slate-500 flex items-center gap-1.5 mt-0.5">
-                            <span>Opening:</span>
-                            <span className="font-bold text-slate-700 dark:text-slate-300 tabular-nums">
-                              {openingVal.toLocaleString()} L
-                            </span>
+                          <div className="text-[11px] text-slate-400 font-sans mt-0.5">
+                            Enter current mechanical / digital counter value
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3 shrink-0">
-                        {/* Real-time dispensed badge */}
-                        <div className="text-right">
-                          <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Dispensed</div>
-                          <div
-                            className={`font-mono font-black text-xs tabular-nums ${
-                              dispensed && dispensed > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'
-                            }`}
-                          >
-                            {dispensed !== null ? `${dispensed.toLocaleString()} L` : '—'}
-                          </div>
-                        </div>
-
-                        {/* Closing Meter Input */}
-                        <div className="relative w-36 sm:w-40">
-                          <input
-                            type="number"
-                            min={openingVal}
-                            step="1"
-                            required
-                            value={currentInput}
-                            onChange={e => setCloseShiftPumpInputs(prev => ({ ...prev, [p.id]: e.target.value.replace(/[^0-9]/g, '') }))}
-                            placeholder={`Min ${openingVal}`}
-                            className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-sm font-mono font-black text-slate-900 dark:text-white tabular-nums focus:outline-none focus:border-brand-500 shadow-2xs pr-7"
-                          />
-                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">
-                            L
-                          </span>
-                        </div>
+                      {/* Right: Blank, tactile input */}
+                      <div className="relative w-full sm:w-52 shrink-0">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          required
+                          value={currentInput}
+                          onChange={e => setCloseShiftPumpInputs(prev => ({ ...prev, [p.id]: formatWithCommas(e.target.value) }))}
+                          placeholder="Enter current meter..."
+                          className="w-full pl-3.5 pr-8 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-sm font-mono font-black text-slate-900 dark:text-white tabular-nums focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-inner"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">
+                          L
+                        </span>
                       </div>
                     </div>
                   );
@@ -961,90 +956,99 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
               </div>
             </div>
 
-            {/* Cash Drawer Reconciliation */}
+            {/* Step 2: Cash Drawer Reconciliation */}
             <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
-              <div className="text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-                <Banknote className="w-4 h-4 text-emerald-500" />
-                <span>2. Cash Drawer Count & Reconciliation</span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono tabular-nums">
-                <div className="space-y-0.5">
-                  <span className="text-[10px] uppercase font-sans text-slate-400 font-bold block">Opening Float</span>
-                  <span className="font-bold text-slate-900 dark:text-slate-100 text-xs">{formatNaira(activeShift.opening_float)}</span>
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-[10px] uppercase font-sans text-emerald-600 dark:text-emerald-400 font-bold block">(+) Cash Sales</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400 text-xs">+{formatNaira(liveShiftCash.cashSales)}</span>
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-[10px] uppercase font-sans text-rose-600 dark:text-rose-400 font-bold block">(-) Expenses</span>
-                  <span className="font-bold text-rose-600 dark:text-rose-400 text-xs">-{formatNaira(liveShiftCash.cashExpenses)}</span>
-                </div>
-                <div className="space-y-0.5 bg-brand-500/10 p-2 rounded-xl border border-brand-500/20">
-                  <span className="text-[10px] uppercase font-sans text-brand-700 dark:text-brand-300 font-extrabold block">(=) Expected Till</span>
-                  <span className="font-black text-brand-600 dark:text-brand-400 text-sm">{formatNaira(liveShiftCash.expectedCash)}</span>
+              <div className="flex items-center justify-between pb-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-lg bg-emerald-600 text-white font-mono font-bold text-xs flex items-center justify-center shadow-xs">
+                    2
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-heading font-bold text-slate-900 dark:text-white">
+                      Cash Drawer Count & Reconciliation
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans">
+                      Count physical notes in the till drawer and enter total
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    Physical Cash Counted in Drawer (NGN) *
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setCloseShiftCashCounted(String(Math.round(liveShiftCash.expectedCash)))}
-                    className="text-xs font-sans font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1"
-                  >
-                    <span>Match Expected ({formatNaira(liveShiftCash.expectedCash)})</span>
-                  </button>
-                </div>
+              {/* Physical Cash Count Input - Strictly Accountable, NO Auto-Fill */}
+              <div className="space-y-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
+                <label className="block text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                  Physical Cash Counted in Drawer (NGN) *
+                </label>
+
                 <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono font-bold text-slate-400">₦</span>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-mono font-bold text-slate-400 text-lg">₦</span>
                   <input
-                    type="number"
-                    min="0"
-                    step="1"
+                    type="text"
+                    inputMode="numeric"
                     required
                     value={closeShiftCashCounted}
-                    onChange={e => setCloseShiftCashCounted(e.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder={`e.g. ${Math.round(liveShiftCash.expectedCash)}`}
-                    className="w-full pl-8 pr-12 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono tabular-nums text-base font-black focus:outline-none focus:border-brand-500 shadow-2xs"
+                    onChange={e => setCloseShiftCashCounted(formatWithCommas(e.target.value))}
+                    placeholder="Type actual cash counted in till (e.g. 500,000)..."
+                    className="w-full pl-9 pr-14 py-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white font-mono tabular-nums text-lg font-black focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-inner"
                   />
-                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">NGN</span>
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">NGN</span>
                 </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans">
+                  Staff accountability: Count all physical notes in till drawer before entering total.
+                </p>
               </div>
 
-              {liveCloseVariance !== null && (
+              {/* Live Reconciliation Feedback Banner (Only shown once cashier enters their count) */}
+              {closeShiftCashCounted.trim() !== '' && liveCloseVariance !== null && (
                 <div
-                  className={`p-3 rounded-xl border text-xs font-sans flex items-center justify-between ${
+                  className={`p-3.5 rounded-2xl border text-xs font-sans flex items-center justify-between transition-all ${
                     Math.abs(liveCloseVariance) < 0.01
-                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-300'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
                       : liveCloseVariance < 0
-                      ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900/60 text-rose-700 dark:text-rose-300'
-                      : 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-900/60 text-amber-800 dark:text-amber-300'
+                      ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200'
+                      : 'bg-sky-50 dark:bg-sky-950/50 border-sky-300 dark:border-sky-800 text-sky-900 dark:text-sky-200'
                   }`}
                 >
-                  <span className="font-bold">
-                    {Math.abs(liveCloseVariance) < 0.01 ? '✓ Balanced' : liveCloseVariance < 0 ? '⚠ Cash Shortage' : '⚠ Cash Surplus'}:
-                  </span>
-                  <span className="font-mono font-bold tabular-nums">
-                    {liveCloseVariance >= 0 ? `+${formatNaira(liveCloseVariance)}` : `-${formatNaira(Math.abs(liveCloseVariance))}`}
-                  </span>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-lg">
+                      {Math.abs(liveCloseVariance) < 0.01 ? '✓' : liveCloseVariance < 0 ? '⚠' : 'ℹ'}
+                    </span>
+                    <div>
+                      <div className="font-bold">
+                        {Math.abs(liveCloseVariance) < 0.01
+                          ? 'Till is Perfectly Balanced'
+                          : liveCloseVariance < 0
+                          ? 'Cash Shortage Detected'
+                          : 'Cash Surplus Detected'}
+                      </div>
+                      <div className="text-[11px] opacity-80 mt-0.5">
+                        {Math.abs(liveCloseVariance) < 0.01
+                          ? `Drawer cash matches expected sales (${formatNaira(liveShiftCash.expectedCash)}) exactly.`
+                          : liveCloseVariance < 0
+                          ? `Count is ₦${Math.abs(liveCloseVariance).toLocaleString()} less than expected (${formatNaira(liveShiftCash.expectedCash)}).`
+                          : `Count is ₦${liveCloseVariance.toLocaleString()} more than expected (${formatNaira(liveShiftCash.expectedCash)}).`}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="font-mono font-black text-sm tabular-nums">
+                      {liveCloseVariance >= 0 ? `+${formatNaira(liveCloseVariance)}` : `-${formatNaira(Math.abs(liveCloseVariance))}`}
+                    </span>
+                  </div>
                 </div>
               )}
 
+              {/* Handover Notes */}
               <div>
-                <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
+                <label className="block text-xs font-sans font-bold text-slate-700 dark:text-slate-300 mb-1">
                   Handover Notes (Optional)
                 </label>
                 <input
                   type="text"
                   value={closeShiftNotes}
                   onChange={e => setCloseShiftNotes(e.target.value)}
-                  placeholder="Notes for next shift or supervisor..."
-                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-sans text-slate-900 dark:text-white focus:outline-none focus:border-brand-500 shadow-2xs"
+                  placeholder="Notes for next shift or supervisor (e.g. key handover, safe cash drops)..."
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-sans text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs"
                 />
               </div>
             </div>
@@ -1056,20 +1060,20 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
               </div>
             )}
 
-            <div className="flex items-center justify-end gap-2.5 pt-2">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200/80 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setIsCloseShiftModalOpen(false)}
-                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-sans font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-sans font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
-                Cancel
+                Cancel / Keep Open
               </button>
               <button
                 type="submit"
-                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-heading font-extrabold text-xs shadow-sm flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-heading font-black text-xs shadow-md shadow-emerald-600/20 flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
               >
-                <SignOut className="w-4 h-4" weight="bold" />
-                <span>Confirm & End Shift</span>
+                <Check className="w-4 h-4" weight="bold" />
+                <span>Confirm Readings & End Shift</span>
               </button>
             </div>
           </form>
@@ -1774,21 +1778,20 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                   ₦
                                 </span>
                                 <input
-                                  type="number"
-                                  min={0}
-                                  step={1}
-                                  value={overrideOn ? overrideValue : (preview.matrixUnitPrice != null ? preview.matrixUnitPrice : preview.unitPrice)}
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={overrideOn ? formatWithCommas(overrideValue) : formatWithCommas(preview.matrixUnitPrice != null ? preview.matrixUnitPrice : preview.unitPrice)}
                                   onFocus={() => {
                                     setShowNumpad(true);
                                     setNumpadTarget('price');
                                     if (!overrideOn) {
                                       setOverrideOn(true);
-                                      setOverrideValue(String(preview.matrixUnitPrice ?? preview.unitPrice ?? ''));
+                                      setOverrideValue(formatWithCommas(preview.matrixUnitPrice ?? preview.unitPrice ?? ''));
                                     }
                                   }}
                                   onChange={e => {
                                     setOverrideOn(true);
-                                    setOverrideValue(e.target.value);
+                                    setOverrideValue(formatWithCommas(e.target.value));
                                   }}
                                   placeholder="0"
                                   className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-black text-base text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
@@ -2095,12 +2098,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                             ₦
                           </span>
                           <input
-                            type="number"
-                            min="0"
-                            step="1"
+                            type="text"
+                            inputMode="numeric"
                             value={amountTendered}
-                            onChange={e => setAmountTendered(e.target.value.replace(/[^0-9]/g, ''))}
-                            placeholder="Cash tendered"
+                            onChange={e => setAmountTendered(formatWithCommas(e.target.value))}
+                            placeholder="Cash tendered (e.g. 100,000)"
                             className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-sm"
                           />
                         </div>
@@ -2255,13 +2257,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₦</span>
                         <input
-                          type="number"
-                          min="0"
-                          max={cartTotal}
-                          step="1"
-                          required
+                          type="text"
+                          inputMode="numeric"
                           value={partialDepositAmount}
-                          onChange={e => setPartialDepositAmount(e.target.value.replace(/[^0-9]/g, ''))}
+                          onChange={e => setPartialDepositAmount(formatWithCommas(e.target.value))}
                           placeholder="Deposit amount paid now"
                           className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-sm text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
                         />
@@ -2297,11 +2296,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       {partialDepositMethod === 'cash' && (
                         <div className="space-y-1.5 pt-1">
                           <input
-                            type="number"
-                            min="0"
-                            step="1"
+                            type="text"
+                            inputMode="numeric"
                             value={partialTendered}
-                            onChange={e => setPartialTendered(e.target.value.replace(/[^0-9]/g, ''))}
+                            onChange={e => setPartialTendered(formatWithCommas(e.target.value))}
                             placeholder="Cash tendered for deposit"
                             className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-xs"
                           />
@@ -2488,17 +2486,17 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₦</span>
                         <input
-                          type="number"
-                          min="0"
-                          step="1"
+                          type="text"
+                          inputMode="numeric"
                           required
                           value={splitLeg1Amount}
                           onChange={e => {
-                            const val = e.target.value.replace(/[^0-9]/g, '');
-                            setSplitLeg1Amount(val);
-                            if (val && cartTotal > 0) {
-                              const rem = Math.max(0, cartTotal - Number(val));
-                              setSplitLeg2Amount(String(rem));
+                            const formatted = formatWithCommas(e.target.value);
+                            setSplitLeg1Amount(formatted);
+                            const valNum = parseFromCommas(formatted);
+                            if (valNum > 0 && cartTotal > 0) {
+                              const rem = Math.max(0, cartTotal - valNum);
+                              setSplitLeg2Amount(formatWithCommas(rem));
                             }
                           }}
                           placeholder="Amount for Leg 1"
@@ -2509,11 +2507,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       {splitLeg1Method === 'cash' && (
                         <div className="space-y-1 pt-1">
                           <input
-                            type="number"
-                            min="0"
-                            step="1"
+                            type="text"
+                            inputMode="numeric"
                             value={splitLeg1Tendered}
-                            onChange={e => setSplitLeg1Tendered(e.target.value.replace(/[^0-9]/g, ''))}
+                            onChange={e => setSplitLeg1Tendered(formatWithCommas(e.target.value))}
                             placeholder="Cash tendered (e.g. change calculation)"
                             className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-xs"
                           />
@@ -2578,13 +2575,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₦</span>
                         <input
-                          type="number"
-                          min="0"
-                          step="1"
+                          type="text"
+                          inputMode="numeric"
                           required
                           value={splitLeg2Amount}
-                          onChange={e => setSplitLeg2Amount(e.target.value.replace(/[^0-9]/g, ''))}
-                          placeholder="Amount for Leg 2"
+                          onChange={e => setSplitLeg2Amount(formatWithCommas(e.target.value))}
+                          placeholder="Amount for Leg 2 (e.g. 50,000)"
                           className="w-full pl-8 pr-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-xs"
                         />
                       </div>
@@ -2592,12 +2588,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       {splitLeg2Method === 'cash' && (
                         <div className="space-y-1 pt-1">
                           <input
-                            type="number"
-                            min="0"
-                            step="1"
+                            type="text"
+                            inputMode="numeric"
                             value={splitLeg2Tendered}
-                            onChange={e => setSplitLeg2Tendered(e.target.value.replace(/[^0-9]/g, ''))}
-                            placeholder="Cash tendered"
+                            onChange={e => setSplitLeg2Tendered(formatWithCommas(e.target.value))}
+                            placeholder="Cash tendered (e.g. 50,000)"
                             className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-xs"
                           />
                           {splitLeg2Tendered !== '' && (
@@ -2816,11 +2811,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                 Debt Limit (₦)
               </label>
               <input
-                type="number"
-                min="0"
-                step="1"
+                type="text"
+                inputMode="numeric"
                 value={newCustLimit}
-                onChange={e => setNewCustLimit(e.target.value.replace(/[^0-9]/g, ''))}
+                onChange={e => setNewCustLimit(formatWithCommas(e.target.value))}
+                placeholder="150,000"
                 className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold focus:outline-none focus:border-brand-500"
               />
             </div>

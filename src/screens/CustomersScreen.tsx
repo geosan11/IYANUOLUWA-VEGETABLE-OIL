@@ -10,7 +10,9 @@ import {
   formatDepotTime,
   buildCustomerStatement,
   toDatetimeLocalValue,
-  fromDatetimeLocalValue
+  fromDatetimeLocalValue,
+  formatWithCommas,
+  parseFromCommas
 } from '../services/businessLogic';
 import { CustomerStatementModal } from '../components/common/CustomerStatementModal';
 import { packShort } from '../constants/config';
@@ -78,7 +80,7 @@ export const CustomersScreen: React.FC = () => {
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
   const [newCustName, setNewCustName] = useState('');
   const [newCustType, setNewCustType] = useState<CustomerType>('agent');
-  const [newCustLimit, setNewCustLimit] = useState('150000');
+  const [newCustLimit, setNewCustLimit] = useState('150,000');
   const [newCustTerms, setNewCustTerms] = useState('14');
   const [newCustPhone, setNewCustPhone] = useState('+234');
 
@@ -123,7 +125,7 @@ export const CustomersScreen: React.FC = () => {
   const handleInlinePaymentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeCustomer) return;
-    const num = parseFloat(inlineAmount);
+    const num = parseFromCommas(inlineAmount);
     if (isNaN(num) || num <= 0) {
       setInlineError('Please enter a valid payment amount.');
       return;
@@ -141,7 +143,7 @@ export const CustomersScreen: React.FC = () => {
 
   const handleOpenPayment = (customer: Customer, fullBalance: number) => {
     setPaymentCustomerId(customer.id);
-    setPaymentAmount(fullBalance > 0 ? fullBalance.toString() : '');
+    setPaymentAmount(fullBalance > 0 ? formatWithCommas(fullBalance) : '');
     setPaymentError(null);
     setShowPaymentBackdate(false);
     setPaymentDateInput(toDatetimeLocalValue());
@@ -151,7 +153,7 @@ export const CustomersScreen: React.FC = () => {
     e.preventDefault();
     if (!paymentCustomerId) return;
 
-    const numericAmount = parseFloat(paymentAmount) || 0;
+    const numericAmount = parseFromCommas(paymentAmount);
     if (numericAmount <= 0) {
       setPaymentError('Payment amount must be greater than zero.');
       return;
@@ -178,7 +180,7 @@ export const CustomersScreen: React.FC = () => {
     addCustomer({
       name: newCustName.trim(),
       type: newCustType,
-      credit_limit: parseFloat(newCustLimit) || 0,
+      credit_limit: parseFromCommas(newCustLimit) || 0,
       credit_term_days: parseInt(newCustTerms) || 14,
       phone: newCustPhone.trim()
     });
@@ -186,6 +188,7 @@ export const CustomersScreen: React.FC = () => {
     setIsAddCustomerOpen(false);
     setNewCustName('');
     setNewCustPhone('+234');
+    setNewCustLimit('150,000');
   };
 
   // Edit Customer Modal State
@@ -200,7 +203,7 @@ export const CustomersScreen: React.FC = () => {
     setEditingCustomer(c);
     setEditCustName(c.name);
     setEditCustType(c.type);
-    setEditCustLimit(c.credit_limit.toString());
+    setEditCustLimit(formatWithCommas(c.credit_limit));
     setEditCustTerms(c.credit_term_days.toString());
     setEditCustPhone(c.phone);
   };
@@ -211,7 +214,7 @@ export const CustomersScreen: React.FC = () => {
     updateCustomer(editingCustomer.id, {
       name: editCustName.trim(),
       type: editCustType,
-      credit_limit: parseFloat(editCustLimit) || 0,
+      credit_limit: parseFromCommas(editCustLimit) || 0,
       credit_term_days: parseInt(editCustTerms) || 14,
       phone: editCustPhone.trim()
     });
@@ -641,36 +644,35 @@ export const CustomersScreen: React.FC = () => {
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => setInlineAmount((activeStats?.currentBalance || 0).toString())}
-                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs font-mono tabular-nums text-slate-700 dark:text-slate-300 hover:border-brand-500 font-semibold"
+                        onClick={() => setInlineAmount(formatWithCommas(activeStats?.currentBalance || 0))}
+                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs font-mono tabular-nums text-slate-700 dark:text-slate-300 hover:border-brand-500 font-semibold cursor-pointer"
                       >
                         Full Bal ({formatNaira(activeStats?.currentBalance || 0)})
                       </button>
                       <button
                         type="button"
-                        onClick={() => setInlineAmount('50000')}
-                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs font-mono tabular-nums text-slate-700 dark:text-slate-300 hover:border-brand-500 font-semibold"
+                        onClick={() => setInlineAmount('50,000')}
+                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs font-mono tabular-nums text-slate-700 dark:text-slate-300 hover:border-brand-500 font-semibold cursor-pointer"
                       >
-                        ₦50k
+                        ₦50,000
                       </button>
                       <button
                         type="button"
-                        onClick={() => setInlineAmount('100000')}
-                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs font-mono tabular-nums text-slate-700 dark:text-slate-300 hover:border-brand-500 font-semibold"
+                        onClick={() => setInlineAmount('100,000')}
+                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs font-mono tabular-nums text-slate-700 dark:text-slate-300 hover:border-brand-500 font-semibold cursor-pointer"
                       >
-                        ₦100k
+                        ₦100,000
                       </button>
                     </div>
 
                     <div className="grid grid-cols-12 gap-2">
                       <div className="col-span-7">
                         <input
-                          type="number"
-                          step="100"
-                          min="1"
+                          type="text"
+                          inputMode="numeric"
                           value={inlineAmount}
-                          onChange={e => setInlineAmount(e.target.value)}
-                          placeholder="Amount in ₦"
+                          onChange={e => setInlineAmount(formatWithCommas(e.target.value))}
+                          placeholder="Amount in ₦ (e.g. 50,000)"
                           className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-xs font-mono font-bold focus:outline-none focus:border-brand-500"
                         />
                       </div>
@@ -788,15 +790,15 @@ export const CustomersScreen: React.FC = () => {
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
-                    onClick={() => setPaymentAmount('50000')}
-                    className="py-2 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono tabular-nums font-bold text-slate-700 dark:text-slate-200 hover:border-brand-500"
+                    onClick={() => setPaymentAmount('50,000')}
+                    className="py-2 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono tabular-nums font-bold text-slate-700 dark:text-slate-200 hover:border-brand-500 cursor-pointer"
                   >
                     ₦50,000
                   </button>
                   <button
                     type="button"
-                    onClick={() => setPaymentAmount('100000')}
-                    className="py-2 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono tabular-nums font-bold text-slate-700 dark:text-slate-200 hover:border-brand-500"
+                    onClick={() => setPaymentAmount('100,000')}
+                    className="py-2 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono tabular-nums font-bold text-slate-700 dark:text-slate-200 hover:border-brand-500 cursor-pointer"
                   >
                     ₦100,000
                   </button>
@@ -804,9 +806,9 @@ export const CustomersScreen: React.FC = () => {
                     type="button"
                     onClick={() => {
                       const fullBal = customerStatsMap[paymentCustomerId]?.currentBalance || 0;
-                      setPaymentAmount(fullBal.toString());
+                      setPaymentAmount(formatWithCommas(fullBal));
                     }}
-                    className="py-2 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono tabular-nums font-bold text-brand-600 dark:text-brand-400 hover:border-brand-500"
+                    className="py-2 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono tabular-nums font-bold text-brand-600 dark:text-brand-400 hover:border-brand-500 cursor-pointer"
                   >
                     Full Balance
                   </button>
@@ -822,13 +824,12 @@ export const CustomersScreen: React.FC = () => {
                   </span>
                   <input
                     id="payment-amount"
-                    type="number"
-                    step="100"
-                    min="1"
+                    type="text"
+                    inputMode="numeric"
                     value={paymentAmount}
-                    onChange={e => setPaymentAmount(e.target.value)}
+                    onChange={e => setPaymentAmount(formatWithCommas(e.target.value))}
                     className="w-full pl-9 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-base font-mono tabular-nums font-bold focus:outline-none focus:border-brand-500"
-                    placeholder="50000"
+                    placeholder="50,000"
                     required
                   />
                 </div>
@@ -950,11 +951,12 @@ export const CustomersScreen: React.FC = () => {
                   <label htmlFor="new-customer-credit-limit" className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">Debt Limit (₦)</label>
                   <input
                     id="new-customer-credit-limit"
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     value={newCustLimit}
-                    onChange={e => setNewCustLimit(e.target.value)}
+                    onChange={e => setNewCustLimit(formatWithCommas(e.target.value))}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-mono tabular-nums font-bold focus:outline-none focus:border-brand-500"
-                    placeholder="150000"
+                    placeholder="150,000"
                     required
                   />
                 </div>
@@ -1042,10 +1044,12 @@ export const CustomersScreen: React.FC = () => {
                 </label>
                 <input
                   id="edit-customer-credit-limit"
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   value={editCustLimit}
-                  onChange={e => setEditCustLimit(e.target.value)}
+                  onChange={e => setEditCustLimit(formatWithCommas(e.target.value))}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-mono tabular-nums font-bold focus:outline-none focus:border-brand-500"
+                  placeholder="150,000"
                   required
                 />
               </div>

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useStore } from '../services/store';
 import { usePermissions } from '../services/permissions';
 import { lookupPackPrice } from '../services/pricing';
+import { formatWithCommas, parseFromCommas } from '../services/businessLogic';
 import { PACK_SIZES, packLitres } from '../constants/config';
 import { CustomerType, PackPrice, ProductPackConfig, Product, SupplyModel } from '../types';
 import { Modal } from '../components/common/Modal';
@@ -91,7 +92,7 @@ export const InventoryScreen: React.FC = () => {
     setProductFormName('');
     setProductFormSupplyModel('bulk_truck');
     setProductFormVarieties('Standard');
-    setProductFormKegPrice('3500');
+    setProductFormKegPrice('3,500');
     setIsProductModalOpen(true);
   };
 
@@ -100,7 +101,7 @@ export const InventoryScreen: React.FC = () => {
     setProductFormName(prod.name);
     setProductFormSupplyModel(prod.supply_model);
     setProductFormVarieties(prod.varieties.map(v => v.name).join(', '));
-    setProductFormKegPrice((prod.keg_sell_price ?? 3500).toString());
+    setProductFormKegPrice(formatWithCommas(prod.keg_sell_price ?? 3500));
     setIsProductModalOpen(true);
   };
 
@@ -115,7 +116,7 @@ export const InventoryScreen: React.FC = () => {
       .filter(Boolean);
     const safeVarieties = varietyNames.length > 0 ? varietyNames : ['Standard'];
 
-    const parsedKegPrice = parseFloat(productFormKegPrice) || 3500;
+    const parsedKegPrice = parseFromCommas(productFormKegPrice) || 3500;
 
     if (editingProduct) {
       // Edit existing product
@@ -182,6 +183,65 @@ export const InventoryScreen: React.FC = () => {
       }
       flashSaved(`Product "${prod.name}" deleted.`);
     }
+  };
+
+  const handleDeletePack = (sizeId: string, label: string) => {
+    if (!activeProduct) return;
+    if (activeProduct.pack_config.length <= 1) {
+      flashError('Product must have at least one active pack size.');
+      return;
+    }
+    const confirmed = window.confirm(
+      `Delete "${label}" pack from ${activeProduct.name}? Customers will no longer be able to purchase this pack size.`
+    );
+    if (!confirmed) return;
+
+    const updatedConfig = activeProduct.pack_config.filter(c => c.pack_size_id !== sizeId);
+    updateProductPackConfig(activeProduct.id, updatedConfig);
+    setPriceEdits(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(k => {
+        if (k.includes(`|${sizeId}|`)) delete next[k];
+      });
+      return next;
+    });
+    flashSaved(`Deleted ${label} pack from ${activeProduct.name}.`);
+  };
+
+  const handleAddPack = (sizeId: string) => {
+    if (!activeProduct) return;
+    if (activeProduct.pack_config.some(c => c.pack_size_id === sizeId)) return;
+    const targetSize = PACK_SIZES.find(s => s.id === sizeId);
+    const newConfig: ProductPackConfig[] = [
+      ...activeProduct.pack_config,
+      {
+        pack_size_id: sizeId,
+        returnable: false,
+        container_buy_price: 0,
+        sort: activeProduct.pack_config.length
+      }
+    ];
+    updateProductPackConfig(activeProduct.id, newConfig);
+    flashSaved(`Added ${targetSize?.label || sizeId} pack to ${activeProduct.name}.`);
+  };
+
+  const handleDeleteVariety = (varietyId: string, varietyName: string) => {
+    if (!activeProduct) return;
+    if (activeProduct.varieties.length <= 1) {
+      flashError('Depot products must retain at least one variety in their inventory list.');
+      return;
+    }
+    const confirmed = window.confirm(
+      `Delete variety "${varietyName}" from ${activeProduct.name}? Any associated sales history will be retained, but new sales will not offer this variety.`
+    );
+    if (!confirmed) return;
+
+    const remaining = activeProduct.varieties.filter(v => v.id !== varietyId);
+    updateProduct(activeProduct.id, { varieties: remaining });
+    if (activeVarietyId === varietyId) {
+      setActiveVarietyId(remaining[0]?.id || '');
+    }
+    flashSaved(`Deleted variety "${varietyName}".`);
   };
 
   const handleSaveContainerPrices = () => {
@@ -333,6 +393,9 @@ export const InventoryScreen: React.FC = () => {
             setPriceEdits({});
             flashSaved('Prices saved.');
           }}
+          onDeletePack={handleDeletePack}
+          onAddPack={handleAddPack}
+          onDeleteVariety={handleDeleteVariety}
         />
       )}
 
@@ -452,12 +515,11 @@ export const InventoryScreen: React.FC = () => {
               </label>
               <input
                 id="product-keg-price"
-                type="number"
-                step="100"
-                min="0"
+                type="text"
+                inputMode="numeric"
                 value={productFormKegPrice}
-                onChange={e => setProductFormKegPrice(e.target.value)}
-                placeholder="3500"
+                onChange={e => setProductFormKegPrice(formatWithCommas(e.target.value))}
+                placeholder="3,500"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tabular-nums text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
@@ -487,7 +549,7 @@ export const InventoryScreen: React.FC = () => {
 /* ------------------------------------------------------------------ */
 
 const PriceMatrix: React.FC<{
-  product: ReturnType<typeof useStore>['products'][number];
+  product: Product;
   activeVarietyId: string;
   onSelectVariety: (id: string) => void;
   enabledSizeIds: Set<string>;
@@ -495,8 +557,24 @@ const PriceMatrix: React.FC<{
   edits: Record<string, string>;
   setEdits: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   onSave: (rows: PackPrice[]) => void;
-}> = ({ product, activeVarietyId, onSelectVariety, enabledSizeIds, packPrices, edits, setEdits, onSave }) => {
+  onDeletePack: (sizeId: string, label: string) => void;
+  onAddPack: (sizeId: string) => void;
+  onDeleteVariety: (varietyId: string, name: string) => void;
+}> = ({
+  product,
+  activeVarietyId,
+  onSelectVariety,
+  enabledSizeIds,
+  packPrices,
+  edits,
+  setEdits,
+  onSave,
+  onDeletePack,
+  onAddPack,
+  onDeleteVariety
+}) => {
   const sizes = PACK_SIZES.filter(s => enabledSizeIds.has(s.id));
+  const availableSizesToAdd = PACK_SIZES.filter(s => !enabledSizeIds.has(s.id));
   const key = (varietyId: string, sizeId: string, tier: CustomerType) =>
     `${product.id}|${varietyId}|${sizeId}|${tier}`;
 
@@ -504,10 +582,24 @@ const PriceMatrix: React.FC<{
     const k = key(activeVarietyId, sizeId, tier);
     if (k in edits) return edits[k];
     const p = lookupPackPrice(packPrices, product.id, activeVarietyId, sizeId, tier);
-    return p === null ? '' : String(p);
+    return p === null ? '' : formatWithCommas(p);
   };
 
   const dirty = Object.keys(edits).length > 0;
+
+  const handleClearCurrentPrices = () => {
+    const curVarName = product.varieties.find(v => v.id === activeVarietyId)?.name || 'current variety';
+    const ok = window.confirm(`Clear all entered prices for "${product.name}" (${curVarName})?`);
+    if (!ok) return;
+
+    const cleared: Record<string, string> = {};
+    for (const size of sizes) {
+      for (const tier of TIERS) {
+        cleared[key(activeVarietyId, size.id, tier)] = '';
+      }
+    }
+    setEdits(prev => ({ ...prev, ...cleared }));
+  };
 
   const handleSave = () => {
     const rows: PackPrice[] = [];
@@ -516,7 +608,7 @@ const PriceMatrix: React.FC<{
         for (const tier of TIERS) {
           const k = key(variety.id, size.id, tier);
           const raw = k in edits ? edits[k] : lookupPackPrice(packPrices, product.id, variety.id, size.id, tier);
-          const num = raw === '' || raw === null || raw === undefined ? NaN : Number(raw);
+          const num = parseFromCommas(raw);
           if (Number.isFinite(num) && num > 0) {
             rows.push({ product_id: product.id, variety_id: variety.id, pack_size_id: size.id, tier, price: num });
           }
@@ -528,29 +620,94 @@ const PriceMatrix: React.FC<{
 
   if (sizes.length === 0) {
     return (
-      <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[13px] text-amber-800 dark:text-amber-300">
-        This product sells no pack sizes yet. Enable some in <b>Pack sizes &amp; containers</b> first.
+      <div className="p-5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[13px] text-amber-800 dark:text-amber-300 space-y-3">
+        <p>This product currently sells no pack sizes.</p>
+        {availableSizesToAdd.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-xs">Add a pack size:</span>
+            <select
+              value=""
+              onChange={e => {
+                if (e.target.value) onAddPack(e.target.value);
+              }}
+              className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-xs font-semibold cursor-pointer"
+            >
+              <option value="" disabled>Select pack size to add…</option>
+              {availableSizesToAdd.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.label} ({s.litres} L)
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
-      {/* Variety pills */}
-      <div className="flex flex-wrap gap-1.5">
-        {product.varieties.map(v => (
-          <button
-            key={v.id}
-            onClick={() => onSelectVariety(v.id)}
-            className={`px-3 py-1.5 rounded-lg text-[12px] font-sans font-semibold border transition-colors ${
-              v.id === activeVarietyId
-                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
-                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
-            }`}
-          >
-            {v.name}
-          </button>
-        ))}
+      {/* Variety pills & Pack management */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] font-sans uppercase font-bold tracking-wider text-slate-400 mr-1">
+            Variety:
+          </span>
+          {product.varieties.map(v => (
+            <div
+              key={v.id}
+              className={`inline-flex items-center rounded-lg border transition-colors overflow-hidden ${
+                v.id === activeVarietyId
+                  ? 'border-slate-900 dark:border-white bg-slate-900 dark:bg-white text-white dark:text-slate-900'
+                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => onSelectVariety(v.id)}
+                className="px-3 py-1.5 text-[12px] font-sans font-semibold cursor-pointer"
+              >
+                {v.name}
+              </button>
+              {product.varieties.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => onDeleteVariety(v.id, v.name)}
+                  title={`Delete variety "${v.name}"`}
+                  className={`px-1.5 py-1.5 transition-colors cursor-pointer border-l ${
+                    v.id === activeVarietyId
+                      ? 'border-slate-700 dark:border-slate-200 text-slate-400 dark:text-slate-500 hover:text-rose-400 dark:hover:text-rose-600'
+                      : 'border-slate-200 dark:border-slate-800 text-slate-400 hover:text-rose-600'
+                  }`}
+                >
+                  <Trash className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Add Pack Size selector if there are inactive pack sizes */}
+        {availableSizesToAdd.length > 0 && (
+          <div className="relative">
+            <select
+              value=""
+              onChange={e => {
+                if (e.target.value) {
+                  onAddPack(e.target.value);
+                }
+              }}
+              className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-sans font-semibold border border-slate-200 dark:border-slate-700 cursor-pointer"
+            >
+              <option value="" disabled>+ Add pack size…</option>
+              {availableSizesToAdd.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.label} ({s.litres} L)
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
@@ -561,28 +718,29 @@ const PriceMatrix: React.FC<{
               {TIERS.map(t => (
                 <th key={t} className="text-right px-3 py-2.5 capitalize">{t}</th>
               ))}
+              <th className="text-center px-3 py-2.5 w-16">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
             {sizes.map(size => (
-              <tr key={size.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-900/40">
+              <tr key={size.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-900/40 group">
                 <td className="px-3 py-2.5 font-sans font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
                   {size.label}
                 </td>
                 {TIERS.map(tier => {
                   const val = cellValue(size.id, tier);
-                  const perLitre = val ? Math.round(Number(val) / (packLitres(size.id) || 1)) : 0;
+                  const numericVal = parseFromCommas(val);
+                  const perLitre = numericVal ? Math.round(numericVal / (packLitres(size.id) || 1)) : 0;
                   return (
                     <td key={tier} className="px-3 py-2 text-right">
                       <div className="relative w-32 ml-auto">
                         <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[13px] font-bold">₦</span>
                         <input
-                          type="number"
-                          step="1"
-                          min="0"
+                          type="text"
+                          inputMode="numeric"
                           value={val}
                           onChange={e =>
-                            setEdits(prev => ({ ...prev, [key(activeVarietyId, size.id, tier)]: e.target.value }))
+                            setEdits(prev => ({ ...prev, [key(activeVarietyId, size.id, tier)]: formatWithCommas(e.target.value) }))
                           }
                           placeholder="set price"
                           className={`w-full pl-6 pr-2 py-2 rounded-lg bg-white dark:bg-slate-900 border text-right font-mono tabular-nums font-bold text-[13px] focus:outline-none focus:border-brand-500 ${
@@ -596,23 +754,44 @@ const PriceMatrix: React.FC<{
                     </td>
                   );
                 })}
+                <td className="px-3 py-2 text-center whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => onDeletePack(size.id, size.label)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                    title={`Delete ${size.label} pack from ${product.name}`}
+                  >
+                    <Trash className="w-4 h-4" />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
         <p className="text-[11px] text-slate-500">
           Prices are per pack, per customer tier. Empty cells are treated as “not priced” and block the sale.
         </p>
-        <button
-          onClick={handleSave}
-          disabled={!dirty}
-          className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-sans font-bold text-[13px] flex items-center gap-2 shadow-sm"
-        >
-          <Save className="w-4 h-4" weight="bold" /> Save prices
-        </button>
+        <div className="flex items-center gap-2 self-end sm:self-auto">
+          <button
+            type="button"
+            onClick={handleClearCurrentPrices}
+            className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[12px] font-sans font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Clear all price values for this variety list"
+          >
+            <Trash className="w-3.5 h-3.5" />
+            <span>Clear list prices</span>
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!dirty}
+            className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-sans font-bold text-[13px] flex items-center gap-2 shadow-sm cursor-pointer"
+          >
+            <Save className="w-4 h-4" weight="bold" /> Save prices
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -700,13 +879,12 @@ const PackConfigEditor: React.FC<{
                   <div className="relative w-32 ml-auto">
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[13px] font-bold">₦</span>
                     <input
-                      type="number"
-                      step="1"
-                      min="0"
-                      value={r.container_buy_price || ''}
+                      type="text"
+                      inputMode="numeric"
+                      value={r.container_buy_price ? formatWithCommas(r.container_buy_price) : ''}
                       disabled={!r.enabled}
-                      placeholder={String(fallbackContainerPrice || 0)}
-                      onChange={e => mutate(r.size.id, { container_buy_price: Number(e.target.value) })}
+                      placeholder={formatWithCommas(fallbackContainerPrice || 0)}
+                      onChange={e => mutate(r.size.id, { container_buy_price: parseFromCommas(e.target.value) })}
                       className="w-full pl-6 pr-2 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-right font-mono tabular-nums font-bold text-[13px] focus:outline-none focus:border-brand-500 disabled:opacity-50"
                     />
                   </div>
@@ -754,7 +932,7 @@ const StockView: React.FC<{
         <div className="text-2xl font-heading font-extrabold text-slate-900 dark:text-white tabular-nums mt-1">
           {s.kegsOut.toLocaleString()}
         </div>
-        <div className="text-[11px] text-slate-400 mt-1">Returnable kegs/drums out with customers.</div>
+        <div className="text-[11px] text-slate-400 mt-1">Returnable 25L kegs out with customers.</div>
       </div>
       <div className="sm:col-span-2 flex items-center gap-2 text-[11px] text-slate-500 px-1">
         <Package className="w-3.5 h-3.5" /> Read-only. Stock changes flow from Truck Intake and sales.

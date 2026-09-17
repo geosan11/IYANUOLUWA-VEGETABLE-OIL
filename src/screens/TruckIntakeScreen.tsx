@@ -9,7 +9,9 @@ import {
   formatDepotDate,
   formatDepotTime,
   toDatetimeLocalValue,
-  fromDatetimeLocalValue
+  fromDatetimeLocalValue,
+  formatWithCommas,
+  parseFromCommas
 } from '../services/businessLogic';
 import {
   CheckCircle,
@@ -79,7 +81,7 @@ export const TruckIntakeScreen: React.FC = () => {
     return calculateIntakeMetrics(
       parseInt(tons, 10) || 0,
       selectedProduct.litres_per_ton || 1075,
-      parseInt(actualKegs, 10) || 0,
+      parseFromCommas(actualKegs) || 0,
       parseInt(leftoverLitres, 10) || 0,
       kegInventory.kegsAtDepot,
       selectedProduct.litres_per_keg,
@@ -90,7 +92,7 @@ export const TruckIntakeScreen: React.FC = () => {
   // Live calculation metrics for pre-kegged
   const preKeggedMetrics = useMemo(() => {
     return calculatePreKeggedIntakeMetrics(
-      parseInt(kegsReceived, 10) || 0,
+      parseFromCommas(kegsReceived) || 0,
       selectedProduct.litres_per_keg
     );
   }, [kegsReceived, selectedProduct]);
@@ -174,7 +176,7 @@ export const TruckIntakeScreen: React.FC = () => {
           physicalTankId: physicalTankId || undefined,
           spaceNote: spaceNote.trim() || undefined,
           tons: parsedTons,
-          actualKegs: parseInt(actualKegs, 10) || 0,
+          actualKegs: parseFromCommas(actualKegs) || 0,
           leftoverLitres: parseInt(leftoverLitres, 10) || 0,
           date: fromDatetimeLocalValue(intakeDateInput)
         });
@@ -188,7 +190,7 @@ export const TruckIntakeScreen: React.FC = () => {
           setErrorMessage(result.error || 'Failed to record truck intake.');
         }
       } else {
-        const numKegs = parseInt(kegsReceived, 10) || 0;
+        const numKegs = parseFromCommas(kegsReceived) || 0;
         if (numKegs <= 0) {
           setErrorMessage('Please enter a valid count of kegs received.');
           setIsSubmitting(false);
@@ -469,7 +471,7 @@ export const TruckIntakeScreen: React.FC = () => {
                     </span>
                     <div className="flex items-center gap-1 mt-1 text-xs text-amber-700 dark:text-amber-400 font-mono font-bold">
                       <Scales className="w-3.5 h-3.5" weight="bold" />
-                      <span>1,075 L / Ton (30L Kegs)</span>
+                      <span>1,075 L / Ton (25L Kegs)</span>
                     </div>
                   </button>
 
@@ -612,7 +614,7 @@ export const TruckIntakeScreen: React.FC = () => {
                         </span>
                       </div>
                       <span className="text-emerald-700 dark:text-emerald-300 font-mono font-black text-xs px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-800">
-                        ~{bulkMetrics.expectedKegs} kegs (30L)
+                        ~{bulkMetrics.expectedKegs} kegs (25L)
                       </span>
                     </div>
                   </div>
@@ -620,17 +622,17 @@ export const TruckIntakeScreen: React.FC = () => {
                   /* Pre-kegged Palm Model Input */
                   <div className="bg-[#FAF6ED]/70 dark:bg-slate-950/80 border-2 border-[#E6DECF] dark:border-slate-800 p-4 rounded-2xl space-y-3">
                     <label htmlFor="kegsReceived" className="font-sans text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
-                      <span>Count of Sealed Kegs Received (25L each)</span>
-                      <span className="font-mono text-rose-600 dark:text-rose-400 font-bold">1 Keg = 25L</span>
+                       <span>Count of Sealed Kegs Received (25L each)</span>
+                       <span className="font-mono text-rose-600 dark:text-rose-400 font-bold">1 Keg = 25L</span>
                     </label>
                     <div className="relative">
                       <input
                         id="kegsReceived"
-                        type="number"
-                        step="1"
-                        min="1"
+                        type="text"
+                        inputMode="numeric"
                         value={kegsReceived}
-                        onChange={e => setKegsReceived(e.target.value.replace(/[^0-9]/g, ''))}
+                        onChange={e => setKegsReceived(formatWithCommas(e.target.value))}
+                        placeholder="100"
                         className="w-full bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 text-slate-950 dark:text-white font-mono tabular-nums text-3xl font-black rounded-xl p-3 pr-16 focus:outline-none focus:border-brand-500 shadow-inner"
                         required
                       />
@@ -715,11 +717,11 @@ export const TruckIntakeScreen: React.FC = () => {
                       <div className="relative">
                         <input
                           id="kegCountInput"
-                          type="number"
-                          step="1"
-                          min="0"
+                          type="text"
+                          inputMode="numeric"
                           value={actualKegs}
-                          onChange={e => setActualKegs(e.target.value.replace(/[^0-9]/g, ''))}
+                          onChange={e => setActualKegs(formatWithCommas(e.target.value))}
+                          placeholder="358"
                           className="w-full bg-slate-50 dark:bg-slate-950 border-2 border-slate-200 dark:border-slate-800 text-slate-950 dark:text-white font-mono tabular-nums text-xl sm:text-2xl font-black p-3 pr-14 rounded-xl focus:outline-none focus:border-brand-500"
                           required
                         />

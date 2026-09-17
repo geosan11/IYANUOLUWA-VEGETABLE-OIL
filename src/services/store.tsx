@@ -408,10 +408,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return 'all';
   });
 
-  // Load state from LocalStorage or seed defaults
-  const [products, setProducts] = useState<Product[]>(() => loadPersisted(STORAGE_KEYS.PRODUCTS, DEFAULT_PRODUCTS));
+  // Load state from LocalStorage or seed defaults (standardizing strictly to 25L kegs)
+  const [products, setProducts] = useState<Product[]>(() => {
+    const loaded = loadPersisted(STORAGE_KEYS.PRODUCTS, DEFAULT_PRODUCTS);
+    return loaded.map(p => ({
+      ...p,
+      litres_per_keg: 25,
+      pack_config: p.pack_config
+        .filter(c => c.pack_size_id === 'sz_25' || !c.returnable)
+        .filter(c => !['sz_56', 'sz_112_5', 'sz_256', 'sz_30'].includes(c.pack_size_id))
+    }));
+  });
 
-  const [packPrices, setPackPrices] = useState<PackPrice[]>(() => loadPersisted(STORAGE_KEYS.PACK_PRICES, DEFAULT_PACK_PRICES));
+  const [packPrices, setPackPrices] = useState<PackPrice[]>(() => {
+    const loaded = loadPersisted(STORAGE_KEYS.PACK_PRICES, DEFAULT_PACK_PRICES);
+    return loaded.filter(r => !['sz_56', 'sz_112_5', 'sz_256', 'sz_30'].includes(r.pack_size_id));
+  });
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
     const loaded = loadPersisted(STORAGE_KEYS.CUSTOMERS, DEFAULT_CUSTOMERS);
@@ -441,14 +453,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [settings, setSettings] = useState<AppSettings>(() => ({
     ...DEFAULT_SETTINGS,
-    ...loadPersisted<Partial<AppSettings>>(STORAGE_KEYS.SETTINGS, {})
+    ...loadPersisted<Partial<AppSettings>>(STORAGE_KEYS.SETTINGS, {}),
+    litres_per_keg: 25
   }));
 
   const [allPumps, setPumps] = useState<Pump[]>(() => loadPersisted<Pump[]>(STORAGE_KEYS.PUMPS, DEFAULT_PUMPS));
 
   const [allPumpReadings, setPumpReadings] = useState<PumpReading[]>(() => loadPersisted(STORAGE_KEYS.PUMP_READINGS, SEED_PUMP_READINGS));
 
-  const [allTransfers, setTransfers] = useState<Transfer[]>(() => loadPersisted(STORAGE_KEYS.TRANSFERS, SEED_TRANSFERS));
+  const [allTransfers, setTransfers] = useState<Transfer[]>(() => {
+    const loaded = loadPersisted(STORAGE_KEYS.TRANSFERS, SEED_TRANSFERS);
+    return loaded.filter(t => t.id !== 'trf-1');
+  });
 
   const [customerCredits, setCustomerCredits] = useState<CustomerCredit[]>(() => loadPersisted<CustomerCredit[]>(STORAGE_KEYS.CUSTOMER_CREDITS, []));
 
