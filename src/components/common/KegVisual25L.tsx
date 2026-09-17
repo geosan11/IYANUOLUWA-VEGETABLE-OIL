@@ -37,13 +37,13 @@ export const KegVisual25L: React.FC<KegVisual25LProps> = ({
     <div className={`flex flex-col items-center select-none ${containerSizes}`}>
       {/* Top Badges */}
       <div className="w-full flex items-center justify-between mb-2 px-1">
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-700 dark:text-rose-300 text-xs font-sans font-bold border border-rose-500/25">
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-rose-500/10 text-rose-700 dark:text-rose-300 text-xs font-sans font-bold border border-rose-500/25">
           <Package className="w-3.5 h-3.5 text-rose-500" weight="fill" />
           <span>25L Company Keg</span>
         </span>
 
         <span
-          className={`px-2.5 py-0.5 rounded-full text-xs font-mono tabular-nums font-bold border shadow-xs ${isLowStock
+          className={`px-2.5 py-0.5 rounded-md text-xs font-mono tabular-nums font-bold border shadow-xs ${isLowStock
               ? 'bg-rose-950/80 text-rose-300 border-rose-500/60 animate-pulse'
               : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700'
             }`}
