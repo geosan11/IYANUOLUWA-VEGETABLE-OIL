@@ -197,7 +197,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         isAgent,
         customerType,
         customerPhone,
-        staffName: (p as any).recorded_by || 'Cashier',
+        staffName: p.recorded_by || 'Cashier',
         payment: p
       });
     }
@@ -225,7 +225,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         isAgent,
         customerType,
         customerPhone,
-        staffName: (e as any).recorded_by || 'Staff',
+        staffName: e.recorded_by || 'Staff',
         expense: e
       });
     }
@@ -233,7 +233,9 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
     for (const t of tanks) {
       const supplier = suppliers.find(s => s.id === t.supplier_id)?.name;
       const agentName = supplier || t.truck_label || 'Direct Delivery';
-      const staffName = (t as any).driver_name || t.space_note || 'Logistics / Driver';
+      // Driver name is embedded in truck_label e.g. "Truck 1 · AAA-123-XB (Alhaji Musa)"
+      const driverFromLabel = t.truck_label?.match(/\(([^)]+)\)/)?.[1];
+      const staffName = driverFromLabel || t.space_note || 'Logistics / Driver';
       rows.push({
         id: `tank:${t.id}`,
         kind: 'intake',
