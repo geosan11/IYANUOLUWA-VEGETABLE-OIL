@@ -53,7 +53,6 @@ export const TruckIntakeScreen: React.FC = () => {
   const [productId, setProductId] = useState<string>('veg');
   const [supplierId, setSupplierId] = useState<string>(() => suppliers[0]?.id || '');
   const [physicalTankId, setPhysicalTankId] = useState<string>(() => physicalTanks[0]?.id || '');
-  const [truckLabel, setTruckLabel] = useState<string>('KTU-882-XD');
   const [driverName, setDriverName] = useState<string>('');
   const [spaceNote, setSpaceNote] = useState<string>('');
   const [intakeDateInput, setIntakeDateInput] = useState<string>(() => toDatetimeLocalValue());
@@ -123,7 +122,6 @@ export const TruckIntakeScreen: React.FC = () => {
     setActualKegs('358');
     setLeftoverLitres('10');
     setKegsReceived('100');
-    setTruckLabel('KTU-882-XD');
     setDriverName('');
     setSpaceNote('');
     setIntakeDateInput(toDatetimeLocalValue());
@@ -154,9 +152,9 @@ export const TruckIntakeScreen: React.FC = () => {
       return;
     }
 
-    const fullTruckLabel = driverName.trim()
-      ? `${truckLabel.trim() || `TRK-${selectedProduct.name.split(' ')[0].toUpperCase()}-${Date.now().toString().slice(-4)}`} (${driverName.trim()})`
-      : truckLabel.trim() || `TRK-${selectedProduct.name.split(' ')[0].toUpperCase()}-${Date.now().toString().slice(-4)}`;
+    const supplierName = suppliers.find(s => s.id === supplierId)?.name || 'Supplier';
+    const autoTruckLabel = `${supplierName} Truck-${Date.now().toString().slice(-4)}`;
+    const fullTruckLabel = driverName.trim() ? `${autoTruckLabel} (${driverName.trim()})` : autoTruckLabel;
 
     setIsSubmitting(true);
 
@@ -182,8 +180,7 @@ export const TruckIntakeScreen: React.FC = () => {
         });
 
         if (result.success && result.tank) {
-          const supplierName = suppliers.find(s => s.id === supplierId)?.name || 'Supplier';
-          setSuccessMessage(`${parsedTons} Tons (${result.tank.received_litres.toLocaleString()}L) logged for ${truckLabel || 'Tanker'} from ${supplierName}. Telemetry and depot stock synced.`);
+          setSuccessMessage(`${parsedTons} Tons (${result.tank.received_litres.toLocaleString()}L) logged for ${fullTruckLabel} from ${supplierName}. Telemetry and depot stock synced.`);
           handleResetForm();
           setTimeout(() => setSuccessMessage(null), 6000);
         } else {
@@ -208,7 +205,6 @@ export const TruckIntakeScreen: React.FC = () => {
         });
 
         if (result.success && result.tank) {
-          const supplierName = suppliers.find(s => s.id === supplierId)?.name || 'Supplier';
           setSuccessMessage(`Pre-kegged delivery recorded! Received ${numKegs} kegs (${result.tank.received_litres.toLocaleString()}L) from ${supplierName}.`);
           handleResetForm();
           setTimeout(() => setSuccessMessage(null), 6000);
@@ -519,18 +515,17 @@ export const TruckIntakeScreen: React.FC = () => {
                   </span>
                 </div>
 
-                {/* Supplier & Truck Plate Selectors */}
+                {/* Which truck we're collecting from, and who's driving it */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <label htmlFor="supplierSelect" className="font-sans text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                      <Warehouse className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Supplier Company</span>
+                    <label htmlFor="supplierSelect" className="text-xs font-sans text-slate-500 dark:text-slate-400">
+                      Truck / Supplier
                     </label>
                     <select
                       id="supplierSelect"
                       value={supplierId}
                       onChange={e => setSupplierId(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border-2 border-slate-200 dark:border-slate-800 text-sm font-sans font-semibold text-slate-950 dark:text-white focus:outline-none focus:border-brand-500"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
                       required
                     >
                       {suppliers.map(s => (
@@ -542,18 +537,16 @@ export const TruckIntakeScreen: React.FC = () => {
                   </div>
 
                   <div className="space-y-1">
-                    <label htmlFor="truckNumber" className="font-sans text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                      <Truck className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Truck Plate Number</span>
+                    <label htmlFor="driverName" className="text-xs font-sans text-slate-500 dark:text-slate-400">
+                      Driver Name
                     </label>
                     <input
-                      id="truckNumber"
+                      id="driverName"
                       type="text"
-                      value={truckLabel}
-                      onChange={e => setTruckLabel(e.target.value)}
-                      placeholder="e.g. KTU-882-XD"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border-2 border-slate-200 dark:border-slate-800 text-sm font-mono font-black text-slate-950 dark:text-white uppercase focus:outline-none focus:border-brand-500 placeholder-slate-400"
-                      required
+                      value={driverName}
+                      onChange={e => setDriverName(e.target.value)}
+                      placeholder="e.g. Musa Abdullahi"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-brand-500 placeholder-slate-400"
                     />
                   </div>
                 </div>
