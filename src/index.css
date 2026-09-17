@@ -30,7 +30,11 @@
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   }
+}
 
+/* Global input affordance — must live in @layer components so Tailwind v3
+   can resolve extended theme utilities like shadow-xs via @apply */
+@layer components {
   /* Unmistakable default input affordance across the app */
   input[type="text"],
   input[type="number"],
@@ -41,7 +45,6 @@
   textarea {
     @apply border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-950 dark:text-slate-100 shadow-xs focus:border-brand-500 dark:focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 transition-all;
   }
-}
 
 /* Depot Design System Utilities */
 @layer components {
