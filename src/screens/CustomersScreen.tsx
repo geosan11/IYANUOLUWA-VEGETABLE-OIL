@@ -24,7 +24,6 @@ import {
   CaretRight as ChevronRight,
   WarningCircle as AlertCircle,
   Receipt,
-  ArrowsLeftRight as ArrowRightLeft,
   CheckCircle as CheckCircle2,
   FileText,
   PaperPlaneTilt as Send,
@@ -37,7 +36,6 @@ export const CustomersScreen: React.FC = () => {
   const {
     customers,
     customerStatsMap,
-    transfers,
     orders,
     payments,
     customerCredits,
@@ -45,7 +43,6 @@ export const CustomersScreen: React.FC = () => {
     settings,
     recordCustomerPayment,
     redeemCustomerCredit,
-    logTransfer,
     addCustomer
   } = useStore();
 
@@ -83,47 +80,6 @@ export const CustomersScreen: React.FC = () => {
   const [newCustTerms, setNewCustTerms] = useState('14');
   const [newCustPhone, setNewCustPhone] = useState('+234');
 
-  // Inter-Customer Transfer State
-  const [transferFromCustomerId, setTransferFromCustomerId] = useState<string | null>(null);
-  const [transferToCustomerId, setTransferToCustomerId] = useState<string>('');
-  const [transferQty, setTransferQty] = useState<string>('5');
-  const [transferNotes, setTransferNotes] = useState<string>('');
-  const [transferError, setTransferError] = useState<string | null>(null);
-
-  const handleOpenTransfer = (fromCustomer: Customer) => {
-    setTransferFromCustomerId(fromCustomer.id);
-    const other = customers.find(c => c.id !== fromCustomer.id);
-    setTransferToCustomerId(other ? other.id : '');
-    setTransferQty('5');
-    setTransferNotes('');
-    setTransferError(null);
-  };
-
-  const handleRecordTransferSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!transferFromCustomerId || !transferToCustomerId) return;
-    const numQty = parseFloat(transferQty) || 0;
-    if (numQty <= 0) {
-      setTransferError('Transfer quantity must be greater than zero.');
-      return;
-    }
-
-    const res = logTransfer({
-      fromCustomerId: transferFromCustomerId,
-      toCustomerId: transferToCustomerId,
-      itemType: 'keg',
-      qty: numQty,
-      notes: transferNotes.trim() || undefined
-    });
-
-    if (res.success) {
-      setTransferFromCustomerId(null);
-      setTransferQty('5');
-      setTransferNotes('');
-    } else {
-      setTransferError(res.error || 'Failed to record transfer.');
-    }
-  };
 
 
   // Filter & Search customer list
@@ -161,12 +117,6 @@ export const CustomersScreen: React.FC = () => {
   const activeStats = activeCustomer ? customerStatsMap[activeCustomer.id] : null;
   const activeAging = activeStats?.agingBadge;
   const isActiveOverdue = activeAging?.status === 'overdue';
-  const activeTransfers = useMemo(() => {
-    if (!activeCustomer) return [];
-    return transfers.filter(
-      t => t.from_customer_id === activeCustomer.id || t.to_customer_id === activeCustomer.id
-    );
-  }, [transfers, activeCustomer]);
 
   const handleInlinePaymentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -251,15 +201,6 @@ export const CustomersScreen: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
-          <button
-            onClick={() => {
-              if (customers.length > 0) handleOpenTransfer(customers[0]);
-            }}
-            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 text-xs font-sans font-bold shadow-sm transition-all active:scale-95"
-          >
-            <ArrowRightLeft className="w-4 h-4" />
-            <span>Inter-Customer Transfer</span>
-          </button>
           <button
             onClick={() => setIsAddCustomerOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 active:scale-95 text-slate-950 text-sm font-sans font-bold shadow-lg shadow-brand-500/20 transition-all"
@@ -639,14 +580,6 @@ export const CustomersScreen: React.FC = () => {
                       <CreditCard className="w-4 h-4 text-brand-600 dark:text-brand-400" />
                       <span>In-Panel Payment Settlement</span>
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenTransfer(activeCustomer)}
-                      className="text-xs font-sans font-bold text-purple-700 dark:text-purple-300 hover:underline flex items-center gap-1"
-                    >
-                      <ArrowRightLeft className="w-3.5 h-3.5" />
-                      <span>Transfer Kegs</span>
-                    </button>
                   </div>
 
                   {inlineFeedback && (
@@ -778,49 +711,6 @@ export const CustomersScreen: React.FC = () => {
                 )}
               </div>
 
-              {/* Inter-Customer Transfers for this Customer */}
-              {activeTransfers.length > 0 && (
-                <div className="depot-card p-5 space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-                    <span className="text-xs font-sans font-bold uppercase tracking-wider text-slate-900 dark:text-slate-200 flex items-center gap-1.5">
-                      <ArrowRightLeft className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                      <span>Inter-Customer Transfers ({activeTransfers.length})</span>
-                    </span>
-                  </div>
-
-                  <div className="space-y-2">
-                    {activeTransfers.map(tr => {
-                      const isSender = tr.from_customer_id === activeCustomer.id;
-                      const counterparty = isSender
-                        ? customers.find(c => c.id === tr.to_customer_id)?.name || tr.to_customer_id
-                        : customers.find(c => c.id === tr.from_customer_id)?.name || tr.from_customer_id;
-
-                      return (
-                        <div
-                          key={tr.id}
-                          className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs"
-                        >
-                          <div className="space-y-0.5">
-                            <div className="font-sans font-semibold text-slate-900 dark:text-slate-200">
-                              {isSender ? `Sent to ${counterparty}` : `Received from ${counterparty}`}
-                            </div>
-                            <div className="text-xs text-slate-500 font-mono">
-                              {formatDepotDate(tr.date)} · Company Kegs
-                            </div>
-                          </div>
-                          <span className={`px-2 py-0.5 rounded text-xs font-mono font-bold ${
-                            isSender
-                              ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'
-                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
-                          }`}>
-                            {isSender ? '-' : '+'}{tr.qty} kegs
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
               </>)}
             </div>
           ) : (
@@ -1066,133 +956,6 @@ export const CustomersScreen: React.FC = () => {
         </Modal>
       )}
 
-      {/* Inter-Customer Transfer Modal */}
-      {transferFromCustomerId && (() => {
-        const fromCustomer = customers.find(c => c.id === transferFromCustomerId);
-        const fromStats = fromCustomer ? customerStatsMap[fromCustomer.id] : null;
-
-        return (
-          <Modal
-            isOpen
-            onClose={() => setTransferFromCustomerId(null)}
-            size="lg"
-            title={
-              <span className="flex items-center gap-2">
-                <ArrowRightLeft className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                <span>Inter-Customer / Inter-Agent Transfer</span>
-              </span>
-            }
-          >
-            <div className="space-y-5">
-              {transferError && (
-                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-300 text-xs font-sans flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />
-                  <span>{transferError}</span>
-                </div>
-              )}
-
-              {/* Explanatory Protocol Banner */}
-              <div className="p-3.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900/40 text-xs font-sans text-purple-950 dark:text-purple-200 space-y-1">
-                <div className="font-bold flex items-center gap-1.5">
-                  <span>Direct Customer-to-Customer Handover</span>
-                </div>
-                <p className="text-xs text-purple-800 dark:text-purple-300">
-                  Transfers company kegs or bulk product directly between customer accounts. Sender&apos;s ledger decreases, receiver&apos;s ledger increases. Total fleet at depot remains unchanged.
-                </p>
-              </div>
-
-              <form onSubmit={handleRecordTransferSubmit} className="space-y-4 text-xs">
-                {/* Sender Account */}
-                <div className="space-y-1">
-                  <label htmlFor="transfer-from-customer" className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    Transferring From (Sender)
-                  </label>
-                  <select
-                    id="transfer-from-customer"
-                    value={transferFromCustomerId}
-                    onChange={e => setTransferFromCustomerId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-sans font-semibold text-sm focus:outline-none focus:border-purple-500"
-                  >
-                    {customers.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({customerStatsMap[c.id]?.totalCompanyKegsOut || 0} kegs out)
-                      </option>
-                    ))}
-                  </select>
-                  {fromStats && (
-                    <div className="text-xs font-mono tabular-nums text-slate-500 dark:text-slate-400 pt-0.5">
-                      Sender current company keg balance: <strong className="text-slate-800 dark:text-slate-200">{fromStats.totalCompanyKegsOut} kegs</strong>
-                    </div>
-                  )}
-                </div>
-
-                {/* Receiver Account */}
-                <div className="space-y-1">
-                  <label htmlFor="transfer-to-customer" className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    Transferring To (Receiver)
-                  </label>
-                  <select
-                    id="transfer-to-customer"
-                    value={transferToCustomerId}
-                    onChange={e => setTransferToCustomerId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-sans font-semibold text-sm focus:outline-none focus:border-purple-500"
-                    required
-                  >
-                    <option value="" disabled>Select receiving customer / agent</option>
-                    {customers
-                      .filter(c => c.id !== transferFromCustomerId)
-                      .map(c => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} ({c.type.toUpperCase()}) — {customerStatsMap[c.id]?.totalCompanyKegsOut || 0} kegs out
-                        </option>
-                      ))}
-                  </select>
-                </div>
-
-                {/* Quantity */}
-                <div className="space-y-1">
-                  <label htmlFor="transfer-qty" className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    Quantity (Company Kegs)
-                  </label>
-                  <input
-                    id="transfer-qty"
-                    type="number"
-                    step="1"
-                    min="1"
-                    value={transferQty}
-                    onChange={e => setTransferQty(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-mono tabular-nums font-bold focus:outline-none focus:border-purple-500"
-                    placeholder="5"
-                    required
-                  />
-                </div>
-
-                {/* Transfer Notes */}
-                <div className="space-y-1">
-                  <label htmlFor="transfer-notes" className="font-sans font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    Handover Notes / Reference (Optional)
-                  </label>
-                  <input
-                    id="transfer-notes"
-                    type="text"
-                    value={transferNotes}
-                    onChange={e => setTransferNotes(e.target.value)}
-                    placeholder="e.g. Authorized yard transfer between agent branches"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-sans focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full py-3.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-sans font-bold text-sm uppercase tracking-wider shadow-sm transition-all active:scale-98"
-                >
-                  Confirm & Log Inter-Customer Transfer
-                </button>
-              </form>
-            </div>
-          </Modal>
-        );
-      })()}
 
       {/* MOBILE CUSTOMER LEDGER & INVOICES BOTTOM SHEET */}
       {selectedCustomerForSheet && (() => {
@@ -1273,7 +1036,7 @@ export const CustomersScreen: React.FC = () => {
                     setSelectedCustomerForSheet(null);
                     handleOpenPayment(cust, currentBal);
                   }}
-                  className="py-2.5 px-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+                  className="py-2.5 px-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 flex items-center justify-center gap-1.5 shadow-sm active:scale-95 font-bold"
                 >
                   <CreditCard className="w-4 h-4" />
                   <span>Record Payment</span>
@@ -1284,25 +1047,12 @@ export const CustomersScreen: React.FC = () => {
                   onClick={() => {
                     const cust = selectedCustomerForSheet;
                     setSelectedCustomerForSheet(null);
-                    handleOpenTransfer(cust);
-                  }}
-                  className="py-2.5 px-3 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 flex items-center justify-center gap-1.5 active:scale-95"
-                >
-                  <ArrowRightLeft className="w-4 h-4" />
-                  <span>Transfer Stock</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const cust = selectedCustomerForSheet;
-                    setSelectedCustomerForSheet(null);
                     setStatementCustomer(cust);
                   }}
-                  className="col-span-2 py-2.5 px-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 flex items-center justify-center gap-1.5 active:scale-95"
+                  className="py-2.5 px-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 flex items-center justify-center gap-1.5 active:scale-95 font-semibold"
                 >
                   <FileText className="w-4 h-4" />
-                  <span>View / send statement</span>
+                  <span>Statement</span>
                 </button>
               </div>
 

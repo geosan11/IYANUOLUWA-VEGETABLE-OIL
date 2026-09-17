@@ -1,6 +1,18 @@
 export type CustomerType = 'retail' | 'agent' | 'corporate';
 export type UnitType = 'litre' | 'keg' | 'ton';
-export type PaymentMethod = 'cash' | 'transfer' | 'credit' | 'pos';
+export type SinglePaymentMethod = 'cash' | 'transfer' | 'credit' | 'pos';
+export type PaymentMethod = SinglePaymentMethod | 'split';
+
+export interface PaymentSplit {
+  method: SinglePaymentMethod;
+  amount: number;
+  amount_tendered?: number | null;
+  change_due?: number | null;
+  reference?: string | null;
+  credit_term_days?: number;
+  due_date?: string | null;
+}
+
 export type KegSource = 'company' | 'own' | 'purchased' | null;
 export type UserRole = 'owner' | 'hub_manager' | 'staff' | 'driver';
 export type SupplyModel = 'bulk_truck' | 'pre_kegged';
@@ -167,10 +179,13 @@ export interface Sale {
   customer_id: string;
   date: string; // ISO — stamped "now"
   payment_method: PaymentMethod;
+  payment_splits?: PaymentSplit[];
   amount_tendered?: number | null;
   change_due?: number | null;
   cashier_name?: string;
   note?: string;
+  credit_term_days?: number;
+  due_date?: string | null;
   voided?: boolean;
   voided_at?: string | null;
   voided_by?: string | null;
@@ -205,7 +220,9 @@ export interface Order {
 
   pricing_tier: CustomerType;
   payment_method: PaymentMethod; // mirrors Sale — FIFO/aging reducers read it
+  payment_splits?: PaymentSplit[];
   paid_amount: number;
+  credit_term_days?: number;
   due_date: string | null;
   date: string; // === Sale.date
 
@@ -420,6 +437,7 @@ export interface ReceiptData {
   changeDue?: number | null;
   paymentAmount?: number;
   paymentMethod: PaymentMethod;
+  paymentSplits?: PaymentSplit[];
   previousBalance: number;
   newBalance: number;
   unappliedLeftover?: number;

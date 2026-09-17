@@ -19,6 +19,7 @@ import {
   ReceiptData,
   ContainerMode,
   PaymentMethod,
+  PaymentSplit,
   Pump,
   PumpReading,
   PumpVarianceAudit,
@@ -71,6 +72,7 @@ import {
   depotDateKey
 } from './businessLogic';
 import { priceSaleLine } from './pricing';
+import { scanAndTriggerAutonomousAlerts } from './alertService';
 
 interface StoreContextType {
   products: Product[];
@@ -153,9 +155,12 @@ interface StoreContextType {
   createSale: (data: {
     customerId: string;
     paymentMethod: PaymentMethod;
+    paymentSplits?: PaymentSplit[];
     amountTendered?: number | null;
     note?: string;
     pricingTier?: CustomerType;
+    creditTermDays?: number;
+    dueDate?: string;
     /** Back-date the sale (defaults to now). */
     date?: string;
     lines: {
@@ -844,15 +849,29 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [customerStatsMap, tanks, products, tankStockByProduct, settings.truck_shortfall_threshold, settings.low_stock_litres_threshold, pumpVarianceAudits, shifts]);
 
+  // Autonomous alert scanner — dispatches Web Push & alert log when out-of-the-ordinary events occur
+  useEffect(() => {
+    if (activeAlerts.totalAlertCount > 0) {
+      scanAndTriggerAutonomousAlerts({
+        pumpVarianceAudits: activeAlerts.pumpVariance,
+        deliveryShortfall: activeAlerts.deliveryShortfall,
+        shiftDiscrepancy: activeAlerts.shiftDiscrepancy,
+        overLimit: activeAlerts.overLimit,
+        overdueCredit: activeAlerts.overdueCredit,
+        lowTankStock: activeAlerts.lowTankStock
+      });
+    }
+  }, [activeAlerts]);
+
 
   // 6. Today's operational stats
   const todayStats = useMemo(() => {
     const todayStr = getDepotToday();
     const todayOrders = orders.filter(o => !o.voided && depotDateKey(o.date) === todayStr);
 
-    // Money collected today that isn't credit (cash, bank transfer, POS card)
+    // Money collected today that isn't credit (cash, bank transfer, POS card, or paid portions of split sales)
     const cashTransferSales = todayOrders
-      .filter(o => o.payment_method === 'cash' || o.payment_method === 'transfer' || o.payment_method === 'pos')
+      .filter(o => o.payment_method === 'cash' || o.payment_method === 'transfer' || o.payment_method === 'pos' || o.payment_method === 'split')
       .reduce((sum, o) => sum + (o.paid_amount || 0), 0);
 
     // Total Credit Outstanding across all customers
@@ -1004,9 +1023,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const createSale = (data: {
     customerId: string;
     paymentMethod: PaymentMethod;
+    paymentSplits?: PaymentSplit[];
     amountTendered?: number | null;
     note?: string;
     pricingTier?: CustomerType;
+    creditTermDays?: number;
+    dueDate?: string;
     date?: string;
     lines: {
       productId: string;
@@ -1021,8 +1043,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }) => {
     const customer = customers.find(c => c.id === data.customerId) || (data.customerId === ONE_TIME_CUSTOMER_ID ? ONE_TIME_CUSTOMER : null);
     if (!customer) return { success: false, error: 'Customer not found' };
-    if (customer.id === ONE_TIME_CUSTOMER_ID && data.paymentMethod === 'credit') {
-      return { success: false, error: 'One-time walk-in customers cannot buy on debit. Settle with cash, transfer, or POS.' };
+    const creditLeg = data.paymentMethod === 'split'
+      ? data.paymentSplits?.find(sp => sp.method === 'credit')
+      : null;
+    const isDebtInvolved = data.paymentMethod === 'credit' || !!creditLeg;
+    if (customer.id === ONE_TIME_CUSTOMER_ID && isDebtInvolved) {
+      return { success: false, error: 'Retail walk-in customers cannot purchase on debt' };
     }
     if (!data.lines || data.lines.length === 0) {
       return { success: false, error: 'A sale needs at least one line' };
@@ -1048,11 +1074,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const creationTime = new Date();
     const now = data.date ? new Date(data.date) : creationTime;
     const saleId = `sale-${creationTime.getTime()}`;
+    const effectiveTermDays = data.creditTermDays ?? (creditLeg?.credit_term_days ?? customer.credit_term_days ?? 14);
     let dueDate: string | null = null;
-    if (data.paymentMethod === 'credit') {
-      const due = new Date(now);
-      due.setDate(due.getDate() + customer.credit_term_days);
-      dueDate = due.toISOString();
+    if (isDebtInvolved) {
+      if (data.dueDate) {
+        dueDate = data.dueDate;
+      } else {
+        const due = new Date(now);
+        due.setDate(due.getDate() + effectiveTermDays);
+        dueDate = due.toISOString();
+      }
     }
 
     let workingTanks = tanks;
@@ -1137,19 +1168,55 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     const total = Number(newLines.reduce((s, l) => s + l.line_amount, 0).toFixed(2));
+    const creditPortion = data.paymentMethod === 'credit'
+      ? total
+      : creditLeg ? Number(creditLeg.amount.toFixed(2)) : 0;
+    const paidPortion = Number(Math.max(0, total - creditPortion).toFixed(2));
+
+    // Distribute paidPortion and split info across the newLines
+    let remainingPaid = paidPortion;
+    for (const l of newLines) {
+      if (creditPortion === 0) {
+        l.paid_amount = l.line_amount;
+      } else {
+        const linePaid = Math.min(l.line_amount, remainingPaid);
+        l.paid_amount = Number(linePaid.toFixed(2));
+        remainingPaid = Math.max(0, Number((remainingPaid - linePaid).toFixed(2)));
+      }
+      l.payment_method = data.paymentMethod;
+      l.payment_splits = data.paymentSplits;
+      l.due_date = (l.line_amount - (l.paid_amount || 0) > 0.01) ? dueDate : null;
+      l.credit_term_days = isDebtInvolved ? effectiveTermDays : undefined;
+    }
+
+    const cashLeg = data.paymentMethod === 'split'
+      ? data.paymentSplits?.find(sp => sp.method === 'cash')
+      : null;
     const tendered =
-      data.paymentMethod === 'cash' && data.amountTendered != null ? Number(data.amountTendered) : null;
-    const changeDue = tendered != null ? Number(Math.max(0, tendered - total).toFixed(2)) : null;
+      data.paymentMethod === 'cash' && data.amountTendered != null
+        ? Number(data.amountTendered)
+        : cashLeg && cashLeg.amount_tendered != null
+        ? Number(cashLeg.amount_tendered)
+        : null;
+    const changeDue =
+      data.paymentMethod === 'cash' && tendered != null
+        ? Number(Math.max(0, tendered - total).toFixed(2))
+        : cashLeg && cashLeg.change_due != null
+        ? Number(cashLeg.change_due)
+        : null;
 
     const sale: Sale = {
       id: saleId,
       customer_id: data.customerId,
       date: now.toISOString(),
       payment_method: data.paymentMethod,
+      payment_splits: data.paymentSplits,
       amount_tendered: tendered,
       change_due: changeDue,
       cashier_name: currentUser.full_name || (userRole === 'owner' ? 'Managing Director' : 'Depot Cashier'),
       note: data.note?.trim() || undefined,
+      credit_term_days: isDebtInvolved ? effectiveTermDays : undefined,
+      due_date: dueDate,
       voided: false,
       hub_id: getTargetHubId()
     };
@@ -1162,7 +1229,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const prevStats = customerStatsMap[customer.id];
     const previousBalance = prevStats ? prevStats.currentBalance : 0;
-    const creditPortion = data.paymentMethod === 'credit' ? total : 0;
 
     const firstLine = newLines[0];
     const firstProduct = products.find(p => p.id === firstLine.product_id);
@@ -1181,6 +1247,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       amountTendered: tendered,
       changeDue,
       paymentMethod: data.paymentMethod,
+      paymentSplits: data.paymentSplits,
       previousBalance,
       newBalance: previousBalance + creditPortion,
       cashierName: sale.cashier_name
@@ -1830,7 +1897,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     }
 
-    const { cashSales, cashExpenses } = computeShiftCash(shift, orders, expenses, shiftEndDate);
+    const { cashSales, cashExpenses } = computeShiftCash(shift, orders, expenses, shiftEndDate, sales);
 
     const summary = calculateShiftSummary(
       shift.opening_float,

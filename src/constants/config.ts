@@ -106,6 +106,16 @@ export const PAYMENT_MODE_THEME: Record<PaymentMethod, PaymentModeTheme> = {
     textCls: 'text-amber-600 dark:text-amber-400',
     bgSubtleCls: 'bg-amber-50/70 dark:bg-amber-950/30',
     borderCls: 'border-amber-200 dark:border-amber-800/60'
+  },
+  split: {
+    label: 'Split / Double',
+    badgeLabel: 'SPLIT',
+    dotCls: 'bg-indigo-500',
+    badgeCls: 'bg-indigo-50 text-indigo-700 border-indigo-300 dark:bg-indigo-950/70 dark:text-indigo-300 dark:border-indigo-800/80',
+    buttonActiveCls: 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/25 ring-2 ring-indigo-500/30',
+    textCls: 'text-indigo-600 dark:text-indigo-400',
+    bgSubtleCls: 'bg-indigo-50/70 dark:bg-indigo-950/30',
+    borderCls: 'border-indigo-200 dark:border-indigo-800/60'
   }
 };
 

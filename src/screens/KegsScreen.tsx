@@ -2,9 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
 import { Customer } from '../types';
 import { BottomSheet } from '../components/common/BottomSheet';
-import { KegFleetLifecycleDiagram } from '../components/common/KegFleetLifecycleDiagram';
 import { formatDepotDate, formatDepotTime } from '../services/businessLogic';
-import { packLabel } from '../constants/config';
+import { packLabel, ONE_TIME_CUSTOMER_ID } from '../constants/config';
 import {
   Package,
   Stack as Boxes,
@@ -40,7 +39,9 @@ export const KegsScreen: React.FC = () => {
   // Sort & Master-Detail Selection State
   const [sortField, setSortField] = useState<SortField>('balance');
   const [sortAsc, setSortAsc] = useState<boolean>(false);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(customers[0]?.id || '');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(() => {
+    return customers.find(c => c.id !== ONE_TIME_CUSTOMER_ID)?.id || customers[0]?.id || '';
+  });
 
   // Persistent Detail Panel Return Form State
   const [detailReturnQty, setDetailReturnQty] = useState<string>('5');
@@ -72,7 +73,7 @@ export const KegsScreen: React.FC = () => {
     const supplied = custOrders.reduce((sum, o) => sum + Number(o.qty || 0), 0);
     const custReturns = kegReturns.filter(r => r.customer_id === custId);
     const returned = custReturns.reduce((sum, r) => sum + Number(r.qty || 0), 0);
-    const balance = customerStatsMap[custId]?.totalCompanyKegsOut ?? Math.max(0, supplied - returned);
+    const balance = Math.max(0, supplied - returned);
     return { supplied, returned, balance };
   };
 
@@ -83,6 +84,7 @@ export const KegsScreen: React.FC = () => {
       type: 'return' as const,
       date: r.date,
       qty: r.qty,
+      notes: r.note,
       customerName: customers.find(c => c.id === r.customer_id)?.name || 'Customer'
     }));
 
@@ -103,9 +105,10 @@ export const KegsScreen: React.FC = () => {
     );
   }, [kegReturns, transfers, customers]);
 
-  // Active customer for desktop detail panel
+  // Active customer for desktop detail panel (skipping walk-in retail)
   const activeCustomer = useMemo(() => {
-    return customers.find(c => c.id === selectedCustomerId) || customers[0] || null;
+    const eligible = customers.filter(c => c.id !== ONE_TIME_CUSTOMER_ID);
+    return eligible.find(c => c.id === selectedCustomerId) || eligible[0] || null;
   }, [customers, selectedCustomerId]);
 
   const activeStats = useMemo(() => {
@@ -126,14 +129,6 @@ export const KegsScreen: React.FC = () => {
       }
     });
   }, [activeCustomer, gateHistoryEvents, kegReturns, transfers]);
-
-  const overdueLoanCount = useMemo(() => {
-    return Object.values(customerStatsMap).reduce((acc, stat) => {
-      return stat.agingBadge?.status === 'overdue' && stat.totalCompanyKegsOut > 0
-        ? acc + stat.totalCompanyKegsOut
-        : acc;
-    }, 0);
-  }, [customerStatsMap]);
 
   // Sorting logic
   const handleSort = (field: SortField) => {
@@ -157,15 +152,17 @@ export const KegsScreen: React.FC = () => {
   };
 
   const sortedCustomers = useMemo(() => {
-    const list = customers.map(c => {
-      const stats = getCustStats(c.id);
-      return {
-        ...c,
-        supplied: stats.supplied,
-        returned: stats.returned,
-        balance: stats.balance
-      };
-    });
+    const list = customers
+      .filter(c => c.id !== ONE_TIME_CUSTOMER_ID)
+      .map(c => {
+        const stats = getCustStats(c.id);
+        return {
+          ...c,
+          supplied: stats.supplied,
+          returned: stats.returned,
+          balance: stats.balance
+        };
+      });
 
     // Apply search filter
     const filtered = searchQuery.trim()
@@ -239,7 +236,7 @@ export const KegsScreen: React.FC = () => {
       return (
         <div
           key={item.id}
-          className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs"
+          className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs"
         >
           <div className="space-y-0.5">
             <div className="font-heading font-semibold text-sm text-slate-900 dark:text-slate-200">
@@ -247,13 +244,14 @@ export const KegsScreen: React.FC = () => {
             </div>
             <div className="text-xs text-slate-500 font-mono tabular-nums">
               {formatDepotDate(item.date)} · {formatDepotTime(item.date)}
+              {item.notes && <span className="text-slate-400 font-sans italic ml-1.5">({item.notes})</span>}
             </div>
           </div>
 
           <div className="text-right">
             <div className="inline-flex items-center gap-1 font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 text-xs">
               <ArrowDownLeft className="w-3.5 h-3.5" />
-              <span>+{item.qty} Return</span>
+              <span>+{item.qty} Kegs (25L)</span>
             </div>
           </div>
         </div>
@@ -319,13 +317,6 @@ export const KegsScreen: React.FC = () => {
         </div>
       )}
 
-      {/* Visual Lifecycle Illustration */}
-      <KegFleetLifecycleDiagram
-        inYardCount={kegInventory.kegsAtDepot}
-        loanedCount={kegInventory.totalKegsOut}
-        overdueCount={overdueLoanCount}
-        depositRate={2000}
-      />
 
       {/* Top Summary Cards (3 Pillars) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -605,23 +596,23 @@ export const KegsScreen: React.FC = () => {
                 </p>
               </div>
 
-              {/* 3 Summary Mini-Cards */}
+              {/* 3 Summary Mini-Cards: Consistent Height, Padding and Borders */}
               <div className="grid grid-cols-3 gap-2.5 text-center font-mono tabular-nums">
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-center h-20">
                   <span className="text-xs font-sans text-slate-500 block">Supplied</span>
-                  <span className="text-base font-bold text-slate-900 dark:text-white">
+                  <span className="text-lg font-bold text-slate-900 dark:text-white">
                     {activeStats.supplied}
                   </span>
                 </div>
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-center h-20">
                   <span className="text-xs font-sans text-slate-500 block">Returned</span>
-                  <span className="text-base font-bold text-emerald-600 dark:text-emerald-400">
+                  <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
                     {activeStats.returned}
                   </span>
                 </div>
-                <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60">
-                  <span className="text-xs font-sans text-amber-800 dark:text-amber-300 block">In Custody</span>
-                  <span className="text-base font-bold text-amber-700 dark:text-amber-300">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-center h-20">
+                  <span className="text-xs font-sans text-amber-700 dark:text-amber-400 font-medium block">In Custody</span>
+                  <span className={`text-lg font-bold ${activeStats.balance > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'}`}>
                     {activeStats.balance}
                   </span>
                 </div>
@@ -663,8 +654,8 @@ export const KegsScreen: React.FC = () => {
                     </div>
                   )}
                   <div>
-                    <label htmlFor="detail-return-qty" className="block text-xs font-sans text-slate-600 dark:text-slate-400 mb-1">
-                      Kegs Returned to Yard
+                    <label htmlFor="detail-return-qty" className="block text-xs font-sans font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Kegs Returned to Yard (25L Jerrycans)
                     </label>
                     <div className="flex items-center gap-2">
                       <input
@@ -675,9 +666,9 @@ export const KegsScreen: React.FC = () => {
                         required
                         value={detailReturnQty}
                         onChange={e => setDetailReturnQty(e.target.value)}
-                        className="depot-input w-24 px-3 py-2 rounded-lg text-base font-mono tabular-nums font-bold text-right"
+                        className="depot-input w-24 h-10 px-3 rounded-xl text-base font-mono tabular-nums font-bold text-center border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
                       />
-                      {/* Quick fill chips */}
+                      {/* Quick fill chips with matching height */}
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {[1, 5, 10, activeStats.balance]
                           .filter((v, i, self) => v > 0 && v <= (activeStats.balance || 999) && self.indexOf(v) === i)
@@ -686,7 +677,7 @@ export const KegsScreen: React.FC = () => {
                               key={idx}
                               type="button"
                               onClick={() => setDetailReturnQty(val.toString())}
-                              className="px-2.5 py-1 rounded-md bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-mono font-medium border border-slate-200 dark:border-slate-700 transition-colors"
+                              className="h-10 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-mono font-bold text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-colors"
                             >
                               +{val} {val === activeStats.balance && activeStats.balance > 0 ? '(All)' : ''}
                             </button>
@@ -701,16 +692,16 @@ export const KegsScreen: React.FC = () => {
                       placeholder="Optional return notes or inspection remarks..."
                       value={detailReturnNotes}
                       onChange={e => setDetailReturnNotes(e.target.value)}
-                      className="depot-input w-full px-3 py-1.5 rounded-lg text-xs"
+                      className="depot-input w-full px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700"
                     />
                   </div>
 
                   <button
                     type="submit"
-                    className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-sans font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 active:scale-98"
+                    className="w-full py-2.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-xs shadow-md shadow-brand-500/20 transition-all flex items-center justify-center gap-2 active:scale-98"
                   >
-                    <Plus className="w-4 h-4" weight="bold" />
-                    <span>Confirm Gate Return & Restock Yard</span>
+                    <Plus className="w-4 h-4 text-slate-950" weight="bold" />
+                    <span>Confirm Gate Return &amp; Restock Yard</span>
                   </button>
                 </form>
               </div>

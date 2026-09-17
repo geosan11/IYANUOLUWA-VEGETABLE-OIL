@@ -6,12 +6,7 @@ import {
   X,
   PaperPlaneTilt,
   ShareNetwork,
-  FileText,
-  CheckCircle,
-  WarningCircle,
-  Phone,
-  MapPin,
-  Coins
+  FileText
 } from '@phosphor-icons/react';
 
 interface Props {
@@ -143,215 +138,138 @@ export const CustomerStatementModal: React.FC<Props> = ({
         {/* Modal Scroll Body */}
         <div className="p-4 sm:p-6 max-h-[calc(85vh-130px)] overflow-y-auto">
           {viewMode === 'a4' ? (
-            /* ========================================================================= */
-            /* EXECUTIVE A4 CREDIT & DEBIT BALANCE SHEET DOCUMENT                        */
-            /* ========================================================================= */
             <div
               id="statement-sheet-print-area"
-              className="bg-white text-slate-900 p-6 sm:p-10 rounded-2xl shadow-sm border border-slate-200 mx-auto max-w-3xl space-y-6"
+              className="bg-white text-black p-8 sm:p-12 rounded-xl shadow-lg border-2 border-black mx-auto max-w-3xl space-y-6 font-sans"
             >
-              {/* Company Logo & Formal Letterhead Header */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b-2 border-slate-900/10">
-                <div className="flex items-center gap-4">
-                  {company.logo_url ? (
-                    <img
-                      src={company.logo_url}
-                      alt={company.name}
-                      className="w-16 h-16 sm:w-20 sm:h-20 object-contain rounded-xl border border-slate-200 p-1 bg-white"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 text-white flex flex-col items-center justify-center font-heading font-black shadow-md shrink-0">
-                      <span className="text-xl tracking-tighter">IVO</span>
-                      <span className="text-[9px] uppercase tracking-widest font-sans opacity-90">DEPOT</span>
-                    </div>
-                  )}
-
-                  <div className="space-y-1">
-                    <h1 className="font-heading font-extrabold text-lg sm:text-xl text-slate-950 uppercase tracking-tight leading-tight">
-                      {company.name}
-                    </h1>
-                    <div className="text-[11px] font-sans text-slate-600 space-y-0.5">
-                      <p className="flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-brand-600 shrink-0" />
-                        <span>{company.address}</span>
-                      </p>
-                      <p className="flex items-center gap-1.5">
-                        <Phone className="w-3.5 h-3.5 text-brand-600 shrink-0" />
-                        <span>Tel: {company.phone}</span>
-                      </p>
-                    </div>
-                  </div>
+              {/* Formal Company Header & Document Title */}
+              <div className="border-b-2 border-black pb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-xl sm:text-2xl font-serif font-black uppercase tracking-tight text-black">
+                    {company.name}
+                  </h1>
+                  <p className="text-[11px] font-semibold tracking-wide text-neutral-800 uppercase mt-0.5">
+                    Depot Wholesale Operations · Vegetable &amp; Palm Oil Distribution
+                  </p>
+                  <p className="text-[11px] text-neutral-700 mt-1 leading-snug">
+                    {company.address}
+                  </p>
+                  <p className="text-[11px] text-neutral-700 font-mono">
+                    Tel: {company.phone} · RC / Reg: 3491820
+                  </p>
                 </div>
 
-                <div className="text-left sm:text-right space-y-1 self-stretch sm:self-auto border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-100">
-                  <div className="inline-block px-3 py-1 rounded-lg bg-slate-950 text-white font-sans font-extrabold text-[11px] uppercase tracking-widest">
+                <div className="border-2 border-black p-3 text-left sm:text-right self-stretch sm:self-auto min-w-[220px]">
+                  <div className="text-[11px] font-mono font-black uppercase tracking-wider bg-black text-white px-2 py-0.5 text-center mb-1.5">
                     STATEMENT OF ACCOUNT
                   </div>
-                  <div className="text-[12px] font-mono font-bold text-slate-900">
-                    Ref: {statementRef}
+                  <div className="text-[11px] font-mono">
+                    <span className="text-neutral-600">Ref:</span> <strong className="text-black">{statementRef}</strong>
                   </div>
-                  <div className="text-[11px] font-sans text-slate-500">
-                    Generated: {formatDepotDate(asOf)} {formatDepotTime(asOf)}
+                  <div className="text-[11px] font-mono">
+                    <span className="text-neutral-600">Date:</span> <strong className="text-black">{formatDepotDate(asOf)}</strong>
+                  </div>
+                  <div className="text-[11px] font-mono">
+                    <span className="text-neutral-600">Time:</span> {formatDepotTime(asOf)}
                   </div>
                 </div>
               </div>
 
-              {/* Account Profile & Summary KPI Blocks */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Account Details */}
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
-                  <span className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400 block">
-                    Customer Account Particulars
-                  </span>
-                  <div className="font-heading font-extrabold text-base text-slate-900">
+              {/* Customer Particulars & Statement Summary Ledger Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border border-black p-4 bg-neutral-50/50">
+                {/* Customer Details */}
+                <div className="space-y-1 text-[11px] border-b sm:border-b-0 sm:border-r border-black/30 pb-3 sm:pb-0 sm:pr-4">
+                  <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-600">
+                    Account Particulars
+                  </div>
+                  <div className="text-sm font-bold text-black uppercase">
                     {customer.name}
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-[11px] font-sans text-slate-600 pt-1">
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-1 pt-1">
                     <div>
-                      <span className="text-slate-400 block">Category / Tier:</span>
-                      <span className="font-bold capitalize text-slate-800">{customer.type} Customer</span>
+                      <span className="text-neutral-600">Category:</span>{' '}
+                      <strong className="capitalize text-black">{customer.type}</strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block">Telephone:</span>
-                      <span className="font-mono font-semibold text-slate-800">{customer.phone || 'N/A'}</span>
+                      <span className="text-neutral-600">Phone:</span>{' '}
+                      <strong className="font-mono text-black">{customer.phone || 'N/A'}</strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block">Credit Limit:</span>
-                      <span className="font-mono font-semibold text-slate-800">{formatNaira(customer.credit_limit || 0)}</span>
+                      <span className="text-neutral-600">Credit Limit:</span>{' '}
+                      <strong className="font-mono text-black">{formatNaira(customer.credit_limit || 0)}</strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block">Agreed Terms:</span>
-                      <span className="font-semibold text-slate-800">{customer.credit_term_days || 7} Days</span>
+                      <span className="text-neutral-600">Agreed Terms:</span>{' '}
+                      <strong className="text-black">{customer.credit_term_days || 7} Days</strong>
                     </div>
                   </div>
                 </div>
 
-                {/* Balance Status Banner */}
-                <div className="p-4 rounded-xl bg-slate-900 text-white space-y-3 flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400">
-                      Current Ledger Position
-                    </span>
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        balance > 0
-                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                          : balance < 0
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                      }`}
-                    >
-                      {balance > 0 ? (
-                        <>
-                          <WarningCircle className="w-3 h-3 text-rose-400" weight="fill" />
-                          <span>Debt Outstanding</span>
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle className="w-3 h-3 text-emerald-400" weight="fill" />
-                          <span>Account Clear</span>
-                        </>
-                      )}
-                    </span>
+                {/* Balance & Exposure Summary */}
+                <div className="space-y-1 text-[11px] sm:pl-2">
+                  <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-600">
+                    Financial Ledger Position
                   </div>
-
-                  <div>
-                    <div className="text-[11px] font-sans text-slate-300">
-                      Net Closing Balance Owed:
-                    </div>
-                    <div
-                      className={`text-2xl sm:text-3xl font-heading font-black tracking-tight tabular-nums ${
-                        balance > 0 ? 'text-rose-400' : 'text-emerald-400'
-                      }`}
-                    >
+                  <div className="flex items-baseline justify-between pt-1">
+                    <span className="text-neutral-700">Total Invoiced (Debits):</span>
+                    <span className="font-mono font-bold text-black">+{formatNaira(totalDebits)}</span>
+                  </div>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-neutral-700">Total Payments (Credits):</span>
+                    <span className="font-mono font-bold text-black">-{formatNaira(totalCredits)}</span>
+                  </div>
+                  <div className="flex items-baseline justify-between border-t border-black pt-1 mt-1 font-bold text-xs">
+                    <span className="uppercase text-black">Net Closing Balance Due:</span>
+                    <span className="font-mono text-sm text-black underline decoration-2 underline-offset-2">
                       {formatNaira(balance)}
-                    </div>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] font-sans text-slate-300">
-                    <span>Company Kegs On Loan:</span>
-                    <span className="font-mono font-bold text-amber-300 text-sm">
-                      {kegsOut} kegs
                     </span>
                   </div>
+                  <div className="flex items-baseline justify-between text-[11px] text-neutral-700 pt-0.5">
+                    <span>Company Kegs On Loan:</span>
+                    <span className="font-mono font-bold text-black">{kegsOut} keg(s)</span>
+                  </div>
                 </div>
               </div>
 
-              {/* 4 KPI Telemetry Strip */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono tabular-nums">
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] font-sans uppercase text-slate-500 block">Total Debits</span>
-                  <span className="text-sm font-bold text-rose-700">+{formatNaira(totalDebits)}</span>
+              {/* Formal Accounting Ledger Table */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-mono font-bold text-black uppercase tracking-wider">
+                  <span>Itemized Financial Ledger &amp; Transactions</span>
+                  <span>{rows.length} RECORD(S)</span>
                 </div>
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] font-sans uppercase text-slate-500 block">Total Credits</span>
-                  <span className="text-sm font-bold text-emerald-700">-{formatNaira(totalCredits)}</span>
-                </div>
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] font-sans uppercase text-slate-500 block">Balance Owed</span>
-                  <span className={`text-sm font-bold ${balance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
-                    {formatNaira(balance)}
-                  </span>
-                </div>
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] font-sans uppercase text-slate-500 block">Kegs on Loan</span>
-                  <span className="text-sm font-bold text-slate-900">{kegsOut}</span>
-                </div>
-              </div>
 
-              {/* Full Financial Ledger Table */}
-              <div className="space-y-2">
-                <h3 className="text-xs font-sans font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
-                  <span>Transaction Ledger & Itemized Activity</span>
-                  <span className="font-mono text-[11px] text-slate-400 font-normal">
-                    {rows.length} Record{rows.length === 1 ? '' : 's'}
-                  </span>
-                </h3>
-
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
-                  <table className="w-full text-left text-[11.5px] font-sans">
-                    <thead className="bg-slate-100/80 border-b border-slate-200 text-slate-600 uppercase font-bold text-[10px] tracking-wider">
-                      <tr>
-                        <th className="py-2.5 px-3">Date</th>
-                        <th className="py-2.5 px-3">Type / Ref</th>
-                        <th className="py-2.5 px-3">Transaction Details</th>
-                        <th className="py-2.5 px-3 text-right">Debit (+₦)</th>
-                        <th className="py-2.5 px-3 text-right">Credit (-₦)</th>
-                        <th className="py-2.5 px-3 text-right">Balance (₦)</th>
+                <div className="border border-black overflow-hidden">
+                  <table className="w-full text-left text-[11px] border-collapse">
+                    <thead>
+                      <tr className="bg-black text-white uppercase text-[10px] tracking-wider font-mono">
+                        <th className="py-2 px-2.5 border-r border-neutral-700">Date</th>
+                        <th className="py-2 px-2.5 border-r border-neutral-700">Ref / Type</th>
+                        <th className="py-2 px-2.5 border-r border-neutral-700">Particulars / Description</th>
+                        <th className="py-2 px-2.5 text-right border-r border-neutral-700">Debit (₦)</th>
+                        <th className="py-2 px-2.5 text-right border-r border-neutral-700">Credit (₦)</th>
+                        <th className="py-2 px-2.5 text-right">Balance (₦)</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 font-mono tabular-nums">
+                    <tbody className="divide-y divide-black/20 font-mono tabular-nums text-black">
                       {[...rows].reverse().map((r, i) => (
-                        <tr key={i} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="py-2 px-3 whitespace-nowrap text-slate-600 text-[11px]">
+                        <tr key={i} className="hover:bg-neutral-100/60">
+                          <td className="py-2 px-2.5 whitespace-nowrap border-r border-black/20 text-neutral-800 text-[10.5px]">
                             {formatDepotDate(r.date)}
                           </td>
-                          <td className="py-2 px-3 whitespace-nowrap">
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-sans font-extrabold uppercase tracking-wide ${
-                                r.kind === 'sale'
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : r.kind === 'payment'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : r.kind === 'keg_return'
-                                  ? 'bg-sky-100 text-sky-800'
-                                  : 'bg-purple-100 text-purple-800'
-                              }`}
-                            >
-                              {r.kind === 'keg_return' ? 'Keg Return' : r.kind}
-                            </span>
+                          <td className="py-2 px-2.5 whitespace-nowrap border-r border-black/20 text-[10px] font-bold uppercase">
+                            {r.kind === 'keg_return' ? 'KEG RETURN' : r.kind.toUpperCase()}
                           </td>
-                          <td className="py-2 px-3 font-sans text-slate-800">
-                            <div>{r.label}</div>
-                            {r.note && <div className="text-[10px] text-slate-400 italic mt-0.5">{r.note}</div>}
+                          <td className="py-2 px-2.5 border-r border-black/20 font-sans text-neutral-900 text-[11px]">
+                            <div className="font-semibold">{r.label}</div>
+                            {r.note && <div className="text-[10px] text-neutral-600 italic">{r.note}</div>}
                           </td>
-                          <td className="py-2 px-3 text-right text-rose-600 font-semibold">
+                          <td className="py-2 px-2.5 text-right border-r border-black/20 font-bold">
                             {r.debit > 0 ? formatNaira(r.debit) : '—'}
                           </td>
-                          <td className="py-2 px-3 text-right text-emerald-600 font-semibold">
+                          <td className="py-2 px-2.5 text-right border-r border-black/20 font-bold">
                             {r.credit > 0 ? formatNaira(r.credit) : '—'}
                           </td>
-                          <td className="py-2 px-3 text-right font-bold text-slate-900">
+                          <td className="py-2 px-2.5 text-right font-black">
                             {formatNaira(r.runningBalance)}
                           </td>
                         </tr>
@@ -359,27 +277,27 @@ export const CustomerStatementModal: React.FC<Props> = ({
 
                       {rows.length === 0 && (
                         <tr>
-                          <td colSpan={6} className="py-8 text-center text-slate-400 font-sans">
-                            No ledger transactions recorded on this account yet.
+                          <td colSpan={6} className="py-8 text-center text-neutral-500 font-sans italic">
+                            No ledger transactions recorded on this customer account yet.
                           </td>
                         </tr>
                       )}
                     </tbody>
 
-                    {/* Table Totals */}
+                    {/* Accounting Double Underline Totals */}
                     {rows.length > 0 && (
-                      <tfoot className="bg-slate-50 border-t-2 border-slate-300 font-mono font-bold text-xs">
+                      <tfoot className="border-t-2 border-black border-b-4 border-double border-black bg-neutral-100/80 font-mono font-bold text-[11px] text-black">
                         <tr>
-                          <td colSpan={3} className="py-2.5 px-3 text-slate-800 font-sans uppercase">
-                            Account Total Cumulative Movements:
+                          <td colSpan={3} className="py-2 px-2.5 uppercase font-sans border-r border-black/20">
+                            Cumulative Account Total:
                           </td>
-                          <td className="py-2.5 px-3 text-right text-rose-700">
+                          <td className="py-2 px-2.5 text-right border-r border-black/20 font-black">
                             {formatNaira(totalDebits)}
                           </td>
-                          <td className="py-2.5 px-3 text-right text-emerald-700">
+                          <td className="py-2 px-2.5 text-right border-r border-black/20 font-black">
                             {formatNaira(totalCredits)}
                           </td>
-                          <td className="py-2.5 px-3 text-right text-slate-950 font-black text-[13px]">
+                          <td className="py-2 px-2.5 text-right font-black text-xs">
                             {formatNaira(balance)}
                           </td>
                         </tr>
@@ -389,40 +307,46 @@ export const CustomerStatementModal: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* Bank Remittance & Official Sign-off */}
-              <div className="pt-4 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs text-slate-600 font-sans">
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-                  <div className="font-bold text-slate-900 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                    <Coins className="w-4 h-4 text-brand-600" />
-                    <span>Settlement Remittance Information</span>
+              {/* Settlement Instructions & Terms */}
+              <div className="border border-black p-3.5 bg-neutral-50 text-[10.5px] space-y-1 text-neutral-800 font-sans">
+                <div className="font-bold uppercase tracking-wider text-black">
+                  Remittance &amp; Payment Settlement Terms
+                </div>
+                <p>
+                  All payments should quote customer account name and statement reference <strong>{statementRef}</strong>. Direct bank transfers or bank drafts are payable into authorized depot accounts. Any discrepancies must be reported in writing within 5 business days of statement date.
+                </p>
+              </div>
+
+              {/* Formal Signatures & Accountability Block */}
+              <div className="grid grid-cols-3 gap-6 pt-6 border-t border-black text-center text-[10px] uppercase font-mono">
+                <div className="space-y-1">
+                  <div className="border-b border-black pb-1 h-12 flex items-end justify-center text-neutral-400">
+                    <span>Signature / Date</span>
                   </div>
-                  <p className="text-[11px] text-slate-600">
-                    Direct bank payments should quote customer account name and statement reference <b>{statementRef}</b> for immediate reconciliation.
-                  </p>
-                  <p className="text-[11px] font-mono text-slate-700">
-                    Depot Support: {company.phone}
-                  </p>
+                  <div className="font-bold text-black">Prepared By (Cashier / Staff)</div>
+                  <div className="text-neutral-600 lowercase text-[9px]">accountability verified</div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 text-center">
-                  <div className="border-b border-slate-300 pb-1 flex flex-col justify-end">
-                    <div className="h-10" />
-                    <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">
-                      Depot Cashier / Auditor
-                    </span>
+                <div className="space-y-1">
+                  <div className="border-b border-black pb-1 h-12 flex items-end justify-center text-neutral-400">
+                    <span>Signature / Date</span>
                   </div>
-                  <div className="border-b border-slate-300 pb-1 flex flex-col justify-end">
-                    <div className="h-10" />
-                    <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">
-                      Customer Acceptance
-                    </span>
+                  <div className="font-bold text-black">Audited &amp; Approved By</div>
+                  <div className="text-neutral-600 lowercase text-[9px]">depot manager / supervisor</div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="border-b border-black pb-1 h-12 flex items-end justify-center text-neutral-400">
+                    <span>Signature / Date</span>
                   </div>
+                  <div className="font-bold text-black">Customer Acknowledgment</div>
+                  <div className="text-neutral-600 lowercase text-[9px]">received &amp; confirmed</div>
                 </div>
               </div>
 
               {/* Document Micro-footer */}
-              <div className="text-center text-[10px] font-mono text-slate-400 pt-3 border-t border-dashed border-slate-200">
-                Official Computer-Generated Balance Sheet · {company.name} · Certified Accurate
+              <div className="text-center text-[9px] font-mono text-neutral-500 pt-2 border-t border-dotted border-black/40">
+                Official Computer-Generated Financial Statement · Iyanuoluwa Oil Depot · Certified True &amp; Correct
               </div>
             </div>
           ) : (

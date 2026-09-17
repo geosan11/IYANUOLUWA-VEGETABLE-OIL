@@ -43,6 +43,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     pumpVarianceAudits,
     orders,
     expenses,
+    sales,
     settings,
     activeShift,
     startShift,
@@ -106,8 +107,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   // Live Shift Metrics for active shift (same function used by shift close & today's stats)
   const shiftMetrics = useMemo(() => {
     if (!activeShift) return null;
-    return computeShiftCash(activeShift, orders, expenses, new Date());
-  }, [activeShift, orders, expenses]);
+    return computeShiftCash(activeShift, orders, expenses, new Date(), sales);
+  }, [activeShift, orders, expenses, sales]);
 
   const liveCloseVariance = useMemo(() => {
     if (!shiftMetrics || !cashCountedInput) return null;

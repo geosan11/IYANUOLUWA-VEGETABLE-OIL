@@ -11,7 +11,7 @@ import {
 } from '../services/businessLogic';
 import { priceSaleLine } from '../services/pricing';
 import { PACK_SIZES, packLabel, packShort, getPaymentModeTheme, ONE_TIME_CUSTOMER_ID } from '../constants/config';
-import { ContainerMode, CustomerType, PaymentMethod, ReceiptData } from '../types';
+import { ContainerMode, CustomerType, PaymentMethod, SinglePaymentMethod, ReceiptData, PaymentSplit } from '../types';
 import { Modal } from '../components/common/Modal';
 import {
   MagnifyingGlass as Search,
@@ -35,7 +35,9 @@ import {
   Package,
   Money as Banknote,
   SignOut,
-  Clock
+  Clock,
+  Users,
+  Lightning
 } from '@phosphor-icons/react';
 import { MiniNumberPad } from '../components/common/MiniNumberPad';
 
@@ -91,7 +93,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     closeShift,
     recordShiftOpeningReadings,
     createSale,
-    physicalTanks,
     pumps,
     expenses,
     sales,
@@ -177,6 +178,31 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   const [error, setError] = useState<string | null>(null);
   const [showBackdate, setShowBackdate] = useState(false);
   const [saleDateInput, setSaleDateInput] = useState(() => toDatetimeLocalValue());
+
+  // ---- Editable Debt Period / Terms ----
+  const [creditTermDays, setCreditTermDays] = useState<number>(14);
+
+  // Sync default credit term days when selected customer changes
+  React.useEffect(() => {
+    if (customer?.credit_term_days) {
+      setCreditTermDays(customer.credit_term_days);
+    }
+  }, [customer?.id, customer?.credit_term_days]);
+
+  const effectiveDueDate = useMemo(() => {
+    const baseTime = showBackdate ? new Date(fromDatetimeLocalValue(saleDateInput)).getTime() : Date.now();
+    return new Date(baseTime + Math.max(1, creditTermDays) * 86400000);
+  }, [showBackdate, saleDateInput, creditTermDays]);
+
+  // ---- Double / Split Payment Mode State ----
+  const [isSplitMode, setIsSplitMode] = useState(false);
+  const [splitLeg1Method, setSplitLeg1Method] = useState<SinglePaymentMethod>('cash');
+  const [splitLeg1Amount, setSplitLeg1Amount] = useState('');
+  const [splitLeg1Tendered, setSplitLeg1Tendered] = useState('');
+  const [splitLeg2Method, setSplitLeg2Method] = useState<SinglePaymentMethod>('transfer');
+  const [splitLeg2Amount, setSplitLeg2Amount] = useState('');
+  const [splitLeg2Tendered, setSplitLeg2Tendered] = useState('');
+  const [splitLeg2Ref, setSplitLeg2Ref] = useState('');
 
   // ---- Target 3 dispensing bulk pumps ----
   const targetPumps = useMemo(() => {
@@ -277,10 +303,30 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   const cartTotal = lines.reduce((s, l) => s + l.lineAmount, 0);
   const tenderedNum = Number(amountTendered) || 0;
   const changeDue = paymentMethod === 'cash' ? Math.max(0, tenderedNum - cartTotal) : 0;
-  const shortTender = paymentMethod === 'cash' && amountTendered !== '' && tenderedNum < cartTotal;
+  const shortTender = !isSplitMode && paymentMethod === 'cash' && amountTendered !== '' && tenderedNum < cartTotal;
 
-  const projectedBalance = (customerStats?.currentBalance || 0) + (paymentMethod === 'credit' ? cartTotal : 0);
-  const overLimit = !!customer && paymentMethod === 'credit' && projectedBalance > customer.credit_limit;
+  // Split mode calculations
+  const splitLeg1Num = Number(splitLeg1Amount) || 0;
+  const splitLeg2Num = Number(splitLeg2Amount) || 0;
+  const splitTotalAssigned = Number((splitLeg1Num + splitLeg2Num).toFixed(2));
+  const splitRemaining = Math.max(0, Number((cartTotal - splitTotalAssigned).toFixed(2)));
+  const splitOver = Math.max(0, Number((splitTotalAssigned - cartTotal).toFixed(2)));
+  const isSplitBalanced = cartTotal > 0 && Math.abs(splitTotalAssigned - cartTotal) < 0.01;
+
+  const splitLeg1TenderedNum = Number(splitLeg1Tendered) || splitLeg1Num;
+  const splitLeg1ChangeDue = splitLeg1Method === 'cash' ? Math.max(0, splitLeg1TenderedNum - splitLeg1Num) : 0;
+  const splitLeg1ShortTender = splitLeg1Method === 'cash' && splitLeg1Tendered !== '' && splitLeg1TenderedNum < splitLeg1Num;
+
+  const splitLeg2TenderedNum = Number(splitLeg2Tendered) || splitLeg2Num;
+  const splitLeg2ChangeDue = splitLeg2Method === 'cash' ? Math.max(0, splitLeg2TenderedNum - splitLeg2Num) : 0;
+  const splitLeg2ShortTender = splitLeg2Method === 'cash' && splitLeg2Tendered !== '' && splitLeg2TenderedNum < splitLeg2Num;
+
+  const creditPortion = isSplitMode
+    ? (splitLeg1Method === 'credit' ? splitLeg1Num : 0) + (splitLeg2Method === 'credit' ? splitLeg2Num : 0)
+    : (paymentMethod === 'credit' ? cartTotal : 0);
+
+  const projectedBalance = (customerStats?.currentBalance || 0) + creditPortion;
+  const overLimit = !!customer && creditPortion > 0 && projectedBalance > customer.credit_limit;
   const overLimitBlocked = overLimit && !can('authorizeCreditOverride');
 
   const canAddLine =
@@ -351,17 +397,60 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   const completeSale = () => {
     setError(null);
     if (!customer) return setError('Select a customer.');
-    if (isOneTime && paymentMethod === 'credit') {
-      return setError('One-time supermarket customers cannot buy on debt. Settle with cash, transfer, or POS.');
-    }
     if (lines.length === 0) return setError('Add at least one item.');
-    if (shortTender) return setError('Cash tendered is less than the total.');
-    if (overLimitBlocked) return setError('This sale puts the customer over their debt limit — owner approval required.');
+
+    if (!isSplitMode) {
+      if (isOneTime && paymentMethod === 'credit') {
+        return setError('One-time supermarket customers cannot buy on debt. Settle with cash, transfer, or POS.');
+      }
+      if (shortTender) return setError('Cash tendered is less than the total.');
+      if (overLimitBlocked) return setError('This sale puts the customer over their debt limit — owner approval required.');
+    } else {
+      if (!isSplitBalanced) {
+        return setError(`Split payments must equal total (${formatNaira(cartTotal)}) exactly. Currently assigned: ${formatNaira(splitTotalAssigned)}.`);
+      }
+      if (splitLeg1Num <= 0 || splitLeg2Num <= 0) {
+        return setError('Both payment legs must have an amount greater than zero.');
+      }
+      if (isOneTime && (splitLeg1Method === 'credit' || splitLeg2Method === 'credit')) {
+        return setError('One-time supermarket customers cannot buy on debt. Settle with cash, transfer, or POS.');
+      }
+      if (splitLeg1ShortTender) return setError('Cash tendered for Leg 1 is less than the assigned amount.');
+      if (splitLeg2ShortTender) return setError('Cash tendered for Leg 2 is less than the assigned amount.');
+      if (overLimitBlocked) return setError('The debt portion puts the customer over their credit limit — owner approval required.');
+    }
+
+    const splits: PaymentSplit[] | undefined = isSplitMode
+      ? [
+          {
+            method: splitLeg1Method,
+            amount: splitLeg1Num,
+            amount_tendered: splitLeg1Method === 'cash' ? splitLeg1TenderedNum : undefined,
+            change_due: splitLeg1Method === 'cash' ? splitLeg1ChangeDue : undefined
+          },
+          {
+            method: splitLeg2Method,
+            amount: splitLeg2Num,
+            amount_tendered: splitLeg2Method === 'cash' ? splitLeg2TenderedNum : undefined,
+            change_due: splitLeg2Method === 'cash' ? splitLeg2ChangeDue : undefined,
+            reference: splitLeg2Ref.trim() || undefined,
+            credit_term_days: splitLeg2Method === 'credit' ? creditTermDays : undefined,
+            due_date: splitLeg2Method === 'credit' ? effectiveDueDate.toISOString() : undefined
+          }
+        ]
+      : undefined;
+
+    const isDebtInvolved = (!isSplitMode && paymentMethod === 'credit') || (isSplitMode && splitLeg2Method === 'credit');
 
     const result = createSale({
       customerId: customer.id,
-      paymentMethod,
-      amountTendered: paymentMethod === 'cash' && tenderedNum > 0 ? tenderedNum : null,
+      paymentMethod: isSplitMode ? 'split' : paymentMethod,
+      paymentSplits: splits,
+      creditTermDays: isDebtInvolved ? creditTermDays : undefined,
+      dueDate: isDebtInvolved ? effectiveDueDate.toISOString() : undefined,
+      amountTendered: !isSplitMode
+        ? (paymentMethod === 'cash' && tenderedNum > 0 ? tenderedNum : null)
+        : (splitLeg1Method === 'cash' ? splitLeg1TenderedNum : splitLeg2Method === 'cash' ? splitLeg2TenderedNum : null),
       note: note.trim() || undefined,
       pricingTier: customer?.type || 'retail',
       date: showBackdate ? fromDatetimeLocalValue(saleDateInput) : undefined,
@@ -383,6 +472,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     }
     setLines([]);
     setAmountTendered('');
+    setSplitLeg1Amount('');
+    setSplitLeg1Tendered('');
+    setSplitLeg2Amount('');
+    setSplitLeg2Tendered('');
+    setSplitLeg2Ref('');
+    setIsSplitMode(false);
     setNote('');
     setShowBackdate(false);
     setSaleDateInput(toDatetimeLocalValue());
@@ -540,7 +635,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
   return (
     <div className="pb-28 split:pb-8">
-      {/* Mandatory 3-Pump Opening Meter Gate Modal */}
+      {/* Mandatory Opening Meter Gate Modal */}
       <Modal
         isOpen={gateBlocked}
         onClose={() => {}}
@@ -548,31 +643,37 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
         size="lg"
         title={
           <span className="flex items-center gap-2.5 text-slate-900 dark:text-white font-heading font-bold text-base">
-            <span className="w-8 h-8 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800 flex items-center justify-center text-brand-600 dark:text-brand-400 shrink-0">
+            <span className="w-8 h-8 rounded-xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-brand-600 dark:text-brand-400 shrink-0">
               <GasPump className="w-4 h-4" weight="bold" />
             </span>
-            <span>{!activeShift ? 'Start Shift & Input 3-Pump Readings' : 'Input Opening Pump Readings'}</span>
+            <span>{!activeShift ? 'Start Shift & Input Pump Readings' : 'Input Opening Pump Readings'}</span>
           </span>
         }
         subtitle={
           <div className="space-y-1 mt-0.5">
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {!activeShift
-                ? 'To unlock the New Sales screen, depot policy requires logging the opening meter readings for the 3 dispensing pumps and confirming opening cash float.'
-                : `Shift is open for ${activeShift.cashier_name || 'Staff'}. Input opening meter readings for all active dispensing pumps to unlock the sales screen.`}
+                ? 'Depot policy requires recording opening meter readings for active pumps and drawer cash float before unlocking sales.'
+                : `Shift active. Verify pump readings to unlock the sales terminal.`}
             </p>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[11px] font-semibold">
-              <Clock className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
-              <span>Depot Shift Window: {settings.shift_start_time || '07:00'} – {settings.shift_end_time || '18:00'}</span>
+            <div className="flex flex-wrap items-center gap-2 pt-0.5">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[11px] font-semibold">
+                <Clock className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+                <span>Shift Window: {settings.shift_start_time || '07:00'} – {settings.shift_end_time || '18:00'}</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-400 font-sans text-[11px] font-bold border border-brand-200 dark:border-brand-800">
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>Staff: {gateCashierName || currentUser?.full_name || 'Counter Cashier'}</span>
+              </span>
             </div>
           </div>
         }
       >
         <form onSubmit={submitGate} className="space-y-4">
           {!activeShift && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800">
               <div>
-                <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
                   Cashier / Staff on Duty *
                 </label>
                 <div className="relative">
@@ -583,13 +684,13 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     value={gateCashierName}
                     onChange={e => setGateCashierName(e.target.value)}
                     placeholder="e.g. Fatima Yusuf"
-                    className="w-full pl-9 pr-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500 shadow-2xs"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
                   Opening Cash Float (NGN) *
                 </label>
                 <div className="relative">
@@ -602,71 +703,84 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     value={gateOpeningFloat}
                     onChange={e => setGateOpeningFloat(e.target.value.replace(/[^0-9]/g, ''))}
                     placeholder="e.g. 50000"
-                    className="w-full pl-9 pr-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500 shadow-2xs"
                   />
                 </div>
-                <p className="text-[11px] text-slate-400 mt-0.5">Cash in drawer for customer change.</p>
+                <p className="text-[11px] text-slate-400 mt-1">Cash in drawer for customer change.</p>
               </div>
             </div>
           )}
 
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
                 <GasPump className="w-4 h-4 text-brand-500" weight="bold" />
-                <span>Input 3 Dispensing Pump Readings ({targetPumps.length} Active Pumps)</span>
+                <span>Pumps Meter Readings ({targetPumps.length} Active Pumps)</span>
               </div>
               <button
                 type="button"
                 onClick={copyPreviousReadings}
-                className="text-xs font-sans font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-50 hover:bg-brand-100 dark:bg-brand-950/60 dark:hover:bg-brand-900/60 text-brand-700 dark:text-brand-300 text-xs font-sans font-bold border border-brand-200 dark:border-brand-800/80 transition-colors cursor-pointer"
               >
                 <ArrowsCounterClockwise className="w-3.5 h-3.5" />
-                <span>Use Previous Closing Readings</span>
+                <span>Match Previous Readings (1-Click)</span>
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
               {targetPumps.map((p, idx) => {
-                const sourceTank = physicalTanks.find(t => t.id === p.physical_tank_id);
                 const prod = products.find(pr => pr.id === p.product_id);
                 return (
-                  <div key={p.id} className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2 relative overflow-hidden">
-                    <div className="flex items-center justify-between">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-brand-500/15 text-brand-700 dark:text-brand-400 font-sans font-extrabold text-[11px] uppercase tracking-wider">
-                        Pump {idx + 1}
-                      </span>
-                      <span className="text-[11px] font-mono text-slate-400 tabular-nums">
-                        Prev: {p.last_meter_reading.toLocaleString()} L
-                      </span>
+                  <div
+                    key={p.id}
+                    className="p-3 sm:px-4 rounded-2xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-brand-500/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-brand-700 dark:text-brand-400 font-heading font-black text-sm shrink-0">
+                        P{idx + 1}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-heading font-bold text-sm text-slate-900 dark:text-white truncate flex items-center gap-2">
+                          <span>{p.label}</span>
+                          <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold">
+                            {prod?.name || 'Bulk Oil'}
+                          </span>
+                        </div>
+                        <div className="text-xs font-mono text-slate-500 flex items-center gap-1.5 mt-0.5">
+                          <span>Previous Meter:</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-300 tabular-nums">
+                            {p.last_meter_reading.toLocaleString()} L
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
-                    <div>
-                      <div className="font-heading font-bold text-[13px] text-slate-900 dark:text-white truncate">
-                        {p.label}
+                    <div className="flex items-center gap-2 shrink-0 sm:w-56">
+                      <div className="relative flex-1">
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          required
+                          value={gateInputs[p.id] ?? ''}
+                          onChange={e => setGateInputs(prev => ({ ...prev, [p.id]: e.target.value.replace(/[^0-9]/g, '') }))}
+                          placeholder={`Min ${p.last_meter_reading}`}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-sm font-mono font-black text-slate-900 dark:text-white tabular-nums focus:outline-none focus:border-brand-500 shadow-2xs pr-8"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">
+                          L
+                        </span>
                       </div>
-                      <div className="text-[11px] font-sans text-slate-500 dark:text-slate-400 truncate">
-                        {prod?.name || 'Bulk Oil'}{sourceTank ? ` · ${sourceTank.label}` : ''}
-                      </div>
-                    </div>
-
-                    <div className="relative pt-1">
-                      <label className="block text-[10px] font-sans font-bold uppercase tracking-wider text-slate-500 mb-1">
-                        Opening Meter (L) *
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        required
-                        value={gateInputs[p.id] ?? ''}
-                        onChange={e => setGateInputs(prev => ({ ...prev, [p.id]: e.target.value.replace(/[^0-9]/g, '') }))}
-                        placeholder={`Min ${p.last_meter_reading} L`}
-                        className="w-full px-3 py-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-sm font-mono font-bold text-slate-900 dark:text-white tabular-nums focus:outline-none focus:border-brand-500"
-                      />
-                      <span className="absolute right-3 bottom-2 text-xs font-mono text-slate-400">
-                        Litres
-                      </span>
+                      {gateInputs[p.id] !== String(p.last_meter_reading) && (
+                        <button
+                          type="button"
+                          onClick={() => setGateInputs(prev => ({ ...prev, [p.id]: String(p.last_meter_reading) }))}
+                          className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[11px] font-sans font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shrink-0"
+                          title="Copy previous reading"
+                        >
+                          Match
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -683,15 +797,15 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
           <button
             type="submit"
-            className="w-full py-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-heading font-extrabold text-sm shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.99]"
+            className="w-full py-3.5 rounded-2xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-heading font-black text-sm shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.99] cursor-pointer"
           >
             <Check className="w-4 h-4" weight="bold" />
-            <span>{!activeShift ? 'Start Shift' : 'Input Readings & Unlock Sales'}</span>
+            <span>{!activeShift ? 'Start Shift & Unlock Sales' : 'Confirm Readings & Unlock Sales'}</span>
           </button>
         </form>
       </Modal>
 
-      {/* Mandatory 3-Pump Closing Shift Modal */}
+      {/* Mandatory Closing Shift Modal */}
       {isCloseShiftModalOpen && activeShift && liveShiftCash && (
         <Modal
           isOpen
@@ -702,54 +816,84 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
               <span className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
                 <SignOut className="w-4 h-4" weight="bold" />
               </span>
-              <span>Take 3-Pump Readings & End Shift</span>
+              <span>Take Pump Readings & End Shift</span>
             </span>
           }
-          subtitle={`Cashier: ${activeShift.cashier_name || 'Staff'} · Shift Started at ${formatDepotTime(activeShift.start_time)}`}
+          subtitle={`Staff Accountability: ${activeShift.cashier_name || currentUser?.full_name || 'Staff'} · Shift Started at ${formatDepotTime(activeShift.start_time)}`}
         >
           <form onSubmit={handleCloseShiftSubmit} className="space-y-4">
-            {/* 3-Pump Closing Readings */}
-            <div className="space-y-2">
-              <div className="text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-                <GasPump className="w-4 h-4 text-brand-500" weight="bold" />
-                <span>1. Closing Meter Readings (Reconcile Volume Dispensed)</span>
+            {/* Closing Readings */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                  <GasPump className="w-4 h-4 text-brand-500" weight="bold" />
+                  <span>1. Closing Meter Readings ({targetPumps.length} Active Pumps)</span>
+                </div>
+                <span className="text-[11px] text-slate-400 font-sans">Enter latest meter numbers</span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+
+              <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
                 {targetPumps.map((p, idx) => {
                   const openingVal = activeShift.opening_readings?.[p.id] ?? p.last_meter_reading ?? 0;
                   const currentInput = closeShiftPumpInputs[p.id] ?? '';
                   const closingVal = Number(currentInput);
                   const dispensed = !isNaN(closingVal) && closingVal >= openingVal ? closingVal - openingVal : null;
+                  const prod = products.find(pr => pr.id === p.product_id);
 
                   return (
-                    <div key={p.id} className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-[12px] text-slate-900 dark:text-white">Pump {idx + 1}</span>
-                        <span className="text-[11px] font-mono text-slate-500 tabular-nums">Open: {openingVal.toLocaleString()} L</span>
-                      </div>
-                      <div className="text-[11px] font-sans text-slate-500 truncate">{p.label}</div>
-                      
-                      <div className="relative pt-1">
-                        <label className="block text-[10px] font-sans font-bold uppercase tracking-wider text-slate-500 mb-1">
-                          Closing Meter (L) *
-                        </label>
-                        <input
-                          type="number"
-                          min={openingVal}
-                          step="1"
-                          required
-                          value={currentInput}
-                          onChange={e => setCloseShiftPumpInputs(prev => ({ ...prev, [p.id]: e.target.value.replace(/[^0-9]/g, '') }))}
-                          placeholder={`Min ${openingVal} L`}
-                          className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white tabular-nums focus:outline-none focus:border-brand-500"
-                        />
+                    <div
+                      key={p.id}
+                      className="p-3 sm:px-4 rounded-2xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-brand-700 dark:text-brand-400 font-heading font-black text-sm shrink-0">
+                          P{idx + 1}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-heading font-bold text-sm text-slate-900 dark:text-white truncate flex items-center gap-2">
+                            <span>{p.label}</span>
+                            <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold">
+                              {prod?.name || 'Bulk Oil'}
+                            </span>
+                          </div>
+                          <div className="text-xs font-mono text-slate-500 flex items-center gap-1.5 mt-0.5">
+                            <span>Opening:</span>
+                            <span className="font-bold text-slate-700 dark:text-slate-300 tabular-nums">
+                              {openingVal.toLocaleString()} L
+                            </span>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="text-[11px] font-mono tabular-nums pt-1 text-slate-600 dark:text-slate-400">
-                        Dispensed:{' '}
-                        <span className="font-bold text-slate-900 dark:text-white">
-                          {dispensed !== null ? `${dispensed.toLocaleString()} L` : '—'}
-                        </span>
+                      <div className="flex items-center gap-3 shrink-0">
+                        {/* Real-time dispensed badge */}
+                        <div className="text-right">
+                          <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Dispensed</div>
+                          <div
+                            className={`font-mono font-black text-xs tabular-nums ${
+                              dispensed && dispensed > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'
+                            }`}
+                          >
+                            {dispensed !== null ? `${dispensed.toLocaleString()} L` : '—'}
+                          </div>
+                        </div>
+
+                        {/* Closing Meter Input */}
+                        <div className="relative w-36 sm:w-40">
+                          <input
+                            type="number"
+                            min={openingVal}
+                            step="1"
+                            required
+                            value={currentInput}
+                            onChange={e => setCloseShiftPumpInputs(prev => ({ ...prev, [p.id]: e.target.value.replace(/[^0-9]/g, '') }))}
+                            placeholder={`Min ${openingVal}`}
+                            className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-sm font-mono font-black text-slate-900 dark:text-white tabular-nums focus:outline-none focus:border-brand-500 shadow-2xs pr-7"
+                          />
+                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">
+                            L
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -758,36 +902,46 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
             </div>
 
             {/* Cash Drawer Reconciliation */}
-            <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+            <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
               <div className="text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
                 <Banknote className="w-4 h-4 text-emerald-500" />
                 <span>2. Cash Drawer Count & Reconciliation</span>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2 text-xs font-mono tabular-nums">
-                <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span className="font-sans">Opening Float:</span>
-                  <span className="font-semibold text-slate-900 dark:text-slate-100">{formatNaira(activeShift.opening_float)}</span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono tabular-nums">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] uppercase font-sans text-slate-400 font-bold block">Opening Float</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100 text-xs">{formatNaira(activeShift.opening_float)}</span>
                 </div>
-                <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
-                  <span className="font-sans">(+) Counter Cash Sales:</span>
-                  <span className="font-semibold">+{formatNaira(liveShiftCash.cashSales)}</span>
+                <div className="space-y-0.5">
+                  <span className="text-[10px] uppercase font-sans text-emerald-600 dark:text-emerald-400 font-bold block">(+) Cash Sales</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400 text-xs">+{formatNaira(liveShiftCash.cashSales)}</span>
                 </div>
-                <div className="flex justify-between text-rose-600 dark:text-rose-400">
-                  <span className="font-sans">(-) Cash Expenses Paid:</span>
-                  <span className="font-semibold">-{formatNaira(liveShiftCash.cashExpenses)}</span>
+                <div className="space-y-0.5">
+                  <span className="text-[10px] uppercase font-sans text-rose-600 dark:text-rose-400 font-bold block">(-) Expenses</span>
+                  <span className="font-bold text-rose-600 dark:text-rose-400 text-xs">-{formatNaira(liveShiftCash.cashExpenses)}</span>
                 </div>
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between font-bold text-sm">
-                  <span className="font-sans text-slate-900 dark:text-white">(=) Expected Cash in Till:</span>
-                  <span className="text-brand-600 dark:text-brand-400">{formatNaira(liveShiftCash.expectedCash)}</span>
+                <div className="space-y-0.5 bg-brand-500/10 p-2 rounded-xl border border-brand-500/20">
+                  <span className="text-[10px] uppercase font-sans text-brand-700 dark:text-brand-300 font-extrabold block">(=) Expected Till</span>
+                  <span className="font-black text-brand-600 dark:text-brand-400 text-sm">{formatNaira(liveShiftCash.expectedCash)}</span>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
-                  Physical Cash Counted in Drawer (NGN) *
-                </label>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Physical Cash Counted in Drawer (NGN) *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setCloseShiftCashCounted(String(Math.round(liveShiftCash.expectedCash)))}
+                    className="text-xs font-sans font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1"
+                  >
+                    <span>Match Expected ({formatNaira(liveShiftCash.expectedCash)})</span>
+                  </button>
+                </div>
                 <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono font-bold text-slate-400">₦</span>
                   <input
                     type="number"
                     min="0"
@@ -795,10 +949,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     required
                     value={closeShiftCashCounted}
                     onChange={e => setCloseShiftCashCounted(e.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="e.g. 520000"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono tabular-nums text-base font-bold focus:outline-none focus:border-brand-500"
+                    placeholder={`e.g. ${Math.round(liveShiftCash.expectedCash)}`}
+                    className="w-full pl-8 pr-12 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono tabular-nums text-base font-black focus:outline-none focus:border-brand-500 shadow-2xs"
                   />
-                  <span className="absolute right-3.5 top-2.5 text-xs font-mono text-slate-400">NGN</span>
+                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">NGN</span>
                 </div>
               </div>
 
@@ -830,7 +984,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   value={closeShiftNotes}
                   onChange={e => setCloseShiftNotes(e.target.value)}
                   placeholder="Notes for next shift or supervisor..."
-                  className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-sans text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-sans text-slate-900 dark:text-white focus:outline-none focus:border-brand-500 shadow-2xs"
                 />
               </div>
             </div>
@@ -852,7 +1006,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
               </button>
               <button
                 type="submit"
-                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-heading font-extrabold text-xs shadow-sm flex items-center gap-1.5 transition-all active:scale-95"
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-heading font-extrabold text-xs shadow-sm flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
               >
                 <SignOut className="w-4 h-4" weight="bold" />
                 <span>Confirm & End Shift</span>
@@ -1059,176 +1213,163 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
           <div className="grid grid-cols-1 split:grid-cols-12 gap-5">
             {/* ---------- BUILDER COLUMN (LEFT) ---------- */}
             <div className="split:col-span-7 space-y-5">
-              {/* Card 1: Customer */}
+              {/* Card 1: Customer Selection (2 Options) */}
               <section className="depot-card p-4 space-y-3">
-                <StepBadge n={1} label="Customer" />
-                <div className="relative">
-                  <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    value={
-                      customerOpen
-                        ? customerSearch
-                        : isOneTime
-                        ? 'One-time Customer (Walk-in / Supermarket)'
-                        : customer?.name || ''
-                    }
-                    onChange={e => {
-                      setCustomerSearch(e.target.value);
-                      setCustomerOpen(true);
-                    }}
-                    onFocus={() => {
-                      setCustomerOpen(true);
+                <StepBadge n={1} label="Customer Selection" />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 items-stretch">
+                  {/* Option 1: Big One-time Customer button (Full Height) */}
+                  <button
+                    type="button"
+                    id="btn-onetime-customer"
+                    onClick={() => {
+                      setCustomerId(ONE_TIME_CUSTOMER_ID);
+                      setCustomerOpen(false);
                       setCustomerSearch('');
                     }}
-                    placeholder="Search debtor or choose Walk-in..."
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-base font-sans font-bold focus:outline-none focus:border-brand-500 shadow-2xs"
-                  />
-                  {customerOpen && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-10"
-                        onClick={() => setCustomerOpen(false)}
-                      />
-                      <div className="absolute z-20 mt-1.5 w-full max-h-72 overflow-y-auto rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl divide-y divide-slate-100 dark:divide-slate-800">
-                        {/* 1. One-time customer (First item in dropdown) */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCustomerId(ONE_TIME_CUSTOMER_ID);
-                            setCustomerOpen(false);
-                            setCustomerSearch('');
-                          }}
-                          className={`w-full text-left px-4 py-3 hover:bg-emerald-50/80 dark:hover:bg-emerald-950/40 flex items-center justify-between transition-colors ${
-                            isOneTime ? 'bg-emerald-50 dark:bg-emerald-950/30 font-bold' : ''
-                          }`}
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                              <ShoppingCart className="w-4 h-4" weight="bold" />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="font-sans font-bold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                                <span>One-time Customer</span>
-                                <span className="text-[10px] font-mono font-bold uppercase px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
-                                  Walk-in
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-slate-400 font-sans truncate">
-                                Supermarket cash & carry · No customer account needed
-                              </p>
-                            </div>
-                          </div>
-                          <span className="text-[10px] font-mono font-bold text-slate-400 shrink-0 uppercase">
-                            RETAIL
-                          </span>
-                        </button>
-
-                        {/* 2. Add Customer Box (Second item in dropdown) */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsAddCustomerOpen(true);
-                            setCustomerOpen(false);
-                            setNewCustName(customerSearch.trim());
-                            setAddCustomerError(null);
-                          }}
-                          className="w-full text-left px-4 py-3 bg-brand-50 hover:bg-brand-100/80 dark:bg-brand-950/40 dark:hover:bg-brand-900/50 flex items-center justify-between transition-colors group"
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-8 h-8 rounded-xl bg-brand-500 text-slate-950 flex items-center justify-center font-bold shrink-0 shadow-xs">
-                              <Plus className="w-4 h-4" weight="bold" />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="font-sans font-bold text-xs text-brand-800 dark:text-brand-300 flex items-center gap-1.5">
-                                <span>Add Customer</span>
-                                {customerSearch.trim() && (
-                                  <span className="text-[11px] font-normal text-slate-500 truncate max-w-[140px]">
-                                    "{customerSearch.trim()}"
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans truncate">
-                                Register new customer account & debt limit
-                              </p>
-                            </div>
-                          </div>
-                          <span className="text-[10px] font-mono font-bold uppercase text-brand-700 dark:text-brand-400 group-hover:underline">
-                            + New
-                          </span>
-                        </button>
-
-                        {/* 3+. Registered customer list */}
-                        {filteredCustomers
-                          .filter(c => c.id !== ONE_TIME_CUSTOMER_ID)
-                          .map(c => (
-                            <button
-                              key={c.id}
-                              onClick={() => {
-                                setCustomerId(c.id);
-                                setCustomerOpen(false);
-                                setCustomerSearch('');
-                              }}
-                              className={`w-full text-left px-4 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between transition-colors ${
-                                c.id === customerId ? 'bg-slate-100/80 dark:bg-slate-800/60 font-semibold' : ''
-                              }`}
-                            >
-                              <div className="min-w-0">
-                                <span className="font-sans font-semibold text-slate-800 dark:text-slate-200 block truncate">
-                                  {c.name}
-                                </span>
-                                {c.phone && c.phone !== '—' && (
-                                  <span className="text-[10px] font-mono text-slate-400">{c.phone}</span>
-                                )}
-                              </div>
-                              <div className="text-right shrink-0">
-                                <span className="text-[10px] font-mono uppercase font-bold text-slate-400 block">
-                                  {c.type}
-                                </span>
-                                {(customerStatsMap[c.id]?.currentBalance || 0) > 0 && (
-                                  <span className="text-[10px] font-mono font-bold text-rose-600 dark:text-rose-400">
-                                    {formatNaira(customerStatsMap[c.id]?.currentBalance || 0)}
-                                  </span>
-                                )}
-                              </div>
-                            </button>
-                          ))}
-
-                        {filteredCustomers.filter(c => c.id !== ONE_TIME_CUSTOMER_ID).length === 0 && customerSearch && (
-                          <div className="px-4 py-3 text-xs text-slate-400 text-center font-sans">
-                            No matching accounts. Click "+ Add Customer" above to create!
-                          </div>
-                        )}
+                    className={`h-full min-h-[104px] p-4 rounded-2xl border-2 transition-all flex flex-col justify-between text-left group cursor-pointer ${
+                      isOneTime
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-950 dark:text-emerald-100 shadow-md ring-2 ring-emerald-500/20'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-emerald-400/60 text-slate-800 dark:text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                        isOneTime
+                          ? 'bg-emerald-500 text-white shadow-xs'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 group-hover:bg-emerald-100 group-hover:text-emerald-600'
+                      }`}>
+                        <ShoppingCart className="w-5 h-5" weight="bold" />
                       </div>
-                    </>
-                  )}
-                </div>
+                      {isOneTime && (
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-500 text-white font-sans font-bold text-[10px] uppercase tracking-wider shadow-xs">
+                          Active ✓
+                        </span>
+                      )}
+                    </div>
 
-                {/* Account Status / Balance */}
-                {isOneTime ? (
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                      Supermarket Walk-in Sale
-                    </span>
-                    <span className="text-slate-300 dark:text-slate-700">·</span>
-                    <span className="text-slate-500 font-medium">Immediate Settlement (No Debt)</span>
+                    <div className="pt-2">
+                      <div className="font-heading font-extrabold text-sm sm:text-base leading-tight">
+                        One-time Customer
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans mt-0.5 leading-snug">
+                        Walk-in Supermarket / Retail · Immediate Settlement (No Debt)
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Option 2: Beside it - Previous Customer Dropdown & Add Customer */}
+                  <div className={`p-4 rounded-2xl border-2 transition-all flex flex-col justify-between space-y-2.5 ${
+                    !isOneTime && customer
+                      ? 'bg-brand-50/30 dark:bg-brand-950/20 border-brand-500/80 shadow-md ring-2 ring-brand-500/10'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+                  }`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+                        <span>Registered Customer</span>
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddCustomerOpen(true);
+                          setCustomerOpen(false);
+                          setNewCustName(customerSearch.trim());
+                          setAddCustomerError(null);
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-[11px] font-sans font-extrabold shadow-xs transition-transform active:scale-95 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" weight="bold" />
+                        <span>Add Customer</span>
+                      </button>
+                    </div>
+
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        value={
+                          customerOpen
+                            ? customerSearch
+                            : !isOneTime && customer
+                            ? customer.name
+                            : ''
+                        }
+                        onChange={e => {
+                          setCustomerSearch(e.target.value);
+                          setCustomerOpen(true);
+                        }}
+                        onFocus={() => {
+                          setCustomerOpen(true);
+                          setCustomerSearch('');
+                        }}
+                        placeholder="Search previous customer..."
+                        className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-sans font-bold focus:outline-none focus:border-brand-500 shadow-2xs"
+                      />
+
+                      {customerOpen && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setCustomerOpen(false)} />
+                          <div className="absolute z-20 mt-1.5 w-full max-h-64 overflow-y-auto rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl divide-y divide-slate-100 dark:divide-slate-800">
+                            {filteredCustomers
+                              .filter(c => c.id !== ONE_TIME_CUSTOMER_ID)
+                              .map(c => (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setCustomerId(c.id);
+                                    setCustomerOpen(false);
+                                    setCustomerSearch('');
+                                  }}
+                                  className={`w-full text-left px-3.5 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between transition-colors cursor-pointer ${
+                                    c.id === customerId ? 'bg-brand-50 dark:bg-brand-950/40 font-bold text-brand-900 dark:text-brand-300' : ''
+                                  }`}
+                                >
+                                  <div className="min-w-0">
+                                    <span className="font-sans font-semibold text-slate-800 dark:text-slate-200 block truncate">
+                                      {c.name}
+                                    </span>
+                                    {c.phone && c.phone !== '—' && (
+                                      <span className="text-[10px] font-mono text-slate-400">{c.phone}</span>
+                                    )}
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                    <span className="text-[10px] font-mono uppercase font-bold text-slate-400 block">
+                                      {c.type}
+                                    </span>
+                                    {(customerStatsMap[c.id]?.currentBalance || 0) > 0 && (
+                                      <span className="text-[10px] font-mono font-bold text-rose-600 dark:text-rose-400">
+                                        {formatNaira(customerStatsMap[c.id]?.currentBalance || 0)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </button>
+                              ))}
+
+                            {filteredCustomers.filter(c => c.id !== ONE_TIME_CUSTOMER_ID).length === 0 && (
+                              <div className="px-4 py-3 text-xs text-slate-400 text-center font-sans">
+                                No accounts found. Click "+ Add Customer" above to create!
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {!isOneTime && customer && (
+                      <div className="flex items-center justify-between pt-1 text-[11px] font-mono text-slate-500">
+                        <span>
+                          Balance:{' '}
+                          <strong className={(customerStats?.currentBalance || 0) > 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-emerald-600 dark:text-emerald-400'}>
+                            {formatNaira(customerStats?.currentBalance || 0)}
+                          </strong>
+                        </span>
+                        <span>Limit: <strong>{formatNaira(customer.credit_limit || 0)}</strong></span>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className="text-slate-500">Balance</span>
-                    <span
-                      className={`font-mono font-bold ${
-                        (customerStats?.currentBalance || 0) > 0
-                          ? 'text-rose-600 dark:text-rose-400'
-                          : 'text-emerald-600 dark:text-emerald-400'
-                      }`}
-                    >
-                      {formatNaira(customerStats?.currentBalance || 0)}
-                    </span>
-                    <span className="text-slate-300 dark:text-slate-700">·</span>
-                    <span className="text-slate-500">Limit {formatNaira(customer?.credit_limit || 0)}</span>
-                  </div>
-                )}
+                </div>
               </section>
 
               {/* Card 2: Item builder */}
@@ -1251,14 +1392,15 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     </button>
                   ))}
                   <button
+                    type="button"
                     onClick={selectSellKegs}
-                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-sans font-semibold border transition-all ${
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-sans font-bold border transition-all cursor-pointer ${
                       isKegOnlyMode
-                        ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
-                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                        ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm ring-2 ring-amber-500/20'
+                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-amber-400'
                     }`}
                   >
-                    <Package className="w-3.5 h-3.5" />
+                    <Package className="w-4 h-4 text-amber-500" weight="bold" />
                     <span>Sell Kegs</span>
                   </button>
                 </div>
@@ -1652,82 +1794,439 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   </div>
                 )}
 
-                {/* Payment method selector */}
-                <div className="grid grid-cols-2 gap-2">
-                  {PAYMENT_METHODS.map(m => {
-                    const isSelected = paymentMethod === m.id;
-                    const theme = getPaymentModeTheme(m.id);
-                    return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => setPaymentMethod(m.id)}
-                        className={`py-2.5 px-3 rounded-xl text-xs font-sans font-bold border transition-all flex items-center justify-center gap-2 ${
-                          isSelected
-                            ? theme.buttonActiveCls + ' scale-[1.02]'
-                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                        }`}
-                      >
-                        <span className={`w-2 h-2 rounded-full ${theme.dotCls} shrink-0`} />
-                        <span>{m.label}</span>
-                      </button>
-                    );
-                  })}
+                {/* Single vs Double / Split Payment Mode Switcher */}
+                <div className="flex items-center justify-between p-1 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    id="btn-payment-mode-single"
+                    onClick={() => setIsSplitMode(false)}
+                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-sans font-bold transition-all cursor-pointer ${
+                      !isSplitMode
+                        ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    Single Mode
+                  </button>
+                  <button
+                    type="button"
+                    id="btn-payment-mode-split"
+                    onClick={() => {
+                      setIsSplitMode(true);
+                      if (!splitLeg1Amount && cartTotal > 0) {
+                        const half = Math.round(cartTotal / 2);
+                        setSplitLeg1Amount(String(half));
+                        setSplitLeg2Amount(String(cartTotal - half));
+                      }
+                    }}
+                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-sans font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      isSplitMode
+                        ? 'bg-brand-500 text-slate-950 shadow-xs font-black'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <Lightning className="w-3.5 h-3.5" weight="fill" />
+                    <span>Double Payment Mode</span>
+                  </button>
                 </div>
 
-                {paymentMethod === 'cash' && (
-                  <div className="space-y-1.5">
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
-                        ₦
-                      </span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={amountTendered}
-                        onChange={e => setAmountTendered(e.target.value.replace(/[^0-9]/g, ''))}
-                        placeholder="Cash tendered"
-                        className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-sm"
-                      />
+                {!isSplitMode ? (
+                  /* Standard Single Payment */
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      {PAYMENT_METHODS.map(m => {
+                        const isSelected = paymentMethod === m.id;
+                        const theme = getPaymentModeTheme(m.id);
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => setPaymentMethod(m.id)}
+                            className={`py-2.5 px-3 rounded-xl text-xs font-sans font-bold border transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                              isSelected
+                                ? theme.buttonActiveCls + ' scale-[1.02]'
+                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                            }`}
+                          >
+                            <span className={`w-2 h-2 rounded-full ${theme.dotCls} shrink-0`} />
+                            <span>{m.label}</span>
+                          </button>
+                        );
+                      })}
                     </div>
-                    {amountTendered !== '' && (
-                      <div
-                        className={`text-xs font-mono ${
-                          shortTender ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
-                        }`}
-                      >
-                        {shortTender ? `Short ${formatNaira(cartTotal - tenderedNum)}` : `Change ${formatNaira(changeDue)}`}
+
+                    {paymentMethod === 'cash' && (
+                      <div className="space-y-1.5">
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
+                            ₦
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={amountTendered}
+                            onChange={e => setAmountTendered(e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="Cash tendered"
+                            className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-sm"
+                          />
+                        </div>
+                        {amountTendered !== '' && (
+                          <div
+                            className={`text-xs font-mono ${
+                              shortTender ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+                            }`}
+                          >
+                            {shortTender ? `Short ${formatNaira(cartTotal - tenderedNum)}` : `Change ${formatNaira(changeDue)}`}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {paymentMethod === 'credit' && (
+                      <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5" />
+                            Debt Grace Period
+                          </span>
+                          <span className="font-mono font-bold text-xs text-amber-900 dark:text-amber-200">
+                            {creditTermDays} Days
+                          </span>
+                        </div>
+
+                        {/* Quick Days Selector */}
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {[7, 14, 21, 30].map(days => (
+                            <button
+                              key={days}
+                              type="button"
+                              onClick={() => setCreditTermDays(days)}
+                              className={`py-1 px-1.5 rounded-lg text-[11px] font-mono font-bold border transition-all cursor-pointer ${
+                                creditTermDays === days
+                                  ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
+                                  : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-amber-400'
+                              }`}
+                            >
+                              {days}d
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Custom Days Input */}
+                        <div className="flex items-center gap-2">
+                          <label className="text-[10px] uppercase font-bold text-slate-500 shrink-0">Custom Days:</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="365"
+                            value={creditTermDays}
+                            onChange={e => setCreditTermDays(Math.max(1, parseInt(e.target.value) || 1))}
+                            className="w-20 px-2 py-1 text-xs font-mono font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                          />
+                          <span className="text-[11px] text-slate-500 font-medium">days from {showBackdate ? 'sale date' : 'today'}</span>
+                        </div>
+
+                        {/* Live Due Date Badge */}
+                        <div className="text-[11px] font-sans text-slate-700 dark:text-slate-300 flex items-center justify-between pt-1.5 border-t border-amber-500/20">
+                          <span className="text-slate-500">Due Date:</span>
+                          <span className="font-bold text-amber-800 dark:text-amber-300 font-mono">
+                            {formatDepotDate(effectiveDueDate.toISOString())}
+                          </span>
+                        </div>
+
+                        <div className="text-[10px] text-slate-500">
+                          New balance: <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{formatNaira(projectedBalance)}</span>
+                        </div>
+
+                        {overLimit && (
+                          <div
+                            className={`text-[11px] font-semibold pt-1 ${
+                              overLimitBlocked
+                                ? 'text-rose-600 dark:text-rose-400'
+                                : 'text-amber-600 dark:text-amber-400'
+                            }`}
+                          >
+                            {overLimitBlocked
+                              ? '⚠ Over debt limit — owner approval required.'
+                              : '⚠ Over debt limit (owner override).'}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
-
-                {paymentMethod === 'credit' && (
-                  <div className="text-xs space-y-1">
-                    <div className="text-slate-500">
-                      Due{' '}
-                      {formatDepotDate(
-                        new Date(
-                          (showBackdate ? new Date(fromDatetimeLocalValue(saleDateInput)).getTime() : Date.now()) +
-                            customer.credit_term_days * 86400000
-                        ).toISOString()
-                      )}
-                      {' · '}new balance {formatNaira(projectedBalance)}
-                    </div>
-                    {overLimit && (
-                      <div
-                        className={
-                          overLimitBlocked
-                            ? 'text-rose-600 dark:text-rose-400 font-semibold'
-                            : 'text-amber-600 dark:text-amber-400'
-                        }
+                ) : (
+                  /* Double / Split Payment Mode */
+                  <div className="space-y-3">
+                    {/* Quick 50/50 Split Action */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-sans font-bold uppercase tracking-wider text-slate-500">
+                        Split Breakdown
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const half = Math.round(cartTotal / 2);
+                          setSplitLeg1Amount(String(half));
+                          setSplitLeg2Amount(String(cartTotal - half));
+                        }}
+                        className="text-[11px] font-sans font-bold text-brand-600 dark:text-brand-400 hover:underline cursor-pointer"
                       >
-                        {overLimitBlocked
-                          ? 'Over debt limit — owner approval required.'
-                          : 'Over debt limit (owner override).'}
+                        ⚡ 50 / 50 Split
+                      </button>
+                    </div>
+
+                    {/* Split Leg 1 */}
+                    <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                          Payment Leg 1
+                        </span>
+                        <span className="font-mono font-bold text-xs text-slate-900 dark:text-white">
+                          {formatNaira(splitLeg1Num)}
+                        </span>
                       </div>
-                    )}
+
+                      {/* Method Selector */}
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {(['cash', 'transfer', 'pos'] as SinglePaymentMethod[]).map(m => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => setSplitLeg1Method(m)}
+                            className={`py-1.5 px-2 rounded-lg text-[11px] font-sans font-bold border transition-all cursor-pointer ${
+                              splitLeg1Method === m
+                                ? getPaymentModeTheme(m).buttonActiveCls
+                                : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800'
+                            }`}
+                          >
+                            <span className="capitalize">{m === 'pos' ? 'Card / POS' : m}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Leg 1 Amount */}
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₦</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          required
+                          value={splitLeg1Amount}
+                          onChange={e => {
+                            const val = e.target.value.replace(/[^0-9]/g, '');
+                            setSplitLeg1Amount(val);
+                            if (val && cartTotal > 0) {
+                              const rem = Math.max(0, cartTotal - Number(val));
+                              setSplitLeg2Amount(String(rem));
+                            }
+                          }}
+                          placeholder="Amount for Leg 1"
+                          className="w-full pl-8 pr-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-xs"
+                        />
+                      </div>
+
+                      {splitLeg1Method === 'cash' && (
+                        <div className="space-y-1 pt-1">
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={splitLeg1Tendered}
+                            onChange={e => setSplitLeg1Tendered(e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="Cash tendered (e.g. change calculation)"
+                            className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-xs"
+                          />
+                          {splitLeg1Tendered !== '' && (
+                            <div className={`text-[11px] font-mono ${splitLeg1ShortTender ? 'text-rose-600' : 'text-emerald-600'}`}>
+                              {splitLeg1ShortTender
+                                ? `Short ${formatNaira(splitLeg1Num - splitLeg1TenderedNum)}`
+                                : `Change ${formatNaira(splitLeg1ChangeDue)}`}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Split Leg 2 */}
+                    <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                          Payment Leg 2
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {cartTotal > splitLeg1Num && (
+                            <button
+                              type="button"
+                              onClick={() => setSplitLeg2Amount(String(Math.max(0, cartTotal - splitLeg1Num)))}
+                              className="text-[10px] font-mono font-bold text-brand-600 dark:text-brand-400 hover:underline cursor-pointer"
+                            >
+                              Fill Remainder ({formatNaira(Math.max(0, cartTotal - splitLeg1Num))})
+                            </button>
+                          )}
+                          <span className="font-mono font-bold text-xs text-slate-900 dark:text-white">
+                            {formatNaira(splitLeg2Num)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Method Selector (Includes Debt if not Walk-in) */}
+                      <div className="grid grid-cols-4 gap-1">
+                        {(['transfer', 'cash', 'pos', 'credit'] as SinglePaymentMethod[]).map(m => {
+                          const isCreditDisabled = m === 'credit' && isOneTime;
+                          return (
+                            <button
+                              key={m}
+                              type="button"
+                              disabled={isCreditDisabled}
+                              onClick={() => setSplitLeg2Method(m)}
+                              className={`py-1.5 px-1.5 rounded-lg text-[10px] font-sans font-bold border transition-all cursor-pointer ${
+                                isCreditDisabled
+                                  ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-900 text-slate-400'
+                                  : splitLeg2Method === m
+                                  ? getPaymentModeTheme(m).buttonActiveCls
+                                  : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800'
+                              }`}
+                            >
+                              <span className="capitalize">{m === 'pos' ? 'POS' : m === 'credit' ? 'Debt' : m}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Leg 2 Amount */}
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₦</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          required
+                          value={splitLeg2Amount}
+                          onChange={e => setSplitLeg2Amount(e.target.value.replace(/[^0-9]/g, ''))}
+                          placeholder="Amount for Leg 2"
+                          className="w-full pl-8 pr-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-xs"
+                        />
+                      </div>
+
+                      {splitLeg2Method === 'cash' && (
+                        <div className="space-y-1 pt-1">
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={splitLeg2Tendered}
+                            onChange={e => setSplitLeg2Tendered(e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="Cash tendered"
+                            className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-xs"
+                          />
+                          {splitLeg2Tendered !== '' && (
+                            <div className={`text-[11px] font-mono ${splitLeg2ShortTender ? 'text-rose-600' : 'text-emerald-600'}`}>
+                              {splitLeg2ShortTender
+                                ? `Short ${formatNaira(splitLeg2Num - splitLeg2TenderedNum)}`
+                                : `Change ${formatNaira(splitLeg2ChangeDue)}`}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {splitLeg2Method === 'credit' && (
+                        <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-sans font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400 flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              Debt Duration
+                            </span>
+                            <span className="font-mono font-bold text-xs text-amber-900 dark:text-amber-200">
+                              {creditTermDays} Days
+                            </span>
+                          </div>
+
+                          {/* Quick Days Selector */}
+                          <div className="grid grid-cols-4 gap-1">
+                            {[7, 14, 21, 30].map(days => (
+                              <button
+                                key={days}
+                                type="button"
+                                onClick={() => setCreditTermDays(days)}
+                                className={`py-1 px-1 rounded-md text-[10px] font-mono font-bold border transition-all cursor-pointer ${
+                                  creditTermDays === days
+                                    ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
+                                    : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-amber-400'
+                                }`}
+                              >
+                                {days}d
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* Custom Days Input */}
+                          <div className="flex items-center gap-1.5">
+                            <label className="text-[9px] uppercase font-bold text-slate-500 shrink-0">Custom Days:</label>
+                            <input
+                              type="number"
+                              min="1"
+                              max="365"
+                              value={creditTermDays}
+                              onChange={e => setCreditTermDays(Math.max(1, parseInt(e.target.value) || 1))}
+                              className="w-16 px-1.5 py-0.5 text-xs font-mono font-bold rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                            />
+                            <span className="text-[10px] text-slate-500">days</span>
+                          </div>
+
+                          {/* Live Due Date Badge */}
+                          <div className="text-[10px] font-sans text-slate-700 dark:text-slate-300 flex items-center justify-between pt-1 border-t border-amber-500/20">
+                            <span className="text-slate-500">Due:</span>
+                            <span className="font-bold text-amber-800 dark:text-amber-300 font-mono">
+                              {formatDepotDate(effectiveDueDate.toISOString())}
+                            </span>
+                          </div>
+
+                          {overLimit && (
+                            <div className="text-rose-600 font-bold text-[10px]">
+                              {overLimitBlocked ? '⚠ Over credit limit (requires owner).' : '⚠ Over credit limit (override).'}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {(splitLeg2Method === 'transfer' || splitLeg2Method === 'pos') && (
+                        <input
+                          type="text"
+                          value={splitLeg2Ref}
+                          onChange={e => setSplitLeg2Ref(e.target.value)}
+                          placeholder="Bank session / POS reference (optional)"
+                          className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] font-mono"
+                        />
+                      )}
+                    </div>
+
+                    {/* Live Split Balance Badge */}
+                    <div
+                      className={`p-2.5 rounded-xl border text-xs font-sans flex items-center justify-between ${
+                        isSplitBalanced
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-bold'
+                          : splitRemaining > 0
+                          ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-900/60 text-amber-800 dark:text-amber-300'
+                          : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900/60 text-rose-800 dark:text-rose-300 font-bold'
+                      }`}
+                    >
+                      <span>
+                        {isSplitBalanced
+                          ? '✓ Fully Balanced (100%)'
+                          : splitRemaining > 0
+                          ? `Remaining to allocate:`
+                          : `Exceeds sale total by:`}
+                      </span>
+                      <span className="font-mono font-bold tabular-nums">
+                        {isSplitBalanced
+                          ? formatNaira(cartTotal)
+                          : splitRemaining > 0
+                          ? formatNaira(splitRemaining)
+                          : `+${formatNaira(splitOver)}`}
+                      </span>
+                    </div>
                   </div>
                 )}
 

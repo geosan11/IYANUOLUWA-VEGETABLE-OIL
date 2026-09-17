@@ -16,7 +16,8 @@ import {
   Pump,
   PumpReading,
   Product,
-  Shift
+  Shift,
+  Sale
 } from '../types';
 import { LITRES_PER_KEG, packLitres } from '../constants/config';
 
@@ -148,9 +149,9 @@ export function calculateCustomerStats(
   );
 
   
-  // Open credit orders where amount > paid_amount and payment_method === 'credit'
+  // Open credit orders where amount > paid_amount and payment_method is credit or split with unpaid balance
   const openOrders = customerOrders.filter(
-    o => o.payment_method === 'credit' && (o.amount - (o.paid_amount || 0)) > 0.01
+    o => (o.payment_method === 'credit' || o.payment_method === 'split') && (o.amount - (o.paid_amount || 0)) > 0.01
   );
 
   const currentBalance = openOrders.reduce(
@@ -318,17 +319,18 @@ export function buildCustomerStatement(
       const lines = saleGroups.get(ev.saleId) || [];
       const total = round2(lines.reduce((s, l) => s + l.line_amount, 0));
       const paid = round2(lines.reduce((s, l) => s + (l.paid_amount || 0), 0));
-      const isCredit = lines[0].payment_method === 'credit';
+      const isCredit = lines[0].payment_method === 'credit' || (lines[0].payment_method === 'split' && (total - paid) > 0.01);
       const kegsTaken = lines.reduce((s, l) => s + (l.container_mode === 'taken' ? Number(l.qty || 0) : 0), 0);
       kegBalance += kegsTaken;
       if (isCredit) balance = round2(balance + (total - paid));
       const paidStatus: CustomerStatementRow['paidStatus'] =
         paid >= total - 0.01 ? 'paid' : paid > 0.01 ? 'part' : 'unpaid';
       const kegNote = kegsTaken > 0 ? ` · ${kegsTaken} keg(s) taken` : '';
+      const modeLabel = lines[0].payment_method === 'split' ? 'split' : isCredit ? 'credit' : lines[0].payment_method;
       rows.push({
         date: ev.date,
         kind: 'sale',
-        label: `${lines.length} item${lines.length === 1 ? '' : 's'}${isCredit ? ' (credit)' : ` (${lines[0].payment_method})`}${kegNote}`,
+        label: `${lines.length} item${lines.length === 1 ? '' : 's'} (${modeLabel})${kegNote}`,
         debit: isCredit ? round2(total - paid) : 0,
         credit: 0,
         runningBalance: balance,
@@ -493,7 +495,7 @@ export function applyFifoPayment(
 
   // Get this customer's open credit orders sorted by due_date ascending (oldest due first)
   const customerCreditOrders = updatedOrders
-    .filter(o => o.customer_id === customerId && !o.voided && o.payment_method === 'credit' && (o.amount - (o.paid_amount || 0)) > 0.001)
+    .filter(o => o.customer_id === customerId && !o.voided && (o.payment_method === 'credit' || o.payment_method === 'split') && (o.amount - (o.paid_amount || 0)) > 0.001)
     .sort((a, b) => {
       const timeA = a.due_date ? new Date(a.due_date).getTime() : new Date(a.date).getTime();
       const timeB = b.due_date ? new Date(b.due_date).getTime() : new Date(b.date).getTime();
@@ -809,17 +811,35 @@ export function computeShiftCash(
   shift: { start_time: string; end_time?: string | null; opening_float: number },
   orders: Order[],
   expenses: { date: string; amount: number; voided?: boolean }[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  sales?: Sale[]
 ): { cashSales: number; cashExpenses: number; expectedCash: number } {
   const startMs = new Date(shift.start_time).getTime();
   const endMs = shift.end_time ? new Date(shift.end_time).getTime() : now.getTime();
 
-  const cashSales = orders
-    .filter(o => {
-      const t = new Date(o.date).getTime();
-      return t >= startMs && t <= endMs && !o.voided && o.payment_method === 'cash';
-    })
-    .reduce((sum, o) => sum + (o.paid_amount || 0), 0);
+  let cashSales = 0;
+  if (sales && sales.length > 0) {
+    const shiftSales = sales.filter(s => {
+      const t = new Date(s.date).getTime();
+      return t >= startMs && t <= endMs && !s.voided;
+    });
+    for (const s of shiftSales) {
+      if (s.payment_method === 'cash') {
+        const saleLines = orders.filter(o => o.sale_id === s.id && !o.voided);
+        cashSales += saleLines.reduce((sum, o) => sum + (o.paid_amount || 0), 0);
+      } else if (s.payment_method === 'split' && s.payment_splits) {
+        const cashSplit = s.payment_splits.find(sp => sp.method === 'cash');
+        if (cashSplit) cashSales += cashSplit.amount;
+      }
+    }
+  } else {
+    cashSales = orders
+      .filter(o => {
+        const t = new Date(o.date).getTime();
+        return t >= startMs && t <= endMs && !o.voided && o.payment_method === 'cash';
+      })
+      .reduce((sum, o) => sum + (o.paid_amount || 0), 0);
+  }
 
   const cashExpenses = expenses
     .filter(e => {
@@ -898,6 +918,24 @@ export function checkShiftOpeningMetersGate(
     missingPumps,
     loggedReadings
   };
+}
+
+/**
+ * 14. DRUMS VOLUME SIMPLIFIER
+ * Automates 256 L to 1 drum, and 112.5 L to half a drum.
+ * Instead of only seeing big numbers, simplifies large volumes to drums while
+ * still clearly stating the exact litres.
+ */
+export function formatVolumeWithDrums(litres: number): string {
+  if (litres <= 0) return '0 L';
+  if (litres >= 256) {
+    const drums = (litres / 256).toFixed(1).replace(/\.0$/, '');
+    return `${drums} drum${Number(drums) === 1 ? '' : 's'} (${litres.toLocaleString()} L)`;
+  }
+  if (litres >= 112.5) {
+    return `½ drum (${litres.toLocaleString()} L)`;
+  }
+  return `${litres.toLocaleString()} L`;
 }
 
 

@@ -12,7 +12,7 @@ import {
   fromDatetimeLocalValue
 } from '../services/businessLogic';
 import { packShort, PAYMENT_MODE_THEME, getPaymentModeTheme } from '../constants/config';
-import { Sale, Order, Payment, Expense, Tank, ReceiptData, ContainerMode, PaymentMethod } from '../types';
+import { Sale, Order, Payment, Expense, Tank, KegReturn, ReceiptData, ContainerMode, PaymentMethod } from '../types';
 import {
   Scroll as ScrollText,
   MagnifyingGlass as Search,
@@ -30,7 +30,10 @@ import {
   CalendarBlank,
   Wallet,
   DeviceMobile,
-  Bank
+  Bank,
+  Lightning,
+  UserCheck,
+  Package
 } from '@phosphor-icons/react';
 
 interface Props {
@@ -38,14 +41,15 @@ interface Props {
 }
 
 type Scope = 'shift' | 'today' | 'all' | 'custom';
-type Kind = 'sale' | 'payment' | 'expense' | 'intake';
+type Kind = 'sale' | 'payment' | 'expense' | 'intake' | 'keg_return';
 type KindFilter = 'all' | Kind;
 
 const PAYMENT_MODE_META: Record<PaymentMethod, { label: string; Icon: typeof CreditCard; cls: string }> = {
   cash: { label: 'Cash', Icon: Banknote, cls: PAYMENT_MODE_THEME.cash.textCls },
   transfer: { label: 'Transfer', Icon: Bank, cls: PAYMENT_MODE_THEME.transfer.textCls },
   pos: { label: 'POS / Card', Icon: DeviceMobile, cls: PAYMENT_MODE_THEME.pos.textCls },
-  credit: { label: 'Debt', Icon: Wallet, cls: PAYMENT_MODE_THEME.credit.textCls }
+  credit: { label: 'Debt', Icon: Wallet, cls: PAYMENT_MODE_THEME.credit.textCls },
+  split: { label: 'Split', Icon: Lightning, cls: PAYMENT_MODE_THEME.split.textCls }
 };
 
 interface TxnRow {
@@ -61,11 +65,13 @@ interface TxnRow {
   tone: 'in' | 'out' | 'neutral';
   voided: boolean;
   paymentMethod?: PaymentMethod;
+  staffName?: string;
   sale?: Sale;
   lines?: Order[];
   payment?: Payment;
   expense?: Expense;
   tank?: Tank;
+  kegReturn?: KegReturn;
 }
 
 type PaymentModeFilter = 'all' | PaymentMethod;
@@ -75,14 +81,16 @@ const PAYMENT_MODE_CHIPS: { id: PaymentModeFilter; label: string }[] = [
   { id: 'cash', label: 'Cash' },
   { id: 'transfer', label: 'Transfer' },
   { id: 'pos', label: 'Card / POS' },
-  { id: 'credit', label: 'Debt' }
+  { id: 'credit', label: 'Debt' },
+  { id: 'split', label: 'Split / Double' }
 ];
 
 const KIND_META: Record<Kind, { label: string; Icon: typeof CreditCard; badge: string }> = {
   sale: { label: 'Sale', Icon: Banknote, badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' },
   payment: { label: 'Payment', Icon: CreditCard, badge: 'bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300' },
   expense: { label: 'Expense', Icon: Undo2, badge: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' },
-  intake: { label: 'Intake', Icon: Truck, badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300' }
+  intake: { label: 'Intake', Icon: Truck, badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300' },
+  keg_return: { label: 'Keg Return', Icon: Package, badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300' }
 };
 
 export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
@@ -92,6 +100,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
     payments,
     expenses,
     tanks,
+    kegReturns,
     customers,
     products,
     suppliers,
@@ -138,7 +147,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         auditIds: [sale.id, ...lines.map(l => l.id)],
         date: sale.date,
         title: custName(sale.customer_id),
-        subtitle: `${lines.length} item${lines.length === 1 ? '' : 's'} · ${sale.payment_method}${
+        subtitle: `${lines.length} item${lines.length === 1 ? '' : 's'} · ${sale.payment_method === 'split' ? 'Split payment' : sale.payment_method}${
           sale.payment_method === 'credit' && outstanding > 0.01 ? ` · owes ${formatNaira(outstanding)}` : ''
         }`,
         amount: total,
@@ -146,6 +155,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         tone: 'in',
         voided: !!sale.voided,
         paymentMethod: sale.payment_method,
+        staffName: sale.cashier_name || 'Counter Staff',
         sale,
         lines
       });
@@ -165,6 +175,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         tone: 'in',
         voided: !!p.voided,
         paymentMethod: p.method,
+        staffName: (p as any).recorded_by || 'Cashier',
         payment: p
       });
     }
@@ -183,6 +194,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         tone: 'out',
         voided: !!e.voided,
         paymentMethod: 'cash',
+        staffName: (e as any).recorded_by || 'Staff',
         expense: e
       });
     }
@@ -202,12 +214,32 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         tone: 'neutral',
         voided: false,
         paymentMethod: undefined,
+        staffName: (t as any).driver_name || t.space_note || 'Depot Logistics',
         tank: t
       });
     }
 
+    for (const kr of kegReturns) {
+      rows.push({
+        id: `keg_return:${kr.id}`,
+        kind: 'keg_return',
+        entityId: kr.id,
+        auditIds: [kr.id],
+        date: kr.date,
+        title: custName(kr.customer_id),
+        subtitle: `${kr.qty} × 25L Jerrycan${kr.qty === 1 ? '' : 's'} returned to depot${kr.note ? ` · ${kr.note}` : ''}`,
+        amount: 0,
+        amountLabel: `+${kr.qty} Kegs (25L)`,
+        tone: 'in',
+        voided: false,
+        paymentMethod: undefined,
+        staffName: 'Gate Officer / Staff',
+        kegReturn: kr
+      });
+    }
+
     return rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [sales, orders, payments, expenses, tanks, customers, products, suppliers]);
+  }, [sales, orders, payments, expenses, tanks, kegReturns, customers, products, suppliers]);
 
   const customFromMs = scope === 'custom' && customFrom ? new Date(fromDatetimeLocalValue(customFrom)).getTime() : null;
   const customToMs = scope === 'custom' && customTo ? new Date(fromDatetimeLocalValue(customTo)).getTime() : null;
@@ -218,23 +250,29 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
       if (kindFilter !== 'all' && r.kind !== kindFilter) return false;
       if (paymentModeFilter !== 'all' && r.paymentMethod !== paymentModeFilter) return false;
       if (scope === 'today' && depotDateKey(r.date) !== today) return false;
-      if (scope === 'shift') {
-        if (!activeShift) {
-          if (depotDateKey(r.date) !== today) return false;
-        } else if (new Date(r.date).getTime() < new Date(activeShift.start_time).getTime()) {
-          return false;
-        }
+      if (scope === 'shift' && activeShift) {
+        const start = new Date(activeShift.start_time).getTime();
+        const end = activeShift.end_time ? new Date(activeShift.end_time).getTime() : Date.now();
+        const t = new Date(r.date).getTime();
+        if (t < start || t > end) return false;
       }
       if (scope === 'custom') {
         const t = new Date(r.date).getTime();
-        if (customFromMs != null && t < customFromMs) return false;
-        if (customToMs != null && t > customToMs) return false;
+        if (customFromMs && t < customFromMs) return false;
+        if (customToMs && t > customToMs) return false;
       }
-      const q = search.trim().toLowerCase();
-      if (q && !(`${r.title} ${r.subtitle}`.toLowerCase().includes(q))) return false;
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        return (
+          r.title.toLowerCase().includes(q) ||
+          r.subtitle.toLowerCase().includes(q) ||
+          r.entityId.toLowerCase().includes(q) ||
+          (r.staffName && r.staffName.toLowerCase().includes(q))
+        );
+      }
       return true;
     });
-  }, [allRows, kindFilter, paymentModeFilter, scope, activeShift, search, customFromMs, customToMs]);
+  }, [allRows, kindFilter, paymentModeFilter, scope, activeShift, customFromMs, customToMs, search]);
 
   const kpi = useMemo(() => {
     let gross = 0;
@@ -253,13 +291,20 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
   // Value moved by payment mode in this window — sale value booked under
   // each method, plus credit settlements collected via that method.
   const paymentModeTotals = useMemo(() => {
-    const totals: Record<PaymentMethod, number> = { cash: 0, transfer: 0, pos: 0, credit: 0 };
+    const totals: Record<PaymentMethod, number> = { cash: 0, transfer: 0, pos: 0, credit: 0, split: 0 };
     for (const r of scopedRows) {
       if (r.voided) continue;
       if (r.kind === 'sale' && r.sale) {
-        totals[r.sale.payment_method] += r.amount;
+        if (r.sale.payment_method === 'split' && r.sale.payment_splits) {
+          for (const sp of r.sale.payment_splits) {
+            totals[sp.method] = (totals[sp.method] || 0) + sp.amount;
+          }
+          totals.split += r.amount;
+        } else {
+          totals[r.sale.payment_method] = (totals[r.sale.payment_method] || 0) + r.amount;
+        }
       } else if (r.kind === 'payment' && r.payment) {
-        totals[r.payment.method] += r.amount;
+        totals[r.payment.method] = (totals[r.payment.method] || 0) + r.amount;
       }
     }
     return totals;
@@ -302,7 +347,8 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
     { id: 'sale', label: 'Sales' },
     { id: 'payment', label: 'Payments' },
     { id: 'expense', label: 'Expenses' },
-    { id: 'intake', label: 'Intake' }
+    { id: 'intake', label: 'Intake' },
+    { id: 'keg_return', label: 'Keg Returns' }
   ];
 
   return (
@@ -560,6 +606,12 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                           {row.title}
                         </div>
                         <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{row.subtitle}</div>
+                        {row.staffName && (
+                          <div className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60">
+                            <UserCheck className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400 shrink-0" weight="bold" />
+                            <span>Staff: <strong className="font-semibold text-slate-800 dark:text-slate-100">{row.staffName}</strong></span>
+                          </div>
+                        )}
                       </td>
                       <td className="px-3.5 py-3 align-top text-right whitespace-nowrap">
                         <span
