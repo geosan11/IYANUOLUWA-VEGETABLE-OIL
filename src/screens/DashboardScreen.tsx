@@ -1020,20 +1020,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 </p>
               </div>
             </div>
-            <div className="text-right font-mono tabular-nums">
-              <span className="text-base font-bold text-slate-900 dark:text-slate-100">
+            <div className="text-right font-mono tabular-nums space-y-0.5">
+              <div className="text-xl font-mono font-extrabold text-slate-900 dark:text-slate-100">
                 {vegStock.toLocaleString()} L
-              </span>
-              <span className="text-xs text-slate-500 dark:text-slate-400 block">
+              </div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
                 ≈ {Math.round(vegStock / vegLitresPerKeg).toLocaleString()} Kegs ({vegLitresPerKeg}L)
-              </span>
-              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
+              </div>
+              <div className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">
                 Quantity Sold Today: {vegKegsSoldToday}
-              </span>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center justify-items-center py-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start justify-items-center py-2">
             {/* Primary combined gauge */}
             <TankGauge
               productId="veg"
@@ -1044,8 +1044,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             />
 
             {/* Individual active veg tanks list */}
-            <div className="w-full space-y-2.5">
-              <div className="text-xs font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <div className="w-full space-y-3">
+              <div className="text-xs font-sans font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Active In-Feed Tanks
               </div>
               {tanks
@@ -1055,20 +1055,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   return (
                     <div
                       key={t.id}
-                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs font-mono tabular-nums"
+                      className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-start justify-between gap-3 text-xs"
                     >
-                      <div className="space-y-0.5 font-sans">
-                        <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">
+                      <div className="space-y-1 font-sans min-w-0">
+                        <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono shrink-0">
                             Tank #{idx + 1}
                           </span>
-                          <span className="text-xs">{t.truck_label}</span>
+                          <span className="text-xs truncate" title={t.truck_label}>{t.truck_label}</span>
                         </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
                           Intake: {formatDepotDate(t.date)} · Received: {t.received_litres.toLocaleString()}L
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right shrink-0 font-mono tabular-nums">
                         <div className="font-bold text-slate-900 dark:text-slate-100 text-sm">
                           {t.remaining_litres.toLocaleString()} L
                         </div>
@@ -1100,20 +1100,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 </p>
               </div>
             </div>
-            <div className="text-right font-mono tabular-nums">
-              <span className="text-xl font-heading font-black text-slate-900 dark:text-slate-100">
+            <div className="text-right font-mono tabular-nums space-y-0.5">
+              <div className="text-xl font-mono font-extrabold text-slate-900 dark:text-slate-100">
                 {Math.round(redStock / (redLitresPerKeg || 25)).toLocaleString()} Kegs
-              </span>
-              <span className="text-xs text-slate-500 dark:text-slate-400 block">
+              </div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
                 {redStock.toLocaleString()} L (25L per keg)
-              </span>
-              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
+              </div>
+              <div className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">
                 Sold Today: {redKegsSoldToday} kegs
-              </span>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center justify-items-center py-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start justify-items-center py-2">
             {/* Dedicated 25L Heavy-Duty Jerrycan / Keg Visual (NOT a Tank) */}
             <KegVisual25L
               remainingLitres={redStock}
@@ -1123,10 +1123,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             />
 
             {/* Individual active red intake lots / pallets list */}
-            <div className="w-full space-y-2.5">
-              <div className="text-xs font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+            <div className="w-full space-y-3">
+              <div className="text-xs font-sans font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                 <Package className="w-3.5 h-3.5 text-rose-500" weight="bold" />
-                <span>Active 25L Keg Lots & Deliveries</span>
+                <span>Active 25L Keg Lots &amp; Deliveries</span>
               </div>
               {tanks
                 .filter(t => t.product_id === 'red')
@@ -1137,20 +1137,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   return (
                     <div
                       key={t.id}
-                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs font-mono tabular-nums"
+                      className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 flex items-start justify-between gap-3 text-xs"
                     >
-                      <div className="space-y-0.5 font-sans">
-                        <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-700 dark:text-rose-300 font-mono font-bold">
+                      <div className="space-y-1 font-sans min-w-0">
+                        <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-700 dark:text-rose-300 font-mono font-bold shrink-0">
                             Lot #{idx + 1}
                           </span>
-                          <span className="text-xs">{t.truck_label}</span>
+                          <span className="text-xs truncate" title={t.truck_label}>{t.truck_label}</span>
                         </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
                           Delivery: {formatDepotDate(t.date)} · Initial: {totalKegs.toLocaleString()} Kegs ({t.received_litres.toLocaleString()}L)
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right shrink-0 font-mono tabular-nums">
                         <div className="font-bold text-slate-900 dark:text-slate-100 text-sm">
                           {kegCount.toLocaleString()} Kegs
                         </div>

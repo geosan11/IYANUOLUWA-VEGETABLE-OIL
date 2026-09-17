@@ -109,17 +109,17 @@ export const TankGauge: React.FC<TankGaugeProps> = ({
 
       {/* Tank Labels */}
       {showLabels && (
-        <div className="mt-3 text-center w-full space-y-0.5">
-          <div className="text-xs font-heading font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+        <div className="mt-3.5 text-center w-full space-y-1">
+          <div className="text-xs font-sans font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             {productName || product?.name || 'Oil'}
           </div>
-          <div className="text-lg font-heading font-black text-slate-900 dark:text-white font-mono tabular-nums">
+          <div className="text-xl font-mono font-extrabold text-slate-900 dark:text-white tabular-nums">
             {remainingLitres.toLocaleString('en-US', { maximumFractionDigits: 0 })}{' '}
             <span className="text-xs font-sans font-normal text-slate-500 dark:text-slate-400">
               Litres
             </span>
           </div>
-          <div className="text-xs font-mono font-medium text-slate-500 dark:text-slate-400">
+          <div className="text-xs font-mono text-slate-500 dark:text-slate-400 tabular-nums">
             ≈ {Math.round(remainingLitres / (product?.litres_per_keg || 25)).toLocaleString()} Kegs (25L)
           </div>
           {truckLabel && (

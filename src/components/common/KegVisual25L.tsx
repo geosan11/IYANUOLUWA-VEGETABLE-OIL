@@ -287,20 +287,20 @@ export const KegVisual25L: React.FC<KegVisual25LProps> = ({
 
       {/* Primary Hero Keg Metrics Underneath */}
       {showLabels && (
-        <div className="mt-3 text-center w-full space-y-0.5">
-          <div className="text-xs font-heading font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        <div className="mt-3.5 text-center w-full space-y-1">
+          <div className="text-xs font-sans font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Pre-Kegged Palm Oil
           </div>
-          <div className="text-2xl font-heading font-black text-slate-900 dark:text-white font-mono tabular-nums flex items-baseline justify-center gap-1.5">
+          <div className="text-2xl font-mono font-extrabold text-slate-900 dark:text-white tabular-nums flex items-baseline justify-center gap-1.5">
             <span>{currentKegs.toLocaleString()}</span>
             <span className="text-sm font-sans font-bold text-rose-600 dark:text-rose-400">
               Kegs (25L)
             </span>
           </div>
-          <div className="text-xs font-mono font-medium text-slate-500 dark:text-slate-400">
+          <div className="text-xs font-mono text-slate-500 dark:text-slate-400 tabular-nums">
             {remainingLitres.toLocaleString()} Litres Total
           </div>
-          <div className="text-[11px] text-slate-400 dark:text-slate-500 font-sans pt-0.5">
+          <div className="text-xs text-slate-400 dark:text-slate-500 font-sans pt-0.5">
             Capacity: {currentKegs} / {maxKegs} Stored
           </div>
         </div>
