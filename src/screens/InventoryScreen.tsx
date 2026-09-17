@@ -758,7 +758,7 @@ const PriceMatrix: React.FC<{
                   <button
                     type="button"
                     onClick={() => onDeletePack(size.id, size.label)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                    className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                     title={`Delete ${size.label} pack from ${product.name}`}
                   >
                     <Trash className="w-4 h-4" />

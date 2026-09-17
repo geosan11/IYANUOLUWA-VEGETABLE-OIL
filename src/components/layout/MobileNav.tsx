@@ -67,13 +67,13 @@ export const MobileNav: React.FC<MobileNavProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   onClick={toggleTheme}
-                  className="p-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900"
+                  className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800"
                 >
                   {theme === 'dark' ? <Sun className="w-5 h-5 text-amber-400" weight="bold" /> : <Moon className="w-5 h-5 text-slate-600" weight="bold" />}
                 </button>
                 <button
                   onClick={onCloseMenu}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  className="p-1 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 >
                   <X className="w-5 h-5" />
                 </button>

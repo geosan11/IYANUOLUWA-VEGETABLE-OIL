@@ -347,7 +347,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           <div className="mb-3 p-3 rounded-xl badge-rose border border-rose-300 dark:border-rose-800 text-xs font-sans flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
             <span>{shiftError}</span>
-            <button type="button" onClick={() => setShiftError(null)} className="ml-auto text-rose-500 hover:text-rose-700 dark:hover:text-rose-200">✕</button>
+            <button type="button" onClick={() => setShiftError(null)} className="ml-auto px-1.5 py-0.5 rounded bg-rose-100/70 dark:bg-rose-900/40 border border-rose-300/70 dark:border-rose-700/60 text-rose-600 hover:text-rose-800 dark:hover:text-rose-200">✕</button>
           </div>
         )}
 

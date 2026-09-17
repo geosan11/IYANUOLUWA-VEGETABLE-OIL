@@ -180,7 +180,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
               <button
                 type="button"
                 onClick={toggleTheme}
-                className="p-1 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800/70 transition-colors flex-shrink-0"
+                className="p-1 rounded-lg bg-stone-800/60 border border-stone-700/60 text-stone-400 hover:text-white hover:bg-stone-800 transition-colors flex-shrink-0"
                 title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
               >
                 {theme === 'dark' ? (

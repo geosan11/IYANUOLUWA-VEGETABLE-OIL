@@ -277,7 +277,7 @@ export const KegsScreen: React.FC = () => {
       {logErrorMsg && (
         <div role="alert" aria-live="assertive" className="p-4 rounded-xl badge-rose border border-rose-300 dark:border-rose-700 text-xs font-sans font-semibold flex items-center gap-2 animate-in fade-in sticky top-4 z-40 shadow-md">
           <span>{logErrorMsg}</span>
-          <button type="button" onClick={() => setLogErrorMsg(null)} className="ml-auto text-rose-500 hover:text-rose-700 dark:hover:text-rose-200">✕</button>
+          <button type="button" onClick={() => setLogErrorMsg(null)} className="ml-auto px-1.5 py-0.5 rounded bg-rose-100/70 dark:bg-rose-900/40 border border-rose-300/70 dark:border-rose-700/60 text-rose-600 hover:text-rose-800 dark:hover:text-rose-200">✕</button>
         </div>
       )}
 

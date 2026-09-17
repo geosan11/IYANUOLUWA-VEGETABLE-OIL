@@ -1997,7 +1997,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                             <button
                               type="button"
                               onClick={() => editLine(l.key)}
-                              className="text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 p-1 cursor-pointer"
+                              className="rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 p-1 cursor-pointer"
                               title="Edit item price & quantity in builder"
                             >
                               <Pencil className="w-3.5 h-3.5" />
@@ -2005,7 +2005,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                             <button
                               type="button"
                               onClick={() => removeLine(l.key)}
-                              className="text-slate-400 hover:text-rose-500 p-1 cursor-pointer"
+                              className="rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-500 p-1 cursor-pointer"
                               aria-label="Remove line"
                             >
                               <Trash2 className="w-3.5 h-3.5" />

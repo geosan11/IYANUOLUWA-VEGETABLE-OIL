@@ -1250,7 +1250,7 @@ export const SettingsScreen: React.FC = () => {
                               type="button"
                               onClick={() => handleOpenEditProduct(p.id)}
                               disabled={!isOwner}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                               title={isOwner ? 'Edit Product' : 'Only the owner can edit products'}
                             >
                               <Edit2 className="w-4 h-4" />
@@ -1265,7 +1265,7 @@ export const SettingsScreen: React.FC = () => {
                                   }
                                 }}
                                 disabled={!isOwner}
-                                className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                                 title={isOwner ? 'Delete Product' : 'Only the owner can delete products'}
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -1433,7 +1433,7 @@ export const SettingsScreen: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleOpenEditPumpModal(pump)}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors"
+                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors"
                               title="Edit Pump Details"
                             >
                               <Edit2 className="w-4 h-4" />
@@ -1441,7 +1441,7 @@ export const SettingsScreen: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleDeletePumpAction(pump)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                               title="Delete Pump"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -1487,7 +1487,7 @@ export const SettingsScreen: React.FC = () => {
                               showNotification(`Tank "${t.label}" removed.`);
                             }
                           }}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -1576,7 +1576,7 @@ export const SettingsScreen: React.FC = () => {
                             showNotification(`Supplier "${s.name}" removed.`);
                           }
                         }}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                        className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -2090,7 +2090,7 @@ export const SettingsScreen: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => handleOpenEditHub(hub)}
-                                    className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors"
+                                    className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors"
                                     title="Edit Hub Details"
                                   >
                                     <Edit2 className="w-4 h-4" />
@@ -2099,7 +2099,7 @@ export const SettingsScreen: React.FC = () => {
                                     <button
                                       type="button"
                                       onClick={() => handleDeleteHubAction(hub)}
-                                      className="p-1.5 rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"
+                                      className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"
                                       title="Delete Hub"
                                     >
                                       <Trash2 className="w-4 h-4" />
@@ -2268,7 +2268,7 @@ export const SettingsScreen: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleOpenEditUser(u)}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors"
+                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors"
                               title="Edit User"
                             >
                               <Edit2 className="w-4 h-4" />
@@ -2278,7 +2278,7 @@ export const SettingsScreen: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => handleDeleteUserAction(u)}
-                                className="p-1.5 rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"
+                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"
                                 title="Delete User"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -2474,7 +2474,7 @@ export const SettingsScreen: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setNewProductVarieties(vs => vs.filter((_, xi) => xi !== i))}
-                          className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 shrink-0"
+                          className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-950/40 shrink-0"
                           aria-label="Remove spec"
                         >
                           <X className="w-4 h-4" />

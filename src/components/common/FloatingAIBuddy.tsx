@@ -208,7 +208,7 @@ export const FloatingAIBuddy: React.FC<FloatingAIBuddyProps> = ({ onNavigate }) 
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:text-stone-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-stone-800 transition-colors"
+                className="p-1.5 rounded-lg bg-slate-100 dark:bg-stone-800 border border-slate-200 dark:border-stone-700 text-slate-500 hover:text-slate-900 dark:text-stone-400 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors"
                 title="Minimize chat buddy"
                 aria-label="Minimize"
               >

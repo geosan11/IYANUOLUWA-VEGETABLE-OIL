@@ -121,7 +121,7 @@ export const ScreenAccessPanel: React.FC = () => {
         <button
           type="button"
           onClick={load}
-          className="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0"
+          className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 shrink-0"
           title="Refresh list"
         >
           <ArrowsClockwise className="w-4 h-4" />

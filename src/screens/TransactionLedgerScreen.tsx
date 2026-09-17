@@ -743,7 +743,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                           {row.kind === 'sale' && row.sale && row.lines && !row.voided && (
                             <button
                               onClick={() => reprintSale(row.sale!, row.lines!)}
-                              className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                              className="p-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                               title="Reprint"
                             >
                               <Printer className="w-4 h-4" />
@@ -752,7 +752,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                           {isOwner && !row.voided && row.kind !== 'intake' && (
                             <button
                               onClick={() => setEditTarget(row)}
-                              className="p-1 rounded text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
+                              className="p-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
                               title="Edit"
                             >
                               <Pencil className="w-4 h-4" />
@@ -761,7 +761,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                           {isOwner && !row.voided && row.kind === 'intake' && (
                             <button
                               onClick={() => setEditTarget(row)}
-                              className="p-1 rounded text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
+                              className="p-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
                               title="Correct date / details"
                             >
                               <Pencil className="w-4 h-4" />
@@ -770,7 +770,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                           {isOwner && !row.voided && (row.kind === 'sale' || row.kind === 'payment' || row.kind === 'expense') && (
                             <button
                               onClick={() => setVoidTarget(row)}
-                              className="p-1 rounded text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
+                              className="p-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
                               title="Void"
                             >
                               <Ban className="w-4 h-4" />
