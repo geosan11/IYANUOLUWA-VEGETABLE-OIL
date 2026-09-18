@@ -535,16 +535,18 @@ export function applyFifoPayment(
 }
 
 /**
- * 9. PUMP METER VARIANCE RECONCILIATION — per depot day, per product.
+ * 9. PUMP METER VARIANCE RECONCILIATION — per depot day, per pump.
  * Each pump's meter only counts up (like an odometer, never resets). Readings
  * are bucketed into depot-local calendar days; for each day that closes with
  * a reading:
  *   meterDelta = (day's last reading) - (last known reading before that day)
- *   expectedLitres = sum of litres sold that day for the pump's product
+ *   expectedLitres = sum of litres sold that day, attributed to this pump
  *   variance = meterDelta - expectedLitres
- * Sales are no longer attributed to a specific pump (Phase 2+), so the
- * comparison is against every non-voided sale of the pump's product that day
- * — if two pumps share a product, reconcile them together in the UI.
+ * Sales made after pump selection shipped carry their own `pump_id` and are
+ * matched exactly. Older sales recorded before that (or made against a hub
+ * with no pumps configured) have no `pump_id` — those fall back to every
+ * non-voided sale of the pump's product that day, same as before; if two
+ * pumps share a product, that legacy pool still reconciles them together.
  * Flag a variance alert when |variance| > thresholdLitres (default 20L).
  */
 export function calculatePumpMeterVariance(
@@ -582,7 +584,11 @@ export function calculatePumpMeterVariance(
 
     const expectedLitres = Number(
       orders
-        .filter(o => !o.voided && o.product_id === pump.product_id && depotDateKey(o.date) === currentDay)
+        .filter(o =>
+          !o.voided &&
+          depotDateKey(o.date) === currentDay &&
+          (o.pump_id ? o.pump_id === pump.id : o.product_id === pump.product_id)
+        )
         .reduce((sum, o) => sum + Number(o.litres || 0), 0)
         .toFixed(2)
     );

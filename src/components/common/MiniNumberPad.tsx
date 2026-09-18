@@ -111,10 +111,10 @@ export const MiniNumberPad: React.FC<MiniNumberPadProps> = ({
         {/* Large Bold Display of Current Value */}
         <div className="text-right pr-1">
           <span className="text-[10px] font-mono font-bold uppercase text-slate-400 tracking-wider block">
-            {activeTarget === 'qty' ? 'Units' : 'Unit Rate'}
+            {activeTarget === 'qty' ? 'Quantity' : 'Unit Rate'}
           </span>
           <span className="font-mono font-black text-xl text-white tracking-tight tabular-nums block leading-tight">
-            {activeTarget === 'qty' ? `${qty} pk` : price !== '' ? `₦${Number(price).toLocaleString()}` : '₦0'}
+            {activeTarget === 'qty' ? `${qty}` : price !== '' ? `₦${Number(price).toLocaleString()}` : '₦0'}
           </span>
         </div>
       </div>

@@ -494,7 +494,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 text-xs">
               <div>
                 <span className="text-xs font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                  Opening Float
+                  Cash for Change
                 </span>
                 <span className="font-mono tabular-nums font-bold text-slate-700 dark:text-slate-300">
                   {formatNaira(activeShift.opening_float)}
@@ -576,7 +576,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         >
           <div className="flex items-center justify-between gap-1.5 mb-3">
             <span className="text-xs font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
-              Cash & Transfer
+              Cash, Card &amp; Transfer
             </span>
             <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/60 dark:border-emerald-800/50 flex items-center justify-center shrink-0">
               <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
@@ -738,21 +738,23 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         </div>
 
         {/* Sales Trend (last 7 days) */}
-        <div className="p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark space-y-3">
-          <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800">
+        <div className="p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col">
+          <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
             <ChartLineUp className="w-4 h-4 text-brand-600 dark:text-brand-400" weight="bold" />
             <h3 className="text-sm font-heading font-bold text-slate-900 dark:text-white">Sales Trend (7 Days)</h3>
           </div>
-          <MiniBarChart data={salesTrend} colorCls="bg-brand-500" formatValue={v => formatNaira(v)} highlightLast />
+          <div className="flex-1 min-h-0 pt-3">
+            <MiniBarChart data={salesTrend} colorCls="bg-brand-500" formatValue={v => formatNaira(v)} highlightLast />
+          </div>
         </div>
 
         {/* Tank Availability */}
-        <div className="p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark space-y-3">
-          <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800">
+        <div className="p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col">
+          <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
             <ChartPieSlice className="w-4 h-4 text-brand-600 dark:text-brand-400" weight="bold" />
             <h3 className="text-sm font-heading font-bold text-slate-900 dark:text-white">Tank Availability</h3>
           </div>
-          <div className="py-2">
+          <div className="flex-1 min-h-0 flex items-center justify-center py-2">
             <DonutChart
               segments={tankHealthBuckets}
               centerValue={String(tanks.length)}
@@ -762,12 +764,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         </div>
 
         {/* Top Varieties (last 30 days) */}
-        <div className="p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark space-y-3">
-          <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800">
+        <div className="p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col">
+          <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
             <ChartBar className="w-4 h-4 text-brand-600 dark:text-brand-400" weight="bold" />
             <h3 className="text-sm font-heading font-bold text-slate-900 dark:text-white">Top Varieties (30 Days)</h3>
           </div>
-          <MiniBarChart data={topVarieties} colorCls="bg-amber-500" formatValue={v => `${v.toLocaleString()}L`} />
+          <div className="flex-1 min-h-0 pt-3">
+            <MiniBarChart data={topVarieties} colorCls="bg-amber-500" formatValue={v => `${v.toLocaleString()}L`} />
+          </div>
         </div>
       </div>
 
@@ -1724,7 +1728,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         onClose={() => setActiveStatSheet(null)}
         title={
           activeStatSheet === 'cash'
-            ? 'Cash & Transfer Sales Today'
+            ? 'Cash, Card & Transfer Sales Today'
             : activeStatSheet === 'credit'
             ? 'Debt Ledger Outstanding'
             : activeStatSheet === 'kegs_out'
@@ -1758,7 +1762,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         }
       >
         <div className="space-y-4">
-          {/* 1. Cash & Transfer Breakdown */}
+          {/* 1. Cash, Card & Transfer Breakdown */}
           {activeStatSheet === 'cash' && (
             <div className="space-y-3">
               <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 flex items-center justify-between">
@@ -1776,11 +1780,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
               {orders
                 .filter(o => {
-                  return depotDateKey(o.date) === todayStr && (o.payment_method === 'cash' || o.payment_method === 'transfer');
+                  return (
+                    depotDateKey(o.date) === todayStr &&
+                    (o.payment_method === 'cash' || o.payment_method === 'transfer' || o.payment_method === 'pos' || o.payment_method === 'split')
+                  );
                 })
                 .map(order => {
                   const cust = customers.find(c => c.id === order.customer_id);
-                  const isCash = order.payment_method === 'cash';
+                  const theme = getPaymentModeTheme(order.payment_method);
                   return (
                     <div
                       key={order.id}
@@ -1792,10 +1799,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                         </div>
                         <div className="flex items-center gap-2 text-xs font-sans text-slate-500 dark:text-slate-400">
                           <span className="inline-flex items-center gap-1 font-medium">
-                            <span
-                              className={`w-2 h-2 rounded-full ${isCash ? 'bg-emerald-500' : 'bg-sky-500'}`}
-                            />
-                            {isCash ? 'Cash' : 'Bank Transfer'}
+                            <span className={`w-2 h-2 rounded-full ${theme.dotCls}`} />
+                            {theme.label}
                           </span>
                           <span>·</span>
                           <span className="font-mono">{order.litres}L</span>

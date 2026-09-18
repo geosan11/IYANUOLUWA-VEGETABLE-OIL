@@ -36,8 +36,8 @@ export const MiniBarChart: React.FC<MiniBarChartProps> = ({
   if (!hasData) {
     return (
       <div
-        className="flex items-center justify-center text-xs font-sans text-slate-400 dark:text-slate-500"
-        style={{ height }}
+        className="flex items-center justify-center text-xs font-sans text-slate-400 dark:text-slate-500 h-full"
+        style={{ minHeight: height }}
       >
         {emptyLabel}
       </div>
@@ -45,8 +45,8 @@ export const MiniBarChart: React.FC<MiniBarChartProps> = ({
   }
 
   return (
-    <div className="w-full space-y-2">
-      <div className="flex items-baseline justify-between">
+    <div className="w-full h-full flex flex-col gap-2">
+      <div className="flex items-baseline justify-between shrink-0">
         <span className="text-[10px] font-sans font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
           Total
         </span>
@@ -54,7 +54,7 @@ export const MiniBarChart: React.FC<MiniBarChartProps> = ({
           {formatValue(total)}
         </span>
       </div>
-      <div className="w-full" style={{ height }}>
+      <div className="w-full flex-1" style={{ minHeight: height }}>
         <div className="flex items-end justify-between gap-1.5 h-full">
           {data.map((d, i) => {
             const isLast = highlightLast && i === data.length - 1;

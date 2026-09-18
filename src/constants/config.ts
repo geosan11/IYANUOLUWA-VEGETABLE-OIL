@@ -40,9 +40,9 @@ export const PACK_SIZES: readonly PackSize[] = Object.freeze([
   { id: 'sz_25', litres: 25, short: '25L', label: '25 L' },
   { id: 'sz_28', litres: 28, short: '28L', label: '28 L' },
   { id: 'sz_30', litres: 30, short: '30L', label: '30 L' },
-  { id: 'sz_56', litres: 56, short: '56L', label: '56 L (1/4 Drum)' },
-  { id: 'sz_112_5', litres: 112.5, short: '112.5L', label: '112.5 L (1/2 Drum)' },
-  { id: 'sz_256', litres: 256, short: '256L', label: '256 L (1 Drum)' }
+  { id: 'sz_56', litres: 56, short: '¼ Drum (56L)', label: '56 L (1/4 Drum)' },
+  { id: 'sz_112_5', litres: 112.5, short: '½ Drum (112.5L)', label: '112.5 L (1/2 Drum)' },
+  { id: 'sz_256', litres: 256, short: '1 Drum (256L)', label: '256 L (1 Drum)' }
 ]);
 
 export const packSizeById = (id: string): PackSize | null => PACK_SIZES.find(s => s.id === id) ?? null;

@@ -41,6 +41,8 @@ export const PumpsScreen: React.FC = () => {
   const [editErr, setEditErr] = useState<string | null>(null);
 
   const [resetTarget, setResetTarget] = useState<Pump | null>(null);
+  const [resetStep, setResetStep] = useState<'form' | 'confirm'>('form');
+  const [resetOldReading, setResetOldReading] = useState('0');
   const [resetReading, setResetReading] = useState('0');
   const [resetReason, setResetReason] = useState('');
   const [resetErr, setResetErr] = useState<string | null>(null);
@@ -104,16 +106,36 @@ export const PumpsScreen: React.FC = () => {
 
   const openReset = (pump: Pump) => {
     setResetTarget(pump);
+    setResetStep('form');
+    setResetOldReading(String(pump.last_meter_reading || 0));
     setResetReading('0');
     setResetReason('');
     setResetErr(null);
   };
 
+  const proceedToResetConfirm = () => {
+    setResetErr(null);
+    if (isNaN(Number(resetOldReading)) || resetOldReading.trim() === '') {
+      setResetErr('Enter what the meter showed just before it was rubbed off.');
+      return;
+    }
+    if (isNaN(Number(resetReading)) || resetReading.trim() === '') {
+      setResetErr('Enter the new starting reading.');
+      return;
+    }
+    if (!resetReason.trim()) {
+      setResetErr('A reason is required.');
+      return;
+    }
+    setResetStep('confirm');
+  };
+
   const submitReset = () => {
     if (!resetTarget) return;
-    const res = resetPumpMeter(resetTarget.id, Number(resetReading), resetReason);
+    const res = resetPumpMeter(resetTarget.id, Number(resetOldReading), Number(resetReading), resetReason);
     if (!res.success) {
       setResetErr(res.error || 'Could not reset the meter.');
+      setResetStep('form');
       return;
     }
     setResetTarget(null);
@@ -182,6 +204,7 @@ export const PumpsScreen: React.FC = () => {
           currentReading={latestSelectedAudit ? latestSelectedAudit.endReading : selectedPumpForIllustration.last_meter_reading}
           recordedSalesLitres={latestSelectedAudit ? latestSelectedAudit.expectedLitres : 0}
           tankName={tankLabel(selectedPumpForIllustration.physical_tank_id) || 'Yard Storage Tank'}
+          onReset={isOwner ? () => openReset(selectedPumpForIllustration) : undefined}
         />
       )}
 
@@ -348,7 +371,10 @@ export const PumpsScreen: React.FC = () => {
                       <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                         {audits.map((a, i) => (
                           <tr key={i} className={a.isOverThreshold ? 'bg-rose-500/10' : ''}>
-                            <td className="px-3 py-2 font-sans font-semibold text-slate-800 dark:text-slate-200">{formatDepotDate(a.endDate)}</td>
+                            <td className="px-3 py-2 font-sans font-semibold text-slate-800 dark:text-slate-200">
+                              {formatDepotDate(a.endDate)}
+                              <span className="ml-1.5 font-mono font-normal text-slate-400">{formatDepotTime(a.endDate)}</span>
+                            </td>
                             <td className="px-3 py-2 text-right font-mono tabular-nums">{a.meterDelta.toLocaleString()} L</td>
                             <td className="px-3 py-2 text-right font-mono tabular-nums">{a.expectedLitres.toLocaleString()} L</td>
                             <td
@@ -549,44 +575,88 @@ export const PumpsScreen: React.FC = () => {
           onClose={() => setResetTarget(null)}
           title={<span className="flex items-center gap-2"><ArrowsClockwise className="w-4 h-4 text-blue-500" /> Reset Meter — {resetTarget.label}</span>}
         >
-          <div className="space-y-3">
-            <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 text-xs font-sans">
-              Only use this when the pump's physical meter was actually replaced, recalibrated, or restarted (e.g. a new
-              dispenser unit). Current reading is <strong>{resetTarget.last_meter_reading.toLocaleString()} L</strong>.
-              This is the one place a lower number is allowed — every future reading will be compared against the new
-              value below, not the old one.
+          {resetStep === 'form' ? (
+            <div className="space-y-3">
+              <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 text-xs font-sans">
+                Use this when the meter's been rubbed off / zeroed for a new batch, or the physical unit was replaced.
+                Both numbers below are saved to history — nothing is lost, and every future reading is compared against
+                the new value, not the old one.
+              </div>
+              <label className="text-xs font-sans font-semibold text-slate-600 dark:text-slate-400 block">
+                Final reading before it was rubbed off (L)
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={resetOldReading}
+                  onChange={e => setResetOldReading(e.target.value.replace(/[^0-9]/g, ''))}
+                  className="depot-input mt-1 w-full px-3 py-2 rounded-xl font-mono font-bold text-sm"
+                />
+                <span className="block mt-1 text-[11px] font-normal text-slate-400">
+                  Pre-filled from the last logged reading — correct it if the meter had moved on since then.
+                </span>
+              </label>
+              <label className="text-xs font-sans font-semibold text-slate-600 dark:text-slate-400 block">
+                New starting meter reading (L)
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={resetReading}
+                  onChange={e => setResetReading(e.target.value.replace(/[^0-9]/g, ''))}
+                  className="depot-input mt-1 w-full px-3 py-2 rounded-xl font-mono font-bold text-sm"
+                />
+              </label>
+              <label className="text-xs font-sans font-semibold text-slate-600 dark:text-slate-400 block">
+                Reason (required — kept in the audit log)
+                <input
+                  value={resetReason}
+                  onChange={e => setResetReason(e.target.value)}
+                  placeholder="e.g. New drum/batch started, meter zeroed"
+                  required
+                  className="depot-input mt-1 w-full px-3 py-2 rounded-xl text-sm"
+                />
+              </label>
+              {resetErr && <div className="text-xs text-rose-600 dark:text-rose-400">{resetErr}</div>}
+              <div className="flex justify-end gap-2 pt-1">
+                <button onClick={() => setResetTarget(null)} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-sm font-sans font-semibold">
+                  Cancel
+                </button>
+                <button onClick={proceedToResetConfirm} className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-sans font-bold">
+                  Continue
+                </button>
+              </div>
             </div>
-            <label className="text-xs font-sans font-semibold text-slate-600 dark:text-slate-400 block">
-              New starting meter reading (L)
-              <input
-                type="number"
-                step="1"
-                min="0"
-                value={resetReading}
-                onChange={e => setResetReading(e.target.value.replace(/[^0-9]/g, ''))}
-                className="depot-input mt-1 w-full px-3 py-2 rounded-xl font-mono font-bold text-sm"
-              />
-            </label>
-            <label className="text-xs font-sans font-semibold text-slate-600 dark:text-slate-400 block">
-              Reason (required — kept in the audit log)
-              <input
-                value={resetReason}
-                onChange={e => setResetReason(e.target.value)}
-                placeholder="e.g. Meter unit replaced after fault, new dispenser installed"
-                required
-                className="depot-input mt-1 w-full px-3 py-2 rounded-xl text-sm"
-              />
-            </label>
-            {resetErr && <div className="text-xs text-rose-600 dark:text-rose-400">{resetErr}</div>}
-            <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setResetTarget(null)} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-sm font-sans font-semibold">
-                Cancel
-              </button>
-              <button onClick={submitReset} className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-sans font-bold">
-                Reset Meter
-              </button>
+          ) : (
+            <div className="space-y-3">
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-sans font-semibold">
+                Do you want to rub off this meter? Please confirm — this cannot be undone.
+              </div>
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-200 dark:divide-slate-800 text-sm font-sans overflow-hidden">
+                <div className="flex justify-between px-3 py-2 bg-slate-50 dark:bg-slate-900/60">
+                  <span className="text-slate-500">Final reading saved</span>
+                  <span className="font-mono font-bold text-slate-900 dark:text-white">{Number(resetOldReading).toLocaleString()} L</span>
+                </div>
+                <div className="flex justify-between px-3 py-2">
+                  <span className="text-slate-500">Resets to</span>
+                  <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{Number(resetReading).toLocaleString()} L</span>
+                </div>
+                <div className="px-3 py-2">
+                  <span className="text-slate-500 block text-xs mb-0.5">Reason</span>
+                  <span className="text-slate-800 dark:text-slate-200">{resetReason}</span>
+                </div>
+              </div>
+              {resetErr && <div className="text-xs text-rose-600 dark:text-rose-400">{resetErr}</div>}
+              <div className="flex justify-end gap-2 pt-1">
+                <button onClick={() => setResetStep('form')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-sm font-sans font-semibold">
+                  Go back
+                </button>
+                <button onClick={submitReset} className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-sans font-bold">
+                  Yes, rub off &amp; reset
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </Modal>
       )}
     </div>

@@ -174,6 +174,8 @@ interface StoreContextType {
       priceAdjustReason?: string;
       /** Selling the empty keg itself — no oil. See `priceSaleLine`'s `kegOnly`. */
       kegOnly?: boolean;
+      /** Pump this line was dispensed from — bulk products only. */
+      pumpId?: string | null;
     }[];
   }) => { success: boolean; sale?: Sale; lines?: Order[]; receipt?: ReceiptData; error?: string };
 
@@ -256,6 +258,7 @@ interface StoreContextType {
 
   resetPumpMeter: (
     pumpId: string,
+    oldFinalReading: number,
     newReading: number,
     reason: string
   ) => { success: boolean; pumpReading?: PumpReading; error?: string };
@@ -418,17 +421,43 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Load state from LocalStorage or seed defaults. Company kegs stay fixed
   // at 25L (litres_per_keg) — that's the physical keg-fleet constant,
   // separate from the sellable pack-size catalog below.
+  //
+  // Browsers with data persisted before the catalog grew from 2 to 9 sizes
+  // have `pack_config`/`packPrices` frozen at whatever shipped back then —
+  // `DEFAULT_PRODUCTS`/`DEFAULT_PACK_PRICES` are only consulted when storage
+  // is empty, so a catalog expansion never reaches an existing install on
+  // its own. Backfill any pack size present in the current defaults but
+  // missing from what's persisted, without touching sizes/prices the owner
+  // already customized.
   const [products, setProducts] = useState<Product[]>(() => {
     const loaded = loadPersisted(STORAGE_KEYS.PRODUCTS, DEFAULT_PRODUCTS);
-    return loaded.map(p => ({
-      ...p,
-      litres_per_keg: 25
-    }));
+    return loaded.map(p => {
+      const defaults = DEFAULT_PRODUCTS.find(dp => dp.id === p.id);
+      const missingConfig = defaults
+        ? defaults.pack_config.filter(dc => !p.pack_config.some(c => c.pack_size_id === dc.pack_size_id))
+        : [];
+      return {
+        ...p,
+        litres_per_keg: 25,
+        pack_config: missingConfig.length ? [...p.pack_config, ...missingConfig] : p.pack_config
+      };
+    });
   });
 
-  const [packPrices, setPackPrices] = useState<PackPrice[]>(() =>
-    loadPersisted(STORAGE_KEYS.PACK_PRICES, DEFAULT_PACK_PRICES)
-  );
+  const [packPrices, setPackPrices] = useState<PackPrice[]>(() => {
+    const loaded = loadPersisted(STORAGE_KEYS.PACK_PRICES, DEFAULT_PACK_PRICES);
+    const missing = DEFAULT_PACK_PRICES.filter(
+      dp =>
+        !loaded.some(
+          p =>
+            p.product_id === dp.product_id &&
+            p.variety_id === dp.variety_id &&
+            p.pack_size_id === dp.pack_size_id &&
+            p.tier === dp.tier
+        )
+    );
+    return missing.length ? [...loaded, ...missing] : loaded;
+  });
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
     const loaded = loadPersisted(STORAGE_KEYS.CUSTOMERS, DEFAULT_CUSTOMERS);
@@ -1075,6 +1104,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       overrideUnitPrice?: number | null;
       priceAdjustReason?: string;
       kegOnly?: boolean;
+      pumpId?: string | null;
     }[];
   }) => {
     const customer = customers.find(c => c.id === data.customerId) || (data.customerId === ONE_TIME_CUSTOMER_ID ? ONE_TIME_CUSTOMER : null);
@@ -1197,6 +1227,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         date: now.toISOString(),
         source_tank_id: draw.primaryTankId,
         tank_allocations: draw.allocations.map(a => ({ tank_id: a.tankId, litres: a.drawnLitres })),
+        pump_id: line.pumpId ?? null,
         voided: false,
         note: i === 0 ? data.note?.trim() || undefined : undefined,
         hub_id: getTargetHubId()
@@ -2056,11 +2087,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   //     Bypasses validateNewPumpReading on purpose: this is the one place a
   //     lower reading is legitimate. Reconciliation (calculatePumpMeterVariance)
   //     treats the is_reset row as a fresh baseline, not a giant shortfall.
-  const resetPumpMeter = (pumpId: string, newReading: number, reason: string) => {
+  const resetPumpMeter = (pumpId: string, oldFinalReading: number, newReading: number, reason: string) => {
     const pump = pumps.find(p => p.id === pumpId);
     if (!pump) return { success: false, error: 'Pump not found' };
 
+    const numOldReading = Number(oldFinalReading);
     const numReading = Number(newReading);
+    if (isNaN(numOldReading) || numOldReading < 0) {
+      return { success: false, error: 'Please enter a valid final reading (0 or higher) for what the meter showed just before it was rubbed off' };
+    }
     if (isNaN(numReading) || numReading < 0) {
       return { success: false, error: 'Please enter a valid meter reading (0 or higher)' };
     }
@@ -2068,19 +2103,33 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return { success: false, error: 'A reason is required to reset a pump meter' };
     }
 
-    const resetReading: PumpReading = {
+    const recordedBy = currentUser.full_name || (userRole === 'owner' ? 'Managing Director' : 'Depot Cashier');
+    const now = new Date().toISOString();
+    // Snapshot exactly what the meter read the instant before it was zeroed —
+    // this is the "rub off" reading the depot needs on file — then, right
+    // after it, the fresh baseline the new batch starts counting from.
+    const finalReading: PumpReading = {
       id: `pr-${Date.now()}`,
       pump_id: pumpId,
+      reading: numOldReading,
+      recorded_at: now,
+      note: `Final reading before meter rub-off — ${reason.trim()}`,
+      recorded_by: recordedBy,
+      hub_id: pump.hub_id || getTargetHubId()
+    };
+    const resetReading: PumpReading = {
+      id: `pr-${Date.now()}-reset`,
+      pump_id: pumpId,
       reading: numReading,
-      recorded_at: new Date().toISOString(),
+      recorded_at: now,
       note: reason.trim(),
-      recorded_by: currentUser.full_name || (userRole === 'owner' ? 'Managing Director' : 'Depot Cashier'),
+      recorded_by: recordedBy,
       hub_id: pump.hub_id || getTargetHubId(),
       is_reset: true
     };
 
     setPumps(prev => prev.map(p => (p.id === pumpId ? { ...p, last_meter_reading: numReading } : p)));
-    setPumpReadings(prev => [...prev, resetReading]);
+    setPumpReadings(prev => [...prev, finalReading, resetReading]);
 
     return { success: true, pumpReading: resetReading };
   };

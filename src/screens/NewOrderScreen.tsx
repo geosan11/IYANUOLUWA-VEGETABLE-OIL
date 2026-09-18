@@ -76,6 +76,9 @@ interface DraftLine {
   priceAdjusted: boolean;
   /** Selling the empty keg itself — no oil. */
   kegOnly: boolean;
+  /** Pump this line was dispensed from — null when the product isn't pump-dispensed. */
+  pumpId: string | null;
+  pumpLabel: string | null;
 }
 
 export interface NewOrderScreenProps {
@@ -155,7 +158,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   // ---- item builder ----
   const [productId, setProductId] = useState<string>(products[0]?.id || '');
   const product = products.find(p => p.id === productId) || null;
-  const [varietyId, setVarietyId] = useState<string>(products[0]?.varieties[0]?.id || '');
+  const [varietyId, setVarietyId] = useState<string>('');
   const [packSizeId, setPackSizeId] = useState<string>('');
   const [qty, setQty] = useState<number>(1);
   /**
@@ -165,6 +168,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
    * own item instead.
    */
   const [isKegOnlyMode, setIsKegOnlyMode] = useState(false);
+  const [pumpId, setPumpId] = useState<string>('');
   const [overrideOn, setOverrideOn] = useState(false);
   const [overrideValue, setOverrideValue] = useState('');
   const [priceReason, setPriceReason] = useState('');
@@ -261,15 +265,23 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   // sale (Sell Kegs item) is always "bought". Nothing else is user-toggled.
   const effectiveContainerMode: ContainerMode = !isReturnable ? 'none' : isKegOnlyMode ? 'bought' : 'taken';
 
+  // Which pump this line was dispensed from — only meaningful for bulk (tank
+  // + pump) products; a kegged product or an empty-keg-only line never
+  // touches a pump. A pump with no product_id set is generic (serves any
+  // bulk product), matching how `targetPumps` reads pump/product pairing.
+  const productPumps = useMemo(() => {
+    if (!product || product.supply_model !== 'bulk_truck' || isKegOnlyMode) return [];
+    return pumps.filter(p => !p.product_id || p.product_id === product.id);
+  }, [pumps, product, isKegOnlyMode]);
+
+  // Switching product re-starts the procedure from scratch — variety, pump
+  // and pack size are never carried over or pre-picked, so staff always make
+  // an explicit choice at each step instead of inheriting a stale default.
   const selectProduct = (id: string) => {
-    const p = products.find(pr => pr.id === id);
     setProductId(id);
-    setVarietyId(p?.varieties[0]?.id || '');
-    if (isKegOnlyMode) {
-      setPackSizeId('sz_25');
-    } else {
-      setPackSizeId('');
-    }
+    setVarietyId('');
+    setPackSizeId('');
+    setPumpId('');
     setOverrideOn(false);
     setOverrideValue('');
     setPriceReason('');
@@ -277,6 +289,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
   const selectSellKegs = () => {
     setIsKegOnlyMode(true);
+    setPumpId('');
     setPackSizeId('sz_25');
     setQty(1);
     setOverrideOn(false);
@@ -355,11 +368,13 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     !!preview &&
     !preview.unpriced &&
     preview.lineAmount > 0 &&
-    !priceAdjustMissingReason;
+    !priceAdjustMissingReason &&
+    (productPumps.length === 0 || !!pumpId);
 
   const addLine = () => {
     if (!product || !preview || !canAddLine) return;
     const variety = product.varieties.find(v => v.id === varietyId);
+    const selectedPump = productPumps.length > 0 ? pumps.find(p => p.id === pumpId) || null : null;
     setLines(prev => [
       ...prev,
       {
@@ -377,10 +392,17 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
         lineAmount: preview.lineAmount,
         litres: preview.litres,
         priceAdjusted: preview.priceAdjusted,
-        kegOnly: isKegOnlyMode
+        kegOnly: isKegOnlyMode,
+        pumpId: selectedPump?.id || null,
+        pumpLabel: selectedPump?.label || null
       }
     ]);
-    // reset the item panel, keep customer + tier
+    // Full reset of the procedure — keep customer + tier, but variety, pump
+    // and pack size all go back to unselected so the next item is a fresh,
+    // deliberate walk through the same steps instead of inheriting this
+    // item's choices.
+    setVarietyId('');
+    setPumpId('');
     setPackSizeId('');
     setQty(1);
     setIsKegOnlyMode(false);
@@ -399,6 +421,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     setPackSizeId(l.packSizeId);
     setQty(l.qty);
     setIsKegOnlyMode(l.kegOnly);
+    setPumpId(l.pumpId || '');
     if (l.overrideUnitPrice !== null && l.overrideUnitPrice !== undefined) {
       setOverrideOn(true);
       setOverrideValue(formatWithCommas(l.overrideUnitPrice));
@@ -515,7 +538,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
         containerMode: l.containerMode,
         overrideUnitPrice: l.overrideUnitPrice,
         priceAdjustReason: l.priceAdjustReason || undefined,
-        kegOnly: l.kegOnly
+        kegOnly: l.kegOnly,
+        pumpId: l.pumpId
       }))
     });
 
@@ -1531,7 +1555,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         <button
                           type="button"
                           onClick={() => setQty(q => Math.max(1, q - 1))}
-                          className="w-12 h-12 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95 transition-all shadow-sm cursor-pointer"
+                          className="w-12 h-12 rounded-xl border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-center text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-400 dark:hover:border-slate-600 active:scale-95 transition-all shadow-sm cursor-pointer"
                           aria-label="Decrease keg quantity"
                         >
                           <Minus className="w-5 h-5" weight="bold" />
@@ -1548,14 +1572,14 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                               setNumpadTarget('qty');
                             }}
                             onChange={e => setQty(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
-                            className="w-full text-center py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-black text-xl text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 shadow-sm"
+                            className="w-full text-center py-2.5 rounded-xl bg-white dark:bg-slate-950 border-2 border-slate-300 dark:border-slate-700 font-mono font-black text-xl text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 shadow-sm"
                           />
                         </div>
 
                         <button
                           type="button"
                           onClick={() => setQty(q => q + 1)}
-                          className="w-12 h-12 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95 transition-all shadow-sm cursor-pointer"
+                          className="w-12 h-12 rounded-xl border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-center text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-400 dark:hover:border-slate-600 active:scale-95 transition-all shadow-sm cursor-pointer"
                           aria-label="Increase keg quantity"
                         >
                           <Plus className="w-5 h-5" weight="bold" />
@@ -1656,8 +1680,41 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       ))}
                     </div>
 
-                    {/* pack size tiles */}
-                    {sellableSizes.length === 0 ? (
+                    {/* dispensing pump selector — bulk (tank + pump) products only,
+                        and only once a variety is chosen (one step at a time) */}
+                    {varietyId && productPumps.length > 0 && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-[11px] font-sans font-bold uppercase tracking-wider text-slate-500">
+                          <GasPump className="w-3.5 h-3.5" />
+                          <span>Dispensing Pump</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {productPumps.map(p => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => setPumpId(p.id)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-semibold border transition-colors ${
+                                p.id === pumpId
+                                  ? 'bg-sky-600 text-white border-sky-600'
+                                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                              }`}
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* pack size tiles — gated behind every earlier step in the
+                        procedure so staff can't reach pricing before variety
+                        (and, for bulk products, a pump) are deliberately chosen */}
+                    {!varietyId ? (
+                      <div className="text-xs text-slate-400 dark:text-slate-500 italic">Select a variety to continue.</div>
+                    ) : productPumps.length > 0 && !pumpId ? (
+                      <div className="text-xs text-slate-400 dark:text-slate-500 italic">Select a dispensing pump to continue.</div>
+                    ) : sellableSizes.length === 0 ? (
                       <div className="text-xs text-amber-700 dark:text-amber-400">
                         This product has no pack sizes set. Configure them in the Inventory tab.
                       </div>
@@ -1708,9 +1765,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                               <button
                                 type="button"
                                 onClick={() => setQty(q => Math.max(1, q - 1))}
-                                className="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                                className="w-10 h-10 rounded-xl border-2 border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-400 dark:hover:border-slate-600 cursor-pointer"
                               >
-                                <Minus className="w-4 h-4" />
+                                <Minus className="w-4 h-4" weight="bold" />
                               </button>
                               <input
                                 type="number"
@@ -1722,14 +1779,14 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                   setNumpadTarget('qty');
                                 }}
                                 onChange={e => setQty(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
-                                className="w-20 text-center py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-black text-base focus:border-brand-500"
+                                className="w-20 text-center py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border-2 border-slate-300 dark:border-slate-700 font-mono font-black text-base focus:border-brand-500"
                               />
                               <button
                                 type="button"
                                 onClick={() => setQty(q => q + 1)}
-                                className="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                                className="w-10 h-10 rounded-xl border-2 border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-400 dark:hover:border-slate-600 cursor-pointer"
                               >
-                                <Plus className="w-4 h-4" />
+                                <Plus className="w-4 h-4" weight="bold" />
                               </button>
 
                               {/* Quick Number Pad Toggle */}

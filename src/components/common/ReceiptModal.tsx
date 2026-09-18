@@ -163,44 +163,67 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
             </div>
 
             {/* Metadata Section */}
-            <div className="text-[11px] border-b border-slate-200 pb-3 mb-3 space-y-1.5 font-mono">
-              <div className="flex justify-between items-center gap-2">
-                <span className="text-slate-500 font-sans text-[10.5px] uppercase tracking-wider shrink-0">
+            <div className="text-[10.5px] border-b border-slate-200 pb-2.5 mb-2.5 space-y-1">
+              <div className="flex justify-between items-center gap-1.5">
+                <span className="text-slate-500 font-sans uppercase tracking-wider shrink-0">
                   {receiptFormat === 'commercial' ? 'Receipt No:' : 'Waybill Ref:'}
                 </span>
-                <span className="font-bold text-slate-900 tabular-nums text-right">{receipt.receiptNumber}</span>
+                <span className="font-bold font-mono text-slate-900 tabular-nums text-right text-[10px] break-all">{receipt.receiptNumber}</span>
               </div>
-              <div className="flex justify-between items-center gap-2">
-                <span className="text-slate-500 font-sans text-[10.5px] uppercase tracking-wider shrink-0">Date & Time:</span>
-                <span className="font-bold text-slate-900 tabular-nums text-right">
+              <div className="flex justify-between items-center gap-1.5">
+                <span className="text-slate-500 font-sans uppercase tracking-wider shrink-0">Date & Time:</span>
+                <span className="font-bold font-mono text-slate-900 tabular-nums text-right">
                   {formatDepotDate(receipt.date)} {formatDepotTime(receipt.date)}
                 </span>
               </div>
-              <div className="flex justify-between items-center gap-2">
-                <span className="text-slate-500 font-sans text-[10.5px] uppercase tracking-wider shrink-0">Cashier:</span>
-                <span className="font-bold text-slate-900 text-right">{receipt.cashierName || 'Depot Cashier'}</span>
+              <div className="flex justify-between items-center gap-1.5">
+                <span className="text-slate-500 font-sans uppercase tracking-wider shrink-0">Cashier:</span>
+                <span className="font-bold font-sans text-slate-900 text-right truncate max-w-[160px]">{receipt.cashierName || 'Depot Cashier'}</span>
               </div>
-              <div className="flex justify-between items-start gap-2">
-                <span className="text-slate-500 font-sans text-[10.5px] uppercase tracking-wider shrink-0 pt-0.5">
+              <div className="flex justify-between items-start gap-1.5">
+                <span className="text-slate-500 font-sans uppercase tracking-wider shrink-0 pt-0.5">
                   {isOrder ? 'Customer:' : 'Consignee:'}
                 </span>
-                <span className="font-bold text-slate-950 text-right break-words leading-tight">
+                <span className="font-bold font-sans text-slate-950 text-right break-words leading-tight">
                   {receipt.customer.name}
-                  <span className="text-[10px] text-slate-500 font-sans uppercase font-normal ml-1">({receipt.customer.type})</span>
+                  <span className="text-[9.5px] text-slate-500 uppercase font-normal ml-1">({receipt.customer.type})</span>
                 </span>
               </div>
-              <div className="flex justify-between items-center gap-2">
-                <span className="text-slate-500 font-sans text-[10.5px] uppercase tracking-wider shrink-0">
-                  {receiptFormat === 'commercial' ? 'Payment Method:' : 'Release Status:'}
-                </span>
-                <span className="font-bold uppercase text-slate-900 text-right text-[11px]">
-                  {receiptFormat === 'commercial' ? receipt.paymentMethod : 'Verified & Released'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center gap-2">
-                <span className="text-slate-500 font-sans text-[10.5px] uppercase tracking-wider shrink-0">Transaction:</span>
-                <span className="font-bold uppercase text-emerald-700 text-right text-[11px]">Complete</span>
-              </div>
+              {receiptFormat === 'commercial' ? (
+                receipt.paymentMethod === 'split' && receipt.paymentSplits && receipt.paymentSplits.length > 0 ? (
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center gap-2">
+                      <span className="text-slate-500 font-sans text-[10.5px] uppercase tracking-wider shrink-0">Payment Method:</span>
+                      <span className="font-bold uppercase text-slate-900 text-right text-[11px]">
+                        {receipt.paymentSplits.map(s => s.method.toUpperCase()).join(' + ')}
+                      </span>
+                    </div>
+                    {receipt.paymentSplits.map((sp, i) => (
+                      <div key={i} className="flex justify-between items-start gap-2 pl-2 border-l-2 border-slate-200">
+                        <span className="text-slate-400 font-sans text-[10px] uppercase tracking-wider shrink-0 pt-0.5">
+                          {sp.method === 'cash' ? '💵 Cash' : sp.method === 'transfer' ? '🏦 Transfer' : sp.method === 'pos' ? '💳 Card/POS' : sp.method.toUpperCase()}:
+                        </span>
+                        <span className="font-bold text-slate-800 text-right text-[11px] tabular-nums">
+                          {formatNaira(sp.amount)}
+                          {sp.reference && (
+                            <span className="block text-[9px] font-normal text-slate-400 normal-case">Ref: {sp.reference}</span>
+                          )}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-slate-500 font-sans text-[10.5px] uppercase tracking-wider shrink-0">Payment Method:</span>
+                    <span className="font-bold uppercase text-slate-900 text-right text-[11px]">{receipt.paymentMethod}</span>
+                  </div>
+                )
+              ) : (
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-slate-500 font-sans text-[10.5px] uppercase tracking-wider shrink-0">Release Status:</span>
+                  <span className="font-bold uppercase text-slate-900 text-right text-[11px]">Verified &amp; Released</span>
+                </div>
+              )}
             </div>
 
             {/* ════════════════════════════════════════════════════════════════
@@ -214,59 +237,63 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                     <div className="text-[12px] font-heading font-semibold text-slate-700 uppercase tracking-wider mb-2">
                       Order Dispense Details
                     </div>
-                    <table className="w-full text-[12px] font-mono tabular-nums">
+                    <table className="w-full text-[11px] font-mono tabular-nums border-collapse">
                       <thead>
-                        <tr className="text-slate-500 text-[11px] font-sans uppercase border-b border-slate-200 pb-1">
-                          <th className="text-left py-1">Item Description</th>
-                          <th className="text-right py-1">Rate</th>
-                          <th className="text-right py-1">Total</th>
+                        <tr className="text-slate-500 text-[10px] font-sans uppercase border-b border-slate-300 pb-1">
+                          <th className="text-left py-1 pr-1 font-semibold">Item</th>
+                          <th className="text-right py-1 px-1 font-semibold whitespace-nowrap">Rate</th>
+                          <th className="text-right py-1 pl-1 font-semibold whitespace-nowrap">Total</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {receiptLines.map((l, li) => (
                           <React.Fragment key={l.id}>
                             <tr>
-                              <td className="py-2 text-left">
-                                <div className="font-heading font-bold text-slate-900 text-[13px]">
+                              <td className="py-1.5 pr-1 text-left align-top">
+                                <div className="font-heading font-bold text-slate-900 text-[11.5px] leading-tight break-words">
                                   {productName(l.product_id)}
                                   {l.variety_name ? ` — ${l.variety_name}` : ''}
                                 </div>
-                                <div className="text-[11px] text-slate-500">
-                                  {l.litres.toLocaleString()} Litres ({l.qty} × {packShort(l.pack_size_id)})
+                                <div className="text-[10px] text-slate-600 font-sans">
+                                  {l.litres.toLocaleString()}L ({l.qty} × {packShort(l.pack_size_id)})
                                 </div>
-                                <div className="text-[11px] text-slate-600 font-sans font-medium">
-                                  Container: {containerLabelFor(l.container_mode)}
-                                </div>
+                                {l.container_mode !== 'none' && (
+                                  <div className="text-[9.5px] text-slate-600 font-sans leading-tight">
+                                    Container: {containerLabelFor(l.container_mode)}
+                                  </div>
+                                )}
                                 {l.price_adjusted && l.price_adjust_reason && (
-                                  <div className="text-[10px] text-amber-800 font-sans">
+                                  <div className="text-[9.5px] text-amber-800 font-sans">
                                     Price adjusted — {l.price_adjust_reason}
                                   </div>
                                 )}
                                 {li === 0 && sourceLine && (
-                                  <div className="text-[11px] text-slate-500 font-sans">Source: {sourceLine}</div>
+                                  <div className="text-[10px] text-slate-500 font-sans">Source: {sourceLine}</div>
                                 )}
                               </td>
-                              <td className="py-2 text-right align-top">
-                                ₦{l.unit_price.toLocaleString()}/{packShort(l.pack_size_id)}
+                              <td className="py-1.5 px-1 text-right align-top text-[10.5px] whitespace-nowrap">
+                                <div>₦{l.unit_price.toLocaleString()}</div>
+                                <div className="text-[9px] text-slate-500 font-sans">/{packShort(l.pack_size_id)}</div>
                               </td>
-                              <td className="py-2 text-right align-top font-bold text-slate-900">
+                              <td className="py-1.5 pl-1 text-right align-top font-bold text-slate-900 text-[11.5px] whitespace-nowrap">
                                 {formatNaira(l.oil_amount)}
                               </td>
                             </tr>
                             {l.container_mode === 'bought' && l.container_amount ? (
                               <tr className="bg-amber-50/50">
-                                <td className="py-2 text-left">
-                                  <div className="font-heading font-bold text-amber-900 text-[12px]">
+                                <td className="py-1.5 pr-1 text-left align-top">
+                                  <div className="font-heading font-bold text-amber-900 text-[11px] leading-tight">
                                     Container bought outright
                                   </div>
-                                  <div className="text-[10px] text-amber-700 font-sans">
+                                  <div className="text-[9.5px] text-amber-700 font-sans">
                                     {packShort(l.pack_size_id)} × {l.qty} · no return obligation
                                   </div>
                                 </td>
-                                <td className="py-2 text-right align-top text-amber-900">
-                                  {formatNaira(l.container_unit_price || 0)}/unit
+                                <td className="py-1.5 px-1 text-right align-top text-amber-900 text-[10.5px] whitespace-nowrap">
+                                  <div>{formatNaira(l.container_unit_price || 0)}</div>
+                                  <div className="text-[9px] text-amber-700 font-sans">/unit</div>
                                 </td>
-                                <td className="py-2 text-right align-top font-bold text-amber-950">
+                                <td className="py-1.5 pl-1 text-right align-top font-bold text-amber-950 text-[11.5px] whitespace-nowrap">
                                   {formatNaira(l.container_amount || 0)}
                                 </td>
                               </tr>
@@ -275,23 +302,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                         ))}
                       </tbody>
                     </table>
-
-                    {(order.variety_name || order.pricing_tier) && (
-                      <div className="mt-2 text-[11px] font-sans text-slate-600 flex flex-wrap gap-x-3 gap-y-0.5">
-                        {order.variety_name && (
-                          <span><span className="font-bold">Spec:</span> {order.variety_name}</span>
-                        )}
-                        {order.pricing_tier && (
-                          <span><span className="font-bold">Price tier:</span> <span className="capitalize">{order.pricing_tier}</span></span>
-                        )}
-                      </div>
-                    )}
-
-                    {order.price_adjust_reason && (
-                      <div className="mt-2 text-[11px] font-sans text-amber-900 bg-amber-50 p-2 rounded border border-amber-200">
-                        <span className="font-bold">Price adjustment:</span> {order.price_adjust_reason}
-                      </div>
-                    )}
 
                     {order.note && (
                       <div className="mt-2 text-[12px] font-sans text-slate-600 bg-slate-50 p-2 rounded border border-slate-200">
@@ -347,26 +357,39 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                           </div>
                         </>
                       )}
-                      <div className="flex justify-between font-bold text-[15px] text-slate-950 pt-1">
+                      <div className="flex justify-between items-baseline font-bold text-[14px] text-slate-950 pt-1">
                         <span className="font-sans">Grand Total:</span>
-                        <span>{formatNaira(grandTotal)}</span>
+                        <span className="font-mono tabular-nums">{formatNaira(grandTotal)}</span>
                       </div>
-                      <div className="text-[10px] font-sans text-slate-500 text-right -mt-0.5">
+                      <div className="text-[9.5px] font-sans text-slate-500 text-right -mt-0.5 leading-tight">
                         {formatNairaWords(grandTotal)}
                       </div>
-                      <div className="flex justify-between text-slate-600 text-[12px]">
+                      <div className="flex justify-between items-baseline text-slate-600 text-[11.5px]">
                         <span className="font-sans">Paid Amount:</span>
-                        <span className="font-bold">{formatNaira(paidTotal)}</span>
+                        <span className="font-bold font-mono tabular-nums">{formatNaira(paidTotal)}</span>
                       </div>
+                      {receipt.paymentMethod === 'split' && receipt.paymentSplits && receipt.paymentSplits.length > 0 && (
+                        <div className="pl-2 border-l-2 border-slate-200 space-y-0.5 mt-0.5">
+                          {receipt.paymentSplits.map((sp, i) => (
+                            <div key={i} className="flex justify-between text-slate-500 text-[10.5px]">
+                              <span className="font-sans">
+                                {sp.method === 'cash' ? '💵 Cash' : sp.method === 'transfer' ? '🏦 Transfer' : sp.method === 'pos' ? '💳 Card/POS' : sp.method.toUpperCase()}
+                                {sp.reference ? ` (${sp.reference})` : ''}:
+                              </span>
+                              <span className="font-mono tabular-nums font-semibold">{formatNaira(sp.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {receipt.amountTendered != null && (
                         <>
-                          <div className="flex justify-between text-slate-600 text-[12px]">
+                          <div className="flex justify-between items-baseline text-slate-600 text-[11.5px]">
                             <span className="font-sans">Cash Tendered:</span>
-                            <span className="font-bold">{formatNaira(receipt.amountTendered)}</span>
+                            <span className="font-bold font-mono tabular-nums">{formatNaira(receipt.amountTendered)}</span>
                           </div>
-                          <div className="flex justify-between text-slate-900 text-[12px] font-bold">
+                          <div className="flex justify-between items-baseline text-slate-900 text-[11.5px] font-bold">
                             <span className="font-sans">Change Due:</span>
-                            <span>{formatNaira(receipt.changeDue || 0)}</span>
+                            <span className="font-mono tabular-nums">{formatNaira(receipt.changeDue || 0)}</span>
                           </div>
                         </>
                       )}
@@ -374,13 +397,13 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                     );
                   })()}
 
-                  <div className="flex justify-between text-slate-600 pt-1 border-t border-slate-100 text-[12px]">
+                  <div className="flex justify-between items-baseline text-slate-600 pt-1 border-t border-slate-100 text-[11px]">
                     <span className="font-sans">Previous Balance:</span>
-                    <span>{formatNaira(receipt.previousBalance)}</span>
+                    <span className="font-mono tabular-nums">{formatNaira(receipt.previousBalance)}</span>
                   </div>
-                  <div className="flex justify-between font-bold text-slate-900 text-[14px]">
-                    <span className="font-sans">Current Outstanding Balance:</span>
-                    <span className={receipt.newBalance > 0 ? 'text-rose-600 font-extrabold' : 'text-emerald-700'}>
+                  <div className="flex justify-between items-baseline font-bold text-slate-900 text-[12.5px]">
+                    <span className="font-sans">Outstanding Balance:</span>
+                    <span className={`font-mono tabular-nums ${receipt.newBalance > 0 ? 'text-rose-600 font-extrabold' : 'text-emerald-700'}`}>
                       {formatNaira(receipt.newBalance)}
                     </span>
                   </div>
@@ -393,9 +416,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                     <span>Verified authentic depot receipt</span>
                   </div>
                   <p>Thank you for your business!</p>
-                  <p className="text-[11px] tabular-nums text-slate-400">
-                    Cashier: {receipt.cashierName || 'Depot Cashier'} · Printed {new Date().toLocaleDateString('en-GB')}
-                  </p>
                   <div className="receipt-barcode mt-2 mx-auto w-3/4" aria-hidden="true" />
                   <p className="text-[10px] tracking-[0.2em] text-slate-600 font-bold">{receipt.receiptNumber}</p>
                 </div>
@@ -434,9 +454,11 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                                 {l.variety_name && (
                                   <div className="text-[11px] font-sans font-semibold text-slate-700">Spec: {l.variety_name}</div>
                                 )}
-                                <div className="text-[11px] text-slate-600 font-sans mt-0.5">
-                                  Packaging: <span className="font-semibold text-slate-800">{containerLabelFor(l.container_mode)}</span>
-                                </div>
+                                {l.container_mode !== 'none' && (
+                                  <div className="text-[11px] text-slate-600 font-sans mt-0.5">
+                                    Packaging: <span className="font-semibold text-slate-800">{containerLabelFor(l.container_mode)}</span>
+                                  </div>
+                                )}
                                 {li === 0 && sourceLine && (
                                   <div className="text-[11px] text-slate-500 font-sans">Dispensed from: {sourceLine}</div>
                                 )}

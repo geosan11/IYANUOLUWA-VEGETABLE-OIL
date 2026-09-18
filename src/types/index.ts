@@ -234,6 +234,9 @@ export interface Order {
   source_tank_id: string | null;
   /** Per-tank FIFO draw breakdown. */
   tank_allocations?: { tank_id: string; litres: number }[] | null;
+  /** Which {@link Pump} dispensed this line — null for non-bulk products or
+   * hubs with no pumps configured. Feeds pump meter variance reconciliation. */
+  pump_id?: string | null;
   voided?: boolean; // mirrors Sale.voided
   note?: string;
   hub_id?: string;

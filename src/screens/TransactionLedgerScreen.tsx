@@ -12,14 +12,12 @@ import {
   fromDatetimeLocalValue
 } from '../services/businessLogic';
 import { packShort, PAYMENT_MODE_THEME, getPaymentModeTheme, ONE_TIME_CUSTOMER_ID } from '../constants/config';
-import { Sale, Order, Payment, Expense, Tank, KegReturn, ReceiptData, ContainerMode, PaymentMethod, CustomerType } from '../types';
+import { Sale, Order, Payment, Expense, Tank, KegReturn, ReceiptData, ContainerMode, PaymentMethod, CustomerType, PaymentSplit } from '../types';
 import {
   Scroll as ScrollText,
   MagnifyingGlass as Search,
   Printer,
   PlusCircle,
-  CaretDown as ChevronDown,
-  CaretRight as ChevronRight,
   Pencil,
   Prohibit as Ban,
   ClockCounterClockwise as History,
@@ -65,6 +63,7 @@ interface TxnRow {
   tone: 'in' | 'out' | 'neutral';
   voided: boolean;
   paymentMethod?: PaymentMethod;
+  paymentSplits?: PaymentSplit[];
   agentName?: string;
   isAgent?: boolean;
   customerType?: CustomerType;
@@ -111,6 +110,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
     auditLog,
     customerStatsMap,
     activeShift,
+    settings,
     setActiveReceipt,
     voidSale,
     voidPayment,
@@ -128,7 +128,6 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
   const [paymentModeFilter, setPaymentModeFilter] = useState<PaymentModeFilter>('all');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
-  const [expanded, setExpanded] = useState<string | null>(null);
   const [auditFor, setAuditFor] = useState<string | null>(null);
   const [voidTarget, setVoidTarget] = useState<TxnRow | null>(null);
   const [editTarget, setEditTarget] = useState<TxnRow | null>(null);
@@ -164,6 +163,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         tone: 'in',
         voided: !!sale.voided,
         paymentMethod: sale.payment_method,
+        paymentSplits: sale.payment_splits,
         agentName,
         isAgent,
         customerType,
@@ -379,6 +379,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
       amountTendered: sale.amount_tendered ?? null,
       changeDue: sale.change_due ?? null,
       paymentMethod: sale.payment_method,
+      paymentSplits: sale.payment_splits,
       previousBalance: 0,
       newBalance: lines.reduce((s, l) => s + Math.max(0, l.line_amount - (l.paid_amount || 0)), 0),
       cashierName: sale.cashier_name || 'Depot Cashier'
@@ -403,7 +404,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
 
   return (
     <div className="space-y-5 pb-20">
-      <div className="flex items-start justify-between gap-3">
+      <div className="no-print flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800 flex items-center justify-center">
             <ScrollText className="w-5 h-5 text-brand-600 dark:text-brand-400" />
@@ -431,52 +432,89 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        {[
-          ['Gross sales', formatNaira(kpi.gross), 'text-slate-900 dark:text-white'],
-          ['Payments in', formatNaira(kpi.received), 'text-sky-600 dark:text-sky-400'],
-          ['Expenses', formatNaira(kpi.spent), 'text-rose-600 dark:text-rose-400'],
-          ['Debt owed', formatNaira(kpi.creditOwed), 'text-amber-600 dark:text-amber-400']
-        ].map(([label, val, cls]) => (
-          <div key={label} className="depot-card p-3 rounded-xl">
-            <div className="text-xs font-sans uppercase tracking-wider text-slate-500">{label}</div>
-            <div className={`text-base font-mono font-extrabold tabular-nums mt-0.5 ${cls}`}>{val}</div>
+      {/* KPI + payment mode breakdown — compact unified cards */}
+      <div className="no-print grid grid-cols-2 gap-2.5">
+        {/* Gross Sales card — shows cash/transfer/pos/split sub-lines */}
+        <div className="depot-card p-3 rounded-xl space-y-1.5">
+          <div className="flex items-baseline justify-between gap-2">
+            <div className="text-[10px] font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0">Gross Sales</div>
+            <div className="text-xl font-mono font-extrabold tabular-nums text-slate-900 dark:text-white truncate text-right">{formatNaira(kpi.gross)}</div>
           </div>
-        ))}
-      </div>
+          {/* Per-method breakdown — always coloured */}
+          <div className="space-y-0.5 pt-0.5 border-t border-slate-100 dark:border-slate-800">
+            {(['cash', 'transfer', 'pos', 'split'] as PaymentMethod[]).map(m => {
+              const val = paymentModeTotals[m];
+              if (!val) return null;
+              const theme = PAYMENT_MODE_THEME[m];
+              const lbl = m === 'pos' ? 'Card' : m === 'split' ? 'Split' : m.charAt(0).toUpperCase() + m.slice(1);
+              const isActive = paymentModeFilter === m;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setPaymentModeFilter(isActive ? 'all' : m)}
+                  className={`w-full flex justify-between items-center text-[11px] font-mono tabular-nums rounded px-1 py-0.5 transition-all ${theme.textCls} ${
+                    isActive ? `${theme.bgSubtleCls} ring-1 ${theme.borderCls} font-extrabold` : 'hover:opacity-75'
+                  }`}
+                >
+                  <span className="font-sans font-bold uppercase tracking-wide">{lbl}:</span>
+                  <span className="tabular-nums">{formatNaira(val)}</span>
+                </button>
+              );
+            })}
 
-      {/* Payment mode breakdown */}
-      <div>
-        <div className="text-xs font-sans font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-          By payment mode
+          </div>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          {(Object.keys(PAYMENT_MODE_META) as PaymentMethod[]).map(method => {
-            const { label, Icon } = PAYMENT_MODE_META[method];
-            const theme = PAYMENT_MODE_THEME[method];
-            return (
-              <div
-                key={method}
-                className={`p-3 rounded-xl border flex items-center gap-2.5 transition-all ${theme.bgSubtleCls} ${theme.borderCls}`}
-              >
-                <div className={`w-8 h-8 rounded-lg bg-white/90 dark:bg-slate-900 border ${theme.borderCls} flex items-center justify-center shrink-0 ${theme.textCls} shadow-xs`}>
-                  <Icon className="w-4 h-4" weight="bold" />
-                </div>
-                <div className="min-w-0">
-                  <div className={`text-xs font-sans font-bold uppercase tracking-wider truncate ${theme.textCls}`}>{label}</div>
-                  <div className={`text-sm font-mono font-extrabold tabular-nums ${theme.textCls}`}>
-                    {formatNaira(paymentModeTotals[method])}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+
+        {/* Payments In card */}
+        <div className="depot-card p-3 rounded-xl space-y-1.5">
+          <div className="flex items-baseline justify-between gap-2">
+            <div className="text-[10px] font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0">Payments In</div>
+            <div className="text-xl font-mono font-extrabold tabular-nums text-sky-600 dark:text-sky-400 truncate text-right">{formatNaira(kpi.received)}</div>
+          </div>
+          <div className="space-y-0.5 pt-0.5 border-t border-slate-100 dark:border-slate-800">
+            {(['cash', 'transfer', 'pos'] as PaymentMethod[]).map(m => {
+              const val = paymentModeTotals[m];
+              if (!val) return null;
+              const theme = PAYMENT_MODE_THEME[m];
+              const lbl = m === 'pos' ? 'Card' : m.charAt(0).toUpperCase() + m.slice(1);
+              const isActive = paymentModeFilter === m;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setPaymentModeFilter(isActive ? 'all' : m)}
+                  className={`w-full flex justify-between items-center text-[11px] font-mono tabular-nums rounded px-1 py-0.5 transition-all ${theme.textCls} ${
+                    isActive ? `${theme.bgSubtleCls} ring-1 ${theme.borderCls} font-extrabold` : 'hover:opacity-75'
+                  }`}
+                >
+                  <span className="font-sans font-bold uppercase tracking-wide">{lbl}:</span>
+                  <span className="tabular-nums">{formatNaira(val)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Expenses card */}
+        <div className="depot-card p-3 rounded-xl space-y-1.5">
+          <div className="flex items-baseline justify-between gap-2">
+            <div className="text-[10px] font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0">Expenses</div>
+            <div className="text-xl font-mono font-extrabold tabular-nums text-rose-600 dark:text-rose-400 truncate text-right">{formatNaira(kpi.spent)}</div>
+          </div>
+        </div>
+
+        {/* Debt Owed card */}
+        <div className="depot-card p-3 rounded-xl space-y-1.5">
+          <div className="flex items-baseline justify-between gap-2">
+            <div className="text-[10px] font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0">Debt Owed</div>
+            <div className="text-xl font-mono font-extrabold tabular-nums text-amber-600 dark:text-amber-400 truncate text-right">{formatNaira(kpi.creditOwed)}</div>
+          </div>
         </div>
       </div>
 
       {/* Controls */}
-      <div className="space-y-2.5">
+      <div className="no-print space-y-2.5">
         <div className="relative">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
@@ -583,211 +621,233 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
       </div>
 
       {/* Feed — a proper column table so rows scan left-to-right */}
-      <div className="depot-card rounded-2xl overflow-hidden">
+      <div id="ledger-print-area">
+        {/* Print-only header — hidden on screen */}
+        <div className="print-only mb-4">
+          <div style={{ fontFamily: 'sans-serif' }}>
+            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 2 }}>
+              {settings?.company_name || 'IYANUOLUWA VEGETABLE OIL — Transaction Ledger'}
+            </div>
+            <div style={{ fontSize: 11, color: '#555', marginBottom: 6 }}>
+              Printed: {new Date().toLocaleDateString('en-GB')} {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+              {' · '}{scopedRows.length} transactions
+            </div>
+            <div style={{ display: 'flex', gap: 24, fontSize: 12, fontWeight: 700, borderTop: '2px solid #000', borderBottom: '1px solid #ccc', padding: '6px 0', marginBottom: 8 }}>
+              <span>Gross Sales: {formatNaira(kpi.gross)}</span>
+              <span>Payments In: {formatNaira(kpi.received)}</span>
+              <span>Expenses: {formatNaira(kpi.spent)}</span>
+              <span>Debt Owed: {formatNaira(kpi.creditOwed)}</span>
+            </div>
+          </div>
+        </div>
+        <div className="depot-card rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-xs border-collapse">
-            <thead className="bg-slate-50 dark:bg-slate-950 text-xs uppercase tracking-wider text-slate-500 font-sans">
-              <tr>
-                <th className="text-left px-3.5 py-2.5 font-bold whitespace-nowrap">Date &amp; time</th>
-                <th className="text-left px-3.5 py-2.5 font-bold whitespace-nowrap">Type</th>
-                <th className="text-left px-3.5 py-2.5 font-bold whitespace-nowrap">Agent / Customer</th>
-                <th className="text-left px-3.5 py-2.5 font-bold whitespace-nowrap">Mode of Payment</th>
-                <th className="text-left px-3.5 py-2.5 font-bold">Details</th>
-                <th className="text-right px-3.5 py-2.5 font-bold whitespace-nowrap">Amount</th>
-                <th className="text-right px-3.5 py-2.5 font-bold whitespace-nowrap">Actions</th>
+            <thead className="bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800">
+              <tr className="text-[10px] font-sans font-bold uppercase tracking-widest text-slate-400">
+                <th className="text-left px-3 py-2 whitespace-nowrap w-[88px]">Date</th>
+                <th className="text-left px-3 py-2 whitespace-nowrap">Type</th>
+                <th className="text-left px-3 py-2 whitespace-nowrap">Customer</th>
+                <th className="text-left px-3 py-2 whitespace-nowrap">Payment</th>
+                <th className="text-left px-3 py-2">Details</th>
+                <th className="text-right px-3 py-2 whitespace-nowrap">Amount</th>
+                <th className="text-right px-2 py-2 whitespace-nowrap w-px"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/70">
               {scopedRows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-xs text-slate-400">
+                  <td colSpan={7} className="py-10 text-center text-xs text-slate-400">
                     Nothing in this window.
                   </td>
                 </tr>
               )}
               {scopedRows.map(row => {
                 const { Icon, badge, label } = KIND_META[row.kind];
-                const isOpen = expanded === row.id;
                 const showAudit = auditFor === row.id;
                 const rowAudits = auditLog.filter(a => row.auditIds.includes(a.entity_id));
                 return (
                   <React.Fragment key={row.id}>
-                    <tr className={row.voided ? 'opacity-60' : 'hover:bg-slate-50/70 dark:hover:bg-slate-800/40'}>
-                      <td className="px-3.5 py-3 align-top whitespace-nowrap font-mono tabular-nums text-slate-500 dark:text-slate-400">
-                        <div>{formatDepotDate(row.date)}</div>
-                        <div className="text-xs text-slate-400">{formatDepotTime(row.date)}</div>
-                      </td>
-                      <td className="px-3.5 py-3 align-top whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${badge}`}>
-                            <Icon className="w-3.5 h-3.5" />
-                          </div>
-                          <span className={`text-xs font-sans font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${badge}`}>
-                            {label}
-                          </span>
+                    <tr className={`group ${row.voided ? 'opacity-50' : 'hover:bg-slate-50/60 dark:hover:bg-slate-800/30'}`}>
+
+                      {/* DATE & TIME — compact single cell */}
+                      <td className="px-3 py-2 align-middle whitespace-nowrap w-[88px]">
+                        <div className="font-mono tabular-nums text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                          {formatDepotDate(row.date)}
                         </div>
+                        <div className="font-mono tabular-nums text-[10px] text-slate-400 dark:text-slate-500">
+                          {formatDepotTime(row.date)}
+                        </div>
+                      </td>
+
+                      {/* TYPE — icon + label badge, voided tag below */}
+                      <td className="px-3 py-2 align-middle whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-sans font-bold uppercase tracking-wide ${badge}`}>
+                          <Icon className="w-3 h-3 shrink-0" />
+                          {label}
+                        </span>
                         {row.voided && (
-                          <span className="inline-block mt-1 text-xs font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
-                            Voided
-                          </span>
+                          <div className="mt-0.5">
+                            <span className="text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400">
+                              Voided
+                            </span>
+                          </div>
                         )}
                       </td>
-                      <td className="px-3.5 py-3 align-top min-w-[175px]">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className={`text-sm font-sans font-bold text-slate-900 dark:text-white ${row.voided ? 'line-through' : ''}`}>
+
+                      {/* CUSTOMER — name prominent, phone + tags tiny */}
+                      <td className="px-3 py-2 align-middle max-w-[140px]">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span className={`text-[12px] font-sans font-bold text-slate-900 dark:text-white leading-tight ${row.voided ? 'line-through' : ''}`}>
                             {row.agentName || row.title}
                           </span>
                           {row.isAgent && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-sans font-extrabold uppercase tracking-wide bg-amber-100 text-amber-900 dark:bg-amber-900/60 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                            <span className="text-[9px] font-extrabold uppercase tracking-wide px-1 py-px rounded bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 border border-amber-200 dark:border-amber-700">
                               Agent
                             </span>
                           )}
                           {row.customerType === 'corporate' && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-sans font-bold uppercase tracking-wide bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                              Corporate
-                            </span>
-                          )}
-                          {row.kind === 'intake' && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-sans font-semibold uppercase tracking-wide bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                              Supplier
+                            <span className="text-[9px] font-bold uppercase tracking-wide px-1 py-px rounded bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                              Corp
                             </span>
                           )}
                         </div>
                         {row.customerPhone && row.customerPhone !== '—' && (
-                          <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">
+                          <div className="text-[10px] font-mono text-slate-400 dark:text-slate-500 leading-tight mt-px">
                             {row.customerPhone}
                           </div>
                         )}
                       </td>
-                      <td className="px-3.5 py-3 align-top whitespace-nowrap">
-                        {row.paymentMethod ? (
-                          (() => {
-                            const meta = PAYMENT_MODE_META[row.paymentMethod];
-                            const theme = getPaymentModeTheme(row.paymentMethod);
-                            const Icon = meta?.Icon || CreditCard;
-                            return (
-                              <span
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-sans font-bold capitalize border shadow-xs ${theme.badgeCls}`}
-                              >
-                                <span className={`w-1.5 h-1.5 rounded-full ${theme.dotCls} shrink-0`} />
-                                <Icon className="w-3.5 h-3.5 shrink-0" weight="bold" />
-                                <span>{meta?.label || theme.label}</span>
+
+                      {/* PAYMENT MODE — compact badge; split shows a stacked "Split" + which methods composed it */}
+                      <td className="px-3 py-2 align-middle whitespace-nowrap">
+                        {row.paymentMethod === 'split' ? (() => {
+                          const theme = getPaymentModeTheme('split');
+                          const legMethods = Array.from(
+                            new Set((row.paymentSplits || []).map(sp => PAYMENT_MODE_META[sp.method]?.label || sp.method))
+                          );
+                          return (
+                            <div className={`inline-flex flex-col items-center gap-0.5 px-2 py-1 rounded-md border text-center ${theme.badgeCls}`}>
+                              <span className="inline-flex items-center gap-1 text-[10px] font-sans font-extrabold uppercase tracking-wide">
+                                <Lightning className="w-3 h-3 shrink-0" weight="bold" />
+                                Split
                               </span>
-                            );
-                          })()
-                        ) : (
-                          <span className="text-slate-400 font-mono text-xs">—</span>
+                              {legMethods.length > 0 && (
+                                <span className="text-[9px] font-sans font-semibold opacity-80 leading-none">
+                                  {legMethods.join(' & ')}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })() : row.paymentMethod ? (() => {
+                          const meta = PAYMENT_MODE_META[row.paymentMethod];
+                          const theme = getPaymentModeTheme(row.paymentMethod);
+                          const MIcon = meta?.Icon || CreditCard;
+                          return (
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-sans font-bold border ${theme.badgeCls}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${theme.dotCls} shrink-0`} />
+                              <MIcon className="w-3 h-3 shrink-0" weight="bold" />
+                              <span>{meta?.label || theme.label}</span>
+                            </span>
+                          );
+                        })() : (
+                          <span className="text-slate-300 dark:text-slate-600 text-[10px]">—</span>
                         )}
                       </td>
-                      <td className="px-3.5 py-3 align-top min-w-[190px]">
-                        <div className={`text-xs font-sans font-semibold text-slate-800 dark:text-slate-200 truncate ${row.voided ? 'line-through' : ''}`}>
-                          {row.kind === 'sale' ? (
-                            <span>{row.lines ? `${row.lines.length} pack type${row.lines.length === 1 ? '' : 's'}` : 'Sale order'}</span>
-                          ) : (
-                            <span>{row.title}</span>
-                          )}
+
+                      {/* DETAILS — title + subtitle + staff inline and tiny */}
+                      <td className="px-3 py-2 align-middle min-w-[160px] max-w-[220px]">
+                        <div className={`text-[11px] font-sans font-semibold text-slate-800 dark:text-slate-200 leading-tight ${row.voided ? 'line-through' : ''}`}>
+                          {row.kind === 'sale'
+                            ? (row.lines ? `${row.lines.length} item${row.lines.length === 1 ? '' : 's'}` : 'Sale order')
+                            : row.title}
                         </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{row.subtitle}</div>
+                        <div className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight truncate max-w-[200px]">
+                          {row.subtitle}
+                        </div>
                         {row.staffName && (
-                          <div className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60">
-                            <UserCheck className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400 shrink-0" weight="bold" />
-                            <span>Staff: <strong className="font-semibold text-slate-800 dark:text-slate-100">{row.staffName}</strong></span>
+                          <div className="flex items-center gap-0.5 mt-0.5">
+                            <UserCheck className="w-2.5 h-2.5 text-brand-500 shrink-0" weight="bold" />
+                            <span className="text-[10px] font-sans text-slate-400 dark:text-slate-500">
+                              {row.staffName}
+                            </span>
                           </div>
                         )}
                       </td>
-                      <td className="px-3.5 py-3 align-top text-right whitespace-nowrap">
-                        <span
-                          className={`text-sm font-mono font-extrabold tabular-nums ${
-                            row.voided
-                              ? 'text-slate-400 line-through'
-                              : row.tone === 'out'
-                              ? 'text-rose-600 dark:text-rose-400'
-                              : row.tone === 'neutral'
-                              ? 'text-slate-500'
-                              : 'text-slate-900 dark:text-white'
-                          }`}
-                        >
+
+                      {/* AMOUNT — stays prominent */}
+                      <td className="px-3 py-2 align-middle text-right whitespace-nowrap">
+                        <span className={`text-[13px] font-mono font-extrabold tabular-nums ${
+                          row.voided
+                            ? 'text-slate-400 line-through'
+                            : row.tone === 'out'
+                            ? 'text-rose-600 dark:text-rose-400'
+                            : row.tone === 'neutral'
+                            ? 'text-slate-400'
+                            : 'text-slate-900 dark:text-white'
+                        }`}>
                           {row.amountLabel}
                         </span>
                       </td>
-                      <td className="px-3.5 py-3 align-top text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1">
-                          {(row.kind === 'sale' || row.kind === 'payment') && (
-                            <button
-                              onClick={() => setExpanded(isOpen ? null : row.id)}
-                              aria-expanded={isOpen}
-                              aria-label={isOpen ? 'Collapse details' : 'Expand details'}
-                              className={`p-1.5 rounded-lg border transition-all active:scale-95 ${
-                                isOpen
-                                  ? 'bg-brand-50 dark:bg-brand-950/40 border-brand-300 dark:border-brand-800 text-brand-700 dark:text-brand-400'
-                                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
-                              }`}
-                            >
-                              {isOpen ? <ChevronDown className="w-4 h-4" weight="bold" /> : <ChevronRight className="w-4 h-4" weight="bold" />}
-                            </button>
-                          )}
+
+                      {/* ACTIONS — tiny icon-only buttons */}
+                      <td className="px-2 py-2 align-middle text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-0.5">
                           {rowAudits.length > 0 && (
                             <button
                               onClick={() => setAuditFor(showAudit ? null : row.id)}
-                              aria-expanded={showAudit}
-                              title="Edit history"
-                              className={`p-1.5 rounded-lg border transition-all active:scale-95 ${
+                              className={`p-1 rounded border transition-all ${
                                 showAudit
-                                  ? 'bg-brand-50 dark:bg-brand-950/40 border-brand-300 dark:border-brand-800 text-brand-700 dark:text-brand-400'
-                                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                                  ? 'bg-brand-50 dark:bg-brand-950/40 border-brand-300 text-brand-600'
+                                  : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                               }`}
+                              title="History"
                             >
-                              <History className="w-4 h-4" weight="bold" />
+                              <History className="w-3 h-3" weight="bold" />
                             </button>
                           )}
                           {row.kind === 'sale' && row.sale && row.lines && !row.voided && (
                             <button
                               onClick={() => reprintSale(row.sale!, row.lines!)}
-                              className="p-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                              className="p-1 rounded border bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                               title="Reprint"
                             >
-                              <Printer className="w-4 h-4" />
+                              <Printer className="w-3 h-3" />
                             </button>
                           )}
-                          {isOwner && !row.voided && row.kind !== 'intake' && (
+                          {isOwner && !row.voided && (
                             <button
                               onClick={() => setEditTarget(row)}
-                              className="p-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
+                              className="p-1 rounded border bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
                               title="Edit"
                             >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                          )}
-                          {isOwner && !row.voided && row.kind === 'intake' && (
-                            <button
-                              onClick={() => setEditTarget(row)}
-                              className="p-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
-                              title="Correct date / details"
-                            >
-                              <Pencil className="w-4 h-4" />
+                              <Pencil className="w-3 h-3" />
                             </button>
                           )}
                           {isOwner && !row.voided && (row.kind === 'sale' || row.kind === 'payment' || row.kind === 'expense') && (
                             <button
                               onClick={() => setVoidTarget(row)}
-                              className="p-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
+                              className="p-1 rounded border bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
                               title="Void"
                             >
-                              <Ban className="w-4 h-4" />
+                              <Ban className="w-3 h-3" />
                             </button>
                           )}
                         </div>
                       </td>
                     </tr>
 
-                    {isOpen && row.lines && (
+                    {/* Sale line breakdown — always shown, aligned under the Details column */}
+                    {row.lines && row.lines.length > 0 && (
                       <tr>
-                        <td colSpan={7} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
-                          <div className="space-y-1.5 pt-2">
+                        <td className="p-0" />
+                        <td colSpan={3} className="pb-2 pt-0.5 bg-slate-50/60 dark:bg-slate-950/40" />
+                        <td colSpan={3} className="px-3 pb-2 pt-0.5 bg-slate-50/60 dark:bg-slate-950/40">
+                          <div className="space-y-1">
                             {row.lines.map(l => (
-                              <div key={l.id} className="flex items-center justify-between text-xs font-sans">
-                                <span className="text-slate-600 dark:text-slate-300 truncate">
-                                  {l.qty} × {packShort(l.pack_size_id)} · {prodName(l.product_id)} / {l.variety_name}
+                              <div key={l.id} className="flex items-center justify-between text-[11px] font-sans text-slate-600 dark:text-slate-400">
+                                <span className="truncate">
+                                  {l.qty} × {packShort(l.pack_size_id)} · {prodName(l.product_id)}{l.variety_name ? ` / ${l.variety_name}` : ''}
                                   {l.container_mode === 'taken' && ' · keg taken'}
                                   {l.container_mode === 'bought' && ' · keg bought'}
                                   {l.price_adjusted && ` · adj: ${l.price_adjust_reason || 'price changed'}`}
@@ -797,94 +857,67 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                                 </span>
                               </div>
                             ))}
-                            <button
-                              type="button"
-                              onClick={() => setExpanded(null)}
-                              className="inline-flex items-center gap-1 mt-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-sans font-bold transition-all active:scale-95"
-                            >
-                              <ChevronDown className="w-3 h-3" weight="bold" />
-                              <span>Collapse</span>
-                            </button>
                           </div>
                         </td>
                       </tr>
                     )}
 
-                    {isOpen && row.kind === 'payment' && row.payment && (
+                    {/* Payment applied-to breakdown — always shown, aligned under the Details column */}
+                    {row.kind === 'payment' && row.payment && (
                       <tr>
-                        <td colSpan={7} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
-                          <div className="space-y-1.5 pt-2">
-                            <div className="text-xs font-sans font-bold uppercase tracking-wider text-slate-400">
-                              Applied to
-                            </div>
+                        <td className="p-0" />
+                        <td colSpan={3} className="pb-2 pt-0.5 bg-slate-50/60 dark:bg-slate-950/40" />
+                        <td colSpan={3} className="px-3 pb-2 pt-0.5 bg-slate-50/60 dark:bg-slate-950/40">
+                          <div className="space-y-1">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Applied to</div>
                             {row.payment.applied_to.length === 0 && row.payment.overpayment_to_credit <= 0 && (
-                              <div className="text-xs text-slate-400">Nothing on record for this payment.</div>
+                              <div className="text-[11px] text-slate-400">Nothing on record.</div>
                             )}
                             {row.payment.applied_to.map(a => {
                               const line = orders.find(o => o.id === a.order_id);
                               return (
-                                <div key={a.order_id} className="flex items-center justify-between text-xs font-sans">
-                                  <span className="text-slate-600 dark:text-slate-300 truncate">
-                                    {line
-                                      ? `${line.qty} × ${packShort(line.pack_size_id)} · ${prodName(line.product_id)} / ${line.variety_name}`
-                                      : `Sale line ${a.order_id}`}
+                                <div key={a.order_id} className="flex items-center justify-between text-[11px] font-sans text-slate-600 dark:text-slate-400">
+                                  <span className="truncate">
+                                    {line ? `${line.qty} × ${packShort(line.pack_size_id)} · ${prodName(line.product_id)} / ${line.variety_name}` : `Sale line ${a.order_id}`}
                                   </span>
-                                  <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 shrink-0 ml-2">
-                                    {formatNaira(a.amount)}
-                                  </span>
+                                  <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 shrink-0 ml-2">{formatNaira(a.amount)}</span>
                                 </div>
                               );
                             })}
                             {row.payment.overpayment_to_credit > 0 && (
-                              <div className="flex items-center justify-between text-xs font-sans text-emerald-700 dark:text-emerald-400">
+                              <div className="flex justify-between text-[11px] text-emerald-600 dark:text-emerald-400">
                                 <span>Overpayment → store credit</span>
-                                <span className="font-mono font-semibold shrink-0 ml-2">
-                                  {formatNaira(row.payment.overpayment_to_credit)}
-                                </span>
+                                <span className="font-mono font-semibold ml-2">{formatNaira(row.payment.overpayment_to_credit)}</span>
                               </div>
                             )}
-                            <button
-                              type="button"
-                              onClick={() => setExpanded(null)}
-                              className="inline-flex items-center gap-1 mt-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-sans font-bold transition-all active:scale-95"
-                            >
-                              <ChevronDown className="w-3 h-3" weight="bold" />
-                              <span>Collapse</span>
-                            </button>
                           </div>
                         </td>
                       </tr>
                     )}
 
+                    {/* Audit trail */}
                     {showAudit && (
                       <tr>
-                        <td colSpan={7} className="px-3.5 pb-3 bg-slate-50/60 dark:bg-slate-950/40">
-                          <div className="space-y-1.5 pt-2">
-                            <div className="text-xs font-sans font-bold uppercase tracking-wider text-slate-400">Edit history</div>
+                        <td colSpan={7} className="px-3 pb-2 pt-1 bg-slate-50/60 dark:bg-slate-950/40">
+                          <div className="space-y-1">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Edit history</div>
                             {rowAudits.map(a => (
-                              <div key={a.id} className="text-xs text-slate-500 dark:text-slate-400">
-                                <span className="font-semibold capitalize text-slate-700 dark:text-slate-300">{a.action}</span>
-                                {' · '}
-                                {formatDepotDate(a.at)} {formatDepotTime(a.at)} · {a.actor_name || a.actor_role}
-                                {a.reason ? ` · “${a.reason}”` : ''}
+                              <div key={a.id} className="text-[10px] text-slate-500 dark:text-slate-400">
+                                <span className="font-semibold capitalize text-slate-600 dark:text-slate-300">{a.action}</span>
+                                {' · '}{formatDepotDate(a.at)} {formatDepotTime(a.at)} · {a.actor_name || a.actor_role}
+                                {a.reason ? ` · "${a.reason}"` : ''}
                                 {a.changes.length > 0 && (
-                                  <div className="pl-3 text-xs font-mono text-slate-400">
+                                  <div className="pl-2 font-mono text-slate-400 text-[10px]">
                                     {a.changes.map((c, i) => (
-                                      <div key={i}>
-                                        {c.field}: {String(c.old)} → {String(c.new)}
-                                      </div>
+                                      <div key={i}>{c.field}: {String(c.old)} → {String(c.new)}</div>
                                     ))}
                                   </div>
                                 )}
                               </div>
                             ))}
-                            <button
-                              type="button"
-                              onClick={() => setAuditFor(null)}
-                              className="inline-flex items-center gap-1 mt-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-sans font-bold transition-all active:scale-95"
-                            >
-                              <ChevronDown className="w-3 h-3" weight="bold" />
-                              <span>Collapse</span>
+                            <button type="button" onClick={() => setAuditFor(null)}
+                              className="text-[10px] font-sans font-semibold text-slate-400 hover:text-slate-600 mt-0.5">
+                              collapse
                             </button>
                           </div>
                         </td>
@@ -897,6 +930,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
           </table>
         </div>
       </div>
+      </div>{/* end #ledger-print-area */}
 
       {voidTarget && (
         <VoidModal

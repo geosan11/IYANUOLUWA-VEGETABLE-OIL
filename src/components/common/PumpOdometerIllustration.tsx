@@ -1,4 +1,5 @@
 import React from 'react';
+import { ArrowsClockwise } from '@phosphor-icons/react';
 
 interface PumpOdometerIllustrationProps {
   pumpName?: string;
@@ -7,6 +8,8 @@ interface PumpOdometerIllustrationProps {
   recordedSalesLitres?: number;
   tankName?: string;
   isCompact?: boolean;
+  /** Shows a big physical-style Reset button beside the counter when provided. */
+  onReset?: () => void;
 }
 
 export const PumpOdometerIllustration: React.FC<PumpOdometerIllustrationProps> = ({
@@ -16,6 +19,7 @@ export const PumpOdometerIllustration: React.FC<PumpOdometerIllustrationProps> =
   recordedSalesLitres = 1250.0,
   tankName = 'Storage Tank 1',
   isCompact = false,
+  onReset,
 }) => {
   const pumpedLitres = Math.max(0, currentReading - openingReading);
   const variance = pumpedLitres - recordedSalesLitres;
@@ -79,43 +83,61 @@ export const PumpOdometerIllustration: React.FC<PumpOdometerIllustrationProps> =
           <span>Never Resets to Zero</span>
         </div>
 
-        {/* Rolling Drum Wheels */}
-        <div className="inline-flex items-center gap-1 sm:gap-1.5 bg-black/80 p-2 sm:p-2.5 rounded-lg border-2 border-slate-700 shadow-2xl">
-          {currentDigits.wholeDigits.map((digit, idx) => (
-            <div
-              key={idx}
-              className="relative w-7 sm:w-9 h-10 sm:h-12 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border border-slate-700/80 rounded flex items-center justify-center shadow-inner overflow-hidden"
-            >
-              {/* Drum Highlight & Bevel */}
-              <div className="absolute inset-x-0 top-0 h-1 bg-white/20" />
-              <div className="absolute inset-x-0 bottom-0 h-1 bg-black/40" />
-              <div className="absolute inset-y-0 left-0 w-px bg-white/10" />
-              {/* Horizontal center crease */}
-              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-black/40" />
+        {/* Rolling Drum Wheels + physical Reset button */}
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="inline-flex items-center gap-1 sm:gap-1.5 bg-black/80 p-2 sm:p-2.5 rounded-lg border-2 border-slate-700 shadow-2xl">
+            {currentDigits.wholeDigits.map((digit, idx) => (
+              <div
+                key={idx}
+                className="relative w-7 sm:w-9 h-10 sm:h-12 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border border-slate-700/80 rounded flex items-center justify-center shadow-inner overflow-hidden"
+              >
+                {/* Drum Highlight & Bevel */}
+                <div className="absolute inset-x-0 top-0 h-1 bg-white/20" />
+                <div className="absolute inset-x-0 bottom-0 h-1 bg-black/40" />
+                <div className="absolute inset-y-0 left-0 w-px bg-white/10" />
+                {/* Horizontal center crease */}
+                <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-black/40" />
+                <span className="font-mono text-lg sm:text-xl font-black text-white select-none drop-shadow">
+                  {digit}
+                </span>
+              </div>
+            ))}
+
+            {/* Decimal Point */}
+            <div className="w-2 flex items-end justify-center pb-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-glow-amber" />
+            </div>
+
+            {/* Tenths Drum (Red / Amber drum for fractions) */}
+            <div className="relative w-7 sm:w-9 h-10 sm:h-12 bg-gradient-to-b from-amber-700 via-amber-600 to-amber-800 border border-amber-500 rounded flex items-center justify-center shadow-inner overflow-hidden">
+              <div className="absolute inset-x-0 top-0 h-1 bg-white/30" />
+              <div className="absolute inset-x-0 bottom-0 h-1 bg-black/50" />
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-black/30" />
               <span className="font-mono text-lg sm:text-xl font-black text-white select-none drop-shadow">
-                {digit}
+                {currentDigits.decimalDigit}
               </span>
             </div>
-          ))}
 
-          {/* Decimal Point */}
-          <div className="w-2 flex items-end justify-center pb-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-glow-amber" />
+            <div className="ml-1 text-xs font-mono font-bold text-slate-400 select-none">
+              L
+            </div>
           </div>
 
-          {/* Tenths Drum (Red / Amber drum for fractions) */}
-          <div className="relative w-7 sm:w-9 h-10 sm:h-12 bg-gradient-to-b from-amber-700 via-amber-600 to-amber-800 border border-amber-500 rounded flex items-center justify-center shadow-inner overflow-hidden">
-            <div className="absolute inset-x-0 top-0 h-1 bg-white/30" />
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-black/50" />
-            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-black/30" />
-            <span className="font-mono text-lg sm:text-xl font-black text-white select-none drop-shadow">
-              {currentDigits.decimalDigit}
-            </span>
-          </div>
-
-          <div className="ml-1 text-xs font-mono font-bold text-slate-400 select-none">
-            L
-          </div>
+          {/* Big physical-style Reset button — embossed, presses down on click */}
+          {onReset && (
+            <button
+              type="button"
+              onClick={onReset}
+              title="Rub off / reset this meter"
+              className="group relative shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-b from-red-500 via-red-600 to-red-800 border-4 border-red-950/60 shadow-[0_5px_0_0_#7f1d1d,0_8px_14px_rgba(0,0,0,0.5)] flex flex-col items-center justify-center gap-0.5 transition-all active:translate-y-[5px] active:shadow-[0_0px_0_0_#7f1d1d,0_2px_4px_rgba(0,0,0,0.5)] hover:brightness-110 cursor-pointer"
+            >
+              <span className="absolute inset-x-2 top-1.5 h-3 rounded-full bg-white/25 blur-[2px]" aria-hidden="true" />
+              <ArrowsClockwise className="w-5 h-5 sm:w-6 sm:h-6 text-white drop-shadow" weight="bold" />
+              <span className="text-[9px] sm:text-[10px] font-mono font-black uppercase tracking-wider text-white drop-shadow">
+                Reset
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Small subtitle indicator */}
