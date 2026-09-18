@@ -26,25 +26,26 @@ import {
 export const LITRES_PER_KEG = 25;
 
 /* ------------------------------------------------------------------ *
- * PACK SIZES — the fixed set of containers the depot sells oil in.
- * Standard company size is strictly 25L for kegs and 1L for bottles.
+ * PACK SIZES — the fixed, standardized set of containers the depot
+ * sells oil in. Only sz_25 (the company keg) is returnable/deposit-
+ * tracked via the keg-fleet custody system; every other size is a
+ * one-way outright sale, same as the 1L bottle.
  * Frozen constant, referenced by id everywhere.
  * ------------------------------------------------------------------ */
 
 export const PACK_SIZES: readonly PackSize[] = Object.freeze([
   { id: 'sz_1', litres: 1, short: '1L', label: '1 L' },
-  { id: 'sz_25', litres: 25, short: '25L', label: '25 L' }
+  { id: 'sz_12_5', litres: 12.5, short: '12.5L', label: '12.5 L' },
+  { id: 'sz_14', litres: 14, short: '14L', label: '14 L' },
+  { id: 'sz_25', litres: 25, short: '25L', label: '25 L' },
+  { id: 'sz_28', litres: 28, short: '28L', label: '28 L' },
+  { id: 'sz_30', litres: 30, short: '30L', label: '30 L' },
+  { id: 'sz_56', litres: 56, short: '56L', label: '56 L (1/4 Drum)' },
+  { id: 'sz_112_5', litres: 112.5, short: '112.5L', label: '112.5 L (1/2 Drum)' },
+  { id: 'sz_256', litres: 256, short: '256L', label: '256 L (1 Drum)' }
 ]);
 
-export const packSizeById = (id: string): PackSize | null => {
-  const found = PACK_SIZES.find(s => s.id === id);
-  if (found) return found;
-  if (id === 'sz_30') return { id: 'sz_30', litres: 30, short: '30L', label: '30 L' };
-  if (id === 'sz_56') return { id: 'sz_56', litres: 56, short: '56L', label: '56 L' };
-  if (id === 'sz_112_5') return { id: 'sz_112_5', litres: 112.5, short: '112.5L', label: '112.5 L' };
-  if (id === 'sz_256') return { id: 'sz_256', litres: 256, short: '256L', label: '256 L' };
-  return null;
-};
+export const packSizeById = (id: string): PackSize | null => PACK_SIZES.find(s => s.id === id) ?? null;
 
 export const packLitres = (id: string): number => packSizeById(id)?.litres ?? 0;
 
@@ -156,7 +157,14 @@ export const DEFAULT_PRODUCTS: Product[] = [
     ],
     pack_config: [
       { pack_size_id: 'sz_1', returnable: false, container_buy_price: 0, sort: 0 },
-      { pack_size_id: 'sz_25', returnable: true, container_buy_price: 3500, sort: 1 }
+      { pack_size_id: 'sz_12_5', returnable: false, container_buy_price: 0, sort: 1 },
+      { pack_size_id: 'sz_14', returnable: false, container_buy_price: 0, sort: 2 },
+      { pack_size_id: 'sz_25', returnable: true, container_buy_price: 3500, sort: 3 },
+      { pack_size_id: 'sz_28', returnable: false, container_buy_price: 0, sort: 4 },
+      { pack_size_id: 'sz_30', returnable: false, container_buy_price: 0, sort: 5 },
+      { pack_size_id: 'sz_56', returnable: false, container_buy_price: 0, sort: 6 },
+      { pack_size_id: 'sz_112_5', returnable: false, container_buy_price: 0, sort: 7 },
+      { pack_size_id: 'sz_256', returnable: false, container_buy_price: 0, sort: 8 }
     ],
     color_light: '#FCD34D',
     color_dark: '#B45309'
@@ -173,7 +181,15 @@ export const DEFAULT_PRODUCTS: Product[] = [
       { id: 'red-ondo', name: 'Ondo Local Producer' }
     ],
     pack_config: [
-      { pack_size_id: 'sz_25', returnable: true, container_buy_price: 3000, sort: 0 }
+      { pack_size_id: 'sz_1', returnable: false, container_buy_price: 0, sort: 0 },
+      { pack_size_id: 'sz_12_5', returnable: false, container_buy_price: 0, sort: 1 },
+      { pack_size_id: 'sz_14', returnable: false, container_buy_price: 0, sort: 2 },
+      { pack_size_id: 'sz_25', returnable: true, container_buy_price: 3000, sort: 3 },
+      { pack_size_id: 'sz_28', returnable: false, container_buy_price: 0, sort: 4 },
+      { pack_size_id: 'sz_30', returnable: false, container_buy_price: 0, sort: 5 },
+      { pack_size_id: 'sz_56', returnable: false, container_buy_price: 0, sort: 6 },
+      { pack_size_id: 'sz_112_5', returnable: false, container_buy_price: 0, sort: 7 },
+      { pack_size_id: 'sz_256', returnable: false, container_buy_price: 0, sort: 8 }
     ],
     color_light: '#F87171',
     color_dark: '#7F1D1D'
@@ -191,10 +207,19 @@ const TIER_BASE_PER_LITRE: Record<string, Record<CustomerType, number>> = {
   red: { retail: 5600, agent: 5100, corporate: 4800 }
 };
 
-// A litre in a small pack costs a little more; 25L is standard baseline.
+// A litre in a small pack costs more, a litre in a big drum costs less —
+// 25L (the standard company keg) is the baseline. Seed defaults only; the
+// owner tunes every actual price cell in the Inventory tab afterward.
 const SIZE_FACTOR: Record<string, number> = {
   sz_1: 1.15,
-  sz_25: 1.0
+  sz_12_5: 1.08,
+  sz_14: 1.06,
+  sz_25: 1.0,
+  sz_28: 0.98,
+  sz_30: 0.97,
+  sz_56: 0.92,
+  sz_112_5: 0.88,
+  sz_256: 0.85
 };
 
 // Per-litre premium/discount for each variety, applied on top of the tier base.

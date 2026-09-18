@@ -415,22 +415,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return 'all';
   });
 
-  // Load state from LocalStorage or seed defaults (standardizing strictly to 25L kegs)
+  // Load state from LocalStorage or seed defaults. Company kegs stay fixed
+  // at 25L (litres_per_keg) — that's the physical keg-fleet constant,
+  // separate from the sellable pack-size catalog below.
   const [products, setProducts] = useState<Product[]>(() => {
     const loaded = loadPersisted(STORAGE_KEYS.PRODUCTS, DEFAULT_PRODUCTS);
     return loaded.map(p => ({
       ...p,
-      litres_per_keg: 25,
-      pack_config: p.pack_config
-        .filter(c => c.pack_size_id === 'sz_25' || !c.returnable)
-        .filter(c => !['sz_56', 'sz_112_5', 'sz_256', 'sz_30'].includes(c.pack_size_id))
+      litres_per_keg: 25
     }));
   });
 
-  const [packPrices, setPackPrices] = useState<PackPrice[]>(() => {
-    const loaded = loadPersisted(STORAGE_KEYS.PACK_PRICES, DEFAULT_PACK_PRICES);
-    return loaded.filter(r => !['sz_56', 'sz_112_5', 'sz_256', 'sz_30'].includes(r.pack_size_id));
-  });
+  const [packPrices, setPackPrices] = useState<PackPrice[]>(() =>
+    loadPersisted(STORAGE_KEYS.PACK_PRICES, DEFAULT_PACK_PRICES)
+  );
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
     const loaded = loadPersisted(STORAGE_KEYS.CUSTOMERS, DEFAULT_CUSTOMERS);
