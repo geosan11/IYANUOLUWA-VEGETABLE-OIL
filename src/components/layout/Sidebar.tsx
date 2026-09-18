@@ -13,19 +13,20 @@ interface SidebarProps {
   onTabChange: (tab: string) => void;
 }
 
-const DAILY_WORK_IDS = ['order', 'intake', 'pumps', 'kegs', 'customers'];
-const BILLING_IDS = ['ledger', 'inventory', 'expenses', 'dashboard', 'ai-advisor', 'settings'];
+const OPERATIONS_IDS = ['dashboard', 'order', 'ledger', 'customers'];
+const DEPOT_IDS = ['pumps', 'intake', 'kegs', 'inventory'];
+const MANAGEMENT_IDS = ['expenses', 'ai-advisor', 'settings'];
 
 const LABEL_OVERRIDES: Record<string, string> = {
+  dashboard: 'Dashboard',
   order: 'New Sale',
-  intake: 'Truck Intake',
-  pumps: 'Pumps',
-  kegs: 'Kegs Ledger',
-  customers: 'Customers & Debt',
   ledger: 'Transaction ledger',
+  customers: 'Customers & Debt',
+  pumps: 'Pumps',
+  intake: 'Truck Intake',
+  kegs: 'Kegs Ledger',
   inventory: 'Products & pricing',
   expenses: 'Expenses & float',
-  dashboard: 'Dashboard',
   'ai-advisor': 'AI Advisor',
   settings: 'Settings'
 };
@@ -46,8 +47,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
       badge: item.id === 'customers' && overdueCount > 0 ? overdueCount : null
     }));
 
-  const dailyWorkItems = accessibleNavItems.filter(item => DAILY_WORK_IDS.includes(item.id));
-  const billingItems = accessibleNavItems.filter(item => BILLING_IDS.includes(item.id));
+  const operationsItems = OPERATIONS_IDS
+    .map(id => accessibleNavItems.find(item => item.id === id))
+    .filter((item): item is typeof accessibleNavItems[0] => Boolean(item));
+
+  const depotItems = DEPOT_IDS
+    .map(id => accessibleNavItems.find(item => item.id === id))
+    .filter((item): item is typeof accessibleNavItems[0] => Boolean(item));
+
+  const managementItems = MANAGEMENT_IDS
+    .map(id => accessibleNavItems.find(item => item.id === id))
+    .filter((item): item is typeof accessibleNavItems[0] => Boolean(item));
 
   const hubDisplay = activeHub
     ? `${activeHub.name} · ${activeHub.state || 'LOS'}`
@@ -125,26 +135,40 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
           </div>
 
           {/* Nav List */}
-          <nav className="flex-1 overflow-y-auto overflow-x-hidden space-y-4 py-1 no-scrollbar">
-            {/* Daily work section */}
+          <nav className="flex-1 overflow-y-auto overflow-x-hidden space-y-3 py-1 no-scrollbar">
+            {/* Operations section */}
             <div>
               <div className="px-3 py-1 text-[11px] font-semibold tracking-wider text-stone-400 uppercase hidden group-hover:block transition-opacity duration-200">
-                Daily work
+                Operations
               </div>
-              <div className="space-y-1 mt-1">
-                {dailyWorkItems.map(item => renderNavItem(item))}
+              <div className="space-y-1 mt-0.5">
+                {operationsItems.map(item => renderNavItem(item))}
               </div>
             </div>
 
-            {/* Billing section */}
-            <div>
-              <div className="px-3 py-1 text-[11px] font-semibold tracking-wider text-stone-400 uppercase hidden group-hover:block transition-opacity duration-200">
-                Billing
+            {/* Depot & Stock section */}
+            {depotItems.length > 0 && (
+              <div>
+                <div className="px-3 py-1 text-[11px] font-semibold tracking-wider text-stone-400 uppercase hidden group-hover:block transition-opacity duration-200">
+                  Depot &amp; Stock
+                </div>
+                <div className="space-y-1 mt-0.5">
+                  {depotItems.map(item => renderNavItem(item))}
+                </div>
               </div>
-              <div className="space-y-1 mt-1">
-                {billingItems.map(item => renderNavItem(item))}
+            )}
+
+            {/* Management section */}
+            {managementItems.length > 0 && (
+              <div>
+                <div className="px-3 py-1 text-[11px] font-semibold tracking-wider text-stone-400 uppercase hidden group-hover:block transition-opacity duration-200">
+                  Management
+                </div>
+                <div className="space-y-1 mt-0.5">
+                  {managementItems.map(item => renderNavItem(item))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Depot Alerts summary if active */}
             {activeAlerts.totalAlertCount > 0 && (

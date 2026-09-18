@@ -24,15 +24,15 @@ export interface NavItem {
 /** Single source of truth for the app's top-level destinations. */
 export const NAV_ITEMS: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: SquaresFour },
-  { id: 'ai-advisor', label: 'AI Operations Advisor', icon: Sparkle, adminOnly: true },
-  { id: 'intake', label: 'Truck Intake', icon: Truck },
-  { id: 'pumps', label: 'Pumps', icon: GasPump },
   { id: 'order', label: 'New Sale', icon: PlusCircle },
-  { id: 'ledger', label: 'Transactions', icon: Scroll },
+  { id: 'ledger', label: 'Transaction Ledger', icon: Scroll },
   { id: 'customers', label: 'Customers & Debt', icon: Users },
+  { id: 'pumps', label: 'Pumps', icon: GasPump },
+  { id: 'intake', label: 'Truck Intake', icon: Truck },
   { id: 'kegs', label: 'Kegs Ledger', icon: Package },
-  { id: 'inventory', label: 'Inventory', icon: Stack, adminOnly: true },
+  { id: 'inventory', label: 'Products & Pricing', icon: Stack, adminOnly: true },
   { id: 'expenses', label: 'Expenses & Float', icon: Invoice },
+  { id: 'ai-advisor', label: 'AI Advisor', icon: Sparkle, adminOnly: true },
   { id: 'settings', label: 'Settings', icon: Gear, adminOnly: true }
 ];
 

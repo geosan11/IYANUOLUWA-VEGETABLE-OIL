@@ -296,7 +296,11 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
     const today = getDepotToday();
     return allRows.filter(r => {
       if (kindFilter !== 'all' && r.kind !== kindFilter) return false;
-      if (paymentModeFilter !== 'all' && r.paymentMethod !== paymentModeFilter) return false;
+      if (paymentModeFilter !== 'all') {
+        const matchesDirect = r.paymentMethod === paymentModeFilter;
+        const matchesSplit = r.paymentMethod === 'split' && r.sale?.payment_splits?.some(sp => sp.method === paymentModeFilter);
+        if (!matchesDirect && !matchesSplit) return false;
+      }
       if (scope === 'today' && depotDateKey(r.date) !== today) return false;
       if (scope === 'shift' && activeShift) {
         const start = new Date(activeShift.start_time).getTime();
@@ -338,23 +342,31 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
     return { gross, received, spent, creditOwed };
   }, [scopedRows, customerStatsMap]);
 
-  // Value moved by payment mode in this window — sale value booked under
-  // each method, plus credit settlements collected via that method.
-  const paymentModeTotals = useMemo(() => {
-    const totals: Record<PaymentMethod, number> = { cash: 0, transfer: 0, pos: 0, credit: 0, split: 0 };
+  // Payment methods collected directly from Sales at checkout:
+  const salesPaymentTotals = useMemo(() => {
+    const totals: Record<'cash' | 'transfer' | 'pos', number> = { cash: 0, transfer: 0, pos: 0 };
     for (const r of scopedRows) {
-      if (r.voided) continue;
-      if (r.kind === 'sale' && r.sale) {
-        if (r.sale.payment_method === 'split' && r.sale.payment_splits) {
-          for (const sp of r.sale.payment_splits) {
-            totals[sp.method] = (totals[sp.method] || 0) + sp.amount;
+      if (r.voided || r.kind !== 'sale' || !r.sale) continue;
+      if (r.sale.payment_method === 'split' && r.sale.payment_splits) {
+        for (const sp of r.sale.payment_splits) {
+          if (sp.method in totals) {
+            totals[sp.method as 'cash' | 'transfer' | 'pos'] += sp.amount;
           }
-          totals.split += r.amount;
-        } else {
-          totals[r.sale.payment_method] = (totals[r.sale.payment_method] || 0) + r.amount;
         }
-      } else if (r.kind === 'payment' && r.payment) {
-        totals[r.payment.method] = (totals[r.payment.method] || 0) + r.amount;
+      } else if (r.sale.payment_method in totals) {
+        totals[r.sale.payment_method as 'cash' | 'transfer' | 'pos'] += r.amount;
+      }
+    }
+    return totals;
+  }, [scopedRows]);
+
+  // Payment methods collected from Debtors settling past accounts:
+  const debtRecoveryTotals = useMemo(() => {
+    const totals: Record<'cash' | 'transfer' | 'pos', number> = { cash: 0, transfer: 0, pos: 0 };
+    for (const r of scopedRows) {
+      if (r.voided || r.kind !== 'payment' || !r.payment) continue;
+      if (r.payment.method in totals) {
+        totals[r.payment.method as 'cash' | 'transfer' | 'pos'] += r.amount;
       }
     }
     return totals;
@@ -432,49 +444,18 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* KPI + payment mode breakdown — compact unified cards */}
+      {/* KPI + payment mode breakdown — compact unified mirror cards */}
       <div className="no-print grid grid-cols-2 gap-2.5">
-        {/* Gross Sales card — shows cash/transfer/pos/split sub-lines */}
-        <div className="depot-card p-3 rounded-xl space-y-1.5">
+        {/* Gross Sales card — shows cash/transfer/pos sub-lines from sales */}
+        <div className="kpi-mirror-card p-3 rounded-xl space-y-2">
           <div className="flex items-baseline justify-between gap-2">
-            <div className="text-[10px] font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0">Gross Sales</div>
-            <div className="text-xl font-mono font-extrabold tabular-nums text-slate-900 dark:text-white truncate text-right">{formatNaira(kpi.gross)}</div>
+            <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-400 shrink-0">Gross Sales</div>
+            <div className="text-xl font-mono font-black tabular-nums text-white truncate text-right">{formatNaira(kpi.gross)}</div>
           </div>
-          {/* Per-method breakdown — always coloured */}
-          <div className="space-y-0.5 pt-0.5 border-t border-slate-100 dark:border-slate-800">
-            {(['cash', 'transfer', 'pos', 'split'] as PaymentMethod[]).map(m => {
-              const val = paymentModeTotals[m];
-              if (!val) return null;
-              const theme = PAYMENT_MODE_THEME[m];
-              const lbl = m === 'pos' ? 'Card' : m === 'split' ? 'Split' : m.charAt(0).toUpperCase() + m.slice(1);
-              const isActive = paymentModeFilter === m;
-              return (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setPaymentModeFilter(isActive ? 'all' : m)}
-                  className={`w-full flex justify-between items-center text-[11px] font-mono tabular-nums rounded px-1 py-0.5 transition-all ${theme.textCls} ${
-                    isActive ? `${theme.bgSubtleCls} ring-1 ${theme.borderCls} font-extrabold` : 'hover:opacity-75'
-                  }`}
-                >
-                  <span className="font-sans font-bold uppercase tracking-wide">{lbl}:</span>
-                  <span className="tabular-nums">{formatNaira(val)}</span>
-                </button>
-              );
-            })}
-
-          </div>
-        </div>
-
-        {/* Payments In card */}
-        <div className="depot-card p-3 rounded-xl space-y-1.5">
-          <div className="flex items-baseline justify-between gap-2">
-            <div className="text-[10px] font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0">Payments In</div>
-            <div className="text-xl font-mono font-extrabold tabular-nums text-sky-600 dark:text-sky-400 truncate text-right">{formatNaira(kpi.received)}</div>
-          </div>
-          <div className="space-y-0.5 pt-0.5 border-t border-slate-100 dark:border-slate-800">
-            {(['cash', 'transfer', 'pos'] as PaymentMethod[]).map(m => {
-              const val = paymentModeTotals[m];
+          {/* Per-method breakdown for sales */}
+          <div className="space-y-1 pt-1.5 border-t border-white/10">
+            {(['cash', 'transfer', 'pos'] as const).map(m => {
+              const val = salesPaymentTotals[m];
               if (!val) return null;
               const theme = PAYMENT_MODE_THEME[m];
               const lbl = m === 'pos' ? 'Card' : m.charAt(0).toUpperCase() + m.slice(1);
@@ -484,31 +465,67 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                   key={m}
                   type="button"
                   onClick={() => setPaymentModeFilter(isActive ? 'all' : m)}
-                  className={`w-full flex justify-between items-center text-[11px] font-mono tabular-nums rounded px-1 py-0.5 transition-all ${theme.textCls} ${
-                    isActive ? `${theme.bgSubtleCls} ring-1 ${theme.borderCls} font-extrabold` : 'hover:opacity-75'
+                  className={`w-full flex justify-between items-center px-1.5 py-0.5 rounded transition-all cursor-pointer ${
+                    isActive ? `${theme.bgSubtleCls} ring-1 ${theme.borderCls} font-black` : 'hover:bg-white/5'
                   }`}
                 >
-                  <span className="font-sans font-bold uppercase tracking-wide">{lbl}:</span>
-                  <span className="tabular-nums">{formatNaira(val)}</span>
+                  <span className={`font-sans font-bold text-[11px] uppercase tracking-wider ${theme.textCls}`}>{lbl}:</span>
+                  <span className={`font-mono text-sm font-black tabular-nums ${theme.textCls}`}>{formatNaira(val)}</span>
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Expenses card */}
-        <div className="depot-card p-3 rounded-xl space-y-1.5">
+        {/* Debt Recovered card — shows payments from debtors settling credit */}
+        <div className="kpi-mirror-card p-3 rounded-xl space-y-2">
           <div className="flex items-baseline justify-between gap-2">
-            <div className="text-[10px] font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0">Expenses</div>
-            <div className="text-xl font-mono font-extrabold tabular-nums text-rose-600 dark:text-rose-400 truncate text-right">{formatNaira(kpi.spent)}</div>
+            <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-400 shrink-0">Debt Recovered</div>
+            <div className="text-xl font-mono font-black tabular-nums text-sky-400 truncate text-right">{formatNaira(kpi.received)}</div>
+          </div>
+          <div className="pt-1.5 border-t border-white/10">
+            {kpi.received === 0 ? (
+              <div className="py-1 text-[11px] font-sans text-slate-400 italic">
+                No debt collections in this period
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {(['cash', 'transfer', 'pos'] as const).map(m => {
+                  const val = debtRecoveryTotals[m];
+                  if (!val) return null;
+                  const theme = PAYMENT_MODE_THEME[m];
+                  const lbl = m === 'pos' ? 'Card' : m.charAt(0).toUpperCase() + m.slice(1);
+                  return (
+                    <div key={m} className="flex justify-between items-center px-1.5 py-0.5">
+                      <span className={`font-sans font-bold text-[11px] uppercase tracking-wider ${theme.textCls}`}>{lbl}:</span>
+                      <span className={`font-mono text-sm font-black tabular-nums ${theme.textCls}`}>{formatNaira(val)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Expenses card */}
+        <div className="kpi-mirror-card p-3 rounded-xl space-y-1.5">
+          <div className="flex items-baseline justify-between gap-2">
+            <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-400 shrink-0">Expenses</div>
+            <div className="text-xl font-mono font-black tabular-nums text-rose-400 truncate text-right">{formatNaira(kpi.spent)}</div>
+          </div>
+          <div className="pt-1 border-t border-white/10 text-[11px] font-sans text-slate-400">
+            Operating payouts &amp; depot costs
           </div>
         </div>
 
         {/* Debt Owed card */}
-        <div className="depot-card p-3 rounded-xl space-y-1.5">
+        <div className="kpi-mirror-card p-3 rounded-xl space-y-1.5">
           <div className="flex items-baseline justify-between gap-2">
-            <div className="text-[10px] font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0">Debt Owed</div>
-            <div className="text-xl font-mono font-extrabold tabular-nums text-amber-600 dark:text-amber-400 truncate text-right">{formatNaira(kpi.creditOwed)}</div>
+            <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-400 shrink-0">Debt Owed</div>
+            <div className="text-xl font-mono font-black tabular-nums text-amber-400 truncate text-right">{formatNaira(kpi.creditOwed)}</div>
+          </div>
+          <div className="pt-1 border-t border-white/10 text-[11px] font-sans text-slate-400">
+            Current balance across customer accounts
           </div>
         </div>
       </div>
