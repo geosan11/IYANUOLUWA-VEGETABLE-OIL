@@ -453,7 +453,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
             <div className="text-xl font-mono font-black tabular-nums text-white truncate text-right">{formatNaira(kpi.gross)}</div>
           </div>
           {/* Per-method breakdown for sales */}
-          <div className="space-y-1 pt-1.5 border-t border-white/10">
+          <div className="space-y-1 pt-0.5">
             {(['cash', 'transfer', 'pos'] as const).map(m => {
               const val = salesPaymentTotals[m];
               if (!val) return null;
@@ -483,7 +483,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
             <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-400 shrink-0">Debt Recovered</div>
             <div className="text-xl font-mono font-black tabular-nums text-sky-400 truncate text-right">{formatNaira(kpi.received)}</div>
           </div>
-          <div className="pt-1.5 border-t border-white/10">
+          <div className="pt-0.5">
             {kpi.received === 0 ? (
               <div className="py-1 text-[11px] font-sans text-slate-400 italic">
                 No debt collections in this period
@@ -513,7 +513,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
             <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-400 shrink-0">Expenses</div>
             <div className="text-xl font-mono font-black tabular-nums text-rose-400 truncate text-right">{formatNaira(kpi.spent)}</div>
           </div>
-          <div className="pt-1 border-t border-white/10 text-[11px] font-sans text-slate-400">
+          <div className="pt-0.5 text-[11px] font-sans text-slate-400">
             Operating payouts &amp; depot costs
           </div>
         </div>
@@ -524,7 +524,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
             <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-400 shrink-0">Debt Owed</div>
             <div className="text-xl font-mono font-black tabular-nums text-amber-400 truncate text-right">{formatNaira(kpi.creditOwed)}</div>
           </div>
-          <div className="pt-1 border-t border-white/10 text-[11px] font-sans text-slate-400">
+          <div className="pt-0.5 text-[11px] font-sans text-slate-400">
             Current balance across customer accounts
           </div>
         </div>

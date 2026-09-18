@@ -1,7 +1,27 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from './supabase';
 import type { UserRole } from '../types';
+
+/**
+ * The Functions client's `error.message` on a non-2xx response is always the
+ * generic "Edge Function returned a non-2xx status code" — the actual reason
+ * (e.g. "Only an owner can invite team members") is JSON on the raw Response,
+ * reachable only via `FunctionsHttpError.context`. Every `functions.invoke()`
+ * call site should route its error through this instead of `error.message`.
+ */
+async function describeFunctionsError(error: unknown): Promise<string> {
+  if (error instanceof FunctionsHttpError) {
+    try {
+      const body = await error.context.json();
+      if (body?.error) return body.error as string;
+    } catch {
+      // Response body wasn't JSON — fall through to the generic message.
+    }
+  }
+  return error instanceof Error ? error.message : 'Something went wrong.';
+}
 
 export interface AuthProfile {
   id: string;
@@ -64,7 +84,7 @@ export async function inviteUser(
       redirectTo: `${window.location.origin}/`
     }
   });
-  if (error) return { error: error.message };
+  if (error) return { error: await describeFunctionsError(error) };
   if (data?.error) return { error: data.error };
   return { error: null };
 }

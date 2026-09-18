@@ -14,6 +14,7 @@ Postgres target the app will migrate onto.
 | `supabase/migrations/0006_shift_hours_and_closing_readings.sql` | Shift-hour settings on `app_settings`, `shifts.closing_readings`. |
 | `supabase/migrations/0007_double_split_payments.sql` | `split` payment method, `orders.payment_splits`, `sale_payments` table, expense-to-customer debt fields. |
 | `supabase/migrations/0008_relational_hardening.sql` | Relational-integrity audit fixes: RLS on `sale_payments`, `hub_isolation_transfers`, narrows `hub_isolation_pumps`/`hub_isolation_physical_tanks` to read-only, missing FK indexes. |
+| `supabase/migrations/0009_hub_id_text.sql` | Every `hub_id`/`from_hub_id`/`to_hub_id` column: `uuid` FK into the unused `hubs` table → plain client-supplied `text`, matching every other id in this schema. Fixes inviting a user into one of the app's real hubs (`'hub-los-alaba'` etc.) failing with `invalid input syntax for type uuid`. |
 | `supabase/seed.sql` | Demo data mirroring the seed constants in `src/constants/config.ts`. |
 | `supabase/functions/invite-user/` | Edge Function: sends a real Supabase auth invite email to a new team member and sets their role/hub/screen access. Needs a one-time `supabase functions deploy invite-user` — see `supabase/functions/README.md`. |
 

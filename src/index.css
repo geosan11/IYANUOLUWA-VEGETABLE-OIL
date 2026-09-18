@@ -195,7 +195,7 @@
   }
   
   #receipt-print-area {
-    position: absolute !important;
+    position: fixed !important;
     left: 0 !important;
     top: 0 !important;
     width: 72mm !important;
@@ -315,31 +315,12 @@
   border-radius: 2px;
 }
 
-/* KPI mirror card — obsidian gloss, theme-independent */
+/* KPI card — plain solid black, borderless */
 .kpi-mirror-card {
   position: relative;
-  background: linear-gradient(160deg, #1c1f26 0%, #0d0f14 55%, #111318 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #000000;
+  border: none;
   border-radius: 0.875rem;
-  box-shadow:
-    0 1px 0 0 rgba(255,255,255,0.07) inset,
-    0 -1px 0 0 rgba(0,0,0,0.6) inset,
-    0 8px 24px -4px rgba(0,0,0,0.45),
-    0 2px 8px -2px rgba(0,0,0,0.35);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
   overflow: hidden;
-}
-
-/* Reflective gloss sheen across the top third */
-.kpi-mirror-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(255,255,255,0.06) 0%,
-    rgba(255,255,255,0.015) 40%,
-    transparent 60%
-  );
-  pointer-events: none;
-  border-radius: inherit;
 }
