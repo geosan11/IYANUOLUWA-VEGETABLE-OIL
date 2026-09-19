@@ -91,10 +91,22 @@ export const SettingsScreen: React.FC = () => {
     deletePump
   } = useStore();
 
-  // Only the owner can change pricing, products, thresholds, branding, or reset data.
-  const { isOwner } = usePermissions();
+  // Hard owner-only gate — for actions that stay dangerous regardless of
+  // whether this user was granted the Settings screen (accounts, hub
+  // create/delete, factory reset).
+  const { isOwner, canOperate } = usePermissions();
   const denyIfNotOwner = () => {
     if (isOwner) return false;
+    showNotification('Only the owner can change this. You are viewing as ' + userRole + '.', 'error');
+    return true;
+  };
+
+  // Softer gate for Settings' ordinary CRUD tabs — passes for the owner or
+  // anyone the owner explicitly granted the 'settings' screen to, since
+  // that grant is the point: they should be able to operate what they can see.
+  const canUseSettings = isOwner || canOperate('settings');
+  const denyIfNoSettingsAccess = () => {
+    if (canUseSettings) return false;
     showNotification('Only the owner can change this. You are viewing as ' + userRole + '.', 'error');
     return true;
   };
@@ -254,7 +266,7 @@ export const SettingsScreen: React.FC = () => {
   // 1. Save Company Profile
   const handleSaveCompanyInfo = (e: React.FormEvent) => {
     e.preventDefault();
-    if (denyIfNotOwner()) return;
+    if (denyIfNoSettingsAccess()) return;
     updateSettings({
       company_name: companyName.trim(),
       company_phone: companyPhone.trim(),
@@ -267,7 +279,7 @@ export const SettingsScreen: React.FC = () => {
   // 2. Save Keg Configuration
   const handleSaveKegConfig = (e: React.FormEvent) => {
     e.preventDefault();
-    if (denyIfNotOwner()) return;
+    if (denyIfNoSettingsAccess()) return;
     const globalDefault = Math.max(1, parseFloat(litresPerKeg) || 30);
     updateSettings({
       litres_per_keg: globalDefault,
@@ -291,7 +303,7 @@ export const SettingsScreen: React.FC = () => {
   // Product Add / Edit Handler
   const handleSaveProductModal = (e: React.FormEvent) => {
     e.preventDefault();
-    if (denyIfNotOwner()) return;
+    if (denyIfNoSettingsAccess()) return;
     if (!newProductName.trim()) return;
 
     const kegSell = parseFloat(newProductKegSellPrice) || 3500;
@@ -410,7 +422,7 @@ export const SettingsScreen: React.FC = () => {
   // 4. Save Alert Thresholds
   const handleSaveAlertThresholds = (e: React.FormEvent) => {
     e.preventDefault();
-    if (denyIfNotOwner()) return;
+    if (denyIfNoSettingsAccess()) return;
     updateSettings({
       low_stock_litres_threshold: Math.max(0, parseFloat(lowStockThreshold) || 500),
       truck_shortfall_threshold: Math.max(0, parseFloat(truckShortfallThreshold) || 50),
@@ -423,7 +435,7 @@ export const SettingsScreen: React.FC = () => {
   // 5. Save Shift Schedule & Daily Operations Float
   const handleSaveShiftSchedule = (e: React.FormEvent) => {
     e.preventDefault();
-    if (denyIfNotOwner()) return;
+    if (denyIfNoSettingsAccess()) return;
     const val = Math.max(0, parseFloat(defaultDailyFloat) || 150000);
     updateSettings({
       default_daily_float: val,
@@ -471,7 +483,10 @@ export const SettingsScreen: React.FC = () => {
 
   const handleSaveHub = (e: React.FormEvent) => {
     e.preventDefault();
-    if (denyIfNotOwner()) return;
+    // Editing an existing hub's contact details follows the Settings grant;
+    // standing up a brand-new hub is an org-structural decision that stays
+    // owner-only regardless.
+    if (editingHubId ? denyIfNoSettingsAccess() : denyIfNotOwner()) return;
     if (!hubName.trim() || !hubCode.trim() || !hubState.trim()) {
       showNotification('Please fill in required hub details.', 'error');
       return;
@@ -611,7 +626,7 @@ export const SettingsScreen: React.FC = () => {
 
   const handleSavePump = (e: React.FormEvent) => {
     e.preventDefault();
-    if (denyIfNotOwner()) return;
+    if (denyIfNoSettingsAccess()) return;
 
     if (!pumpLabelInput.trim()) {
       alert('Please enter a pump name or label.');
@@ -640,7 +655,7 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const handleDeletePumpAction = (pump: Pump) => {
-    if (denyIfNotOwner()) return;
+    if (denyIfNoSettingsAccess()) return;
     if (pumps.length <= 1) {
       alert('A depot must maintain at least one operational dispensing pump.');
       return;
@@ -681,8 +696,10 @@ export const SettingsScreen: React.FC = () => {
         <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-[13px] font-sans flex items-start gap-2.5">
           <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
           <span>
-            You are viewing settings as <span className="font-bold capitalize">{userRole}</span>. Pricing, products,
-            thresholds, branding, and data reset are read-only — only the owner can change them.
+            You are viewing settings as <span className="font-bold capitalize">{userRole}</span>.{' '}
+            {canUseSettings
+              ? 'You were granted access to this screen, so you can change pricing, products, thresholds, and branding — but team accounts, creating/deleting hubs, and a factory reset stay owner-only.'
+              : 'Pricing, products, thresholds, branding, and data reset are read-only — only the owner can change them.'}
           </span>
         </div>
       )}
@@ -1267,8 +1284,8 @@ export const SettingsScreen: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleOpenAddProduct}
-                  disabled={!isOwner}
-                  title={isOwner ? undefined : 'Only the owner can add products'}
+                  disabled={!canUseSettings}
+                  title={canUseSettings ? undefined : 'Only the owner can add products'}
                   className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-sm flex items-center gap-1.5 transition-all self-start sm:self-auto active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-brand-500 disabled:active:scale-100"
                 >
                   <Plus className="w-4 h-4" />
@@ -1301,9 +1318,9 @@ export const SettingsScreen: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleOpenEditProduct(p.id)}
-                              disabled={!isOwner}
+                              disabled={!canUseSettings}
                               className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                              title={isOwner ? 'Edit Product' : 'Only the owner can edit products'}
+                              title={canUseSettings ? 'Edit Product' : 'Only the owner can edit products'}
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
@@ -1316,9 +1333,9 @@ export const SettingsScreen: React.FC = () => {
                                     showNotification(`Product "${p.name}" deleted.`);
                                   }
                                 }}
-                                disabled={!isOwner}
+                                disabled={!canUseSettings}
                                 className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                                title={isOwner ? 'Delete Product' : 'Only the owner can delete products'}
+                                title={canUseSettings ? 'Delete Product' : 'Only the owner can delete products'}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>

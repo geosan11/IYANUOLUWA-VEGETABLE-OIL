@@ -40,7 +40,7 @@ export const InventoryScreen: React.FC = () => {
     updateSettings,
     kegInventory
   } = useStore();
-  const { isOwner } = usePermissions();
+  const { isOwner, canOperate } = usePermissions();
   const { showToast } = useToast();
 
   const [tab, setTab] = useState<Tab>('prices');
@@ -258,7 +258,7 @@ export const InventoryScreen: React.FC = () => {
     flashSaved('Saved company 25L keg and container pricing.');
   };
 
-  if (!isOwner) {
+  if (!isOwner && !canOperate('inventory')) {
     return (
       <div className="max-w-md mx-auto py-16 text-center space-y-3">
         <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center">
