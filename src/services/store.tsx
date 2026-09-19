@@ -74,7 +74,7 @@ import {
   depotDateKey
 } from './businessLogic';
 import { priceSaleLine } from './pricing';
-import { scanAndTriggerAutonomousAlerts } from './alertService';
+import { scanAndTriggerAutonomousAlerts, getAlertSettings, requestPushNotificationPermission } from './alertService';
 
 interface StoreContextType {
   products: Product[];
@@ -1019,7 +1019,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [customerStatsMap, tanks, products, tankStockByProduct, settings.truck_shortfall_threshold, settings.low_stock_litres_threshold, pumpVarianceAudits, shifts]);
 
-  // Autonomous alert scanner — dispatches Web Push & alert log when out-of-the-ordinary events occur
+  // Ask for OS notification permission once, for the owner only (these are
+  // director-level alerts) — without this call, dispatchAutonomousAlert's
+  // Notification.permission check can never become 'granted', so no push
+  // notification could ever actually fire.
+  useEffect(() => {
+    if (userRole !== 'owner') return;
+    const alertSettings = getAlertSettings();
+    if (alertSettings.pushAlertsEnabled && 'Notification' in window && Notification.permission === 'default') {
+      requestPushNotificationPermission();
+    }
+  }, [userRole]);
+
+  // Autonomous alert scanner — dispatches a real Web Push notification when out-of-the-ordinary events occur
   useEffect(() => {
     if (activeAlerts.totalAlertCount > 0) {
       scanAndTriggerAutonomousAlerts({

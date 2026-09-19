@@ -1,10 +1,12 @@
 /**
  * Alert Tracking & Autonomous Dispatch Service
- * 
+ *
  * Automatically tracks depot anomalies and out-of-the-ordinary events
  * (pump variances, intake shortfalls, shift cash shortfalls, credit breaches,
- * low stock levels) and autonomously dispatches notifications via browser Web Push
- * and Depot Alert Log / Email webhook.
+ * low stock levels) and dispatches a real browser Web Push notification for
+ * each one when permission has been granted. There is no email channel —
+ * that would need a real backend (see the scheduled-report plan), so this
+ * doesn't pretend to have one.
  */
 
 import { Customer, Tank, Shift, PumpVarianceAudit, Product } from '../types';
@@ -26,15 +28,13 @@ export interface AutonomousAlert {
   title: string;
   message: string;
   timestamp: string;
-  channels: ('email' | 'push' | 'in_app')[];
+  channels: ('push' | 'in_app')[];
   acknowledged: boolean;
   meta?: Record<string, unknown>;
 }
 
 export interface AlertSettings {
-  emailAlertsEnabled: boolean;
   pushAlertsEnabled: boolean;
-  recipientEmail: string;
   notifyOnPumpVariance: boolean;
   notifyOnIntakeShortfall: boolean;
   notifyOnCashDiscrepancy: boolean;
@@ -47,9 +47,7 @@ const ALERT_SETTINGS_KEY = 'depot_alert_settings';
 const ALERT_LOG_KEY = 'depot_autonomous_alerts_log';
 
 export const DEFAULT_ALERT_SETTINGS: AlertSettings = {
-  emailAlertsEnabled: true,
   pushAlertsEnabled: true,
-  recipientEmail: 'managingdirector@iyanuoluwa.ng',
   notifyOnPumpVariance: true,
   notifyOnIntakeShortfall: true,
   notifyOnCashDiscrepancy: true,
@@ -115,7 +113,8 @@ export async function requestPushNotificationPermission(): Promise<boolean> {
 }
 
 /**
- * Trigger an autonomous alert across enabled channels (Browser Push + Simulated Email Dispatch)
+ * Trigger an autonomous alert across enabled channels (Browser Push, if
+ * permission has been granted — see requestPushNotificationPermission).
  */
 export function dispatchAutonomousAlert(payload: {
   category: AlertCategory;
@@ -125,7 +124,7 @@ export function dispatchAutonomousAlert(payload: {
   meta?: Record<string, unknown>;
 }): AutonomousAlert {
   const settings = getAlertSettings();
-  const channels: ('email' | 'push' | 'in_app')[] = ['in_app'];
+  const channels: ('push' | 'in_app')[] = ['in_app'];
 
   // Check Web Push
   if (settings.pushAlertsEnabled && 'Notification' in window && Notification.permission === 'granted') {
@@ -139,11 +138,6 @@ export function dispatchAutonomousAlert(payload: {
     } catch {
       // Notification failed in some iframe or sandbox environments
     }
-  }
-
-  // Check Email
-  if (settings.emailAlertsEnabled && settings.recipientEmail) {
-    channels.push('email');
   }
 
   const alert: AutonomousAlert = {

@@ -218,10 +218,10 @@ export const AIAdvisorScreen: React.FC = () => {
 
         {/* Engine Switcher & Trigger */}
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-          {/* Dedicated Claude Engine Badge */}
+          {/* Dedicated Claude Engine Badge — reflects the engine that actually produced the current report (falls back to a generic label before the first audit runs) */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs shadow-sm">
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />
-            <span className="font-bold text-slate-800 dark:text-slate-200">Claude 3.5 Sonnet</span>
+            <span className="font-bold text-slate-800 dark:text-slate-200">{report ? report.modelName : 'Claude 3.5 Sonnet'}</span>
           </div>
 
           {/* Action Trigger */}
@@ -253,6 +253,14 @@ export const AIAdvisorScreen: React.FC = () => {
           <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
             {loadingStage || 'Auditing depot data...'}
           </span>
+        </div>
+      )}
+
+      {/* Pre-audit placeholder notice — everything below is illustrative sample data until "Run Audit" produces a real report */}
+      {!report && !isLoading && (
+        <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-xs font-bold text-amber-700 dark:text-amber-400">
+          <Sparkles className="w-3.5 h-3.5 shrink-0" />
+          <span>Example figures below — click &ldquo;Run Audit&rdquo; to replace them with real numbers from this depot.</span>
         </div>
       )}
 
