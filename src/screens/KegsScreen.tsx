@@ -971,7 +971,7 @@ export const KegsScreen: React.FC = () => {
         title="Complete Gate Movement History"
         subtitle={`${gateHistoryEvents.length} total return and transfer movements`}
       >
-        <div className="space-y-2.5 max-h-[70vh] overflow-y-auto pr-1">
+        <div className="space-y-2.5">
           {gateHistoryEvents.map(renderGateEventItem)}
         </div>
       </BottomSheet>

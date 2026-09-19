@@ -79,10 +79,10 @@ export const CustomerStatementModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-4xl bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl my-auto overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-md">
+      <div className="relative w-full max-w-4xl max-h-[90vh] bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
         {/* Top Control Bar (Screen Only) */}
-        <div className="no-print px-6 py-4 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between gap-4">
+        <div className="no-print px-6 py-4 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between gap-4 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-brand-500/15 border border-brand-500/30 text-brand-400 flex items-center justify-center">
               <FileText className="w-5 h-5" weight="bold" />
@@ -135,8 +135,9 @@ export const CustomerStatementModal: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Modal Scroll Body */}
-        <div className="p-4 sm:p-6 max-h-[calc(85vh-130px)] overflow-y-auto">
+        {/* Modal Scroll Body — only scrolls when content genuinely exceeds
+            the panel's own max-h-[90vh] cap, not on a fixed guess */}
+        <div className="p-4 sm:p-6 flex-1 overflow-y-auto overscroll-contain">
           {viewMode === 'a4' ? (
             <div
               id="statement-sheet-print-area"

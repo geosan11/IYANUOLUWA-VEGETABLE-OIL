@@ -818,7 +818,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
               </span>
             </div>
 
-            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+            <div className="space-y-2">
               {targetPumps.map((p, idx) => {
                 const prod = products.find(pr => pr.id === p.product_id);
                 return (
@@ -943,7 +943,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                 </span>
               </div>
 
-              <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+              <div className="space-y-2.5">
                 {targetPumps.map((p, idx) => {
                   const currentInput = closeShiftPumpInputs[p.id] ?? '';
                   const prod = products.find(pr => pr.id === p.product_id);
