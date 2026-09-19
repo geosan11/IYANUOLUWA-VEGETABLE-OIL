@@ -15,7 +15,7 @@ interface SidebarProps {
 
 const OPERATIONS_IDS = ['dashboard', 'order', 'ledger', 'customers'];
 const DEPOT_IDS = ['pumps', 'intake', 'kegs', 'inventory'];
-const MANAGEMENT_IDS = ['expenses', 'ai-advisor', 'settings'];
+const MANAGEMENT_IDS = ['expenses', 'ai-advisor', 'staff', 'settings'];
 
 const LABEL_OVERRIDES: Record<string, string> = {
   dashboard: 'Dashboard',
@@ -28,6 +28,7 @@ const LABEL_OVERRIDES: Record<string, string> = {
   inventory: 'Products & pricing',
   expenses: 'Expenses & float',
   'ai-advisor': 'AI Advisor',
+  staff: 'Staff Management',
   settings: 'Settings'
 };
 
