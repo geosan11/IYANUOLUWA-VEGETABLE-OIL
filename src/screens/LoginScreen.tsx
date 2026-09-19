@@ -110,16 +110,20 @@ export const LoginScreen: React.FC = () => {
 
             <div className="space-y-1">
               <label htmlFor="login-email" className="text-[11px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block">
-                Email
+                {mode === 'sign-in' ? 'Email or Username' : 'Email'}
               </label>
               <div className="relative">
                 <Envelope className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                 <input
                   id="login-email"
-                  type="email"
+                  // Sign-in accepts a plain username (owner-created staff
+                  // accounts have no real email) as well as a real email, so
+                  // it can't be type="email" — the browser would block
+                  // submitting a bare username as invalid.
+                  type={mode === 'sign-in' ? 'text' : 'email'}
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="you@depot.com"
+                  placeholder={mode === 'sign-in' ? 'you@depot.com or username' : 'you@depot.com'}
                   autoComplete="username"
                   required
                   className="depot-input pl-10"

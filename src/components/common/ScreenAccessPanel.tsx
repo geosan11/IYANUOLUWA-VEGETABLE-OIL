@@ -1,10 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { listAllProfiles, updateProfileAccess, inviteUser, AuthProfile } from '../../services/auth';
+import { listAllProfiles, updateProfileAccess, createStaffAccount, AuthProfile } from '../../services/auth';
 import { useStore } from '../../services/store';
 import { useToast } from '../../services/toast';
 import { NAV_ITEMS, getVisibleNavItems } from '../../constants/nav';
 import type { UserRole } from '../../types';
-import { ShieldCheck, ArrowsClockwise, Check, WarningCircle, PaperPlaneTilt, Plus } from '@phosphor-icons/react';
+import { ShieldCheck, ArrowsClockwise, Check, WarningCircle, IdentificationBadge, Plus } from '@phosphor-icons/react';
+
+/** Same sanitizer the create-staff-account Edge Function applies server-side
+ * — mirrored here purely so the username preview shown while typing matches
+ * what actually gets created. */
+const sanitizeUsername = (raw: string) =>
+  raw.trim().toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9._-]/g, '');
 
 const ROLE_OPTIONS: { id: UserRole; label: string }[] = [
   { id: 'owner', label: 'Owner' },
@@ -40,7 +46,8 @@ export const ScreenAccessPanel: React.FC = () => {
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteName, setInviteName] = useState('');
-  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteUsername, setInviteUsername] = useState('');
+  const [invitePassword, setInvitePassword] = useState('');
   const [inviteRole, setInviteRole] = useState<UserRole>('staff');
   const [inviteHubId, setInviteHubId] = useState<string>('');
   const [inviteSending, setInviteSending] = useState(false);
@@ -95,8 +102,10 @@ export const ScreenAccessPanel: React.FC = () => {
     e.preventDefault();
     setInviteSending(true);
     setInviteMessage(null);
-    const { error } = await inviteUser(
-      inviteEmail.trim(),
+    const username = sanitizeUsername(inviteUsername);
+    const { error } = await createStaffAccount(
+      username,
+      invitePassword,
       inviteRole,
       inviteRole === 'owner' ? null : inviteHubId || null,
       null,
@@ -108,11 +117,12 @@ export const ScreenAccessPanel: React.FC = () => {
       showToast('error', error);
       return;
     }
-    const okMsg = `Invite sent to ${inviteEmail.trim()}. They'll appear below once they accept it.`;
+    const okMsg = `Account created for "${username}". Give them the username and password directly — they can sign in right away.`;
     setInviteMessage({ kind: 'ok', text: okMsg });
     showToast('success', okMsg);
     setInviteName('');
-    setInviteEmail('');
+    setInviteUsername('');
+    setInvitePassword('');
     setInviteRole('staff');
     setInviteHubId('');
   };
@@ -151,7 +161,7 @@ export const ScreenAccessPanel: React.FC = () => {
         <div>
           <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
-            <span>8. Team Members &amp; Screen Access</span>
+            <span>Team Members &amp; Screen Access</span>
           </h3>
           <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
             Real signed-in accounts. Set exactly which screens each person can see, or leave a role
@@ -165,7 +175,7 @@ export const ScreenAccessPanel: React.FC = () => {
             className="px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-sans font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
           >
             <Plus className="w-4 h-4" weight="bold" />
-            <span>Invite New Member</span>
+            <span>Add Team Member</span>
           </button>
           <button
             type="button"
@@ -181,25 +191,36 @@ export const ScreenAccessPanel: React.FC = () => {
       {inviteOpen && (
         <form onSubmit={submitInvite} className="p-4 rounded-xl bg-cyan-50/60 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-900/60 space-y-3">
           <div className="flex items-center gap-2 text-xs font-sans font-bold text-cyan-800 dark:text-cyan-300">
-            <PaperPlaneTilt className="w-4 h-4" weight="bold" />
-            <span>Send a real sign-up invite by email</span>
+            <IdentificationBadge className="w-4 h-4" weight="bold" />
+            <span>Set a username &amp; password for them — no email invite needed</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             <input
               type="text"
               value={inviteName}
               onChange={e => setInviteName(e.target.value)}
               placeholder="Full name"
-              className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-sans sm:col-span-1"
+              className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-sans"
             />
             <input
-              type="email"
+              type="text"
               required
-              value={inviteEmail}
-              onChange={e => setInviteEmail(e.target.value)}
-              placeholder="teammate@example.com"
-              className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-sans sm:col-span-1"
+              value={inviteUsername}
+              onChange={e => setInviteUsername(e.target.value)}
+              placeholder="Username (e.g. musa.b)"
+              className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-sans"
             />
+            <input
+              type="text"
+              required
+              minLength={6}
+              value={invitePassword}
+              onChange={e => setInvitePassword(e.target.value)}
+              placeholder="Password (min 6 characters)"
+              className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-sans font-mono"
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <select
               value={inviteRole}
               onChange={e => setInviteRole(e.target.value as UserRole)}
@@ -226,6 +247,11 @@ export const ScreenAccessPanel: React.FC = () => {
               </select>
             )}
           </div>
+          {inviteUsername && (
+            <p className="text-[11px] font-sans text-cyan-700 dark:text-cyan-400">
+              They'll sign in with username <strong className="font-mono">{sanitizeUsername(inviteUsername) || '—'}</strong> and the password you set.
+            </p>
+          )}
           <div className="flex items-center justify-between gap-2">
             {inviteMessage && (
               <span className={`text-[11px] font-sans ${inviteMessage.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>

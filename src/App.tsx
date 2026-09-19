@@ -23,6 +23,7 @@ import { InventoryScreen } from './screens/InventoryScreen';
 import { PumpsScreen } from './screens/PumpsScreen';
 import { ExpensesScreen } from './screens/ExpensesScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
+import { StaffManagementScreen } from './screens/StaffManagementScreen';
 import { AIAdvisorScreen } from './screens/AIAdvisorScreen';
 import { TransactionLedgerScreen } from './screens/TransactionLedgerScreen';
 
@@ -94,6 +95,8 @@ const MainLayout: React.FC = () => {
         return <InventoryScreen />;
       case 'expenses':
         return <ExpensesScreen />;
+      case 'staff':
+        return <StaffManagementScreen />;
       case 'settings':
         return <SettingsScreen />;
       default:

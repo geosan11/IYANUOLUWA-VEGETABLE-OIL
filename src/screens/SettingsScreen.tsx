@@ -3,7 +3,6 @@ import { useStore } from '../services/store';
 import { useToast } from '../services/toast';
 import { usePermissions } from '../services/permissions';
 import { Modal } from '../components/common/Modal';
-import { ScreenAccessPanel } from '../components/common/ScreenAccessPanel';
 import { uploadDepotLogo, isSupabaseConfigured } from '../services/supabase';
 import { formatNaira } from '../services/businessLogic';
 import {
@@ -2217,10 +2216,11 @@ export const SettingsScreen: React.FC = () => {
 
           {activeDesktopTab === 'users' && (
           <div className="space-y-6">
-            {/* 8. TEAM & USER ACCESS CONTROL — local/offline-only roster.
+            {/* TEAM & USER ACCESS CONTROL — local/offline-only roster.
                 This has no Supabase account behind it (no login, no password),
                 so it only makes sense to show when there's no real account
-                system to manage instead (see ScreenAccessPanel below). */}
+                system to manage instead — that now lives on its own
+                owner-only Staff Management screen (see StaffManagementScreen). */}
             {!isSupabaseConfigured && (
             <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
@@ -2393,8 +2393,6 @@ export const SettingsScreen: React.FC = () => {
               </div>
             </div>
             )}
-
-            {isSupabaseConfigured && <ScreenAccessPanel />}
           </div>
           )}
         </div>

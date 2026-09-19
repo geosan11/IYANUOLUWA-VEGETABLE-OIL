@@ -4,6 +4,7 @@ import {
   Truck,
   PlusCircle,
   Users,
+  UserPlus,
   Package,
   Stack,
   Invoice,
@@ -19,6 +20,10 @@ export interface NavItem {
   label: string;
   icon: Icon;
   adminOnly?: boolean;
+  /** Hard owner-exclusive — never grantable to anyone else via allowed_screens
+   * (creating accounts / assigning roles is a privilege-escalation surface,
+   * unlike the softer adminOnly screens which an owner can hand out). */
+  ownerOnly?: boolean;
 }
 
 /** Single source of truth for the app's top-level destinations. */
@@ -33,6 +38,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'inventory', label: 'Products & Pricing', icon: Stack, adminOnly: true },
   { id: 'expenses', label: 'Expenses & Float', icon: Invoice },
   { id: 'ai-advisor', label: 'AI Advisor', icon: Sparkle, adminOnly: true },
+  { id: 'staff', label: 'Staff Management', icon: UserPlus, adminOnly: true, ownerOnly: true },
   { id: 'settings', label: 'Settings', icon: Gear, adminOnly: true }
 ];
 
@@ -40,14 +46,17 @@ export const NAV_ITEMS: NavItem[] = [
  * Which nav items a signed-in user gets to see.
  * - Owner: always everything (no way to lock the owner out of a screen).
  * - Everyone else with an explicit `allowed_screens` list on their profile:
- *   exactly those screens, however many/few — this is the per-user override.
+ *   exactly those screens, however many/few — this is the per-user override
+ *   — except `ownerOnly` screens, which never appear for a non-owner even
+ *   if somehow listed there.
  * - Everyone else with no list set (`null`/`undefined`/empty): the old
  *   role default — every screen except the ones marked `adminOnly`.
  */
 export function getVisibleNavItems(role: UserRole, allowedScreens?: string[] | null): NavItem[] {
   if (role === 'owner') return NAV_ITEMS;
+  const base = NAV_ITEMS.filter(item => !item.ownerOnly);
   if (allowedScreens !== null && allowedScreens !== undefined) {
-    return NAV_ITEMS.filter(item => allowedScreens.includes(item.id));
+    return base.filter(item => allowedScreens.includes(item.id));
   }
-  return NAV_ITEMS.filter(item => !item.adminOnly);
+  return base.filter(item => !item.adminOnly);
 }

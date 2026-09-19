@@ -23,6 +23,27 @@ async function describeFunctionsError(error: unknown): Promise<string> {
   return error instanceof Error ? error.message : 'Something went wrong.';
 }
 
+// Keep in sync with STAFF_LOGIN_DOMAIN in supabase/functions/create-staff-account/index.ts.
+const STAFF_LOGIN_DOMAIN = 'staff.iyanuoluwa.local';
+
+/**
+ * The login field accepts either a real email (owner, self-signed-up
+ * accounts) or a bare username (staff/driver accounts the owner created
+ * directly in Team Members, which have no real email — see
+ * create-staff-account). Anything without an "@" is treated as a username
+ * and mapped to the same synthetic address the Edge Function created it
+ * under.
+ */
+function resolveLoginIdentifier(input: string): string {
+  const trimmed = input.trim();
+  if (trimmed.includes('@')) return trimmed.toLowerCase();
+  const username = trimmed
+    .toLowerCase()
+    .replace(/\s+/g, '.')
+    .replace(/[^a-z0-9._-]/g, '');
+  return `${username}@${STAFF_LOGIN_DOMAIN}`;
+}
+
 export interface AuthProfile {
   id: string;
   role: UserRole;
@@ -84,6 +105,36 @@ export async function inviteUser(
       allowed_screens: allowedScreens,
       full_name: fullName?.trim() || null,
       redirectTo: `${window.location.origin}/`
+    }
+  });
+  if (error) return { error: await describeFunctionsError(error) };
+  if (data?.error) return { error: data.error };
+  return { error: null };
+}
+
+/**
+ * Owner-only: creates a team member's account directly with a username and
+ * password the owner sets — no email invite round-trip. Used in place of
+ * `inviteUser` in the Team Members UI for staff who don't have easy email
+ * access; the owner hands them the username/password themselves.
+ */
+export async function createStaffAccount(
+  username: string,
+  password: string,
+  role: UserRole,
+  hubId: string | null,
+  allowedScreens: string[] | null,
+  fullName?: string | null
+): Promise<{ error: string | null }> {
+  if (!supabase) return { error: 'Supabase is not configured for this deployment.' };
+  const { data, error } = await supabase.functions.invoke('create-staff-account', {
+    body: {
+      username,
+      password,
+      role,
+      hub_id: hubId,
+      allowed_screens: allowedScreens,
+      full_name: fullName?.trim() || null
     }
   });
   if (error) return { error: await describeFunctionsError(error) };
@@ -161,9 +212,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => sub.subscription.unsubscribe();
   }, [fetchProfile]);
 
-  const signIn = useCallback(async (email: string, password: string): Promise<AuthResult> => {
+  const signIn = useCallback(async (emailOrUsername: string, password: string): Promise<AuthResult> => {
     if (!supabase) return { error: 'Supabase is not configured for this deployment.' };
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: resolveLoginIdentifier(emailOrUsername),
+      password
+    });
     return { error: error?.message ?? null };
   }, []);
 

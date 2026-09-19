@@ -1,5 +1,36 @@
 # Supabase Edge Functions
 
+## `create-staff-account`
+
+Lets an owner set a **username + password directly** for a new team member —
+no email invite round-trip. Supabase Auth still requires a unique email per
+account, so the username is turned into a synthetic address
+(`<username>@staff.iyanuoluwa.local`) that's never used for real email — the
+owner just tells the person their username and password directly. This is
+the account-creation path used today (Staff Management screen, owner-only);
+`invite-user` (below) remains available for real email invites if ever
+needed again, but nothing in the UI calls it currently.
+
+### Deploy (or redeploy after any edit to `create-staff-account/index.ts`)
+
+```bash
+supabase functions deploy create-staff-account
+```
+
+Same zero-extra-secrets setup as `invite-user` below — deploy it the same
+way, from a repo already linked to your Supabase project.
+
+### What the app does with it
+
+`src/services/auth.tsx`'s `createStaffAccount()` calls this function. It's
+wired into the "Add Team Member" form in
+`src/components/common/ScreenAccessPanel.tsx`, rendered on the owner-only
+**Staff Management** screen (`src/screens/StaffManagementScreen.tsx`).
+`src/services/auth.tsx`'s `signIn()` resolves whatever's typed on the login
+screen — a real email, or a bare username — into the right identifier before
+calling Supabase; the two must stay in sync (`STAFF_LOGIN_DOMAIN` in
+`auth.tsx` and the same constant inside this function's `index.ts`).
+
 ## `invite-user`
 
 Sends a real Supabase auth invite (email + set-password link) to a new team

@@ -16,7 +16,8 @@ Postgres target the app will migrate onto.
 | `supabase/migrations/0008_relational_hardening.sql` | Relational-integrity audit fixes: RLS on `sale_payments`, `hub_isolation_transfers`, narrows `hub_isolation_pumps`/`hub_isolation_physical_tanks` to read-only, missing FK indexes. |
 | `supabase/migrations/0009_hub_id_text.sql` | Every `hub_id`/`from_hub_id`/`to_hub_id` column: `uuid` FK into the unused `hubs` table → plain client-supplied `text`, matching every other id in this schema. Fixes inviting a user into one of the app's real hubs (`'hub-los-alaba'` etc.) failing with `invalid input syntax for type uuid`. |
 | `supabase/seed.sql` | Demo data mirroring the seed constants in `src/constants/config.ts`. |
-| `supabase/functions/invite-user/` | Edge Function: sends a real Supabase auth invite email to a new team member and sets their role/hub/screen access. Needs a one-time `supabase functions deploy invite-user` — see `supabase/functions/README.md`. |
+| `supabase/functions/create-staff-account/` | Edge Function (in active use): owner sets a username + password directly for a new team member, no email required — maps the username to a synthetic address under the hood. Deploy: `supabase functions deploy create-staff-account`. |
+| `supabase/functions/invite-user/` | Edge Function (built, not currently wired into the UI): sends a real Supabase auth invite email to a new team member and sets their role/hub/screen access. Deploy: `supabase functions deploy invite-user` — see `supabase/functions/README.md`. |
 
 > A pre-existing `schema/*.sql` folder in the repo root is an earlier, partial,
 > internally inconsistent draft (uuid PKs, only 13 tables, `litres_per_ton`
