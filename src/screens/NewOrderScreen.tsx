@@ -293,6 +293,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
   const selectSellKegs = () => {
     setIsKegOnlyMode(true);
+    setVarietyId(product?.varieties[0]?.id || '');
     setPumpId('');
     setPackSizeId('sz_25');
     setQty(1);
@@ -318,7 +319,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
       tier,
       qty,
       containerMode: effectiveContainerMode,
-      overrideUnitPrice: overrideOn && overrideValue ? Number(overrideValue) : null,
+      overrideUnitPrice: overrideOn && overrideValue ? parseFromCommas(overrideValue) : null,
       packPrices,
       kegOnly: isKegOnlyMode
     });
@@ -332,7 +333,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   // Partial mode calculations
   const partialDepositNum = parseFromCommas(partialDepositAmount);
   const partialDebtNum = Math.max(0, Number((cartTotal - partialDepositNum).toFixed(2)));
-  const partialTenderedNum = parseFromCommas(partialTendered) || partialDepositNum;
+  const partialTenderedNum = partialTendered === '' ? partialDepositNum : parseFromCommas(partialTendered);
   const partialChangeDue = partialDepositMethod === 'cash' ? Math.max(0, partialTenderedNum - partialDepositNum) : 0;
   const partialShortTender = partialDepositMethod === 'cash' && partialTendered !== '' && partialTenderedNum < partialDepositNum;
 
@@ -344,11 +345,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   const splitOver = Math.max(0, Number((splitTotalAssigned - cartTotal).toFixed(2)));
   const isSplitBalanced = cartTotal > 0 && Math.abs(splitTotalAssigned - cartTotal) < 0.01;
 
-  const splitLeg1TenderedNum = parseFromCommas(splitLeg1Tendered) || splitLeg1Num;
+  const splitLeg1TenderedNum = splitLeg1Tendered === '' ? splitLeg1Num : parseFromCommas(splitLeg1Tendered);
   const splitLeg1ChangeDue = splitLeg1Method === 'cash' ? Math.max(0, splitLeg1TenderedNum - splitLeg1Num) : 0;
   const splitLeg1ShortTender = splitLeg1Method === 'cash' && splitLeg1Tendered !== '' && splitLeg1TenderedNum < splitLeg1Num;
 
-  const splitLeg2TenderedNum = parseFromCommas(splitLeg2Tendered) || splitLeg2Num;
+  const splitLeg2TenderedNum = splitLeg2Tendered === '' ? splitLeg2Num : parseFromCommas(splitLeg2Tendered);
   const splitLeg2ChangeDue = splitLeg2Method === 'cash' ? Math.max(0, splitLeg2TenderedNum - splitLeg2Num) : 0;
   const splitLeg2ShortTender = splitLeg2Method === 'cash' && splitLeg2Tendered !== '' && splitLeg2TenderedNum < splitLeg2Num;
 
@@ -1522,6 +1523,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       if (isKegOnlyMode) {
                         setIsKegOnlyMode(false);
                         setPackSizeId('');
+                        setQty(1);
+                        setOverrideOn(false);
+                        setOverrideValue('');
+                        setPriceReason('');
                       } else {
                         selectSellKegs();
                       }

@@ -391,99 +391,17 @@ export const DEFAULT_SUPPLIERS: Supplier[] = [
   { id: 'sup-4', name: 'Ondo Local Palm Producers', phone: '+234 809 400 5000' }
 ];
 
-export const DEFAULT_PHYSICAL_TANKS: PhysicalTank[] = [
-  { id: 'pt-1', label: 'Yard Tank 1 (Bulk Veg - 30,000L)', product_id: 'veg', capacity_litres: 30000, notes: 'Main East yard bulk vertical tank', hub_id: 'hub-los-alaba' },
-  { id: 'pt-2', label: 'Yard Tank 2 (Reserve Veg - 20,000L)', product_id: 'veg', capacity_litres: 20000, notes: 'Secondary West yard tank', hub_id: 'hub-los-alaba' },
-  { id: 'pt-3', label: 'Yard Tank 3 (Palm Decanting - 15,000L)', product_id: 'red', capacity_litres: 15000, notes: 'Dedicated decanting vessel for palm deliveries', hub_id: 'hub-los-alaba' },
-  { id: 'pt-4', label: 'Ikeja Tank 1 (Bulk Veg - 25,000L)', product_id: 'veg', capacity_litres: 25000, notes: 'Ikeja main bulk storage', hub_id: 'hub-los-ikeja' },
-  { id: 'pt-5', label: 'Ikeja Tank 2 (Palm Storage - 10,000L)', product_id: 'red', capacity_litres: 10000, notes: 'Ikeja palm oil decanting tank', hub_id: 'hub-los-ikeja' }
-];
+// No pre-existing yard tanks — each hub registers its own physical tanks
+// from scratch (Settings -> Tanks, Pumps & Suppliers).
+export const DEFAULT_PHYSICAL_TANKS: PhysicalTank[] = [];
 
-export const DEFAULT_PUMPS: Pump[] = [
-  {
-    id: 'p-1',
-    label: 'Pump 1 (Golden Vegetable Oil)',
-    product_id: 'veg',
-    last_meter_reading: 12450,
-    physical_tank_id: 'pt-1',
-    hub_id: 'hub-los-alaba'
-  },
-  {
-    id: 'p-2',
-    label: 'Pump 2 (Golden Vegetable Oil)',
-    product_id: 'veg',
-    last_meter_reading: 8920,
-    physical_tank_id: 'pt-1',
-    hub_id: 'hub-los-alaba'
-  },
-  {
-    id: 'p-3',
-    label: 'Pump 3 (Golden Vegetable Oil)',
-    product_id: 'veg',
-    last_meter_reading: 5310,
-    physical_tank_id: 'pt-2',
-    hub_id: 'hub-los-alaba'
-  },
-  {
-    id: 'p-4',
-    label: 'Ikeja Dispenser 1 (Golden Veg)',
-    product_id: 'veg',
-    last_meter_reading: 3400,
-    physical_tank_id: 'pt-4',
-    hub_id: 'hub-los-ikeja'
-  },
-  {
-    id: 'p-5',
-    label: 'Ikeja Dispenser 2 (Red Palm)',
-    product_id: 'red',
-    last_meter_reading: 1850,
-    physical_tank_id: 'pt-5',
-    hub_id: 'hub-los-ikeja'
-  }
-];
+// No pre-existing pumps — each hub adds its own pumps individually
+// (Pumps screen). Nothing ships pre-attached to any hub.
+export const DEFAULT_PUMPS: Pump[] = [];
 
-export const SEED_PUMP_READINGS: PumpReading[] = [
-  {
-    id: 'pr-1',
-    pump_id: 'p-1',
-    reading: 11160,
-    recorded_at: '2026-08-01T06:00:00Z',
-    note: 'Monthly baseline calibration',
-    hub_id: 'hub-los-alaba'
-  },
-  {
-    id: 'pr-2',
-    pump_id: 'p-1',
-    reading: 12450,
-    recorded_at: '2026-09-08T07:00:00Z',
-    note: 'Morning shift meter verification',
-    hub_id: 'hub-los-alaba'
-  },
-  {
-    id: 'pr-3',
-    pump_id: 'p-2',
-    reading: 8920,
-    recorded_at: '2026-09-08T07:00:00Z',
-    note: 'Morning shift meter verification',
-    hub_id: 'hub-los-alaba'
-  },
-  {
-    id: 'pr-4',
-    pump_id: 'p-3',
-    reading: 5310,
-    recorded_at: '2026-09-08T07:00:00Z',
-    note: 'Morning shift meter verification',
-    hub_id: 'hub-los-alaba'
-  },
-  {
-    id: 'pr-5',
-    pump_id: 'p-4',
-    reading: 3400,
-    recorded_at: '2026-09-08T07:00:00Z',
-    note: 'Morning shift meter verification',
-    hub_id: 'hub-los-ikeja'
-  }
-];
+// No pre-existing meter readings — there are no seed pumps left to log
+// readings against; each hub's pump history starts blank.
+export const SEED_PUMP_READINGS: PumpReading[] = [];
 
 export const ONE_TIME_CUSTOMER_ID = 'cust-walkin';
 export const ONE_TIME_CUSTOMER: Customer = {
@@ -567,65 +485,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
 };
 
 // Seed initial tanks to show working depot operation
-export const SEED_TANKS: Tank[] = [
-  {
-    id: 'tank-v1',
-    product_id: 'veg',
-    truck_label: 'Truck 1 · AAA-123-XB (Alhaji Musa)',
-    tons: 15,
-    received_litres: 16125,
-    remaining_litres: 15435,
-    date: '2026-09-01T08:00:00Z',
-    shortfall: 0,
-    supplier_id: 'sup-1',
-    physical_tank_id: 'pt-1',
-    supply_model: 'bulk_truck',
-    hub_id: 'hub-los-alaba'
-  },
-  {
-    id: 'tank-v2',
-    product_id: 'veg',
-    truck_label: 'Truck 2 · KJA-492-XA (Emeka Obi)',
-    tons: 10,
-    received_litres: 10750,
-    remaining_litres: 10750,
-    date: '2026-09-06T10:30:00Z',
-    shortfall: 20,
-    supplier_id: 'sup-3',
-    physical_tank_id: 'pt-2',
-    supply_model: 'bulk_truck',
-    hub_id: 'hub-los-alaba'
-  },
-  {
-    id: 'tank-r1',
-    product_id: 'red',
-    truck_label: 'Truck Red · OGL-881-ZZ (Babatunde)',
-    tons: 0,
-    received_litres: 12500,
-    remaining_litres: 12250,
-    date: '2026-09-03T11:00:00Z',
-    shortfall: 0,
-    supplier_id: 'sup-2',
-    physical_tank_id: 'pt-3',
-    supply_model: 'pre_kegged',
-    space_note: 'Filled 1 decanting tank',
-    hub_id: 'hub-los-alaba'
-  },
-  {
-    id: 'tank-ikj-1',
-    product_id: 'veg',
-    truck_label: 'Truck 3 · IKD-552-XY (Ikeja Haulage)',
-    tons: 12,
-    received_litres: 12900,
-    remaining_litres: 11200,
-    date: '2026-09-02T09:00:00Z',
-    shortfall: 0,
-    supplier_id: 'sup-1',
-    physical_tank_id: 'pt-4',
-    supply_model: 'bulk_truck',
-    hub_id: 'hub-los-ikeja'
-  }
-];
+// No pre-existing stock intake — each hub's tank stock starts empty until
+// its own truck/pre-kegged intake is logged against its own physical tanks.
+export const SEED_TANKS: Tank[] = [];
 
 /* ------------------------------------------------------------------ *
  * SEED SALES + LINES — pack-size model

@@ -12,7 +12,9 @@ import {
   toDatetimeLocalValue,
   fromDatetimeLocalValue,
   formatWithCommas,
-  parseFromCommas
+  parseFromCommas,
+  depotDateKey,
+  getDepotToday
 } from '../services/businessLogic';
 import {
   CheckCircle,
@@ -124,7 +126,10 @@ export const TruckIntakeScreen: React.FC = () => {
   );
 
   const shiftTotalLoss = useMemo(() => {
-    return tanks.reduce((sum, t) => sum + (t.shortfall || 0), 0);
+    const todayStr = getDepotToday();
+    return tanks
+      .filter(t => depotDateKey(t.date) === todayStr)
+      .reduce((sum, t) => sum + (t.shortfall || 0), 0);
   }, [tanks]);
 
   // Reset form
@@ -199,7 +204,7 @@ export const TruckIntakeScreen: React.FC = () => {
           productId,
           truckLabel: fullTruckLabel,
           supplierId,
-          physicalTankId: physicalTankId || undefined,
+          physicalTankId: currentSelectedTank?.id || undefined,
           spaceNote: spaceNote.trim() || undefined,
           tons: parsedTons,
           actualKegs: parseFromCommas(actualKegs) || 0,
@@ -719,6 +724,15 @@ export const TruckIntakeScreen: React.FC = () => {
                         Notice: Deficit exceeds standard ±{settings.truck_shortfall_threshold}L tolerance. Please notify Supervisor before signing the waybill.
                       </p>
                     )}
+
+                    {bulkMetrics.exceedsDepotKegCapacity && (
+                      <p className="text-[11px] font-sans font-semibold text-amber-700 dark:text-amber-300 mt-1 flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" weight="bold" />
+                        <span>
+                          Warning: This delivery needs ≈{Math.ceil(bulkMetrics.expectedKegs).toLocaleString()} kegs to decant, but only {kegInventory.kegsAtDepot.toLocaleString()} are available at depot. Arrange more empty kegs before offloading.
+                        </span>
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <div className="p-4 rounded-xl border-2 border-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 flex items-center justify-between">
@@ -822,11 +836,11 @@ export const TruckIntakeScreen: React.FC = () => {
               <div className="mt-2.5 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border-2 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 space-y-1.5 leading-relaxed">
                 <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-semibold">
                   <CheckCircle className="w-3.5 h-3.5 shrink-0" weight="bold" />
-                  <span>Normal Tolerance: Within ±50 Litres of waybill is automatic pass.</span>
+                  <span>Normal Tolerance: Within ±{settings.truck_shortfall_threshold} Litres of waybill is automatic pass.</span>
                 </div>
                 <div className="flex items-center gap-2 text-rose-700 dark:text-rose-400 font-semibold">
                   <AlertTriangle className="w-3.5 h-3.5 shrink-0" weight="bold" />
-                  <span>Shortfall Alert: If deficit exceeds 50 Litres, notify Supervisor before signing waybill.</span>
+                  <span>Shortfall Alert: If deficit exceeds {settings.truck_shortfall_threshold} Litres, notify Supervisor before signing waybill.</span>
                 </div>
               </div>
             </details>
@@ -939,7 +953,7 @@ export const TruckIntakeScreen: React.FC = () => {
                   {shiftTotalLoss <= settings.truck_shortfall_threshold ? (
                     <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                       <CheckCircle className="w-3.5 h-3.5" weight="bold" />
-                      <span>Within ±50L Tolerance</span>
+                      <span>Within ±{settings.truck_shortfall_threshold}L Tolerance</span>
                     </span>
                   ) : (
                     <span className="text-rose-600 dark:text-rose-400 flex items-center gap-1">
@@ -995,12 +1009,14 @@ export const TruckIntakeScreen: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {physicalTanks.map((pt, idx) => {
-                const liveLitres = tanks
-                  .filter(t => t.physical_tank_id === pt.id)
-                  .reduce((s, t) => s + t.remaining_litres, 0);
+              {physicalTanks.map((pt) => {
+                const tanksForThisPT = tanks.filter(t => t.physical_tank_id === pt.id);
+                const liveLitres = tanksForThisPT.reduce((s, t) => s + t.remaining_litres, 0);
                 const pct = Math.min(100, Math.round((liveLitres / pt.capacity_litres) * 100));
-                const sup = suppliers[idx % suppliers.length];
+                const mostRecentBatch = [...tanksForThisPT].sort(
+                  (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+                )[0];
+                const sup = suppliers.find(s => s.id === mostRecentBatch?.supplier_id);
 
                 return (
                   <div key={pt.id} className="depot-card p-5 flex flex-col justify-between border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">

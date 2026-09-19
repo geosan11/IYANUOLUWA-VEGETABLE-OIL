@@ -41,6 +41,10 @@ interface DashboardScreenProps {
   onNavigate: (tab: string) => void;
 }
 
+// Cycled by product index so an arbitrary number of products each get a
+// distinct, stable accent color instead of a hardcoded veg/red pair.
+const PRODUCT_ACCENT_COLORS = ['#F59E0B', '#EF4444', '#0EA5E9', '#8B5CF6', '#10B981', '#EC4899'];
+
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) => {
   const {
     todayStats,
@@ -49,6 +53,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     kegInventory,
     tanks,
     pumps,
+    physicalTanks,
     pumpVarianceAudits,
     orders,
     expenses,
@@ -65,25 +70,44 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   const { can } = usePermissions();
   const { showToast } = useToast();
 
-  const vegStock = tankStockByProduct['veg']?.totalLitres || 0;
-  const redStock = tankStockByProduct['red']?.totalLitres || 0;
-
   const todayStr = getDepotToday();
   const isDesktop = useIsDesktopSplit();
   const DisclosureContainer = isDesktop ? SlideOverDrawer : BottomSheet;
 
-  const vegProduct = products.find(p => p.id === 'veg') || products[0];
-  const redProduct = products.find(p => p.id === 'red') || products[1] || products[0];
-  const vegLitresPerKeg = vegProduct?.litres_per_keg || 25;
-  const redLitresPerKeg = redProduct?.litres_per_keg || 25;
+  const pumpLitresToday = (productId?: string | null) =>
+    orders
+      .filter(o => !o.voided && depotDateKey(o.date) === todayStr && o.product_id === productId)
+      .reduce((sum, o) => sum + Number(o.litres || 0), 0);
 
-  const vegKegsSoldToday = orders
-    .filter(o => !o.voided && depotDateKey(o.date) === todayStr && o.product_id === 'veg')
-    .reduce((sum, o) => sum + Number(o.qty || 0), 0);
+  const accentColorFor = (productId?: string | null) => {
+    const idx = products.findIndex(p => p.id === productId);
+    return PRODUCT_ACCENT_COLORS[idx >= 0 ? idx % PRODUCT_ACCENT_COLORS.length : 0];
+  };
 
-  const redKegsSoldToday = orders
-    .filter(o => !o.voided && depotDateKey(o.date) === todayStr && o.product_id === 'red')
-    .reduce((sum, o) => sum + Number(o.qty || 0), 0);
+  // One stock summary per configured product — drives the "Volumetric Tanks
+  // Level Overview" cards below, so adding/removing a product (or deleting
+  // the seed 'veg'/'red' ones) is reflected automatically instead of the
+  // dashboard silently keeping two hardcoded slots.
+  const productStockSummaries = products.map(p => {
+    const isKegModel = p.supply_model === 'pre_kegged';
+    const stock = tankStockByProduct[p.id]?.totalLitres || 0;
+    const litresPerKeg = p.litres_per_keg || 25;
+    const kegsSoldToday = orders
+      .filter(o => !o.voided && depotDateKey(o.date) === todayStr && o.product_id === p.id)
+      .reduce((sum, o) => sum + Number(o.qty || 0), 0);
+    const configuredCapacity = physicalTanks
+      .filter(pt => pt.product_id === p.id)
+      .reduce((sum, pt) => sum + (pt.capacity_litres || 0), 0);
+    return {
+      product: p,
+      isKegModel,
+      stock,
+      litresPerKeg,
+      kegsSoldToday,
+      capacity: configuredCapacity > 0 ? configuredCapacity : (isKegModel ? 15000 : 30000),
+      accentColor: accentColorFor(p.id)
+    };
+  });
 
   // Time-of-day greeting, Lagos-local
   const greeting = useMemo(() => {
@@ -814,21 +838,18 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         {pumps[0] && (
           <PumpOdometerIllustration
             pumpName={pumps[0].label}
-            openingReading={pumps[0].last_meter_reading - 1250}
+            openingReading={pumps[0].last_meter_reading - pumpLitresToday(pumps[0].product_id)}
             currentReading={pumps[0].last_meter_reading}
-            recordedSalesLitres={1250}
-            tankName="Main Storage Tank"
+            recordedSalesLitres={pumpLitresToday(pumps[0].product_id)}
+            tankName={physicalTanks.find(t => t.id === pumps[0].physical_tank_id)?.label || 'Main Storage Tank'}
             isCompact={true}
           />
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
           {pumps.map(pump => {
-            const isVeg = pump.product_id === 'veg';
-            
-            const todayPumpLitres = orders
-              .filter(o => !o.voided && depotDateKey(o.date) === todayStr && o.product_id === pump.product_id)
-              .reduce((sum, o) => sum + Number(o.litres || 0), 0);
+            const pumpAccentColor = accentColorFor(pump.product_id);
+            const todayPumpLitres = pumpLitresToday(pump.product_id);
 
             const pumpAudits = pumpVarianceAudits.filter(a => a.pumpId === pump.id);
             const latestAudit = pumpAudits[pumpAudits.length - 1];
@@ -847,7 +868,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   <span className="font-heading font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
                     <span
                       className="w-2.5 h-2.5 rounded-full"
-                      style={{ backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }}
+                      style={{ backgroundColor: pumpAccentColor }}
                     />
                     <span>{pump.label}</span>
                   </span>
@@ -1240,176 +1261,146 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
       {/* Volumetric Tanks Level Overview Grid — Positioned at Bottom of Page */}
       <div className="grid grid-cols-1 split:grid-cols-2 gap-6">
-        {/* Golden Vegetable Oil Active Tanks Overview */}
-        <div className="p-5 sm:p-6 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col justify-between">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-3.5 h-3.5 rounded-full bg-amber-500 shadow-sm shadow-amber-500/50" />
-              <div>
-                <h3 className="text-base font-heading font-bold text-slate-900 dark:text-white">
-                  Golden Vegetable Oil Tanks
-                </h3>
-                <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
-                  First-In, First-Out: Oldest oil delivered is dispensed first.
-                </p>
-              </div>
-            </div>
-            <div className="text-right font-mono tabular-nums space-y-0.5">
-              <div className="text-xl font-mono font-extrabold text-slate-900 dark:text-slate-100">
-                {vegStock.toLocaleString()} L
-              </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                ≈ {Math.round(vegStock / vegLitresPerKeg).toLocaleString()} Kegs ({vegLitresPerKeg}L)
-              </div>
-              <div className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">
-                Quantity Sold Today: {vegKegsSoldToday}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start justify-items-center py-2">
-            {/* Primary combined gauge */}
-            <TankGauge
-              productId="veg"
-              productName="Veg Oil Depletion"
-              remainingLitres={vegStock}
-              totalCapacityLitres={30000}
-              size="lg"
-            />
-
-            {/* Individual active veg tanks list */}
-            <div className="w-full space-y-3">
-              <div className="text-xs font-sans font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Active In-Feed Tanks
-              </div>
-              {tanks
-                .filter(t => t.product_id === 'veg')
-                .map((t, idx) => {
-                  const pct = Math.min(100, (t.remaining_litres / (t.received_litres || 1)) * 100);
-                  const isExpanded = expandedRowId === t.id;
-                  return (
-                    <button
-                      type="button"
-                      key={t.id}
-                      onClick={() => setExpandedRowId(isExpanded ? null : t.id)}
-                      className="w-full text-left p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 text-xs cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-1.5 min-w-0 font-sans font-bold text-slate-800 dark:text-slate-200">
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono shrink-0">
-                            Tank #{idx + 1}
-                          </span>
-                          <span className="truncate" title={t.truck_label}>{t.truck_label}</span>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0 font-mono tabular-nums">
-                          <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                            {t.remaining_litres.toLocaleString()} L
-                          </span>
-                          <span className="text-xs text-slate-400">
-                            {pct.toFixed(0)}%
-                          </span>
-                          <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                        </div>
-                      </div>
-                      {isExpanded && (
-                        <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums animate-in fade-in duration-150">
-                          Intake: {formatDepotDate(t.date)} · Received: {t.received_litres.toLocaleString()}L
-                        </div>
+        {productStockSummaries.map(summary => {
+          const p = summary.product;
+          const kegDisplay = Math.round(summary.stock / summary.litresPerKeg);
+          const productTanks = tanks.filter(t => t.product_id === p.id);
+          return (
+            <div
+              key={p.id}
+              className="p-5 sm:p-6 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 mb-4">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-3.5 h-3.5 rounded-full shadow-sm"
+                    style={{ backgroundColor: summary.accentColor, boxShadow: `0 0 0 4px ${summary.accentColor}22` }}
+                  />
+                  <div>
+                    <h3 className="text-base font-heading font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <span>{p.name} {summary.isKegModel ? 'Stock' : 'Tanks'}</span>
+                      {summary.isKegModel && (
+                        <span
+                          className="text-[10px] px-2 py-0.5 rounded-full font-mono font-bold border"
+                          style={{ backgroundColor: `${summary.accentColor}1A`, color: summary.accentColor, borderColor: `${summary.accentColor}40` }}
+                        >
+                          {summary.litresPerKeg}L Kegs Only
+                        </span>
                       )}
-                    </button>
-                  );
-                })}
-            </div>
-          </div>
-        </div>
-
-        {/* Red / Palm Oil 25L Keg Stock Overview (100% Keg Based, No Tanks) */}
-        <div className="p-5 sm:p-6 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark flex flex-col justify-between">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-3.5 h-3.5 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50" />
-              <div>
-                <h3 className="text-base font-heading font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <span>Red / Palm Oil Stock</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-700 dark:text-rose-300 font-mono font-bold border border-rose-500/25">
-                    25L Kegs Only
-                  </span>
-                </h3>
-                <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
-                  Pre-Kegged 25L Jerrycans · Available in Warehouse
-                </p>
-              </div>
-            </div>
-            <div className="text-right font-mono tabular-nums space-y-0.5">
-              <div className="text-xl font-mono font-extrabold text-slate-900 dark:text-slate-100">
-                {Math.round(redStock / (redLitresPerKeg || 25)).toLocaleString()} Kegs
-              </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                {redStock.toLocaleString()} L (25L per keg)
-              </div>
-              <div className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">
-                Sold Today: {redKegsSoldToday} kegs
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start justify-items-center py-2">
-            {/* Dedicated 25L Heavy-Duty Jerrycan / Keg Visual (NOT a Tank) */}
-            <KegVisual25L
-              remainingLitres={redStock}
-              totalCapacityLitres={15000}
-              kegSizeLitres={redLitresPerKeg || 25}
-              size="md"
-            />
-
-            {/* Individual active red intake lots / pallets list */}
-            <div className="w-full space-y-3">
-              <div className="text-xs font-sans font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                <Package className="w-3.5 h-3.5 text-rose-500" weight="bold" />
-                <span>Active 25L Keg Lots &amp; Deliveries</span>
-              </div>
-              {tanks
-                .filter(t => t.product_id === 'red')
-                .map((t, idx) => {
-                  const pct = Math.min(100, (t.remaining_litres / (t.received_litres || 1)) * 100);
-                  const kegCount = Math.round(t.remaining_litres / (redLitresPerKeg || 25));
-                  const totalKegs = Math.round(t.received_litres / (redLitresPerKeg || 25));
-                  const isExpanded = expandedRowId === t.id;
-                  return (
-                    <button
-                      type="button"
-                      key={t.id}
-                      onClick={() => setExpandedRowId(isExpanded ? null : t.id)}
-                      className="w-full text-left p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 text-xs cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-1.5 min-w-0 font-sans font-bold text-slate-800 dark:text-slate-200">
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-700 dark:text-rose-300 font-mono font-bold shrink-0">
-                            Lot #{idx + 1}
-                          </span>
-                          <span className="truncate" title={t.truck_label}>{t.truck_label}</span>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0 font-mono tabular-nums">
-                          <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                            {kegCount.toLocaleString()} Kegs
-                          </span>
-                          <span className="text-xs text-slate-400">
-                            {pct.toFixed(0)}%
-                          </span>
-                          <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                        </div>
+                    </h3>
+                    <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
+                      {summary.isKegModel
+                        ? `Pre-Kegged ${summary.litresPerKeg}L Containers · Available in Warehouse`
+                        : 'First-In, First-Out: Oldest oil delivered is dispensed first.'}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right font-mono tabular-nums space-y-0.5">
+                  {summary.isKegModel ? (
+                    <>
+                      <div className="text-xl font-mono font-extrabold text-slate-900 dark:text-slate-100">
+                        {kegDisplay.toLocaleString()} Kegs
                       </div>
-                      {isExpanded && (
-                        <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums animate-in fade-in duration-150">
-                          Delivery: {formatDepotDate(t.date)} · Initial: {totalKegs.toLocaleString()} Kegs ({t.received_litres.toLocaleString()}L) · Remaining: {t.remaining_litres.toLocaleString()}L
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                        {summary.stock.toLocaleString()} L ({summary.litresPerKeg}L per keg)
+                      </div>
+                      <div className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">
+                        Sold Today: {summary.kegsSoldToday} kegs
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-xl font-mono font-extrabold text-slate-900 dark:text-slate-100">
+                        {summary.stock.toLocaleString()} L
+                      </div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                        ≈ {kegDisplay.toLocaleString()} Kegs ({summary.litresPerKeg}L)
+                      </div>
+                      <div className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">
+                        Quantity Sold Today: {summary.kegsSoldToday}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start justify-items-center py-2">
+                {summary.isKegModel ? (
+                  <KegVisual25L
+                    remainingLitres={summary.stock}
+                    totalCapacityLitres={summary.capacity}
+                    kegSizeLitres={summary.litresPerKeg}
+                    size="md"
+                  />
+                ) : (
+                  <TankGauge
+                    productId={p.id}
+                    productName={`${p.name} Depletion`}
+                    remainingLitres={summary.stock}
+                    totalCapacityLitres={summary.capacity}
+                    size="lg"
+                  />
+                )}
+
+                {/* Individual active tanks/lots list for this product */}
+                <div className="w-full space-y-3">
+                  <div className="text-xs font-sans font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                    {summary.isKegModel && (
+                      <Package className="w-3.5 h-3.5" style={{ color: summary.accentColor }} weight="bold" />
+                    )}
+                    <span>{summary.isKegModel ? `Active ${summary.litresPerKeg}L Keg Lots & Deliveries` : 'Active In-Feed Tanks'}</span>
+                  </div>
+                  {productTanks.map((t, idx) => {
+                    const pct = Math.min(100, (t.remaining_litres / (t.received_litres || 1)) * 100);
+                    const kegCount = Math.round(t.remaining_litres / summary.litresPerKeg);
+                    const totalKegs = Math.round(t.received_litres / summary.litresPerKeg);
+                    const isExpanded = expandedRowId === t.id;
+                    return (
+                      <button
+                        type="button"
+                        key={t.id}
+                        onClick={() => setExpandedRowId(isExpanded ? null : t.id)}
+                        className="w-full text-left p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 text-xs cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-1.5 min-w-0 font-sans font-bold text-slate-800 dark:text-slate-200">
+                            <span
+                              className="text-xs px-1.5 py-0.5 rounded font-mono shrink-0"
+                              style={
+                                summary.isKegModel
+                                  ? { backgroundColor: `${summary.accentColor}33`, color: summary.accentColor }
+                                  : undefined
+                              }
+                            >
+                              {summary.isKegModel ? `Lot #${idx + 1}` : `Tank #${idx + 1}`}
+                            </span>
+                            <span className="truncate" title={t.truck_label}>{t.truck_label}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0 font-mono tabular-nums">
+                            <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                              {summary.isKegModel ? `${kegCount.toLocaleString()} Kegs` : `${t.remaining_litres.toLocaleString()} L`}
+                            </span>
+                            <span className="text-xs text-slate-400">
+                              {pct.toFixed(0)}%
+                            </span>
+                            <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                          </div>
                         </div>
-                      )}
-                    </button>
-                  );
-                })}
+                        {isExpanded && (
+                          <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums animate-in fade-in duration-150">
+                            {summary.isKegModel
+                              ? `Delivery: ${formatDepotDate(t.date)} · Initial: ${totalKegs.toLocaleString()} Kegs (${t.received_litres.toLocaleString()}L) · Remaining: ${t.remaining_litres.toLocaleString()}L`
+                              : `Intake: ${formatDepotDate(t.date)} · Received: ${t.received_litres.toLocaleString()}L`}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          );
+        })}
       </div>
 
       {/* Modal: Start New Shift */}
@@ -1790,6 +1781,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
               {orders
                 .filter(o => {
                   return (
+                    !o.voided &&
                     depotDateKey(o.date) === todayStr &&
                     (o.payment_method === 'cash' || o.payment_method === 'transfer' || o.payment_method === 'pos' || o.payment_method === 'split')
                   );
@@ -2036,7 +2028,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 })
                 .map(order => {
                   const cust = customers.find(c => c.id === order.customer_id);
-                  const isVeg = order.product_id === 'veg';
+                  const orderProductName = products.find(p => p.id === order.product_id)?.name || 'Product';
                   return (
                     <div
                       key={order.id}
@@ -2046,12 +2038,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                         <div className="font-sans font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                           <span
                             className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }}
+                            style={{ backgroundColor: accentColorFor(order.product_id) }}
                           />
                           <span>{cust?.name || 'Walk-in'}</span>
                         </div>
                         <div className="text-xs font-sans text-slate-500 dark:text-slate-400">
-                          {isVeg ? 'Veg Oil' : 'Palm Oil'} · {order.litres}L · {formatDepotTime(order.date)}
+                          {orderProductName} · {order.litres}L · {formatDepotTime(order.date)}
                         </div>
                       </div>
                       <div className="text-right font-mono tabular-nums font-bold text-slate-900 dark:text-white">
@@ -2102,7 +2094,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
               {expenses
                 .filter(e => {
-                  return depotDateKey(e.date) === todayStr;
+                  return !e.voided && depotDateKey(e.date) === todayStr;
                 })
                 .map(exp => (
                   <div

@@ -302,7 +302,7 @@ interface StoreContextType {
 
   addPhysicalTank: (tankData: Omit<PhysicalTank, 'id'>) => PhysicalTank;
   updatePhysicalTank: (id: string, updates: Partial<PhysicalTank>) => void;
-  deletePhysicalTank: (id: string) => void;
+  deletePhysicalTank: (id: string) => { success: boolean; error?: string };
 
   // Multi-Hub Architecture & User Profiles
   hubs: Hub[];
@@ -963,7 +963,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       .filter(e => !e.voided && depotDateKey(e.date) === todayStr)
       .reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
-    const dailyFloatRemaining = Math.max(0, settings.daily_float - expensesToday);
+    const dailyFloatRemaining = Math.max(0, settings.default_daily_float - expensesToday);
 
     return {
       cashTransferSales,
@@ -977,7 +977,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       dailyFloatRemaining,
       grossSalesToday
     };
-  }, [orders, expenses, settings.daily_float, customerStatsMap, kegInventory]);
+  }, [orders, expenses, settings.default_daily_float, customerStatsMap, kegInventory]);
 
   // ==========================================
   // ACTION HANDLERS
@@ -2410,7 +2410,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deletePhysicalTank = (id: string) => {
+    const hasPumps = allPumps.some(p => p.physical_tank_id === id);
+    const hasStockRecords = allTanks.some(t => t.physical_tank_id === id);
+    if (hasPumps || hasStockRecords) {
+      return { success: false, error: 'Cannot delete a physical tank with pumps or stock records still assigned to it.' };
+    }
     setPhysicalTanks(prev => prev.filter(pt => pt.id !== id));
+    return { success: true };
   };
 
   // 18. Reset to default demo seed data

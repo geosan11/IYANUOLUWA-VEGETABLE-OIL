@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../services/store';
 import { usePermissions } from '../services/permissions';
 import { useToast } from '../services/toast';
@@ -51,6 +51,15 @@ export const PumpsScreen: React.FC = () => {
 
   const productName = (id?: string) => products.find(p => p.id === id)?.name || 'Unassigned';
   const tankLabel = (id?: string | null) => physicalTanks.find(t => t.id === id)?.label;
+
+  // Hub switches (and pump deletion) re-scope `pumps` without remounting this
+  // screen — resync the selected logger pump so it never silently points at
+  // a pump from a different hub.
+  useEffect(() => {
+    if (!pumps.some(p => p.id === loggerPumpId)) {
+      setLoggerPumpId(pumps[0]?.id || '');
+    }
+  }, [pumps, loggerPumpId]);
 
   const submitReading = (e: React.FormEvent, confirmed = false) => {
     e.preventDefault();
@@ -106,7 +115,7 @@ export const PumpsScreen: React.FC = () => {
   const removePump = (pump: Pump) => {
     if (!window.confirm(`Remove ${pump.label}?`)) return;
     const res = deletePump(pump.id);
-    if (!res.success) setEditErr(res.error || 'Could not remove pump.');
+    if (!res.success) showToast('error', res.error || 'Could not remove pump.');
   };
 
   const openReset = (pump: Pump) => {

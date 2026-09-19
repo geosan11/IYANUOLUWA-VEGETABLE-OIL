@@ -66,6 +66,7 @@ export const SettingsScreen: React.FC = () => {
     updateProduct,
     deleteProduct,
     addPhysicalTank,
+    updatePhysicalTank,
     deletePhysicalTank,
     addSupplier,
     deleteSupplier,
@@ -124,7 +125,7 @@ export const SettingsScreen: React.FC = () => {
   const [userEmail, setUserEmail] = useState('');
   const [userPhone, setUserPhone] = useState('');
   const [userRoleSelect, setUserRoleSelect] = useState<UserRole>('staff');
-  const [userHubIdSelect, setUserHubIdSelect] = useState<string>('hub-los-alaba');
+  const [userHubIdSelect, setUserHubIdSelect] = useState<string>(() => hubs[0]?.id || '');
   const [userIsActive, setUserIsActive] = useState(true);
 
   // Filters for user table
@@ -163,6 +164,14 @@ export const SettingsScreen: React.FC = () => {
     });
   }, [products]);
 
+  // Drives the Keg Fleet & Container Standards summary line (mobile row +
+  // desktop sidebar) — built from whatever products actually exist instead
+  // of hardcoded 'veg'/'red' lookups, so it stays correct as products are
+  // added, renamed, or removed.
+  const kegFleetSummaryText = products.length > 0
+    ? products.map(p => `${p.name}: ${productLitresPerKeg[p.id] || (p.litres_per_keg ?? 25)}L`).join(' · ')
+    : 'No products configured';
+
 
   // Add / Edit Product Modal State
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -176,9 +185,16 @@ export const SettingsScreen: React.FC = () => {
 
   // Add Physical Tank Form State
   const [newTankLabel, setNewTankLabel] = useState('');
-  const [newTankProductId, setNewTankProductId] = useState('veg');
+  const [newTankProductId, setNewTankProductId] = useState(() => products[0]?.id || '');
   const [newTankCapacity, setNewTankCapacity] = useState('15000');
   const [newTankHubId, setNewTankHubId] = useState(() => activeHubId !== 'all' ? activeHubId : (hubs[0]?.id || ''));
+
+  // Edit Physical Tank Modal State
+  const [editingTankId, setEditingTankId] = useState<string | null>(null);
+  const [editTankLabel, setEditTankLabel] = useState('');
+  const [editTankProductId, setEditTankProductId] = useState('');
+  const [editTankCapacity, setEditTankCapacity] = useState('');
+  const [editTankHubId, setEditTankHubId] = useState('');
 
   // Add Supplier Form State
   const [newSupplierName, setNewSupplierName] = useState('');
@@ -188,10 +204,10 @@ export const SettingsScreen: React.FC = () => {
   const [isPumpModalOpen, setIsPumpModalOpen] = useState(false);
   const [editingPumpId, setEditingPumpId] = useState<string | null>(null);
   const [pumpLabelInput, setPumpLabelInput] = useState('');
-  const [pumpProductIdInput, setPumpProductIdInput] = useState('veg');
+  const [pumpProductIdInput, setPumpProductIdInput] = useState(() => products[0]?.id || '');
   const [pumpTankIdInput, setPumpTankIdInput] = useState('');
   const [pumpReadingInput, setPumpReadingInput] = useState('0');
-  const [pumpHubIdInput, setPumpHubIdInput] = useState('hub-los-alaba');
+  const [pumpHubIdInput, setPumpHubIdInput] = useState(() => hubs[0]?.id || '');
 
   // 4. Alert Thresholds Local State
   const [lowStockThreshold, setLowStockThreshold] = useState(settings.low_stock_litres_threshold.toString());
@@ -356,6 +372,27 @@ export const SettingsScreen: React.FC = () => {
     });
     setNewTankLabel('');
     showNotification('Physical yard tank registered successfully.');
+  };
+
+  const handleOpenEditTank = (t: { id: string; label: string; product_id: string; capacity_litres: number; hub_id?: string }) => {
+    setEditingTankId(t.id);
+    setEditTankLabel(t.label);
+    setEditTankProductId(t.product_id);
+    setEditTankCapacity(t.capacity_litres.toString());
+    setEditTankHubId(t.hub_id || '');
+  };
+
+  const handleSaveTankEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTankId || !editTankLabel.trim()) return;
+    updatePhysicalTank(editingTankId, {
+      label: editTankLabel.trim(),
+      product_id: editTankProductId,
+      capacity_litres: parseFloat(editTankCapacity) || 0,
+      hub_id: editTankHubId || undefined
+    });
+    showNotification(`Tank "${editTankLabel.trim()}" updated successfully.`);
+    setEditingTankId(null);
   };
 
   // Add Supplier
@@ -586,7 +623,8 @@ export const SettingsScreen: React.FC = () => {
       updatePump(editingPumpId, {
         label: pumpLabelInput.trim(),
         product_id: pumpProductIdInput || null,
-        physical_tank_id: pumpTankIdInput || null
+        physical_tank_id: pumpTankIdInput || null,
+        hub_id: pumpHubIdInput
       });
       showNotification(`Pump "${pumpLabelInput.trim()}" updated successfully.`);
     } else {
@@ -691,7 +729,7 @@ export const SettingsScreen: React.FC = () => {
                 Keg Fleet & Container Standards
               </div>
               <div className="text-[12px] font-mono tabular-nums text-slate-500 truncate mt-0.5">
-                Palm: {productLitresPerKeg['red'] || '25'}L · Veg: {productLitresPerKeg['veg'] || '25'}L · {totalCompanyKegs} fleet
+                {kegFleetSummaryText} · {totalCompanyKegs} fleet
               </div>
             </div>
             <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" />
@@ -836,7 +874,7 @@ export const SettingsScreen: React.FC = () => {
             {
               id: 'kegs' as const,
               title: 'Keg Fleet Standards',
-              subtitle: `Palm: ${productLitresPerKeg['red'] || '25'}L · Veg: ${productLitresPerKeg['veg'] || '30'}L`
+              subtitle: kegFleetSummaryText
             },
             {
               id: 'pricing' as const,
@@ -1056,7 +1094,7 @@ export const SettingsScreen: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {products.map(p => {
-                    const isPalm = p.id === 'red' || p.supply_model === 'pre_kegged';
+                    const isPalm = p.supply_model === 'pre_kegged';
                     const currentL = productLitresPerKeg[p.id] ?? (p.litres_per_keg?.toString() || '25');
                     return (
                       <div
@@ -1237,7 +1275,6 @@ export const SettingsScreen: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {products.map(p => {
-                    const isVeg = p.id === 'veg';
                     return (
                       <div
                         key={p.id}
@@ -1245,7 +1282,7 @@ export const SettingsScreen: React.FC = () => {
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span className={`w-3 h-3 rounded-full ${isVeg ? 'bg-vegoil-500' : 'bg-palmoil-500'}`} />
+                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: p.color_light }} />
                             <span className="font-heading font-bold text-[15px] text-slate-900 dark:text-white">
                               {p.name}
                             </span>
@@ -1484,18 +1521,33 @@ export const SettingsScreen: React.FC = () => {
                             Product: {prod?.name || 'Any'} · Capacity: {t.capacity_litres.toLocaleString()}L
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (window.confirm(`Remove physical tank "${t.label}"?`)) {
-                              deletePhysicalTank(t.id);
-                              showNotification(`Tank "${t.label}" removed.`);
-                            }
-                          }}
-                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditTank(t)}
+                            className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors"
+                            title="Edit Tank"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`Remove physical tank "${t.label}"?`)) {
+                                const res = deletePhysicalTank(t.id);
+                                if (!res.success) {
+                                  showNotification(`Cannot delete tank: ${res.error}`, 'error');
+                                } else {
+                                  showNotification(`Tank "${t.label}" removed.`);
+                                }
+                              }
+                            }}
+                            className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                            title="Delete Tank"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
@@ -2061,26 +2113,56 @@ export const SettingsScreen: React.FC = () => {
                                   </div>
                                 </div>
 
-                                {/* Operational Counters */}
+                                {/* Operational Counters — clickable: jump straight to that
+                                    hub's tanks/pumps/team, scoped to this hub, instead of a
+                                    dead-end number you'd have to go hunt down elsewhere. */}
                                 <div className="pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-3 gap-2 text-center">
-                                  <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveHubId(hub.id);
+                                      setActiveDesktopTab('infrastructure');
+                                      showNotification(`Viewing tanks for ${hub.name}`);
+                                    }}
+                                    title={`Edit ${hub.name}'s tanks`}
+                                    className="p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/30 transition-colors cursor-pointer"
+                                  >
                                     <div className="text-base font-bold font-mono text-slate-900 dark:text-white">
                                       {tankCount}
                                     </div>
                                     <div className="text-[10px] uppercase font-sans text-slate-500">Tanks</div>
-                                  </div>
-                                  <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800">
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveHubId(hub.id);
+                                      setActiveDesktopTab('infrastructure');
+                                      showNotification(`Viewing pumps for ${hub.name}`);
+                                    }}
+                                    title={`Edit ${hub.name}'s pumps`}
+                                    className="p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/30 transition-colors cursor-pointer"
+                                  >
                                     <div className="text-base font-bold font-mono text-slate-900 dark:text-white">
                                       {pumpCount}
                                     </div>
                                     <div className="text-[10px] uppercase font-sans text-slate-500">Pumps</div>
-                                  </div>
-                                  <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800">
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveHubId(hub.id);
+                                      setUserHubFilter(hub.id);
+                                      setActiveDesktopTab('users');
+                                      showNotification(`Viewing team for ${hub.name}`);
+                                    }}
+                                    title={`Edit ${hub.name}'s team`}
+                                    className="p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/30 transition-colors cursor-pointer"
+                                  >
                                     <div className="text-base font-bold font-mono text-slate-900 dark:text-white">
                                       {staffCount}
                                     </div>
                                     <div className="text-[10px] uppercase font-sans text-slate-500">Personnel</div>
-                                  </div>
+                                  </button>
                                 </div>
                               </div>
 
@@ -2907,6 +2989,100 @@ export const SettingsScreen: React.FC = () => {
                 className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-sans font-bold text-xs shadow-sm"
               >
                 {editingPumpId ? 'Save Changes' : 'Register Pump'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {editingTankId && (
+        <Modal
+          isOpen
+          onClose={() => setEditingTankId(null)}
+          title={
+            <span className="flex items-center gap-2">
+              <Warehouse className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+              <span>Edit Permanent Yard Tank</span>
+            </span>
+          }
+          subtitle="Update label, product assignment, capacity, or depot hub for this tank"
+        >
+          <form onSubmit={handleSaveTankEdit} className="space-y-4">
+            <div>
+              <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                Tank Label *
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Tank 4 (Bulk Storage)"
+                value={editTankLabel}
+                onChange={e => setEditTankLabel(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Product Stored
+                </label>
+                <select
+                  value={editTankProductId}
+                  onChange={e => setEditTankProductId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px] text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 font-semibold"
+                >
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Capacity (Litres) *
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  required
+                  value={editTankCapacity}
+                  onChange={e => setEditTankCapacity(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                Assigned Depot Hub
+              </label>
+              <select
+                value={editTankHubId}
+                onChange={e => setEditTankHubId(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px] text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+              >
+                <option value="">Unassigned / Shared</option>
+                {hubs.map(h => (
+                  <option key={h.id} value={h.id}>[{h.code}] {h.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="pt-3 pb-1 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingTankId(null)}
+                className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-sans font-medium text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-sans font-bold text-xs shadow-sm"
+              >
+                Save Changes
               </button>
             </div>
           </form>

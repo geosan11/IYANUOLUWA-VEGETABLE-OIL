@@ -46,7 +46,7 @@ export const NAV_ITEMS: NavItem[] = [
  */
 export function getVisibleNavItems(role: UserRole, allowedScreens?: string[] | null): NavItem[] {
   if (role === 'owner') return NAV_ITEMS;
-  if (allowedScreens && allowedScreens.length > 0) {
+  if (allowedScreens !== null && allowedScreens !== undefined) {
     return NAV_ITEMS.filter(item => allowedScreens.includes(item.id));
   }
   return NAV_ITEMS.filter(item => !item.adminOnly);
