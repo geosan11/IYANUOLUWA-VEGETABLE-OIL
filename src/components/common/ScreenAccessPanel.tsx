@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { listAllProfiles, updateProfileAccess, inviteUser, AuthProfile } from '../../services/auth';
 import { useStore } from '../../services/store';
+import { useToast } from '../../services/toast';
 import { NAV_ITEMS, getVisibleNavItems } from '../../constants/nav';
 import type { UserRole } from '../../types';
 import { ShieldCheck, ArrowsClockwise, Check, WarningCircle, PaperPlaneTilt, Plus } from '@phosphor-icons/react';
@@ -29,6 +30,7 @@ interface DraftRow {
  */
 export const ScreenAccessPanel: React.FC = () => {
   const { currentUser, hubs } = useStore();
+  const { showToast } = useToast();
   const [profiles, setProfiles] = useState<AuthProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -103,9 +105,12 @@ export const ScreenAccessPanel: React.FC = () => {
     setInviteSending(false);
     if (error) {
       setInviteMessage({ kind: 'err', text: error });
+      showToast('error', error);
       return;
     }
-    setInviteMessage({ kind: 'ok', text: `Invite sent to ${inviteEmail.trim()}. They'll appear below once they accept it.` });
+    const okMsg = `Invite sent to ${inviteEmail.trim()}. They'll appear below once they accept it.`;
+    setInviteMessage({ kind: 'ok', text: okMsg });
+    showToast('success', okMsg);
     setInviteName('');
     setInviteEmail('');
     setInviteRole('staff');
@@ -126,6 +131,7 @@ export const ScreenAccessPanel: React.FC = () => {
     setSavingId(null);
     if (error) {
       setRowMessage(prev => ({ ...prev, [p.id]: error }));
+      showToast('error', error);
       return;
     }
     setProfiles(prev =>
@@ -136,6 +142,7 @@ export const ScreenAccessPanel: React.FC = () => {
       )
     );
     setRowMessage(prev => ({ ...prev, [p.id]: 'Saved. Takes effect next time they load the app.' }));
+    showToast('success', `${d.fullName.trim() || p.full_name || 'Account'} updated. Takes effect next time they load the app.`);
   };
 
   return (

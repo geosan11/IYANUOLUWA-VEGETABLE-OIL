@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../services/store';
 import { usePermissions } from '../services/permissions';
+import { useToast } from '../services/toast';
 import { calculatePumpMeterVariance, formatDepotDate, formatDepotTime, depotDateKey, getDepotToday, keepDigitsAndDecimal } from '../services/businessLogic';
 import { Modal } from '../components/common/Modal';
 import { PumpOdometerIllustration } from '../components/common/PumpOdometerIllustration';
@@ -22,11 +23,12 @@ export const PumpsScreen: React.FC = () => {
   const { pumps, pumpReadings, orders, products, physicalTanks, settings, recordPumpReading, resetPumpMeter, addPump, updatePump, deletePump } =
     useStore();
   const { isOwner } = usePermissions();
+  const { showToast } = useToast();
 
   const [loggerPumpId, setLoggerPumpId] = useState<string>(pumps[0]?.id || '');
   const [loggerReading, setLoggerReading] = useState('');
   const [loggerNote, setLoggerNote] = useState('');
-  const [loggerMsg, setLoggerMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [loggerWarning, setLoggerWarning] = useState<string | null>(null);
 
   const [addOpen, setAddOpen] = useState(false);
   const [newLabel, setNewLabel] = useState('');
@@ -50,18 +52,21 @@ export const PumpsScreen: React.FC = () => {
   const productName = (id?: string) => products.find(p => p.id === id)?.name || 'Unassigned';
   const tankLabel = (id?: string | null) => physicalTanks.find(t => t.id === id)?.label;
 
-  const submitReading = (e: React.FormEvent) => {
+  const submitReading = (e: React.FormEvent, confirmed = false) => {
     e.preventDefault();
-    setLoggerMsg(null);
     const reading = Number(loggerReading);
-    if (!loggerPumpId) return setLoggerMsg({ kind: 'err', text: 'Pick a pump.' });
-    const res = recordPumpReading(loggerPumpId, reading, loggerNote.trim() || undefined);
+    if (!loggerPumpId) return showToast('error', 'Pick a pump.');
+    const res = recordPumpReading(loggerPumpId, reading, loggerNote.trim() || undefined, confirmed);
     if (res.success) {
-      setLoggerMsg({ kind: 'ok', text: `Logged ${reading.toLocaleString()} L on ${pumps.find(p => p.id === loggerPumpId)?.label}.` });
+      setLoggerWarning(null);
+      showToast('success', `Logged ${reading.toLocaleString()} L on ${pumps.find(p => p.id === loggerPumpId)?.label}.`);
       setLoggerReading('');
       setLoggerNote('');
+    } else if (res.warning) {
+      setLoggerWarning(res.warning);
     } else {
-      setLoggerMsg({ kind: 'err', text: res.error || 'Could not log the reading.' });
+      setLoggerWarning(null);
+      showToast('error', res.error || 'Could not log the reading.');
     }
   };
 
@@ -313,7 +318,10 @@ export const PumpsScreen: React.FC = () => {
                 step="0.1"
                 min="0"
                 value={loggerReading}
-                onChange={e => setLoggerReading(keepDigitsAndDecimal(e.target.value))}
+                onChange={e => {
+                  setLoggerReading(keepDigitsAndDecimal(e.target.value));
+                  setLoggerWarning(null);
+                }}
                 placeholder="e.g. 143830.5"
                 required
                 className="depot-input mt-1 w-full px-3 py-2.5 rounded-xl font-mono font-bold text-sm"
@@ -336,9 +344,28 @@ export const PumpsScreen: React.FC = () => {
             </button>
           </form>
         )}
-        {loggerMsg && (
-          <div className={`text-xs font-sans font-semibold ${loggerMsg.kind === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-            {loggerMsg.text}
+        {loggerWarning && (
+          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-sans">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" weight="bold" />
+            <div className="flex-1 space-y-2">
+              <p className="font-medium">{loggerWarning}</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={e => submitReading(e as unknown as React.FormEvent, true)}
+                  className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
+                >
+                  Log it anyway
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLoggerWarning(null)}
+                  className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800 font-semibold"
+                >
+                  Let me fix it
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

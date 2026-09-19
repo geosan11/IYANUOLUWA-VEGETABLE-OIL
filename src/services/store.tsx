@@ -253,8 +253,9 @@ interface StoreContextType {
   recordPumpReading: (
     pumpId: string,
     reading: number,
-    note?: string
-  ) => { success: boolean; pumpReading?: PumpReading; error?: string };
+    note?: string,
+    confirmed?: boolean
+  ) => { success: boolean; pumpReading?: PumpReading; error?: string; warning?: string };
 
   resetPumpMeter: (
     pumpId: string,
@@ -2056,13 +2057,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // 9. Record Pump Reading (Audit Log)
-  const recordPumpReading = (pumpId: string, reading: number, note?: string) => {
+  const recordPumpReading = (pumpId: string, reading: number, note?: string, confirmed?: boolean) => {
     const pump = pumps.find(p => p.id === pumpId);
     if (!pump) return { success: false, error: 'Pump not found' };
 
     const validation = validateNewPumpReading(reading, pump.last_meter_reading);
     if (!validation.isValid) {
       return { success: false, error: validation.error };
+    }
+    if (validation.warning && !confirmed) {
+      return { success: false, warning: validation.warning };
     }
 
     const newReading: PumpReading = {

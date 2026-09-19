@@ -638,10 +638,21 @@ export function calculatePumpMeterVariance(
   return audits;
 }
 
+/**
+ * A single logged reading jumping by more than this in one go is almost
+ * always a mistyped/mangled digit (e.g. a stray extra "00"), not a real
+ * pump — nothing dispenses this much between two loggings. Deliberately
+ * generous so it only catches genuine fat-finger territory, never a real
+ * busy day. Below this: silent as before. Above it: `isValid` stays true
+ * (never hard-blocks a real reading) but a `warning` comes back for the
+ * caller to surface as a confirm-before-saving step.
+ */
+export const PUMP_READING_SANITY_JUMP_LITRES = 20000;
+
 export function validateNewPumpReading(
   newReading: number,
   lastReading: number
-): { isValid: boolean; error?: string } {
+): { isValid: boolean; error?: string; warning?: string } {
   const numNew = Number(newReading);
   const numLast = Number(lastReading) || 0;
   if (isNaN(numNew) || numNew <= 0) {
@@ -651,6 +662,13 @@ export function validateNewPumpReading(
     return {
       isValid: false,
       error: `Meter reading (${numNew}L) cannot be less than previous reading (${numLast}L). Pumps only count up.`
+    };
+  }
+  const jump = numNew - numLast;
+  if (jump > PUMP_READING_SANITY_JUMP_LITRES) {
+    return {
+      isValid: true,
+      warning: `That's a jump of ${jump.toLocaleString()}L from the last reading (${numLast.toLocaleString()}L) — far more than a pump normally dispenses between loggings. Double-check the digits before saving. If the meter was actually replaced or zeroed, use Reset Meter instead.`
     };
   }
   return { isValid: true };

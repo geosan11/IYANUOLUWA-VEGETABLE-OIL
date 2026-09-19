@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { IconContext, Drop, Spinner } from '@phosphor-icons/react';
 import { StoreProvider, useStore } from './services/store';
 import { AuthProvider, useAuth } from './services/auth';
+import { ToastProvider } from './services/toast';
 import { isSupabaseConfigured } from './services/supabase';
 import { NAV_ITEMS, getVisibleNavItems } from './constants/nav';
 import { Sidebar } from './components/layout/Sidebar';
@@ -235,13 +236,15 @@ export function App() {
     // App-wide icon convention: thin by default, bold on an active tab,
     // selected tile/chip, or primary action — set explicitly per element.
     <IconContext.Provider value={{ weight: 'thin' }}>
-      <AuthProvider>
-        <StoreProvider>
-          <AuthGate>
-            <MainLayout />
-          </AuthGate>
-        </StoreProvider>
-      </AuthProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <StoreProvider>
+            <AuthGate>
+              <MainLayout />
+            </AuthGate>
+          </StoreProvider>
+        </AuthProvider>
+      </ToastProvider>
     </IconContext.Provider>
   );
 }
