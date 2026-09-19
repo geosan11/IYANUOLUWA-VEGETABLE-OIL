@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '../services/store';
+import { useToast } from '../services/toast';
 import { usePermissions } from '../services/permissions';
 import { extractSystemSnapshot } from '../services/ai/dataExtractor';
 import {
@@ -32,6 +33,7 @@ export const AIAdvisorScreen: React.FC = () => {
   // Strict Admin Gate: only the owner may view AI Operations Intelligence.
   const { can } = usePermissions();
   const isAdmin = can('viewAIAdvisor');
+  const { showToast } = useToast();
 
   // Provider is fixed to Claude
   const provider: AIProviderType = 'claude';
@@ -84,6 +86,7 @@ export const AIAdvisorScreen: React.FC = () => {
       setReport(newReport);
     } catch (err) {
       console.error('Failed to run operations audit:', err);
+      showToast('error', 'Could not complete the operations audit. Please try again.');
     } finally {
       setIsLoading(false);
       setLoadingStage('');
@@ -137,6 +140,7 @@ export const AIAdvisorScreen: React.FC = () => {
       setChatMessages(prev => [...prev, botMsg]);
     } catch (err) {
       console.error('Copilot question failed:', err);
+      showToast('error', 'Could not get a reply from the AI advisor. Please try again.');
     } finally {
       setIsChatLoading(false);
     }

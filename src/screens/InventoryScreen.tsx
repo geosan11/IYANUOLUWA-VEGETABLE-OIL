@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../services/store';
+import { useToast } from '../services/toast';
 import { usePermissions } from '../services/permissions';
 import { lookupPackPrice } from '../services/pricing';
 import { formatWithCommas, parseFromCommas } from '../services/businessLogic';
@@ -40,6 +41,7 @@ export const InventoryScreen: React.FC = () => {
     kegInventory
   } = useStore();
   const { isOwner } = usePermissions();
+  const { showToast } = useToast();
 
   const [tab, setTab] = useState<Tab>('prices');
   const [activeProductId, setActiveProductId] = useState<string>(products[0]?.id || '');
@@ -70,11 +72,13 @@ export const InventoryScreen: React.FC = () => {
 
   const flashSaved = (msg: string) => {
     setSavedFlash(msg);
+    showToast('success', msg);
     window.setTimeout(() => setSavedFlash(null), 3000);
   };
 
   const flashError = (msg: string) => {
     setErrorFlash(msg);
+    showToast('error', msg);
     window.setTimeout(() => setErrorFlash(null), 4000);
   };
 

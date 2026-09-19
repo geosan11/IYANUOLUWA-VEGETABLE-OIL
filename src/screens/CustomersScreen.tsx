@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
+import { useToast } from '../services/toast';
 import { Customer, CustomerType, PaymentMethod } from '../types';
 import { BottomSheet } from '../components/common/BottomSheet';
 import { Modal } from '../components/common/Modal';
@@ -49,6 +50,7 @@ export const CustomersScreen: React.FC = () => {
     addCustomer,
     updateCustomer
   } = useStore();
+  const { showToast } = useToast();
 
   const [panelTab, setPanelTab] = useState<'overview' | 'ledger'>('overview');
   const [statementCustomer, setStatementCustomer] = useState<Customer | null>(null);
@@ -128,16 +130,21 @@ export const CustomersScreen: React.FC = () => {
     const num = parseFromCommas(inlineAmount);
     if (isNaN(num) || num <= 0) {
       setInlineError('Please enter a valid payment amount.');
+      showToast('error', 'Please enter a valid payment amount.');
       return;
     }
     const res = recordCustomerPayment(activeCustomer.id, num, inlineMethod);
     if (res.success) {
       setInlineAmount('');
-      setInlineFeedback(`Payment of ${formatNaira(num)} recorded for ${activeCustomer.name}.`);
+      const okMsg = `Payment of ${formatNaira(num)} recorded for ${activeCustomer.name}.`;
+      setInlineFeedback(okMsg);
+      showToast('success', okMsg);
       setInlineError(null);
       setTimeout(() => setInlineFeedback(null), 4000);
     } else {
-      setInlineError(res.error || 'Failed to record payment.');
+      const errMsg = res.error || 'Failed to record payment.';
+      setInlineError(errMsg);
+      showToast('error', errMsg);
     }
   };
 
@@ -156,6 +163,7 @@ export const CustomersScreen: React.FC = () => {
     const numericAmount = parseFromCommas(paymentAmount);
     if (numericAmount <= 0) {
       setPaymentError('Payment amount must be greater than zero.');
+      showToast('error', 'Payment amount must be greater than zero.');
       return;
     }
 
@@ -166,10 +174,14 @@ export const CustomersScreen: React.FC = () => {
       showPaymentBackdate ? fromDatetimeLocalValue(paymentDateInput) : undefined
     );
     if (result.success) {
+      const custName = customers.find(c => c.id === paymentCustomerId)?.name || 'customer';
+      showToast('success', `Payment of ${formatNaira(numericAmount)} recorded for ${custName}.`);
       setPaymentCustomerId(null);
       setPaymentAmount('');
     } else {
-      setPaymentError(result.error || 'Failed to record payment.');
+      const errMsg = result.error || 'Failed to record payment.';
+      setPaymentError(errMsg);
+      showToast('error', errMsg);
     }
   };
 
@@ -184,6 +196,7 @@ export const CustomersScreen: React.FC = () => {
       credit_term_days: parseInt(newCustTerms) || 14,
       phone: newCustPhone.trim()
     });
+    showToast('success', `Customer "${newCustName.trim()}" added.`);
 
     setIsAddCustomerOpen(false);
     setNewCustName('');
@@ -218,6 +231,7 @@ export const CustomersScreen: React.FC = () => {
       credit_term_days: parseInt(editCustTerms) || 14,
       phone: editCustPhone.trim()
     });
+    showToast('success', `Customer "${editCustName.trim()}" updated.`);
     setEditingCustomer(null);
   };
 
@@ -601,11 +615,15 @@ export const CustomersScreen: React.FC = () => {
                           const apply = Math.min(activeStats!.creditBalance, activeStats!.currentBalance);
                           const res = redeemCustomerCredit(activeCustomer.id, apply);
                           if (res.success) {
-                            setInlineFeedback(`${formatNaira(apply)} store credit applied to ${activeCustomer.name}'s invoices.`);
+                            const okMsg = `${formatNaira(apply)} store credit applied to ${activeCustomer.name}'s invoices.`;
+                            setInlineFeedback(okMsg);
+                            showToast('success', okMsg);
                             setInlineError(null);
                             setTimeout(() => setInlineFeedback(null), 4000);
                           } else {
-                            setInlineError(res.error || 'Could not apply store credit.');
+                            const errMsg = res.error || 'Could not apply store credit.';
+                            setInlineError(errMsg);
+                            showToast('error', errMsg);
                           }
                         }}
                         className="shrink-0 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-sans font-bold shadow-sm transition-all active:scale-95"

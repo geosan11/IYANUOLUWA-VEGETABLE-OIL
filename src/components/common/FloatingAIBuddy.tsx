@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '../../services/store';
+import { useToast } from '../../services/toast';
 import { extractSystemSnapshot } from '../../services/ai/dataExtractor';
 import { askOperationsQuestion, requestOperationsAudit } from '../../services/ai/aiService';
 import { AIChatMessage } from '../../services/ai/types';
@@ -34,6 +35,7 @@ export const FloatingAIBuddy: React.FC<FloatingAIBuddyProps> = ({ onNavigate }) 
   // Only visible to the owner / admin
   if (userRole !== 'owner') return null;
 
+  const { showToast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<AIChatMessage[]>([
     {
@@ -114,6 +116,7 @@ export const FloatingAIBuddy: React.FC<FloatingAIBuddyProps> = ({ onNavigate }) 
         provider: 'claude'
       };
       setMessages(prev => [...prev, errorMessage]);
+      showToast('error', 'AI Buddy hit a connection error. Please ask again or check your internet.');
     } finally {
       setIsLoading(false);
     }
@@ -150,6 +153,7 @@ export const FloatingAIBuddy: React.FC<FloatingAIBuddyProps> = ({ onNavigate }) 
       setMessages(prev => [...prev, botMessage]);
     } catch (err) {
       console.error('Audit failed:', err);
+      showToast('error', 'Depot health audit failed. Please try again.');
     } finally {
       setIsAuditing(false);
     }

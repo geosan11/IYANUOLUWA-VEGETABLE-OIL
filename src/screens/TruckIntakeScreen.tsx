@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
+import { useToast } from '../services/toast';
 import { BottomSheet } from '../components/common/BottomSheet';
 import { SlideOverDrawer } from '../components/common/SlideOverDrawer';
 import { useIsDesktopSplit } from '../hooks/useBreakpoint';
@@ -48,6 +49,7 @@ export const TruckIntakeScreen: React.FC = () => {
   } = useStore();
 
   const isDesktop = useIsDesktopSplit();
+  const { showToast } = useToast();
 
   // Progressive Disclosure View Mode
   // 'log_intake': Immediate, focused truck logging workspace (zero distraction)
@@ -173,6 +175,7 @@ export const TruckIntakeScreen: React.FC = () => {
 
     if (!supplierId) {
       setErrorMessage('Please select a supplier for this delivery intake.');
+      showToast('error', 'Please select a supplier for this delivery intake.');
       return;
     }
 
@@ -187,6 +190,7 @@ export const TruckIntakeScreen: React.FC = () => {
         const parsedTons = parseInt(tons, 10);
         if (!parsedTons || parsedTons <= 0) {
           setErrorMessage('Please enter a valid tonnage for bulk offload.');
+          showToast('error', 'Please enter a valid tonnage for bulk offload.');
           setIsSubmitting(false);
           return;
         }
@@ -204,16 +208,21 @@ export const TruckIntakeScreen: React.FC = () => {
         });
 
         if (result.success && result.tank) {
-          setSuccessMessage(`${parsedTons} Tons (${result.tank.received_litres.toLocaleString()}L) logged for ${fullTruckLabel} from ${supplierName}. Store stock updated.`);
+          const okMsg = `${parsedTons} Tons (${result.tank.received_litres.toLocaleString()}L) logged for ${fullTruckLabel} from ${supplierName}. Store stock updated.`;
+          setSuccessMessage(okMsg);
+          showToast('success', okMsg);
           handleResetForm();
           setTimeout(() => setSuccessMessage(null), 6000);
         } else {
-          setErrorMessage(result.error || 'Failed to record truck intake.');
+          const errMsg = result.error || 'Failed to record truck intake.';
+          setErrorMessage(errMsg);
+          showToast('error', errMsg);
         }
       } else {
         const numKegs = parseFromCommas(kegsReceived) || 0;
         if (numKegs <= 0) {
           setErrorMessage('Please enter a valid count of kegs received.');
+          showToast('error', 'Please enter a valid count of kegs received.');
           setIsSubmitting(false);
           return;
         }
@@ -228,11 +237,15 @@ export const TruckIntakeScreen: React.FC = () => {
         });
 
         if (result.success && result.tank) {
-          setSuccessMessage(`Pre-kegged delivery recorded! Received ${numKegs} kegs (${result.tank.received_litres.toLocaleString()}L) from ${supplierName}.`);
+          const okMsg = `Pre-kegged delivery recorded! Received ${numKegs} kegs (${result.tank.received_litres.toLocaleString()}L) from ${supplierName}.`;
+          setSuccessMessage(okMsg);
+          showToast('success', okMsg);
           handleResetForm();
           setTimeout(() => setSuccessMessage(null), 6000);
         } else {
-          setErrorMessage(result.error || 'Failed to record pre-kegged delivery.');
+          const errMsg = result.error || 'Failed to record pre-kegged delivery.';
+          setErrorMessage(errMsg);
+          showToast('error', errMsg);
         }
       }
     } finally {

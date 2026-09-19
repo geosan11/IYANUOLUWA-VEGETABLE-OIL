@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useAuth } from '../services/auth';
+import { useToast } from '../services/toast';
 import { Envelope, LockKey, ArrowRight, WarningCircle, Drop, Spinner } from '@phosphor-icons/react';
 
 type Mode = 'sign-in' | 'sign-up';
 
 export const LoginScreen: React.FC = () => {
   const { signIn, signUp } = useAuth();
+  const { showToast } = useToast();
   const [mode, setMode] = useState<Mode>('sign-in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,18 +24,25 @@ export const LoginScreen: React.FC = () => {
 
     if (mode === 'sign-in') {
       const { error: err } = await signIn(email.trim(), password);
-      if (err) setError(err);
+      if (err) {
+        setError(err);
+        showToast('error', err);
+      }
     } else {
       if (!fullName.trim()) {
         setError('Enter your full name.');
+        showToast('error', 'Enter your full name.');
         setSubmitting(false);
         return;
       }
       const { error: err } = await signUp(email.trim(), password, fullName.trim());
       if (err) {
         setError(err);
+        showToast('error', err);
       } else {
-        setInfo('Account created. Check your email to confirm, then sign in — a new account starts as Counter Staff until an owner promotes it.');
+        const okMsg = 'Account created. Check your email to confirm, then sign in — a new account starts as Counter Staff until an owner promotes it.';
+        setInfo(okMsg);
+        showToast('success', okMsg);
         setMode('sign-in');
       }
     }

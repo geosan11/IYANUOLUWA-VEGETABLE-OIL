@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../services/store';
+import { useToast } from '../services/toast';
 import { usePermissions } from '../services/permissions';
 import { Modal } from '../components/common/Modal';
 import {
@@ -121,6 +122,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
     updateTankIntake
   } = useStore();
   const { isOwner } = usePermissions();
+  const { showToast } = useToast();
 
   const [scope, setScope] = useState<Scope>(activeShift ? 'shift' : 'today');
   const [search, setSearch] = useState('');
@@ -960,6 +962,11 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                 : voidTarget.kind === 'payment'
                 ? voidPayment(voidTarget.entityId, reason)
                 : voidExpense(voidTarget.entityId, reason);
+            if (r.success) {
+              showToast('success', `${KIND_META[voidTarget.kind].label} voided: ${voidTarget.title}.`);
+            } else {
+              showToast('error', r.error || 'Could not void this transaction.');
+            }
             return r;
           }}
         />
@@ -970,10 +977,30 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
           row={editTarget}
           suppliers={suppliers}
           onClose={() => setEditTarget(null)}
-          onSaveLine={(lineId, patch, reason) => updateOrderLine(lineId, patch, reason)}
-          onSaveExpense={(id, patch, reason) => updateExpense(id, patch, reason)}
-          onSaveIntake={(id, patch, reason) => updateTankIntake(id, patch, reason)}
-          onSavePaymentDate={(id, date, reason) => updatePaymentDate(id, date, reason)}
+          onSaveLine={(lineId, patch, reason) => {
+            const r = updateOrderLine(lineId, patch, reason);
+            if (r.success) showToast('success', 'Sale updated.');
+            else showToast('error', r.error || 'Could not save.');
+            return r;
+          }}
+          onSaveExpense={(id, patch, reason) => {
+            const r = updateExpense(id, patch, reason);
+            if (r.success) showToast('success', 'Expense updated.');
+            else showToast('error', r.error || 'Could not save.');
+            return r;
+          }}
+          onSaveIntake={(id, patch, reason) => {
+            const r = updateTankIntake(id, patch, reason);
+            if (r.success) showToast('success', 'Intake updated.');
+            else showToast('error', r.error || 'Could not save.');
+            return r;
+          }}
+          onSavePaymentDate={(id, date, reason) => {
+            const r = updatePaymentDate(id, date, reason);
+            if (r.success) showToast('success', 'Payment date updated.');
+            else showToast('error', r.error || 'Could not save.');
+            return r;
+          }}
         />
       )}
     </div>

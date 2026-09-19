@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../services/store';
+import { useToast } from '../services/toast';
 import { usePermissions } from '../services/permissions';
 import {
   formatNaira,
@@ -107,6 +108,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     addCustomer
   } = useStore();
   const { can } = usePermissions();
+  const { showToast } = useToast();
 
   // ---- In-page Previous Transactions View toggle ----
   const [showPreviousTransactions, setShowPreviousTransactions] = useState(false);
@@ -135,6 +137,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     e.preventDefault();
     if (!newCustName.trim()) {
       setAddCustomerError('Please enter a customer name.');
+      showToast('error', 'Please enter a customer name.');
       return;
     }
     const limit = Math.round(parseFromCommas(newCustLimit)) || 0;
@@ -146,6 +149,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
       credit_term_days: terms,
       phone: newCustPhone.trim()
     });
+    showToast('success', `Customer "${created.name}" added.`);
     setCustomerId(created.id);
     setIsAddCustomerOpen(false);
     setCustomerOpen(false);
@@ -436,45 +440,50 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
   const removeLine = (key: string) => setLines(prev => prev.filter(l => l.key !== key));
 
+  const fail = (msg: string) => {
+    setError(msg);
+    showToast('error', msg);
+  };
+
   const completeSale = () => {
     setError(null);
-    if (!customer) return setError('Select a customer.');
-    if (lines.length === 0) return setError('Add at least one item.');
+    if (!customer) return fail('Select a customer.');
+    if (lines.length === 0) return fail('Add at least one item.');
 
     if (paymentModeTab === 'single') {
       if (isOneTime && paymentMethod === 'credit') {
         setIsAddCustomerOpen(true);
-        return setError('Walk-in retail customers cannot buy on debt. Please register this customer or select an existing customer.');
+        return fail('Walk-in retail customers cannot buy on debt. Please register this customer or select an existing customer.');
       }
-      if (shortTender) return setError('Cash tendered is less than the total.');
-      if (overLimitBlocked) return setError('This sale puts the customer over their debt limit — owner approval required.');
+      if (shortTender) return fail('Cash tendered is less than the total.');
+      if (overLimitBlocked) return fail('This sale puts the customer over their debt limit — owner approval required.');
     } else if (paymentModeTab === 'partial') {
       if (partialDepositNum <= 0) {
-        return setError('Please enter the deposit / partial payment amount.');
+        return fail('Please enter the deposit / partial payment amount.');
       }
       if (partialDepositNum >= cartTotal) {
-        return setError('Deposit amount is equal to or greater than the total. Please switch to Full Payment mode.');
+        return fail('Deposit amount is equal to or greater than the total. Please switch to Full Payment mode.');
       }
       if (isOneTime && partialDebtNum > 0) {
         setIsAddCustomerOpen(true);
-        return setError('Walk-in retail customers cannot have remaining debt. Please register this customer or select an existing customer.');
+        return fail('Walk-in retail customers cannot have remaining debt. Please register this customer or select an existing customer.');
       }
-      if (partialShortTender) return setError('Cash tendered for deposit is less than the deposit amount.');
-      if (overLimitBlocked) return setError('The remaining debt puts the customer over their credit limit — owner approval required.');
+      if (partialShortTender) return fail('Cash tendered for deposit is less than the deposit amount.');
+      if (overLimitBlocked) return fail('The remaining debt puts the customer over their credit limit — owner approval required.');
     } else {
       if (!isSplitBalanced) {
-        return setError(`Split payments must equal total (${formatNaira(cartTotal)}) exactly. Currently assigned: ${formatNaira(splitTotalAssigned)}.`);
+        return fail(`Split payments must equal total (${formatNaira(cartTotal)}) exactly. Currently assigned: ${formatNaira(splitTotalAssigned)}.`);
       }
       if (splitLeg1Num <= 0 || splitLeg2Num <= 0) {
-        return setError('Both payment legs must have an amount greater than zero.');
+        return fail('Both payment legs must have an amount greater than zero.');
       }
       if (isOneTime && (splitLeg1Method === 'credit' || splitLeg2Method === 'credit')) {
         setIsAddCustomerOpen(true);
-        return setError('Walk-in retail customers cannot buy on debt. Please register this customer or select an existing customer.');
+        return fail('Walk-in retail customers cannot buy on debt. Please register this customer or select an existing customer.');
       }
-      if (splitLeg1ShortTender) return setError('Cash tendered for Leg 1 is less than the assigned amount.');
-      if (splitLeg2ShortTender) return setError('Cash tendered for Leg 2 is less than the assigned amount.');
-      if (overLimitBlocked) return setError('The debt portion puts the customer over their credit limit — owner approval required.');
+      if (splitLeg1ShortTender) return fail('Cash tendered for Leg 1 is less than the assigned amount.');
+      if (splitLeg2ShortTender) return fail('Cash tendered for Leg 2 is less than the assigned amount.');
+      if (overLimitBlocked) return fail('The debt portion puts the customer over their credit limit — owner approval required.');
     }
 
     const splits: PaymentSplit[] | undefined = paymentModeTab === 'partial'
@@ -544,9 +553,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     });
 
     if (!result.success) {
-      setError(result.error || 'Could not record the sale.');
+      const errMsg = result.error || 'Could not record the sale.';
+      setError(errMsg);
+      showToast('error', errMsg);
       return;
     }
+    showToast('success', `Sale recorded for ${customer?.name || 'customer'}: ${formatNaira(cartTotal)}.`);
     setLines([]);
     setAmountTendered('');
     setPartialDepositAmount('');
@@ -562,6 +574,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     setSaleDateInput(toDatetimeLocalValue());
   };
 
+  const failGate = (msg: string) => {
+    setGateError(msg);
+    showToast('error', msg);
+  };
+
   const submitGate = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setGateError(null);
@@ -570,11 +587,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
       const valStr = gateInputs[p.id];
       const v = parseFromCommas(valStr);
       if (!valStr || !Number.isFinite(v) || v <= 0) {
-        setGateError(`Enter a valid opening meter reading for ${p.label}.`);
+        failGate(`Enter a valid opening meter reading for ${p.label}.`);
         return;
       }
       if (v < p.last_meter_reading) {
-        setGateError(`Meter reading for ${p.label} cannot be less than previous reading (${p.last_meter_reading.toLocaleString()} L). Pumps only count up.`);
+        failGate(`Meter reading for ${p.label} cannot be less than previous reading (${p.last_meter_reading.toLocaleString()} L). Pumps only count up.`);
         return;
       }
       readings[p.id] = v;
@@ -584,7 +601,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
       const cashier = currentCashierName;
       const floatVal = parseFromCommas(gateOpeningFloat);
       if (floatVal < 0) {
-        setGateError('Cash for customer change cannot be negative.');
+        failGate('Cash for customer change cannot be negative.');
         return;
       }
       const res = startShift({
@@ -594,16 +611,23 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
         openingReadings: readings
       });
       if (!res.success) {
-        setGateError(res.error || 'Could not start shift.');
+        failGate(res.error || 'Could not start shift.');
         return;
       }
+      showToast('success', `Shift started for ${cashier}.`);
     } else {
       const res = recordShiftOpeningReadings(readings);
       if (!res.success) {
-        setGateError(res.error || 'Could not save the readings.');
+        failGate(res.error || 'Could not save the readings.');
         return;
       }
+      showToast('success', 'Opening pump readings saved.');
     }
+  };
+
+  const failCloseShift = (msg: string) => {
+    setCloseShiftError(msg);
+    showToast('error', msg);
   };
 
   const handleCloseShiftSubmit = (e: React.FormEvent) => {
@@ -613,7 +637,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
     const counted = parseFromCommas(closeShiftCashCounted);
     if (isNaN(counted) || counted < 0 || !closeShiftCashCounted.trim()) {
-      setCloseShiftError('Please enter a valid physical cash amount counted in the drawer.');
+      failCloseShift('Please enter a valid physical cash amount counted in the drawer.');
       return;
     }
 
@@ -623,11 +647,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
       const val = parseFromCommas(valStr);
       const opening = activeShift.opening_readings?.[p.id] ?? p.last_meter_reading ?? 0;
       if (!valStr || isNaN(val) || val <= 0) {
-        setCloseShiftError(`Please enter a valid closing reading for ${p.label}.`);
+        failCloseShift(`Please enter a valid closing reading for ${p.label}.`);
         return;
       }
       if (val < opening) {
-        setCloseShiftError(`Closing meter for ${p.label} (${val.toLocaleString()} L) cannot be less than opening reading (${opening.toLocaleString()} L). Pumps only count up.`);
+        failCloseShift(`Closing meter for ${p.label} (${val.toLocaleString()} L) cannot be less than opening reading (${opening.toLocaleString()} L). Pumps only count up.`);
         return;
       }
       closingReadings[p.id] = val;
@@ -641,10 +665,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     });
 
     if (!res.success) {
-      setCloseShiftError(res.error || 'Failed to end shift.');
+      failCloseShift(res.error || 'Failed to end shift.');
       return;
     }
 
+    showToast('success', 'Shift closed successfully.');
     setIsCloseShiftModalOpen(false);
     setCloseShiftCashCounted('');
     setCloseShiftPumpInputs({});

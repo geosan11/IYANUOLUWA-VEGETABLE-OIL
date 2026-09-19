@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
+import { useToast } from '../services/toast';
 import { Customer } from '../types';
 import { BottomSheet } from '../components/common/BottomSheet';
 import { formatDepotDate, formatDepotTime, formatWithCommas, parseFromCommas } from '../services/businessLogic';
@@ -32,6 +33,7 @@ export const KegsScreen: React.FC = () => {
     logKegReturn,
     updateSettings
   } = useStore();
+  const { showToast } = useToast();
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -60,6 +62,7 @@ export const KegsScreen: React.FC = () => {
     updateSettings({ total_company_kegs: val });
     setIsEditingFleet(false);
     setFleetFeedback('Saved');
+    showToast('success', `Total company keg fleet updated to ${formatWithCommas(val)} kegs.`);
     setTimeout(() => setFleetFeedback(null), 2500);
   };
 
@@ -189,16 +192,21 @@ export const KegsScreen: React.FC = () => {
     const target = buckets[0];
     if (!target) {
       setLogErrorMsg('This customer has no returnable containers out.');
+      showToast('error', 'This customer has no returnable containers out.');
       return;
     }
     const result = logKegReturn(customerId, qty, target.productId, target.packSizeId);
     if (result.success) {
       setReturnCustomerInputs(prev => ({ ...prev, [customerId]: '' }));
       const cust = customers.find(c => c.id === customerId);
-      setLogSuccessMsg(`Successfully logged ${qty} keg returns from ${cust?.name}!`);
+      const okMsg = `Successfully logged ${qty} keg returns from ${cust?.name}!`;
+      setLogSuccessMsg(okMsg);
+      showToast('success', okMsg);
       setTimeout(() => setLogSuccessMsg(null), 4000);
     } else {
-      setLogErrorMsg(result.error || 'Could not log the keg return.');
+      const errMsg = result.error || 'Could not log the keg return.';
+      setLogErrorMsg(errMsg);
+      showToast('error', errMsg);
     }
   };
 
@@ -213,16 +221,21 @@ export const KegsScreen: React.FC = () => {
     const chosen = buckets.find(b => b.key === detailReturnPack) || buckets[0];
     if (!chosen) {
       setLogErrorMsg('This customer has no returnable containers out.');
+      showToast('error', 'This customer has no returnable containers out.');
       return;
     }
     const result = logKegReturn(activeCustomer.id, qty, chosen.productId, chosen.packSizeId, detailReturnNotes);
     if (result.success) {
-      setDetailReturnFeedback(`Logged ${qty} keg returns from ${activeCustomer.name}`);
+      const okMsg = `Logged ${qty} keg returns from ${activeCustomer.name}`;
+      setDetailReturnFeedback(okMsg);
+      showToast('success', okMsg);
       setTimeout(() => setDetailReturnFeedback(null), 4000);
       setDetailReturnQty('1');
       setDetailReturnNotes('');
     } else {
-      setLogErrorMsg(result.error || 'Could not log the keg return.');
+      const errMsg = result.error || 'Could not log the keg return.';
+      setLogErrorMsg(errMsg);
+      showToast('error', errMsg);
     }
   };
 

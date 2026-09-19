@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
+import { useToast } from '../services/toast';
 import {
   formatNaira,
   formatDepotTime,
@@ -28,6 +29,7 @@ import { ONE_TIME_CUSTOMER_ID } from '../constants/config';
 
 export const ExpensesScreen: React.FC = () => {
   const { expenses, settings, todayStats, addExpense, updateSettings, customers, currentUser, customerStatsMap } = useStore();
+  const { showToast } = useToast();
 
   const [category, setCategory] = useState<string>('Diesel/Fuel');
   const [customCategory, setCustomCategory] = useState<string>('');
@@ -72,11 +74,13 @@ export const ExpensesScreen: React.FC = () => {
     const numAmount = parseFromCommas(amount);
     if (numAmount <= 0) {
       setErrorMsg('Enter an amount greater than zero.');
+      showToast('error', 'Enter an amount greater than zero.');
       return;
     }
 
     if (chargeToCustomer && !chargedCustomerId) {
       setErrorMsg('Please select a customer to charge this debt to.');
+      showToast('error', 'Please select a customer to charge this debt to.');
       return;
     }
 
@@ -97,7 +101,9 @@ export const ExpensesScreen: React.FC = () => {
 
     if (result.success) {
       const chargeText = chargeToCustomer && targetCust ? ` · Debited to ${targetCust.name}'s debt` : '';
-      setSuccessMsg(`Logged voucher: ${formatNaira(numAmount)} for ${finalCategory}${chargeText}`);
+      const okMsg = `Logged voucher: ${formatNaira(numAmount)} for ${finalCategory}${chargeText}`;
+      setSuccessMsg(okMsg);
+      showToast('success', okMsg);
       setAmount('');
       setNote('');
       setCustomCategory('');
@@ -108,7 +114,9 @@ export const ExpensesScreen: React.FC = () => {
       setShowDatePicker(false);
       setTimeout(() => setSuccessMsg(null), 4000);
     } else {
-      setErrorMsg(result.error || 'Could not log the expense.');
+      const errMsg = result.error || 'Could not log the expense.';
+      setErrorMsg(errMsg);
+      showToast('error', errMsg);
     }
   };
 

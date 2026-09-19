@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '../services/store';
+import { useToast } from '../services/toast';
 import { usePermissions } from '../services/permissions';
 import { Modal } from '../components/common/Modal';
 import { ScreenAccessPanel } from '../components/common/ScreenAccessPanel';
@@ -94,7 +95,7 @@ export const SettingsScreen: React.FC = () => {
   const { isOwner } = usePermissions();
   const denyIfNotOwner = () => {
     if (isOwner) return false;
-    showNotification('Only the owner can change this. You are viewing as ' + userRole + '.');
+    showNotification('Only the owner can change this. You are viewing as ' + userRole + '.', 'error');
     return true;
   };
 
@@ -205,9 +206,11 @@ export const SettingsScreen: React.FC = () => {
   const [requireClosePumpReadings, setRequireClosePumpReadings] = useState(settings.require_pump_readings_to_close_shift ?? true);
 
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const { showToast } = useToast();
 
-  const showNotification = (msg: string) => {
+  const showNotification = (msg: string, kind: 'success' | 'error' = 'success') => {
     setStatusMsg(msg);
+    showToast(kind, msg);
     setTimeout(() => setStatusMsg(null), 4000);
   };
 
@@ -224,7 +227,7 @@ export const SettingsScreen: React.FC = () => {
       updateSettings({ company_logo_url: result.url });
       showNotification('Company logo uploaded and saved to depot branding successfully!');
     } else {
-      showNotification(`Upload error: ${result.error || 'Failed to upload'}`);
+      showNotification(`Upload error: ${result.error || 'Failed to upload'}`, 'error');
     }
   };
 
@@ -434,7 +437,7 @@ export const SettingsScreen: React.FC = () => {
     e.preventDefault();
     if (denyIfNotOwner()) return;
     if (!hubName.trim() || !hubCode.trim() || !hubState.trim()) {
-      showNotification('Please fill in required hub details.');
+      showNotification('Please fill in required hub details.', 'error');
       return;
     }
 
@@ -469,7 +472,7 @@ export const SettingsScreen: React.FC = () => {
     if (!window.confirm(`Are you sure you want to delete "${hub.name}"?`)) return;
     const res = deleteHub(hub.id);
     if (!res.success) {
-      showNotification(`Cannot delete hub: ${res.error}`);
+      showNotification(`Cannot delete hub: ${res.error}`, 'error');
     } else {
       showNotification(`Hub "${hub.name}" removed successfully.`);
     }
@@ -502,7 +505,7 @@ export const SettingsScreen: React.FC = () => {
     e.preventDefault();
     if (denyIfNotOwner()) return;
     if (!userFullName.trim() || !userEmail.trim()) {
-      showNotification('Full name and email are required.');
+      showNotification('Full name and email are required.', 'error');
       return;
     }
 
@@ -537,13 +540,13 @@ export const SettingsScreen: React.FC = () => {
   const handleDeleteUserAction = (u: UserProfile) => {
     if (denyIfNotOwner()) return;
     if (u.id === currentUser.id) {
-      showNotification('Cannot delete your own active user account.');
+      showNotification('Cannot delete your own active user account.', 'error');
       return;
     }
     if (!window.confirm(`Are you sure you want to delete user "${u.full_name}"?`)) return;
     const res = deleteUser(u.id);
     if (!res.success) {
-      showNotification(`Cannot delete user: ${res.error}`);
+      showNotification(`Cannot delete user: ${res.error}`, 'error');
     } else {
       showNotification(`User "${u.full_name}" removed.`);
     }

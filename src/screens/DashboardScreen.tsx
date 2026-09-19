@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../services/store';
+import { useToast } from '../services/toast';
 import { usePermissions } from '../services/permissions';
 import { TankGauge } from '../components/common/TankGauge';
 import { KegVisual25L } from '../components/common/KegVisual25L';
@@ -62,6 +63,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     currentUser
   } = useStore();
   const { can } = usePermissions();
+  const { showToast } = useToast();
 
   const vegStock = tankStockByProduct['veg']?.totalLitres || 0;
   const redStock = tankStockByProduct['red']?.totalLitres || 0;
@@ -214,6 +216,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
 
 
+  const failShift = (msg: string) => {
+    setShiftError(msg);
+    showToast('error', msg);
+  };
+
   const handleStartShiftSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setShiftError(null);
@@ -224,11 +231,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       const valStr = pumpOpeningInputs[p.id];
       const v = parseFromCommas(valStr);
       if (!valStr || !Number.isFinite(v) || v <= 0) {
-        setShiftError(`Enter a valid opening reading for ${p.label}.`);
+        failShift(`Enter a valid opening reading for ${p.label}.`);
         return;
       }
       if (v < p.last_meter_reading) {
-        setShiftError(`Meter reading for ${p.label} cannot be less than previous (${p.last_meter_reading.toLocaleString()} L).`);
+        failShift(`Meter reading for ${p.label} cannot be less than previous (${p.last_meter_reading.toLocaleString()} L).`);
         return;
       }
       readings[p.id] = v;
@@ -245,9 +252,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       setStartNotesInput('');
       setPumpOpeningInputs({});
       setShiftFeedback('New shift opened successfully with verified pump readings.');
+      showToast('success', 'New shift opened successfully with verified pump readings.');
       setTimeout(() => setShiftFeedback(null), 4000);
     } else {
-      setShiftError(res.error || 'Could not start the shift.');
+      failShift(res.error || 'Could not start the shift.');
     }
   };
 
@@ -265,7 +273,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         const val = parseFromCommas(valStr);
         const opening = activeShift.opening_readings?.[p.id] ?? p.last_meter_reading ?? 0;
         if (val < opening) {
-          setShiftError(`Closing meter for ${p.label} cannot be less than opening reading (${opening.toLocaleString()} L).`);
+          failShift(`Closing meter for ${p.label} cannot be less than opening reading (${opening.toLocaleString()} L).`);
           return;
         }
         closingReadings[p.id] = val;
@@ -285,9 +293,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       setCloseNotesInput('');
       setPumpClosingInputs({});
       setShiftFeedback('Shift reconciled and closed successfully.');
+      showToast('success', 'Shift reconciled and closed successfully.');
       setTimeout(() => setShiftFeedback(null), 4000);
     } else {
-      setShiftError(res.error || 'Could not close the shift.');
+      failShift(res.error || 'Could not close the shift.');
     }
   };
 
