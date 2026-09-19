@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
+import { supabase, isSupabaseConfigured } from './supabase';
+import { useToast } from './toast';
 import {
   Product,
   ProductPackConfig,
@@ -381,6 +383,8 @@ function loadPersisted<T>(key: string, fallback: T): T {
 }
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { showToast } = useToast();
+
   // Theme state: defaults to 'light'
   const [theme, setThemeState] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.THEME);
@@ -517,6 +521,58 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem(STORAGE_KEYS.HUBS, JSON.stringify(hubs));
   }, [hubs]);
 
+  // Hubs are the one piece of business data actually persisted to Supabase
+  // today (everything else is still localStorage-only). Without this, a hub
+  // created in one browser was invisible on every other device, and looked
+  // "wiped" the moment a redeploy forced a hard reload of a browser that
+  // never had it cached. On mount: pull the real rows down, and push up any
+  // hub this browser created locally before it ever synced (so nothing a
+  // browser already has gets silently dropped by moving to Supabase).
+  const hubsSyncedRef = useRef(false);
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || hubsSyncedRef.current) return;
+    hubsSyncedRef.current = true;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase!
+        .from('hubs')
+        .select('id, name, code, state, address, phone, manager_name, is_active, created_at')
+        .order('created_at', { ascending: true });
+      if (cancelled) return;
+      if (error) {
+        console.error('[store] Failed to load hubs from database:', error.message);
+        return;
+      }
+      const remoteHubs = (data as Hub[]) ?? [];
+      const remoteIds = new Set(remoteHubs.map(h => h.id));
+      setHubs(prevLocal => {
+        const localOnly = prevLocal.filter(h => !remoteIds.has(h.id));
+        if (localOnly.length > 0) {
+          supabase!
+            .from('hubs')
+            .insert(localOnly.map(h => ({
+              id: h.id,
+              name: h.name,
+              code: h.code,
+              state: h.state,
+              address: h.address,
+              phone: h.phone || null,
+              manager_name: h.manager_name || null,
+              is_active: h.is_active,
+              created_at: h.created_at || new Date().toISOString()
+            })))
+            .then(({ error: insertError }) => {
+              if (insertError) console.error('[store] Failed to sync local hubs to database:', insertError.message);
+            });
+        }
+        return [...remoteHubs, ...localOnly];
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
   }, [users]);
@@ -636,15 +692,56 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const addHub = (hubData: Omit<Hub, 'id' | 'created_at'>): Hub => {
     const newHub: Hub = {
       ...hubData,
-      id: `hub-${Date.now()}`,
+      id: `hub-${crypto.randomUUID()}`,
       created_at: new Date().toISOString()
     };
     setHubs(prev => [...prev, newHub]);
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('hubs')
+        .insert({
+          id: newHub.id,
+          name: newHub.name,
+          code: newHub.code,
+          state: newHub.state,
+          address: newHub.address,
+          phone: newHub.phone || null,
+          manager_name: newHub.manager_name || null,
+          is_active: newHub.is_active,
+          created_at: newHub.created_at
+        })
+        .then(({ error }) => {
+          if (error) {
+            console.error('[store] Failed to save hub to database:', error.message);
+            showToast('error', `"${newHub.name}" was saved on this device only — it didn't sync to the database (${error.message}).`);
+          }
+        });
+    }
     return newHub;
   };
 
   const updateHub = (id: string, updates: Partial<Hub>) => {
     setHubs(prev => prev.map(h => (h.id === id ? { ...h, ...updates } : h)));
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('hubs')
+        .update({
+          ...(updates.name !== undefined && { name: updates.name }),
+          ...(updates.code !== undefined && { code: updates.code }),
+          ...(updates.state !== undefined && { state: updates.state }),
+          ...(updates.address !== undefined && { address: updates.address }),
+          ...(updates.phone !== undefined && { phone: updates.phone || null }),
+          ...(updates.manager_name !== undefined && { manager_name: updates.manager_name || null }),
+          ...(updates.is_active !== undefined && { is_active: updates.is_active })
+        })
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error) {
+            console.error('[store] Failed to update hub in database:', error.message);
+            showToast('error', `Hub changes were saved on this device only — they didn't sync to the database (${error.message}).`);
+          }
+        });
+    }
   };
 
   const deleteHub = (id: string) => {
@@ -656,6 +753,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     setHubs(prev => prev.filter(h => h.id !== id));
     if (activeHubId === id) setActiveHubIdState('all');
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('hubs')
+        .delete()
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error) {
+            console.error('[store] Failed to delete hub from database:', error.message);
+            showToast('error', `Removed here, but the database delete failed (${error.message}) — it may reappear on other devices.`);
+          }
+        });
+    }
     return { success: true };
   };
 

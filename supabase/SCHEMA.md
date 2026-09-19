@@ -1,8 +1,8 @@
 # Iyanuoluwa Depot — Supabase schema contract
 
-Schema layer only. The React app is **not** wired to Supabase yet; it still runs
-entirely off `localStorage` (see `src/services/store.tsx`). These files define the
-Postgres target the app will migrate onto.
+Auth (`profiles`) and `hubs` are wired to Supabase and live; every other
+operational table is still `localStorage`-only (see `src/services/store.tsx`).
+These files define the Postgres target the rest of the app will migrate onto.
 
 | File | Purpose |
 |---|---|
@@ -15,6 +15,7 @@ Postgres target the app will migrate onto.
 | `supabase/migrations/0007_double_split_payments.sql` | `split` payment method, `orders.payment_splits`, `sale_payments` table, expense-to-customer debt fields. |
 | `supabase/migrations/0008_relational_hardening.sql` | Relational-integrity audit fixes: RLS on `sale_payments`, `hub_isolation_transfers`, narrows `hub_isolation_pumps`/`hub_isolation_physical_tanks` to read-only, missing FK indexes. |
 | `supabase/migrations/0009_hub_id_text.sql` | Every `hub_id`/`from_hub_id`/`to_hub_id` column: `uuid` FK into the unused `hubs` table → plain client-supplied `text`, matching every other id in this schema. Fixes inviting a user into one of the app's real hubs (`'hub-los-alaba'` etc.) failing with `invalid input syntax for type uuid`. |
+| `supabase/migrations/0010_hubs_id_text.sql` | `hubs.id`: `uuid` → `text`, reseeded with the app's real hub ids (`'hub-los-alaba'` etc.). Paired with `store.tsx` reading/writing the `hubs` table for real — hubs created in Settings previously only ever lived in that one browser's `localStorage`. |
 | `supabase/seed.sql` | Demo data mirroring the seed constants in `src/constants/config.ts`. |
 | `supabase/functions/create-staff-account/` | Edge Function (in active use): owner sets a username + password directly for a new team member, no email required — maps the username to a synthetic address under the hood. Deploy: `supabase functions deploy create-staff-account`. |
 | `supabase/functions/invite-user/` | Edge Function (built, not currently wired into the UI): sends a real Supabase auth invite email to a new team member and sets their role/hub/screen access. Deploy: `supabase functions deploy invite-user` — see `supabase/functions/README.md`. |
