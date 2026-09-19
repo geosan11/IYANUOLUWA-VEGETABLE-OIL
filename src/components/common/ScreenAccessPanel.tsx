@@ -17,6 +17,7 @@ interface DraftRow {
   hubId: string | null;
   /** null = "use the role default"; an array (however short) = an explicit override. */
   allowedScreens: string[] | null;
+  fullName: string;
 }
 
 /**
@@ -36,6 +37,7 @@ export const ScreenAccessPanel: React.FC = () => {
   const [rowMessage, setRowMessage] = useState<Record<string, string>>({});
 
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteName, setInviteName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<UserRole>('staff');
   const [inviteHubId, setInviteHubId] = useState<string>('');
@@ -54,7 +56,7 @@ export const ScreenAccessPanel: React.FC = () => {
       setProfiles(rows);
       setDrafts(
         Object.fromEntries(
-          rows.map(p => [p.id, { role: p.role, hubId: p.hub_id, allowedScreens: p.allowed_screens ?? null }])
+          rows.map(p => [p.id, { role: p.role, hubId: p.hub_id, allowedScreens: p.allowed_screens ?? null, fullName: p.full_name || '' }])
         )
       );
     });
@@ -67,6 +69,7 @@ export const ScreenAccessPanel: React.FC = () => {
     if (!d) return false;
     if (d.role !== p.role) return true;
     if (d.hubId !== p.hub_id) return true;
+    if (d.fullName !== (p.full_name || '')) return true;
     const a = d.allowedScreens ?? [];
     const b = p.allowed_screens ?? [];
     return a.length !== b.length || a.some(id => !b.includes(id));
@@ -94,7 +97,8 @@ export const ScreenAccessPanel: React.FC = () => {
       inviteEmail.trim(),
       inviteRole,
       inviteRole === 'owner' ? null : inviteHubId || null,
-      null
+      null,
+      inviteName
     );
     setInviteSending(false);
     if (error) {
@@ -102,6 +106,7 @@ export const ScreenAccessPanel: React.FC = () => {
       return;
     }
     setInviteMessage({ kind: 'ok', text: `Invite sent to ${inviteEmail.trim()}. They'll appear below once they accept it.` });
+    setInviteName('');
     setInviteEmail('');
     setInviteRole('staff');
     setInviteHubId('');
@@ -115,7 +120,8 @@ export const ScreenAccessPanel: React.FC = () => {
     const { error } = await updateProfileAccess(p.id, {
       role: d.role,
       hub_id: d.role === 'owner' ? null : d.hubId,
-      allowed_screens: d.allowedScreens
+      allowed_screens: d.allowedScreens,
+      full_name: d.fullName.trim() || null
     });
     setSavingId(null);
     if (error) {
@@ -123,7 +129,11 @@ export const ScreenAccessPanel: React.FC = () => {
       return;
     }
     setProfiles(prev =>
-      prev.map(row => (row.id === p.id ? { ...row, role: d.role, hub_id: d.role === 'owner' ? null : d.hubId, allowed_screens: d.allowedScreens } : row))
+      prev.map(row =>
+        row.id === p.id
+          ? { ...row, role: d.role, hub_id: d.role === 'owner' ? null : d.hubId, allowed_screens: d.allowedScreens, full_name: d.fullName.trim() || null }
+          : row
+      )
     );
     setRowMessage(prev => ({ ...prev, [p.id]: 'Saved. Takes effect next time they load the app.' }));
   };
@@ -167,7 +177,14 @@ export const ScreenAccessPanel: React.FC = () => {
             <PaperPlaneTilt className="w-4 h-4" weight="bold" />
             <span>Send a real sign-up invite by email</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+            <input
+              type="text"
+              value={inviteName}
+              onChange={e => setInviteName(e.target.value)}
+              placeholder="Full name"
+              className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-sans sm:col-span-1"
+            />
             <input
               type="email"
               required
@@ -249,17 +266,20 @@ export const ScreenAccessPanel: React.FC = () => {
               className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 space-y-3"
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
                   <div className="w-9 h-9 rounded-xl bg-cyan-100 dark:bg-cyan-900/50 text-cyan-800 dark:text-cyan-200 flex items-center justify-center font-bold text-sm shrink-0">
-                    {(p.full_name || '?').charAt(0).toUpperCase()}
+                    {(draft.fullName || '?').charAt(0).toUpperCase()}
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-heading font-bold text-[14px] text-slate-900 dark:text-white truncate">
-                        {p.full_name || `Account ${p.id.slice(0, 8)}`}
-                      </span>
+                      <input
+                        value={draft.fullName}
+                        onChange={e => setDrafts(prev => ({ ...prev, [p.id]: { ...prev[p.id], fullName: e.target.value } }))}
+                        placeholder={`Account ${p.id.slice(0, 8)} — no name set`}
+                        className="min-w-0 flex-1 px-2 py-1 -ml-2 rounded-lg bg-transparent hover:bg-white dark:hover:bg-slate-900 focus:bg-white dark:focus:bg-slate-900 border border-transparent hover:border-slate-200 dark:hover:border-slate-800 focus:border-cyan-400 font-heading font-bold text-[14px] text-slate-900 dark:text-white placeholder:font-sans placeholder:font-normal placeholder:text-slate-400 transition-colors"
+                      />
                       {isCurrent && (
-                        <span className="px-2 py-0.5 rounded-full bg-cyan-600 text-white font-sans text-[10px] font-bold">You</span>
+                        <span className="px-2 py-0.5 rounded-full bg-cyan-600 text-white font-sans text-[10px] font-bold shrink-0">You</span>
                       )}
                     </div>
                     <span className="text-[11px] font-mono text-slate-400 truncate">{p.id}</span>

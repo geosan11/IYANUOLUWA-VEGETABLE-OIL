@@ -74,6 +74,7 @@ Deno.serve(async (req: Request) => {
     role?: string;
     hub_id?: string | null;
     allowed_screens?: string[] | null;
+    full_name?: string | null;
     redirectTo?: string;
   };
   try {
@@ -91,8 +92,11 @@ Deno.serve(async (req: Request) => {
     return json({ error: `Role must be one of: ${VALID_ROLES.join(', ')}` }, 400);
   }
 
+  const fullName = body.full_name?.trim() || null;
+
   const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: body.redirectTo
+    redirectTo: body.redirectTo,
+    data: fullName ? { full_name: fullName } : undefined
   });
 
   if (inviteError || !inviteData?.user) {
@@ -104,7 +108,11 @@ Deno.serve(async (req: Request) => {
     .update({
       role,
       hub_id: role === 'owner' ? null : body.hub_id ?? null,
-      allowed_screens: body.allowed_screens ?? null
+      allowed_screens: body.allowed_screens ?? null,
+      // The new-user trigger already reads raw_user_meta_data.full_name into
+      // this same column, but setting it again here means it lands even if
+      // that trigger's insert already fired with a null (a benign race).
+      ...(fullName ? { full_name: fullName } : {})
     })
     .eq('id', inviteData.user.id);
 

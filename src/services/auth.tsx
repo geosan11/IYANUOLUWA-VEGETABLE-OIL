@@ -54,7 +54,7 @@ export async function listAllProfiles(): Promise<{ profiles: AuthProfile[]; erro
  */
 export async function updateProfileAccess(
   userId: string,
-  patch: { role?: UserRole; hub_id?: string | null; allowed_screens?: string[] | null }
+  patch: { role?: UserRole; hub_id?: string | null; allowed_screens?: string[] | null; full_name?: string | null }
 ): Promise<{ error: string | null }> {
   if (!supabase) return { error: 'Supabase is not configured for this deployment.' };
   const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
@@ -72,7 +72,8 @@ export async function inviteUser(
   email: string,
   role: UserRole,
   hubId: string | null,
-  allowedScreens: string[] | null
+  allowedScreens: string[] | null,
+  fullName?: string | null
 ): Promise<{ error: string | null }> {
   if (!supabase) return { error: 'Supabase is not configured for this deployment.' };
   const { data, error } = await supabase.functions.invoke('invite-user', {
@@ -81,6 +82,7 @@ export async function inviteUser(
       role,
       hub_id: hubId,
       allowed_screens: allowedScreens,
+      full_name: fullName?.trim() || null,
       redirectTo: `${window.location.origin}/`
     }
   });
