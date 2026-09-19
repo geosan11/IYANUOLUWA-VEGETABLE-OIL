@@ -142,6 +142,21 @@ export async function createStaffAccount(
   return { error: null };
 }
 
+/**
+ * Owner-only: permanently deletes a team member's account. The matching
+ * `profiles` row is removed automatically (on delete cascade from
+ * auth.users) — nothing else to clean up client-side.
+ */
+export async function deleteStaffAccount(userId: string): Promise<{ error: string | null }> {
+  if (!supabase) return { error: 'Supabase is not configured for this deployment.' };
+  const { data, error } = await supabase.functions.invoke('delete-staff-account', {
+    body: { userId }
+  });
+  if (error) return { error: await describeFunctionsError(error) };
+  if (data?.error) return { error: data.error };
+  return { error: null };
+}
+
 interface AuthResult {
   error: string | null;
 }

@@ -1,5 +1,12 @@
 # Supabase Edge Functions
 
+## `delete-staff-account`
+
+Owner-only: permanently deletes a team member's account
+(`admin.auth.admin.deleteUser`) — the matching `profiles` row cascades away
+automatically. Deploy: `supabase functions deploy delete-staff-account`.
+Wired into the trash-icon button on each row in Staff Management.
+
 ## `create-staff-account`
 
 Lets an owner set a **username + password directly** for a new team member —

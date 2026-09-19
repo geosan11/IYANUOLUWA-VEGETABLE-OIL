@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { listAllProfiles, updateProfileAccess, createStaffAccount, AuthProfile } from '../../services/auth';
+import { listAllProfiles, updateProfileAccess, createStaffAccount, deleteStaffAccount, AuthProfile } from '../../services/auth';
 import { useStore } from '../../services/store';
 import { useToast } from '../../services/toast';
 import { NAV_ITEMS, getVisibleNavItems } from '../../constants/nav';
 import type { UserRole } from '../../types';
-import { ShieldCheck, ArrowsClockwise, Check, WarningCircle, IdentificationBadge, Plus } from '@phosphor-icons/react';
+import { ShieldCheck, ArrowsClockwise, Check, WarningCircle, IdentificationBadge, Plus, Trash } from '@phosphor-icons/react';
 
 /** Same sanitizer the create-staff-account Edge Function applies server-side
  * — mirrored here purely so the username preview shown while typing matches
@@ -42,6 +42,7 @@ export const ScreenAccessPanel: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, DraftRow>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [rowMessage, setRowMessage] = useState<Record<string, string>>({});
 
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -153,6 +154,27 @@ export const ScreenAccessPanel: React.FC = () => {
     );
     setRowMessage(prev => ({ ...prev, [p.id]: 'Saved. Takes effect next time they load the app.' }));
     showToast('success', `${d.fullName.trim() || p.full_name || 'Account'} updated. Takes effect next time they load the app.`);
+  };
+
+  const remove = async (p: AuthProfile) => {
+    const label = p.full_name || `Account ${p.id.slice(0, 8)}`;
+    if (!window.confirm(`Permanently delete "${label}"? They will no longer be able to sign in. This cannot be undone.`)) {
+      return;
+    }
+    setDeletingId(p.id);
+    const { error } = await deleteStaffAccount(p.id);
+    setDeletingId(null);
+    if (error) {
+      showToast('error', error);
+      return;
+    }
+    setProfiles(prev => prev.filter(row => row.id !== p.id));
+    setDrafts(prev => {
+      const next = { ...prev };
+      delete next[p.id];
+      return next;
+    });
+    showToast('success', `"${label}" removed. They can no longer sign in.`);
   };
 
   return (
@@ -352,6 +374,17 @@ export const ScreenAccessPanel: React.FC = () => {
                       <option key={r.id} value={r.id}>{r.label}</option>
                     ))}
                   </select>
+                  {!isCurrent && (
+                    <button
+                      type="button"
+                      onClick={() => remove(p)}
+                      disabled={deletingId === p.id}
+                      title="Delete this account"
+                      className="p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 disabled:opacity-50 transition-colors"
+                    >
+                      <Trash className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
 
