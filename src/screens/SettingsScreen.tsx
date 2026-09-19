@@ -834,7 +834,10 @@ export const SettingsScreen: React.FC = () => {
             <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" />
           </button>
 
-          {/* Row 8: Team & Access Control */}
+          {/* Row 8: Team & Access Control — local/offline-only roster; real
+              team management now lives on the owner-only Staff Management
+              screen once Supabase is configured. */}
+          {!isSupabaseConfigured && (
           <button
             type="button"
             onClick={() => setActiveMobileSheet('users')}
@@ -853,6 +856,7 @@ export const SettingsScreen: React.FC = () => {
             </div>
             <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" />
           </button>
+          )}
         </div>
       </div>
 
@@ -900,11 +904,18 @@ export const SettingsScreen: React.FC = () => {
               title: 'Hubs & Depots',
               subtitle: `${hubs.length} depots · Multi-depot network`
             },
-            {
-              id: 'users' as const,
-              title: 'Team & User Access',
-              subtitle: `${users.length} members · Role & hub scoping`
-            }
+            // Local/offline-only roster — real team management now lives on
+            // the owner-only Staff Management screen once Supabase is
+            // configured, so this tab has nothing to show there.
+            ...(!isSupabaseConfigured
+              ? [
+                  {
+                    id: 'users' as const,
+                    title: 'Team & User Access',
+                    subtitle: `${users.length} members · Role & hub scoping`
+                  }
+                ]
+              : [])
           ].map(item => {
             const theme = SECTION_THEME[item.id];
             const Icon = theme.icon;
