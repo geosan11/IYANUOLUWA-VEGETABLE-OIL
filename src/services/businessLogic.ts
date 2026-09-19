@@ -695,13 +695,38 @@ export function formatNaira(amount: number): string {
 
 /**
  * Format a numeric input string with commas every 3 digits (e.g. 100000 -> "100,000", 500 -> "500").
- * Preserves empty strings. Strips any non-digit characters.
+ * Preserves empty strings and a single decimal point (with whatever digits
+ * follow it, even zero of them) so typing a fractional value — e.g. a pump
+ * meter reading like "12450.5" — doesn't get silently truncated to an
+ * integer character by character as the user types the '.'. Only the first
+ * '.' survives; anything after a second one is treated as more digits.
  */
 export function formatWithCommas(value: string | number | null | undefined): string {
   if (value === '' || value === null || value === undefined) return '';
-  const digits = String(value).replace(/[^0-9]/g, '');
-  if (!digits) return '';
-  return Number(digits).toLocaleString('en-US');
+  const str = String(value);
+  const dotIndex = str.indexOf('.');
+  const wholeDigits = (dotIndex === -1 ? str : str.slice(0, dotIndex)).replace(/[^0-9]/g, '');
+  if (dotIndex === -1) {
+    return wholeDigits ? Number(wholeDigits).toLocaleString('en-US') : '';
+  }
+  const decimalDigits = str.slice(dotIndex + 1).replace(/[^0-9]/g, '');
+  const wholeFormatted = wholeDigits ? Number(wholeDigits).toLocaleString('en-US') : '0';
+  return `${wholeFormatted}.${decimalDigits}`;
+}
+
+/**
+ * Sanitize a raw <input> value down to digits and at most one decimal point
+ * — for plain `type="number"` fields (mechanical meter readings, which read
+ * to a tenths-of-a-litre digit) where `formatWithCommas`'s thousands
+ * separators would be rejected by the browser's own number-input parsing.
+ * Same '.'-preserving behaviour as `formatWithCommas`, no comma grouping.
+ */
+export function keepDigitsAndDecimal(value: string): string {
+  const dotIndex = value.indexOf('.');
+  if (dotIndex === -1) return value.replace(/[^0-9]/g, '');
+  const whole = value.slice(0, dotIndex).replace(/[^0-9]/g, '');
+  const decimals = value.slice(dotIndex + 1).replace(/[^0-9]/g, '');
+  return `${whole}.${decimals}`;
 }
 
 /**

@@ -75,8 +75,10 @@ export const PumpOdometerIllustration: React.FC<PumpOdometerIllustrationProps> =
         </div>
       </div>
 
-      {/* Mechanical Counter Wheel Assembly */}
-      <div className="bg-slate-900 dark:bg-slate-950 rounded-xl p-4 border border-slate-800 shadow-inner flex flex-col items-center justify-center gap-3">
+      {/* Mechanical Counter Wheel Assembly — hugs its content instead of
+          stretching full-width, so the dark box doesn't pull focus away
+          from the digits themselves */}
+      <div className="w-fit max-w-full mx-auto bg-slate-900 dark:bg-slate-950 rounded-xl py-4 px-5 border border-slate-800 shadow-inner flex flex-col items-center justify-center gap-3">
         <div className="text-[10px] uppercase font-mono tracking-widest text-slate-400 flex items-center gap-2">
           <span>Continuous Mechanical Counter</span>
           <span className="text-slate-600">•</span>

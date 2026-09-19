@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Backspace, Check, ArrowsClockwise } from '@phosphor-icons/react';
 
 interface MiniNumberPadProps {
@@ -28,15 +28,29 @@ export const MiniNumberPad: React.FC<MiniNumberPadProps> = ({
 }) => {
   const currentPriceNum = Number(price) || 0;
 
+  // Whether the next digit continues the number already on screen (append)
+  // or starts a fresh one (replace). Keying this off the *value* itself —
+  // e.g. "replace only when it's currently 0 or 1" — breaks the moment the
+  // value legitimately becomes 1 mid-entry: typing "1" then "2" for "12"
+  // would replace again on the second press because qty is still 1, so
+  // "12"/"10"/"11" etc. could never be typed at all starting from the
+  // default qty of 1. Track "have we started a fresh entry" explicitly
+  // instead, matching standard keypad/POS amount-entry behaviour: the first
+  // digit after opening/clearing replaces, every digit after that appends.
+  const [qtyEditing, setQtyEditing] = useState(false);
+  const [priceEditing, setPriceEditing] = useState(false);
+
   const handleDigit = (digit: string) => {
     if (activeTarget === 'qty') {
-      const currentStr = String(qty);
-      const newStr = currentStr === '0' || currentStr === '1' ? digit : currentStr + digit;
+      const currentStr = qtyEditing ? String(qty) : '';
+      const newStr = currentStr + digit;
       const val = Math.max(1, Math.min(99999, parseInt(newStr, 10) || 1));
+      setQtyEditing(true);
       onQtyChange(val);
     } else {
-      const currentStr = String(price || '');
-      const newStr = currentStr === '0' ? digit : currentStr + digit;
+      const currentStr = priceEditing ? String(price || '') : '';
+      const newStr = currentStr + digit;
+      setPriceEditing(true);
       onPriceChange(newStr);
     }
   };
@@ -45,15 +59,19 @@ export const MiniNumberPad: React.FC<MiniNumberPadProps> = ({
     if (activeTarget === 'qty') {
       const currentStr = String(qty);
       if (currentStr.length <= 1) {
+        setQtyEditing(false);
         onQtyChange(1);
       } else {
+        setQtyEditing(true);
         onQtyChange(parseInt(currentStr.slice(0, -1), 10) || 1);
       }
     } else {
       const currentStr = String(price || '');
       if (currentStr.length <= 1) {
+        setPriceEditing(false);
         onPriceChange('');
       } else {
+        setPriceEditing(true);
         onPriceChange(currentStr.slice(0, -1));
       }
     }
@@ -61,8 +79,10 @@ export const MiniNumberPad: React.FC<MiniNumberPadProps> = ({
 
   const handleClear = () => {
     if (activeTarget === 'qty') {
+      setQtyEditing(false);
       onQtyChange(1);
     } else {
+      setPriceEditing(false);
       onPriceChange('');
     }
   };

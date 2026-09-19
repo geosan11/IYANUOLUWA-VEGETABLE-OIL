@@ -16,7 +16,10 @@ import {
   getDepotToday,
   formatNairaWords,
   toDatetimeLocalValue,
-  fromDatetimeLocalValue
+  fromDatetimeLocalValue,
+  formatWithCommas,
+  parseFromCommas,
+  keepDigitsAndDecimal
 } from './businessLogic';
 import { lookupPackPrice, priceSaleLine } from './pricing';
 import {
@@ -600,6 +603,30 @@ assert(formatNairaWords(0) === 'Zero naira only', 'Amount words: zero');
 assert(formatNairaWords(1385000) === 'One million, three hundred and eighty-five thousand naira only', 'Amount words: 1,385,000');
 assert(formatNairaWords(4500) === 'Four thousand, five hundred naira only', 'Amount words: 4,500');
 assert(formatNairaWords(215) === 'Two hundred and fifteen naira only', 'Amount words: 215');
+
+// ---- formatWithCommas / parseFromCommas: comma-formatted numeric inputs ----
+assert(formatWithCommas(100000) === '100,000', 'formatWithCommas: 100000 -> "100,000"');
+assert(formatWithCommas('') === '', 'formatWithCommas: empty string stays empty');
+assert(formatWithCommas(null) === '', 'formatWithCommas: null stays empty');
+{
+  // Every comma-formatted field re-runs the raw input through formatWithCommas
+  // on each keystroke (onChange={e => setX(formatWithCommas(e.target.value))}) —
+  // simulate typing a fractional pump meter reading character by character the
+  // same way a real <input> would, so a regression here is caught the same way
+  // it would actually manifest for a cashier.
+  let typed = '';
+  for (const ch of '12450.5') {
+    typed = formatWithCommas(typed + ch);
+  }
+  assert(typed === '12,450.5', `formatWithCommas: typing "12450.5" keystroke-by-keystroke yields "12,450.5" (got "${typed}")`);
+}
+assert(formatWithCommas('12450.') === '12,450.', 'formatWithCommas: keeps a trailing "." so more decimal digits can still be typed');
+assert(parseFromCommas('12,450.5') === 12450.5, 'parseFromCommas: "12,450.5" -> 12450.5');
+assert(parseFromCommas(formatWithCommas('12450.5')) === 12450.5, 'formatWithCommas -> parseFromCommas round-trips a decimal value exactly');
+assert(parseFromCommas('') === 0, 'parseFromCommas: empty string -> 0');
+assert(keepDigitsAndDecimal('12450.5') === '12450.5', 'keepDigitsAndDecimal: preserves a decimal pump meter reading');
+assert(keepDigitsAndDecimal('12,450.5') === '12450.5', 'keepDigitsAndDecimal: strips stray commas but keeps the decimal point');
+assert(keepDigitsAndDecimal('abc') === '', 'keepDigitsAndDecimal: non-numeric input becomes empty');
 
 // ---------------------------------------------------------------------------
 // TEST: Shift operating schedule and 3-pump closing readings volume calculation
