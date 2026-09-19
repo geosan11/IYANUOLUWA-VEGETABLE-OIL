@@ -745,7 +745,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
         isOpen={gateBlocked}
         onClose={() => {}}
         hideCloseButton
-        size="lg"
+        size="xl"
         title={
           <span className="flex items-center gap-2.5 text-slate-900 dark:text-white font-heading font-bold text-base">
             <span className="w-8 h-8 rounded-xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-brand-600 dark:text-brand-400 shrink-0">
@@ -774,9 +774,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
           </div>
         }
       >
-        <form onSubmit={submitGate} className="space-y-4">
+        <form onSubmit={submitGate} className="space-y-3">
           {!activeShift && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800">
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
@@ -833,7 +833,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
             </div>
           )}
 
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
                 <GasPump className="w-4 h-4 text-brand-500" weight="bold" />
@@ -844,16 +844,16 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
               </span>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {targetPumps.map((p, idx) => {
                 const prod = products.find(pr => pr.id === p.product_id);
                 return (
                   <div
                     key={p.id}
-                    className="p-3 sm:px-4 rounded-2xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-brand-500/40 transition-colors"
+                    className="p-2.5 sm:px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:border-brand-500/40 transition-colors"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-brand-700 dark:text-brand-400 font-heading font-black text-sm shrink-0">
+                      <div className="w-9 h-9 rounded-xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-brand-700 dark:text-brand-400 font-heading font-black text-sm shrink-0">
                         P{idx + 1}
                       </div>
                       <div className="min-w-0">
@@ -869,7 +869,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0 sm:w-56">
+                    <div className="flex items-center gap-2 shrink-0 sm:w-60">
                       <div className="relative flex-1">
                         <input
                           type="text"
