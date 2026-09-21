@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from './supabase';
+import { listAllProfiles } from './auth';
 import { useToast } from './toast';
 import {
   Product,
+  ProductVariety,
   ProductPackConfig,
   PackPrice,
   Customer,
@@ -44,7 +46,7 @@ import {
   DEFAULT_SUPPLIERS,
   DEFAULT_PHYSICAL_TANKS,
   DEFAULT_HUBS,
-  DEFAULT_USERS,
+  FALLBACK_OWNER_IDENTITY,
   SEED_PUMP_READINGS,
   SEED_TANKS,
   SEED_SALES,
@@ -306,9 +308,8 @@ interface StoreContextType {
   updatePhysicalTank: (id: string, updates: Partial<PhysicalTank>) => void;
   deletePhysicalTank: (id: string) => { success: boolean; error?: string };
 
-  // Multi-Hub Architecture & User Profiles
+  // Multi-Hub Architecture & Current User
   hubs: Hub[];
-  users: UserProfile[];
   currentUser: UserProfile;
   activeHubId: string;
   activeHub: Hub | null;
@@ -316,10 +317,7 @@ interface StoreContextType {
   setActiveHubId: (hubId: string) => void;
   addHub: (hub: Omit<Hub, 'id' | 'created_at'>) => Hub;
   updateHub: (id: string, updates: Partial<Hub>) => void;
-  deleteHub: (id: string) => { success: boolean; error?: string };
-  addUser: (user: Omit<UserProfile, 'id' | 'created_at'>) => UserProfile;
-  updateUser: (id: string, updates: Partial<UserProfile>) => void;
-  deleteUser: (id: string) => { success: boolean; error?: string };
+  deleteHub: (id: string) => Promise<{ success: boolean; error?: string }>;
 
   // Global unpartitioned lists (available for cross-hub aggregation)
   allTanks: Tank[];
@@ -361,7 +359,6 @@ const STORAGE_KEYS = {
   USER_ROLE: 'iyanu_user_role_v3',
   THEME: 'iyanu_theme_v3',
   HUBS: 'iyanu_hubs_v3',
-  USERS: 'iyanu_users_v3',
   CURRENT_USER: 'iyanu_current_user_v3',
   ACTIVE_HUB_ID: 'iyanu_active_hub_id_v3'
 };
@@ -380,6 +377,37 @@ function loadPersisted<T>(key: string, fallback: T): T {
     console.warn(`[store] Could not parse persisted "${key}" — using fallback.`, err);
     return fallback;
   }
+}
+
+/**
+ * Maps the app's AppSettings shape to the `app_settings` table's single row
+ * (id=1). `outright_keg_price`/`keg_deposit_price` are Inventory-screen-only
+ * fields with no matching column. `dipstick_variance_threshold` is a NOT NULL
+ * column left over from the tank-dipstick feature (fully removed from the
+ * app — see MOSCOW.md); sent as a fixed, unused 0 since nothing here ever
+ * reads it back.
+ */
+function toAppSettingsRow(s: AppSettings) {
+  return {
+    id: 1,
+    company_name: s.company_name,
+    company_phone: s.company_phone,
+    company_address: s.company_address,
+    company_logo_url: s.company_logo_url,
+    litres_per_keg: s.litres_per_keg,
+    total_company_kegs: s.total_company_kegs,
+    kegs_at_depot_low_threshold: s.kegs_at_depot_low_threshold,
+    low_stock_litres_threshold: s.low_stock_litres_threshold,
+    truck_shortfall_threshold: s.truck_shortfall_threshold,
+    pump_variance_threshold: s.pump_variance_threshold,
+    dipstick_variance_threshold: 0,
+    default_daily_float: s.default_daily_float,
+    daily_float: s.daily_float,
+    shift_start_time: s.shift_start_time,
+    shift_end_time: s.shift_end_time,
+    require_pump_readings_to_start_shift: s.require_pump_readings_to_start_shift ?? true,
+    require_pump_readings_to_close_shift: s.require_pump_readings_to_close_shift ?? true
+  };
 }
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -409,13 +437,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [theme]);
 
-  // Multi-hub and User Profiles state
+  // Multi-hub state + the single signed-in identity (real team accounts are
+  // Supabase-backed `profiles`, not a local list — see FALLBACK_OWNER_IDENTITY).
   const [hubs, setHubs] = useState<Hub[]>(() => loadPersisted(STORAGE_KEYS.HUBS, DEFAULT_HUBS));
-  const [users, setUsers] = useState<UserProfile[]>(() => loadPersisted(STORAGE_KEYS.USERS, DEFAULT_USERS));
   const [currentUser, setCurrentUserState] = useState<UserProfile>(() => {
     const saved = loadPersisted<UserProfile | null>(STORAGE_KEYS.CURRENT_USER, null);
     if (saved && saved.id) return saved;
-    return DEFAULT_USERS[0];
+    return FALLBACK_OWNER_IDENTITY;
   });
   const [activeHubId, setActiveHubIdState] = useState<string>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.ACTIVE_HUB_ID);
@@ -423,9 +451,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return 'all';
   });
 
-  // Load state from LocalStorage or seed defaults. Company kegs stay fixed
-  // at 25L (litres_per_keg) — that's the physical keg-fleet constant,
-  // separate from the sellable pack-size catalog below.
+  // Load state from LocalStorage or seed defaults. `litres_per_keg` is
+  // per-product and owner-customizable in Settings (e.g. Palm Oil 25L,
+  // Vegetable Oil 30L) — persisted as-is, no override here.
   //
   // Browsers with data persisted before the catalog grew from 2 to 9 sizes
   // have `pack_config`/`packPrices` frozen at whatever shipped back then —
@@ -443,7 +471,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         : [];
       return {
         ...p,
-        litres_per_keg: 25,
         pack_config: missingConfig.length ? [...p.pack_config, ...missingConfig] : p.pack_config
       };
     });
@@ -492,18 +519,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [settings, setSettings] = useState<AppSettings>(() => ({
     ...DEFAULT_SETTINGS,
-    ...loadPersisted<Partial<AppSettings>>(STORAGE_KEYS.SETTINGS, {}),
-    litres_per_keg: 25
+    ...loadPersisted<Partial<AppSettings>>(STORAGE_KEYS.SETTINGS, {})
   }));
 
   const [allPumps, setPumps] = useState<Pump[]>(() => loadPersisted<Pump[]>(STORAGE_KEYS.PUMPS, DEFAULT_PUMPS));
 
   const [allPumpReadings, setPumpReadings] = useState<PumpReading[]>(() => loadPersisted(STORAGE_KEYS.PUMP_READINGS, SEED_PUMP_READINGS));
 
-  const [allTransfers, setTransfers] = useState<Transfer[]>(() => {
-    const loaded = loadPersisted(STORAGE_KEYS.TRANSFERS, SEED_TRANSFERS);
-    return loaded.filter(t => t.id !== 'trf-1');
-  });
+  const [allTransfers, setTransfers] = useState<Transfer[]>(() => loadPersisted(STORAGE_KEYS.TRANSFERS, SEED_TRANSFERS));
 
   const [allCustomerCredits, setCustomerCredits] = useState<CustomerCredit[]>(() => loadPersisted<CustomerCredit[]>(STORAGE_KEYS.CUSTOMER_CREDITS, []));
 
@@ -573,9 +596,241 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, []);
 
+  // app_settings is a single row (id=1). Pull it down once; if it doesn't
+  // exist yet, push this browser's current settings up as the first row.
+  const settingsSyncedRef = useRef(false);
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-  }, [users]);
+    if (!isSupabaseConfigured || !supabase || settingsSyncedRef.current) return;
+    settingsSyncedRef.current = true;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase!.from('app_settings').select('*').eq('id', 1).maybeSingle();
+      if (cancelled) return;
+      if (error) {
+        console.error('[store] Failed to load settings from database:', error.message);
+        return;
+      }
+      if (data) {
+        setSettings(prev => ({ ...prev, ...(data as Partial<AppSettings>) }));
+      } else {
+        setSettings(current => {
+          supabase!
+            .from('app_settings')
+            .insert(toAppSettingsRow(current))
+            .then(({ error: insertError }) => {
+              if (insertError) console.error('[store] Failed to seed settings in database:', insertError.message);
+            });
+          return current;
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Suppliers — same pull-down + push-up-local-only pattern as hubs above.
+  const suppliersSyncedRef = useRef(false);
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || suppliersSyncedRef.current) return;
+    suppliersSyncedRef.current = true;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase!.from('suppliers').select('id, name, phone').order('name', { ascending: true });
+      if (cancelled) return;
+      if (error) {
+        console.error('[store] Failed to load suppliers from database:', error.message);
+        return;
+      }
+      const remote = (data as Supplier[]) ?? [];
+      const remoteIds = new Set(remote.map(s => s.id));
+      setSuppliers(prevLocal => {
+        const localOnly = prevLocal.filter(s => !remoteIds.has(s.id));
+        if (localOnly.length > 0) {
+          supabase!
+            .from('suppliers')
+            .insert(localOnly.map(s => ({ id: s.id, name: s.name, phone: s.phone || null })))
+            .then(({ error: insertError }) => {
+              if (insertError) console.error('[store] Failed to sync local suppliers to database:', insertError.message);
+            });
+        }
+        return [...remote, ...localOnly];
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Physical (yard) tanks — hub-scoped; RLS already returns only the rows
+  // this user can see (owner: all, everyone else: their own hub + unscoped).
+  const physicalTanksSyncedRef = useRef(false);
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || physicalTanksSyncedRef.current) return;
+    physicalTanksSyncedRef.current = true;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase!
+        .from('physical_tanks')
+        .select('id, label, product_id, capacity_litres, notes, hub_id')
+        .order('label', { ascending: true });
+      if (cancelled) return;
+      if (error) {
+        console.error('[store] Failed to load physical tanks from database:', error.message);
+        return;
+      }
+      const remote = (data as PhysicalTank[]) ?? [];
+      const remoteIds = new Set(remote.map(t => t.id));
+      setPhysicalTanks(prevLocal => {
+        const localOnly = prevLocal.filter(t => !remoteIds.has(t.id));
+        if (localOnly.length > 0) {
+          supabase!
+            .from('physical_tanks')
+            .insert(localOnly.map(t => ({
+              id: t.id,
+              label: t.label,
+              product_id: t.product_id,
+              capacity_litres: t.capacity_litres,
+              notes: t.notes || null,
+              hub_id: t.hub_id || null
+            })))
+            .then(({ error: insertError }) => {
+              if (insertError) console.error('[store] Failed to sync local physical tanks to database:', insertError.message);
+            });
+        }
+        return [...remote, ...localOnly];
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Dispensing pumps — hub-scoped, same pattern as physical tanks above.
+  const pumpsSyncedRef = useRef(false);
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || pumpsSyncedRef.current) return;
+    pumpsSyncedRef.current = true;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase!
+        .from('pumps')
+        .select('id, label, product_id, last_meter_reading, hub_id')
+        .order('label', { ascending: true });
+      if (cancelled) return;
+      if (error) {
+        console.error('[store] Failed to load pumps from database:', error.message);
+        return;
+      }
+      const remote = (data as Pump[]) ?? [];
+      const remoteIds = new Set(remote.map(p => p.id));
+      setPumps(prevLocal => {
+        const localOnly = prevLocal.filter(p => !remoteIds.has(p.id));
+        if (localOnly.length > 0) {
+          supabase!
+            .from('pumps')
+            .insert(localOnly.map(p => ({
+              id: p.id,
+              label: p.label,
+              product_id: p.product_id || null,
+              last_meter_reading: p.last_meter_reading,
+              hub_id: p.hub_id || null
+            })))
+            .then(({ error: insertError }) => {
+              if (insertError) console.error('[store] Failed to sync local pumps to database:', insertError.message);
+            });
+        }
+        return [...remote, ...localOnly];
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Products + product_varieties. `pack_config` (which pack sizes a product
+  // sells + container rules) has no matching column anywhere in the schema —
+  // it stays purely local/localStorage, merged back onto whatever the
+  // database returns for every other field.
+  const productsSyncedRef = useRef(false);
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || productsSyncedRef.current) return;
+    productsSyncedRef.current = true;
+    let cancelled = false;
+    (async () => {
+      const [productsRes, varietiesRes] = await Promise.all([
+        supabase!.from('products').select('id, name, supply_model, litres_per_ton, litres_per_keg, keg_sell_price, color_light, color_dark'),
+        supabase!.from('product_varieties').select('id, product_id, name, sort_order').order('sort_order', { ascending: true })
+      ]);
+      if (cancelled) return;
+      if (productsRes.error) {
+        console.error('[store] Failed to load products from database:', productsRes.error.message);
+        return;
+      }
+      if (varietiesRes.error) {
+        console.error('[store] Failed to load product varieties from database:', varietiesRes.error.message);
+        return;
+      }
+      const varietiesByProduct = new Map<string, ProductVariety[]>();
+      for (const v of (varietiesRes.data as { id: string; product_id: string; name: string }[]) ?? []) {
+        const list = varietiesByProduct.get(v.product_id) ?? [];
+        list.push({ id: v.id, name: v.name });
+        varietiesByProduct.set(v.product_id, list);
+      }
+      type RemoteProductRow = Omit<Product, 'varieties' | 'pack_config'>;
+      const remoteRows = (productsRes.data as RemoteProductRow[]) ?? [];
+      const remoteIds = new Set(remoteRows.map(r => r.id));
+
+      setProducts(prevLocal => {
+        const localById = new Map(prevLocal.map(p => [p.id, p]));
+        const merged: Product[] = remoteRows.map(row => {
+          const localMatch = localById.get(row.id);
+          const defaults = DEFAULT_PRODUCTS.find(dp => dp.id === row.id);
+          return {
+            ...row,
+            varieties: varietiesByProduct.get(row.id) ?? localMatch?.varieties ?? defaults?.varieties ?? [{ id: `${row.id}-standard`, name: 'Standard' }],
+            pack_config: localMatch?.pack_config ?? defaults?.pack_config ?? []
+          };
+        });
+        const localOnly = prevLocal.filter(p => !remoteIds.has(p.id));
+        if (localOnly.length > 0) {
+          supabase!
+            .from('products')
+            .insert(localOnly.map(p => ({
+              id: p.id,
+              name: p.name,
+              supply_model: p.supply_model,
+              litres_per_ton: p.litres_per_ton,
+              litres_per_keg: p.litres_per_keg,
+              keg_sell_price: p.keg_sell_price,
+              color_light: p.color_light,
+              color_dark: p.color_dark
+            })))
+            .then(({ error: insertError }) => {
+              if (insertError) {
+                console.error('[store] Failed to sync local products to database:', insertError.message);
+                return;
+              }
+              const varietyRows = localOnly.flatMap(p =>
+                p.varieties.map((v, i) => ({ id: v.id, product_id: p.id, name: v.name, sort_order: i }))
+              );
+              if (varietyRows.length > 0) {
+                supabase!
+                  .from('product_varieties')
+                  .insert(varietyRows)
+                  .then(({ error: varietyError }) => {
+                    if (varietyError) console.error('[store] Failed to sync local product varieties to database:', varietyError.message);
+                  });
+              }
+            });
+        }
+        return [...merged, ...localOnly];
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(currentUser));
@@ -744,12 +999,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const deleteHub = (id: string) => {
+  const deleteHub = async (id: string): Promise<{ success: boolean; error?: string }> => {
     const hasTanks = allTanks.some(t => t.hub_id === id);
     const hasPumps = allPumps.some(p => p.hub_id === id);
-    const hasUsers = users.some(u => u.hub_id === id);
-    if (hasTanks || hasPumps || hasUsers) {
-      return { success: false, error: 'Cannot delete hub with associated tanks, pumps, or assigned staff.' };
+    if (hasTanks || hasPumps) {
+      return { success: false, error: 'Cannot delete hub with associated tanks or pumps.' };
+    }
+    // Real staff accounts live in Supabase `profiles`, not any local array —
+    // check the real roster so a hub with real assigned staff can't be
+    // deleted out from under them (orphaning their hub_id).
+    if (isSupabaseConfigured) {
+      const { profiles, error } = await listAllProfiles();
+      if (error) {
+        return { success: false, error: `Could not verify assigned staff before deleting: ${error}` };
+      }
+      if (profiles.some(p => p.hub_id === id)) {
+        return { success: false, error: 'Cannot delete hub with assigned staff.' };
+      }
     }
     setHubs(prev => prev.filter(h => h.id !== id));
     if (activeHubId === id) setActiveHubIdState('all');
@@ -768,35 +1034,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true };
   };
 
-  const addUser = (userData: Omit<UserProfile, 'id' | 'created_at'>): UserProfile => {
-    const newUser: UserProfile = {
-      ...userData,
-      id: `usr-${Date.now()}`,
-      created_at: new Date().toISOString()
-    };
-    setUsers(prev => [...prev, newUser]);
-    return newUser;
-  };
-
-  const updateUser = (id: string, updates: Partial<UserProfile>) => {
-    setUsers(prev => prev.map(u => (u.id === id ? { ...u, ...updates } : u)));
-    if (currentUser.id === id) {
-      setCurrentUserState(prev => ({ ...prev, ...updates }));
-      if (updates.role) setUserRole(updates.role);
-    }
-  };
-
-  const deleteUser = (id: string) => {
-    if (currentUser.id === id) {
-      return { success: false, error: 'Cannot delete the currently active logged-in user.' };
-    }
-    setUsers(prev => prev.filter(u => u.id !== id));
-    return { success: true };
-  };
-
   const getTargetHubId = () => {
     if (activeHubId !== 'all') return activeHubId;
-    return currentUser.hub_id || 'hub-los-alaba';
+    return currentUser.hub_id || hubs[0]?.id || '';
   };
 
   // Scoped views for the active hub (or consolidated across all if 'all')
@@ -2259,7 +2499,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true, pumpReading: resetReading };
   };
 
-  // 9b. Pumps CRUD (named register)
+  // 9b. Pumps CRUD (named register). Note: `physical_tank_id` has no column
+  // on the `pumps` table yet (schema gap #14 in supabase/SCHEMA.md, deferred
+  // there as low-value) — kept fully working in local state, just not sent
+  // to Supabase until that column exists.
   const addPump = (data: { label: string; productId?: string; openingReading?: number; physicalTankId?: string | null; hubId?: string }) => {
     const newPump: Pump = {
       id: `p-${Date.now()}`,
@@ -2270,6 +2513,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       hub_id: data.hubId || getTargetHubId()
     };
     setPumps(prev => [...prev, newPump]);
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('pumps')
+        .insert({
+          id: newPump.id,
+          label: newPump.label,
+          product_id: newPump.product_id || null,
+          last_meter_reading: newPump.last_meter_reading,
+          hub_id: newPump.hub_id || null
+        })
+        .then(({ error }) => {
+          if (error) {
+            console.error('[store] Failed to save pump to database:', error.message);
+            showToast('error', `"${newPump.label}" was saved on this device only — it didn't sync to the database (${error.message}).`);
+          }
+        });
+    }
     return newPump;
   };
 
@@ -2287,6 +2547,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           : p
       )
     );
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('pumps')
+        .update({
+          ...(updates.label !== undefined && { label: updates.label.trim() || undefined }),
+          ...(updates.product_id !== undefined && { product_id: updates.product_id || null }),
+          ...(updates.hub_id !== undefined && { hub_id: updates.hub_id || null })
+        })
+        .eq('id', pumpId)
+        .then(({ error }) => {
+          if (error) {
+            console.error('[store] Failed to update pump in database:', error.message);
+            showToast('error', `Pump changes were saved on this device only — they didn't sync to the database (${error.message}).`);
+          }
+        });
+    }
   };
 
   const deletePump = (pumpId: string) => {
@@ -2295,6 +2571,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return { success: false, error: 'Cannot remove a pump with logged readings — its history would be lost.' };
     }
     setPumps(prev => prev.filter(p => p.id !== pumpId));
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('pumps')
+        .delete()
+        .eq('id', pumpId)
+        .then(({ error }) => {
+          if (error) {
+            console.error('[store] Failed to delete pump from database:', error.message);
+            showToast('error', `Removed here, but the database delete failed (${error.message}) — it may reappear on other devices.`);
+          }
+        });
+    }
     return { success: true };
   };
 
@@ -2411,12 +2699,94 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       pack_config: productData.pack_config ?? []
     };
     setProducts(prev => [...prev, newProduct]);
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('products')
+        .insert({
+          id: newProduct.id,
+          name: newProduct.name,
+          supply_model: newProduct.supply_model,
+          litres_per_ton: newProduct.litres_per_ton,
+          litres_per_keg: newProduct.litres_per_keg,
+          keg_sell_price: newProduct.keg_sell_price,
+          color_light: newProduct.color_light,
+          color_dark: newProduct.color_dark
+        })
+        .then(({ error }) => {
+          if (error) {
+            console.error('[store] Failed to save product to database:', error.message);
+            showToast('error', `"${newProduct.name}" was saved on this device only — it didn't sync to the database (${error.message}).`);
+            return;
+          }
+          supabase!
+            .from('product_varieties')
+            .insert(varieties.map((v, i) => ({ id: v.id, product_id: newProduct.id, name: v.name, sort_order: i })))
+            .then(({ error: varietyError }) => {
+              if (varietyError) console.error('[store] Failed to save product varieties to database:', varietyError.message);
+            });
+        });
+    }
     return newProduct;
   };
 
-  // 11b. Update Product (name, supply_model, varieties, pack_config, …)
+  // 11b. Update Product (name, supply_model, varieties, pack_config, …).
+  // `pack_config` has no database column — local-only, never sent.
   const updateProduct = (productId: string, updates: Partial<Product>) => {
     setProducts(prev => prev.map(p => (p.id === productId ? { ...p, ...updates } : p)));
+    if (updates.varieties) {
+      // A variety that no longer exists can't keep priced rows in the
+      // Inventory price matrix — prune them so they don't linger orphaned.
+      const keptVarietyIds = new Set(updates.varieties.map(v => v.id));
+      setPackPrices(prev => prev.filter(pp => pp.product_id !== productId || keptVarietyIds.has(pp.variety_id)));
+    }
+    if (isSupabaseConfigured && supabase) {
+      const productPatch: Record<string, unknown> = {};
+      if (updates.name !== undefined) productPatch.name = updates.name;
+      if (updates.supply_model !== undefined) productPatch.supply_model = updates.supply_model;
+      if (updates.litres_per_ton !== undefined) productPatch.litres_per_ton = updates.litres_per_ton;
+      if (updates.litres_per_keg !== undefined) productPatch.litres_per_keg = updates.litres_per_keg;
+      if (updates.keg_sell_price !== undefined) productPatch.keg_sell_price = updates.keg_sell_price;
+      if (updates.color_light !== undefined) productPatch.color_light = updates.color_light;
+      if (updates.color_dark !== undefined) productPatch.color_dark = updates.color_dark;
+
+      const applyVarieties = () => {
+        if (!updates.varieties) return;
+        const varieties = updates.varieties;
+        supabase!
+          .from('product_varieties')
+          .delete()
+          .eq('product_id', productId)
+          .then(({ error: deleteError }) => {
+            if (deleteError) {
+              console.error('[store] Failed to replace product varieties in database:', deleteError.message);
+              return;
+            }
+            supabase!
+              .from('product_varieties')
+              .insert(varieties.map((v, i) => ({ id: v.id, product_id: productId, name: v.name, sort_order: i })))
+              .then(({ error: insertError }) => {
+                if (insertError) console.error('[store] Failed to save product varieties to database:', insertError.message);
+              });
+          });
+      };
+
+      if (Object.keys(productPatch).length > 0) {
+        supabase
+          .from('products')
+          .update(productPatch)
+          .eq('id', productId)
+          .then(({ error }) => {
+            if (error) {
+              console.error('[store] Failed to update product in database:', error.message);
+              showToast('error', `Product changes were saved on this device only — they didn't sync to the database (${error.message}).`);
+              return;
+            }
+            applyVarieties();
+          });
+      } else {
+        applyVarieties();
+      }
+    }
   };
 
   // 11c. Delete Product
@@ -2427,6 +2797,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     setProducts(prev => prev.filter(p => p.id !== productId));
     setPackPrices(prev => prev.filter(pp => pp.product_id !== productId));
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('products')
+        .delete()
+        .eq('id', productId)
+        .then(({ error }) => {
+          if (error) {
+            console.error('[store] Failed to delete product from database:', error.message);
+            showToast('error', `Removed here, but the database delete failed (${error.message}) — it may reappear on other devices.`);
+          }
+        });
+    }
     return { success: true };
   };
 
@@ -2478,7 +2860,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // 13. Update Settings
   const updateSettings = (newSettings: Partial<AppSettings>) => {
-    setSettings(prev => ({ ...prev, ...newSettings }));
+    setSettings(prev => {
+      const next = { ...prev, ...newSettings };
+      if (isSupabaseConfigured && supabase) {
+        supabase
+          .from('app_settings')
+          .upsert(toAppSettingsRow(next))
+          .then(({ error }) => {
+            if (error) {
+              console.error('[store] Failed to save settings to database:', error.message);
+              showToast('error', `Settings were saved on this device only — they didn't sync to the database (${error.message}).`);
+            }
+          });
+      }
+      return next;
+    });
   };
 
   // 14. Add Customer
@@ -2504,15 +2900,53 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       id: `sup-${Date.now()}`
     };
     setSuppliers(prev => [...prev, newSup]);
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('suppliers')
+        .insert({ id: newSup.id, name: newSup.name, phone: newSup.phone || null })
+        .then(({ error }) => {
+          if (error) {
+            console.error('[store] Failed to save supplier to database:', error.message);
+            showToast('error', `"${newSup.name}" was saved on this device only — it didn't sync to the database (${error.message}).`);
+          }
+        });
+    }
     return newSup;
   };
 
   const updateSupplier = (id: string, updates: Partial<Supplier>) => {
     setSuppliers(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('suppliers')
+        .update({
+          ...(updates.name !== undefined && { name: updates.name }),
+          ...(updates.phone !== undefined && { phone: updates.phone || null })
+        })
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error) {
+            console.error('[store] Failed to update supplier in database:', error.message);
+            showToast('error', `Supplier changes were saved on this device only — they didn't sync to the database (${error.message}).`);
+          }
+        });
+    }
   };
 
   const deleteSupplier = (id: string) => {
     setSuppliers(prev => prev.filter(s => s.id !== id));
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('suppliers')
+        .delete()
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error) {
+            console.error('[store] Failed to delete supplier from database:', error.message);
+            showToast('error', `Removed here, but the database delete failed (${error.message}) — it may reappear on other devices.`);
+          }
+        });
+    }
   };
 
   // 17. Physical Tanks CRUD
@@ -2523,11 +2957,47 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       hub_id: tankData.hub_id || getTargetHubId()
     };
     setPhysicalTanks(prev => [...prev, newPT]);
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('physical_tanks')
+        .insert({
+          id: newPT.id,
+          label: newPT.label,
+          product_id: newPT.product_id,
+          capacity_litres: newPT.capacity_litres,
+          notes: newPT.notes || null,
+          hub_id: newPT.hub_id || null
+        })
+        .then(({ error }) => {
+          if (error) {
+            console.error('[store] Failed to save physical tank to database:', error.message);
+            showToast('error', `"${newPT.label}" was saved on this device only — it didn't sync to the database (${error.message}).`);
+          }
+        });
+    }
     return newPT;
   };
 
   const updatePhysicalTank = (id: string, updates: Partial<PhysicalTank>) => {
     setPhysicalTanks(prev => prev.map(pt => pt.id === id ? { ...pt, ...updates } : pt));
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('physical_tanks')
+        .update({
+          ...(updates.label !== undefined && { label: updates.label }),
+          ...(updates.product_id !== undefined && { product_id: updates.product_id }),
+          ...(updates.capacity_litres !== undefined && { capacity_litres: updates.capacity_litres }),
+          ...(updates.notes !== undefined && { notes: updates.notes || null }),
+          ...(updates.hub_id !== undefined && { hub_id: updates.hub_id || null })
+        })
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error) {
+            console.error('[store] Failed to update physical tank in database:', error.message);
+            showToast('error', `Tank changes were saved on this device only — they didn't sync to the database (${error.message}).`);
+          }
+        });
+    }
   };
 
   const deletePhysicalTank = (id: string) => {
@@ -2537,14 +3007,29 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return { success: false, error: 'Cannot delete a physical tank with pumps or stock records still assigned to it.' };
     }
     setPhysicalTanks(prev => prev.filter(pt => pt.id !== id));
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('physical_tanks')
+        .delete()
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error) {
+            console.error('[store] Failed to delete physical tank from database:', error.message);
+            showToast('error', `Removed here, but the database delete failed (${error.message}) — it may reappear on other devices.`);
+          }
+        });
+    }
     return { success: true };
   };
 
-  // 18. Reset to default demo seed data
+  // 18. Reset to default seed data — offline/dev mode only (hidden entirely
+  // once Supabase is configured; see SettingsScreen.tsx). Clears only this
+  // app's own STORAGE_KEYS, never a blanket localStorage.clear() — this
+  // origin may also hold the Supabase auth session token and other data
+  // that has nothing to do with this reset.
   const resetToSeedData = () => {
     setHubs(DEFAULT_HUBS);
-    setUsers(DEFAULT_USERS);
-    setCurrentUserState(DEFAULT_USERS[0]);
+    setCurrentUserState(FALLBACK_OWNER_IDENTITY);
     setActiveHubIdState('all');
     setProducts(DEFAULT_PRODUCTS);
     setPackPrices(DEFAULT_PACK_PRICES);
@@ -2564,7 +3049,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setTransfers(SEED_TRANSFERS);
     setCustomerCredits([]);
     setShifts(SEED_SHIFTS);
-    localStorage.clear();
+    Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
   };
 
   return (
@@ -2603,7 +3088,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         activeAlerts,
         todayStats,
         hubs,
-        users,
         currentUser,
         activeHubId,
         activeHub,
@@ -2612,9 +3096,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         addHub,
         updateHub,
         deleteHub,
-        addUser,
-        updateUser,
-        deleteUser,
         allTanks,
         allSales,
         allOrders,

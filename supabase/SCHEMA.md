@@ -1,7 +1,10 @@
 # Iyanuoluwa Depot — Supabase schema contract
 
-Auth (`profiles`) and `hubs` are wired to Supabase and live; every other
-operational table is still `localStorage`-only (see `src/services/store.tsx`).
+Auth (`profiles`), `hubs`, `app_settings`, `products` + `product_varieties`,
+`suppliers`, `physical_tanks`, and `pumps` — everything the Settings screen
+manages — are wired to Supabase and live. Every other operational table
+(orders, customers, tanks, shifts, expenses, keg returns, transfers, customer
+credits, payments) is still `localStorage`-only (see `src/services/store.tsx`).
 These files define the Postgres target the rest of the app will migrate onto.
 
 | File | Purpose |
@@ -15,8 +18,11 @@ These files define the Postgres target the rest of the app will migrate onto.
 | `supabase/migrations/0007_double_split_payments.sql` | `split` payment method, `orders.payment_splits`, `sale_payments` table, expense-to-customer debt fields. |
 | `supabase/migrations/0008_relational_hardening.sql` | Relational-integrity audit fixes: RLS on `sale_payments`, `hub_isolation_transfers`, narrows `hub_isolation_pumps`/`hub_isolation_physical_tanks` to read-only, missing FK indexes. |
 | `supabase/migrations/0009_hub_id_text.sql` | Every `hub_id`/`from_hub_id`/`to_hub_id` column: `uuid` FK into the unused `hubs` table → plain client-supplied `text`, matching every other id in this schema. Fixes inviting a user into one of the app's real hubs (`'hub-los-alaba'` etc.) failing with `invalid input syntax for type uuid`. |
-| `supabase/migrations/0010_hubs_id_text.sql` | `hubs.id`: `uuid` → `text`, reseeded with the app's real hub ids (`'hub-los-alaba'` etc.). Paired with `store.tsx` reading/writing the `hubs` table for real — hubs created in Settings previously only ever lived in that one browser's `localStorage`. |
-| `supabase/seed.sql` | Demo data mirroring the seed constants in `src/constants/config.ts`. |
+| `supabase/migrations/0010_hubs_id_text.sql` | `hubs.id`: `uuid` → `text`. Paired with `store.tsx` reading/writing the `hubs` table for real — hubs created in Settings previously only ever lived in that one browser's `localStorage`. No longer seeds any rows (see below). |
+| `supabase/migrations/0011_settings_grant_write_access.sql` | `app_can_operate(screen)` helper; widens INSERT/UPDATE/DELETE on `products`/`product_varieties`/`suppliers`/`physical_tanks`/`pumps`/`app_settings`, and hubs' UPDATE, from hard owner-only to owner-or-settings-granted — matching the client's own `canOperate('settings')` permission model. Hub INSERT/DELETE stay owner-only. |
+| `supabase/migrations/0012_remove_placeholder_hubs.sql` | One-time live-data cleanup: deletes the 3 fictional hubs 0004/0010 had seeded into the already-running database, by id. |
+| `supabase/migrations/0013_remove_remaining_placeholder_seed_rows.sql` | One-time live-data cleanup: discovered while applying 0011/0012 that the *old* (pre-cleanup) `seed.sql` had already been run against the live database directly — deletes its fake suppliers/physical_tanks/pumps/customers/orders/keg_returns/transfers/shifts/expenses/tank_dipstick_readings/order_tank_allocations rows, by id. `products` and `app_settings` were checked and left alone — those rows are the real catalog/company defaults. |
+| `supabase/seed.sql` | Real reference data only (products, varieties, rate cards, expense categories, the singleton `app_settings` row) — every depot starts with a genuinely clean transactional ledger, matching the (already-cleaned) seed constants in `src/constants/config.ts`. |
 | `supabase/functions/create-staff-account/` | Edge Function (in active use): owner sets a username + password directly for a new team member, no email required — maps the username to a synthetic address under the hood. Deploy: `supabase functions deploy create-staff-account`. |
 | `supabase/functions/invite-user/` | Edge Function (built, not currently wired into the UI): sends a real Supabase auth invite email to a new team member and sets their role/hub/screen access. Deploy: `supabase functions deploy invite-user` — see `supabase/functions/README.md`. |
 
@@ -358,6 +364,11 @@ psql "$SUPABASE_DB_URL" -f supabase/migrations/0005_custom_screen_access.sql
 psql "$SUPABASE_DB_URL" -f supabase/migrations/0006_shift_hours_and_closing_readings.sql
 psql "$SUPABASE_DB_URL" -f supabase/migrations/0007_double_split_payments.sql
 psql "$SUPABASE_DB_URL" -f supabase/migrations/0008_relational_hardening.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0009_hub_id_text.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0010_hubs_id_text.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0011_settings_grant_write_access.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0012_remove_placeholder_hubs.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0013_remove_remaining_placeholder_seed_rows.sql
 psql "$SUPABASE_DB_URL" -f supabase/seed.sql
 ```
 

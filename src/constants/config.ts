@@ -266,60 +266,26 @@ export const DEFAULT_PACK_PRICES: PackPrice[] = buildDefaultPackPrices(DEFAULT_P
  * OTHER CATALOG DATA (unchanged)
  * ------------------------------------------------------------------ */
 
-export const DEFAULT_HUBS: Hub[] = [
-  {
-    id: 'hub-los-alaba',
-    name: 'Alaba Central Depot',
-    code: 'ALB-01',
-    state: 'Lagos',
-    address: 'Plot 14, Commercial Avenue, Alaba International, Lagos',
-    phone: '+234 802 000 1122',
-    manager_name: 'Babatunde Raji',
-    is_active: true,
-    created_at: '2026-01-01T00:00:00Z'
-  },
-  {
-    id: 'hub-los-ikeja',
-    name: 'Ikeja Industrial Hub',
-    code: 'IKJ-02',
-    state: 'Lagos',
-    address: 'Block B, Industrial Estate, Ikeja, Lagos',
-    phone: '+234 803 444 5566',
-    manager_name: 'Musa Bello',
-    is_active: true,
-    created_at: '2026-02-15T00:00:00Z'
-  },
-  {
-    id: 'hub-oyo-ibadan',
-    name: 'Ibadan Regional Depot',
-    code: 'IBD-01',
-    state: 'Oyo',
-    address: 'Ring Road Oil Terminal, Ibadan, Oyo State',
-    phone: '+234 805 777 8899',
-    manager_name: 'Rasheed Adebayo',
-    is_active: true,
-    created_at: '2026-03-10T00:00:00Z'
-  }
-];
+// No pre-existing hubs — the owner registers each real depot location from
+// scratch (Settings -> Hubs & Depots), same convention as suppliers,
+// physical tanks, and pumps below.
+export const DEFAULT_HUBS: Hub[] = [];
 
-// Only a bare owner placeholder remains — store.tsx falls back to
-// DEFAULT_USERS[0] as the signed-in identity before a real Supabase profile
-// takes over (or entirely, in offline mode with no Supabase configured), so
-// this can't be emptied outright without breaking first load. No other
-// fictional team members; real team members come through the Supabase
-// invite flow now (Settings -> Team Members & Screen Access).
-export const DEFAULT_USERS: UserProfile[] = [
-  {
-    id: 'usr-owner',
-    full_name: 'Depot Owner',
-    email: '',
-    phone: '',
-    role: 'owner',
-    hub_id: null,
-    active: true,
-    created_at: '2026-01-01T00:00:00Z'
-  }
-];
+// A single bootstrap identity — store.tsx falls back to this as the signed-in
+// `currentUser` before a real Supabase profile loads (or entirely, in
+// offline mode with no Supabase configured). Not a roster: real team members
+// are Supabase-backed `profiles` rows managed via Staff Management, not
+// entries in a local list.
+export const FALLBACK_OWNER_IDENTITY: UserProfile = {
+  id: 'usr-owner',
+  full_name: 'Depot Owner',
+  email: '',
+  phone: '',
+  role: 'owner',
+  hub_id: null,
+  active: true,
+  created_at: '2026-01-01T00:00:00Z'
+};
 
 // No pre-existing suppliers — register the depot's real suppliers from
 // scratch (Settings -> Tanks, Pumps & Suppliers).

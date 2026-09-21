@@ -200,12 +200,9 @@ CREATE POLICY hub_isolation_keg_returns ON keg_returns
     hub_id = app_current_hub_id()
   );
 
--- Seed default initial hubs
-INSERT INTO hubs (id, name, code, state, address, phone, manager_name, is_active)
-VALUES
-  ('a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d', 'Alaba Central Depot', 'ALABA-01', 'Lagos', 'Km 18 Badagry Expressway, Alaba International', '+234 803 111 2222', 'Babajide Sanwo', true),
-  ('b2c3d4e5-f6a7-4b6c-9d0e-1f2a3b4c5d6e', 'Ikeja Industrial Hub', 'IKEJA-02', 'Lagos', 'Plot 12 Commercial Avenue, Ikeja Industrial Estate', '+234 802 333 4444', 'Funke Adeleke', true),
-  ('c3d4e5f6-a7b8-4c7d-0e1f-2a3b4c5d6e7f', 'Ibadan Regional Depot', 'IBADAN-01', 'Oyo', 'Iwo Road Interchange, Ibadan', '+234 805 555 6666', 'Rasheed Olalekan', true)
-ON CONFLICT (code) DO NOTHING;
+-- No seed hubs — each depot registers its own real hub(s) from scratch via
+-- Settings -> Hubs & Depots, same convention as suppliers/physical_tanks/
+-- pumps. (Previously seeded 3 fictional hubs here; removed — see 0010's
+-- header for the follow-on fix that also stopped reseeding them.)
 
 RESET ROLE;

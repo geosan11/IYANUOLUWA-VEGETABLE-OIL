@@ -14,11 +14,11 @@
 -- not uuids. It deliberately left `hubs` itself uuid-keyed since nothing
 -- wrote to it yet. Now something does, so `hubs.id` gets the same treatment.
 --
--- The three existing rows are random-uuid placeholders the app has never
--- referenced (its own ids are always 'hub-los-alaba' / 'hub-los-ikeja' /
--- 'hub-oyo-ibadan' — see DEFAULT_HUBS in src/constants/config.ts) — safe to
--- replace outright, matching the "current data is test data" call made
--- earlier for the rest of this migration.
+-- The three existing rows (from 0004's original seed) were fictional
+-- placeholders the app never referenced by id — deleted outright rather than
+-- reseeded with different fake data. A fresh database now ends up with an
+-- empty `hubs` table, matching DEFAULT_HUBS ([] in config.ts) — the owner
+-- registers each real depot from scratch via Settings -> Hubs & Depots.
 --
 -- Opens with RESET ROLE — see the note at the top of 0001_init.sql.
 -- ============================================================================
@@ -29,10 +29,5 @@ ALTER TABLE hubs ALTER COLUMN id DROP DEFAULT;
 ALTER TABLE hubs ALTER COLUMN id TYPE TEXT USING id::text;
 
 DELETE FROM hubs;
-
-INSERT INTO hubs (id, name, code, state, address, phone, manager_name, is_active, created_at) VALUES
-  ('hub-los-alaba', 'Alaba Central Depot', 'ALB-01', 'Lagos', 'Plot 14, Commercial Avenue, Alaba International, Lagos', '+234 802 000 1122', 'Babatunde Raji', true, '2026-01-01T00:00:00Z'),
-  ('hub-los-ikeja', 'Ikeja Industrial Hub', 'IKJ-02', 'Lagos', 'Block B, Industrial Estate, Ikeja, Lagos', '+234 803 444 5566', 'Musa Bello', true, '2026-02-15T00:00:00Z'),
-  ('hub-oyo-ibadan', 'Ibadan Regional Depot', 'IBD-01', 'Oyo', 'Ring Road Oil Terminal, Ibadan, Oyo State', '+234 805 777 8899', 'Rasheed Adebayo', true, '2026-03-10T00:00:00Z');
 
 RESET ROLE;
