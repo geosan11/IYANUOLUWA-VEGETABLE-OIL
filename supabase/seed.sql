@@ -74,11 +74,14 @@ on conflict (name) do nothing;
 -- ---------------------------------------------------------------------------
 -- app_settings  (DEFAULT_SETTINGS) — single row, id = 1
 -- ---------------------------------------------------------------------------
+-- default_daily_float/daily_float are NOT NULL leftovers from the removed
+-- "opening cash float" feature (the depot doesn't start the day with any
+-- cash in the box) — seeded as 0, same treatment as dipstick_variance_threshold.
 insert into app_settings (id, company_name, company_phone, company_address, company_logo_url,
                           litres_per_keg, total_company_kegs, kegs_at_depot_low_threshold,
                           low_stock_litres_threshold, truck_shortfall_threshold, pump_variance_threshold,
                           dipstick_variance_threshold, default_daily_float, daily_float) values
   (1, 'Iyanuoluwa Vegetable & Palm Oil Depot', '+234 802 000 1122',
    'Plot 14, Commercial Avenue, Alaba Depot, Lagos', null,
-   30, 500, 20, 500, 50, 20, 30, 150000, 150000)
+   30, 500, 20, 500, 50, 20, 30, 0, 0)
 on conflict (id) do nothing;

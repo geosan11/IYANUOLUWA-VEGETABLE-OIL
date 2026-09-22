@@ -214,7 +214,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   // Shift Management State
   const activeCashier = currentUser?.full_name || currentUser?.email || 'Counter Staff';
   const [isStartShiftModalOpen, setIsStartShiftModalOpen] = useState(false);
-  const [openingFloatInput, setOpeningFloatInput] = useState(() => formatWithCommas(settings.default_daily_float || 50000));
   const [startNotesInput, setStartNotesInput] = useState('');
   const [pumpOpeningInputs, setPumpOpeningInputs] = useState<Record<string, string>>({});
 
@@ -248,7 +247,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   const handleStartShiftSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setShiftError(null);
-    const floatNum = parseFromCommas(openingFloatInput);
 
     const readings: Record<string, number> = {};
     for (const p of pumps) {
@@ -267,7 +265,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
     const res = startShift({
       cashierName: activeCashier,
-      openingFloat: floatNum,
+      openingFloat: 0,
       notes: startNotesInput.trim() || undefined,
       openingReadings: readings
     });
@@ -517,22 +515,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
               <p className="text-xs font-sans text-slate-500 dark:text-slate-400 mt-0.5">
                 {activeShift
                   ? `Cashier: ${activeShift.cashier_name || 'Counter Staff'} · Started ${formatDepotTime(activeShift.start_time)} · Cash is being tracked live`
-                  : 'Start a shift to record the opening cash and check the drawer against sales at the end.'}
+                  : 'Start a shift to check the drawer against sales at the end.'}
               </p>
             </div>
           </div>
 
           {/* Middle: Live Ledger Reconciliation (if active shift) */}
           {activeShift && shiftMetrics && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 text-xs">
-              <div>
-                <span className="text-xs font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                  Cash for Change
-                </span>
-                <span className="font-mono tabular-nums font-bold text-slate-700 dark:text-slate-300">
-                  {formatNaira(activeShift.opening_float)}
-                </span>
-              </div>
+            <div className="grid grid-cols-3 gap-2.5 bg-slate-50 dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 text-xs">
               <div>
                 <span className="text-xs font-sans uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                   Cash Sales
@@ -584,7 +574,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
               <button
                 type="button"
                 onClick={() => {
-                  setOpeningFloatInput(settings.default_daily_float?.toString() || '50000');
                   setStartNotesInput('');
                   setIsStartShiftModalOpen(true);
                 }}
@@ -678,7 +667,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             {formatNaira(todayStats.expensesToday)}
           </div>
           <div className="flex items-center justify-between text-xs text-rose-600/80 dark:text-rose-400/80 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/60 font-sans">
-            <span className="truncate font-medium">Float: {formatNaira(todayStats.dailyFloatRemaining)}</span>
+            <span className="truncate font-medium">Logged today</span>
             <span className="inline-flex items-center gap-0.5 text-rose-700 dark:text-rose-300 font-bold shrink-0">
               <ChevronRight className="w-3.5 h-3.5" />
             </span>
@@ -1440,30 +1429,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
               </div>
 
               <div>
-                <label htmlFor="shift-opening-float" className="block text-xs font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Cash for Customer Change (NGN) *
-                </label>
-                <div className="relative">
-                  <input
-                    id="shift-opening-float"
-                    type="text"
-                    inputMode="numeric"
-                    required
-                    value={openingFloatInput}
-                    onChange={e => setOpeningFloatInput(formatWithCommas(e.target.value))}
-                    placeholder="e.g. 50,000"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tabular-nums text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  />
-                  <span className="absolute right-3 top-2.5 text-xs font-mono text-slate-400">
-                    NGN
-                  </span>
-                </div>
-                <p className="text-xs font-sans text-slate-500 dark:text-slate-400 mt-1">
-                  Physical cash placed in drawer to make customer change.
-                </p>
-              </div>
-
-              <div>
                 <label htmlFor="shift-start-notes" className="block text-xs font-sans font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Shift Notes / Handover Details (Optional)
                 </label>
@@ -1583,12 +1548,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
               {/* Shift Cash Reconciliation Breakdown */}
               <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2 text-xs font-mono tabular-nums">
-                <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span className="font-sans">Cash for Customer Change:</span>
-                  <span className="font-semibold text-slate-900 dark:text-slate-100">
-                    {formatNaira(activeShift.opening_float)}
-                  </span>
-                </div>
                 <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
                   <span className="font-sans">(+) Cash Sales (Counter):</span>
                   <span className="font-semibold">
@@ -2094,27 +2053,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 </span>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2 text-xs font-sans">
-                <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span>Daily Opening Float:</span>
-                  <span className="font-mono tabular-nums font-bold text-slate-900 dark:text-white">
-                    {formatNaira(activeShift?.opening_float || settings.default_daily_float || 50000)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span>Spent Out of Float:</span>
-                  <span className="font-mono tabular-nums font-bold text-rose-600 dark:text-rose-400">
-                    -{formatNaira(todayStats.expensesToday)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-slate-800 dark:text-slate-200 font-bold border-t border-slate-200 dark:border-slate-700 pt-1.5">
-                  <span>Float Remaining:</span>
-                  <span className="font-mono tabular-nums text-slate-900 dark:text-white">
-                    {formatNaira(todayStats.dailyFloatRemaining)}
-                  </span>
-                </div>
-              </div>
-
               <div className="text-xs font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 Today's Expense Items
               </div>
@@ -2150,7 +2088,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 }}
                 className="w-full py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-sans font-bold flex items-center justify-center gap-2 shadow-sm"
               >
-                <span>Manage Expenses & Float</span>
+                <span>Manage Expenses</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>

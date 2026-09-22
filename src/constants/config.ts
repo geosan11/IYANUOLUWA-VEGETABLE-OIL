@@ -331,8 +331,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   low_stock_litres_threshold: 500,
   truck_shortfall_threshold: 50,
   pump_variance_threshold: 20,
-  default_daily_float: 150000,
-  daily_float: 150000,
   shift_start_time: '07:00',
   shift_end_time: '18:00',
   require_pump_readings_to_start_shift: true,

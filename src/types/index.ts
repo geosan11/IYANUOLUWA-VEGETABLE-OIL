@@ -355,8 +355,6 @@ export interface AppSettings {
   low_stock_litres_threshold: number;
   truck_shortfall_threshold: number;
   pump_variance_threshold: number;
-  default_daily_float: number;
-  daily_float: number;
   shift_start_time: string;
   shift_end_time: string;
   require_pump_readings_to_start_shift?: boolean;

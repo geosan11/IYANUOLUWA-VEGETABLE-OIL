@@ -50,7 +50,6 @@ export interface SystemSnapshot {
     purchasedKegsToday: number;
     customerKegsFilledToday: number;
     expensesTodayNaira: number;
-    dailyFloatRemainingNaira: number;
     activeAlertsCount: number;
   };
   inventoryVelocity: {

@@ -215,7 +215,6 @@ export const SettingsScreen: React.FC = () => {
   const [pumpVarianceThreshold, setPumpVarianceThreshold] = useState(settings.pump_variance_threshold.toString());
 
   // 5. Shift Schedule & Daily Operations Local State
-  const [defaultDailyFloat, setDefaultDailyFloat] = useState(settings.default_daily_float.toString());
   const [shiftStartTime, setShiftStartTime] = useState(settings.shift_start_time || '07:00');
   const [shiftEndTime, setShiftEndTime] = useState(settings.shift_end_time || '18:00');
   const [requireStartPumpReadings, setRequireStartPumpReadings] = useState(settings.require_pump_readings_to_start_shift ?? true);
@@ -238,7 +237,6 @@ export const SettingsScreen: React.FC = () => {
     setLowStockThreshold(settings.low_stock_litres_threshold.toString());
     setTruckShortfallThreshold(settings.truck_shortfall_threshold.toString());
     setPumpVarianceThreshold(settings.pump_variance_threshold.toString());
-    setDefaultDailyFloat(settings.default_daily_float.toString());
     setShiftStartTime(settings.shift_start_time || '07:00');
     setShiftEndTime(settings.shift_end_time || '18:00');
     setRequireStartPumpReadings(settings.require_pump_readings_to_start_shift ?? true);
@@ -449,13 +447,11 @@ export const SettingsScreen: React.FC = () => {
     setActiveMobileSheet(null);
   };
 
-  // 5. Save Shift Schedule & Daily Operations Float
+  // 5. Save Shift Schedule
   const handleSaveShiftSchedule = (e: React.FormEvent) => {
     e.preventDefault();
     if (denyIfNoSettingsAccess()) return;
-    const val = Math.max(0, numOr(defaultDailyFloat, 150000));
     updateSettings({
-      default_daily_float: val,
       shift_start_time: shiftStartTime || '07:00',
       shift_end_time: shiftEndTime || '18:00',
       require_pump_readings_to_start_shift: requireStartPumpReadings,
@@ -1479,10 +1475,10 @@ export const SettingsScreen: React.FC = () => {
               <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
                 <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                   <Clock className={`w-5 h-5 ${SECTION_THEME.system.textCls}`} weight="bold" />
-                  <span>6. Shift Schedule, Daily Float & System Tools</span>
+                  <span>6. Shift Schedule & System Tools</span>
                 </h3>
                 <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-                  Configure when shifts are scheduled to begin and end, meter reading policies, morning float, and role simulation.
+                  Configure when shifts are scheduled to begin and end, meter reading policies, and role simulation.
                 </p>
               </div>
 
@@ -1586,29 +1582,6 @@ export const SettingsScreen: React.FC = () => {
                       </div>
                     </label>
                   </div>
-                </div>
-
-                {/* Default Daily Float Form */}
-                <div className="space-y-3">
-                  <label htmlFor="default-daily-float" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                    Default Opening Cash Float in Box each Morning (₦)
-                  </label>
-                  <div className="relative max-w-sm">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₦</span>
-                    <input
-                      id="default-daily-float"
-                      type="number"
-                      step="1"
-                      min="0"
-                      value={defaultDailyFloat}
-                      onChange={e => setDefaultDailyFloat(e.target.value.replace(/[^0-9]/g, ''))}
-                      className="w-full pl-8 pr-4 py-3 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
-                      required
-                    />
-                  </div>
-                  <p className="text-[11px] font-sans text-slate-500">
-                    Pre-fills the counter's opening petty cash float every morning on the Expenses screen and start-shift pop-up.
-                  </p>
                 </div>
 
                 <button
@@ -2063,7 +2036,7 @@ export const SettingsScreen: React.FC = () => {
                 Shift Schedule & Operations
               </div>
               <div className="text-[12px] font-mono tabular-nums text-slate-500 truncate mt-0.5">
-                Hours: {shiftStartTime} – {shiftEndTime} · Float: {formatNaira(parseFloat(defaultDailyFloat) || 0)}
+                Hours: {shiftStartTime} – {shiftEndTime}
               </div>
             </div>
             <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" />
@@ -2129,7 +2102,7 @@ export const SettingsScreen: React.FC = () => {
             {
               id: 'system' as const,
               title: 'Shift Schedule & Operations',
-              subtitle: `Hours: ${shiftStartTime} – ${shiftEndTime} · Float: ${formatNaira(parseFloat(defaultDailyFloat) || 0)}`
+              subtitle: `Hours: ${shiftStartTime} – ${shiftEndTime}`
             },
             {
               id: 'hubs' as const,

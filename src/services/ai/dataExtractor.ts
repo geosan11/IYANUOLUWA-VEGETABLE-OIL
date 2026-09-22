@@ -29,7 +29,6 @@ interface ExtractParams {
     purchasedKegsToday: number;
     customerKegsFilledToday: number;
     expensesToday: number;
-    dailyFloatRemaining: number;
   };
   activeAlerts: {
     overdueCredit: { customer: Customer; overdueDays: number; amount: number }[];
@@ -182,7 +181,6 @@ export function extractSystemSnapshot(params: ExtractParams): SystemSnapshot {
       purchasedKegsToday: todayStats.purchasedKegsToday,
       customerKegsFilledToday: todayStats.customerKegsFilledToday,
       expensesTodayNaira: todayStats.expensesToday,
-      dailyFloatRemainingNaira: todayStats.dailyFloatRemaining,
       activeAlertsCount: activeAlerts.totalAlertCount
     },
     inventoryVelocity: {

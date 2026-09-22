@@ -123,8 +123,6 @@ const mockSettings: AppSettings = {
   low_stock_litres_threshold: 1000,
   truck_shortfall_threshold: 50,
   pump_variance_threshold: 20,
-  default_daily_float: 20000,
-  daily_float: 20000,
   shift_start_time: '07:00',
   shift_end_time: '18:00'
 };
@@ -148,8 +146,7 @@ const snapshot = extractSystemSnapshot({
     kegsSoldToday: 15,
     purchasedKegsToday: 3,
     customerKegsFilledToday: 12,
-    expensesToday: 5000,
-    dailyFloatRemaining: 15000
+    expensesToday: 5000
   },
   activeAlerts: {
     overdueCredit: [{ customer: mockCustomer, overdueDays: 24, amount: 72000 }],

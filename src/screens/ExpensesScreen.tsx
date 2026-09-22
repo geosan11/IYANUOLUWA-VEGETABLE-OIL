@@ -14,11 +14,8 @@ import {
 } from '../services/businessLogic';
 import {
   Invoice as ReceiptText,
-  Wallet,
   Plus,
   TrendDown as TrendingDown,
-  PencilSimple as Edit2,
-  Check,
   CheckCircle as CheckCircle2,
   CurrencyDollar as DollarSign,
   ClockCounterClockwise,
@@ -28,7 +25,7 @@ import {
 import { ONE_TIME_CUSTOMER_ID } from '../constants/config';
 
 export const ExpensesScreen: React.FC = () => {
-  const { expenses, settings, todayStats, addExpense, updateSettings, customers, currentUser, customerStatsMap } = useStore();
+  const { expenses, todayStats, addExpense, customers, currentUser, customerStatsMap } = useStore();
   const { showToast } = useToast();
 
   const [category, setCategory] = useState<string>('Diesel/Fuel');
@@ -42,9 +39,6 @@ export const ExpensesScreen: React.FC = () => {
   const [chargedCustomerId, setChargedCustomerId] = useState<string>('');
   const [debtReason, setDebtReason] = useState<string>('');
 
-  const currentFloat = settings.default_daily_float ?? settings.daily_float ?? 150000;
-  const [isEditingFloat, setIsEditingFloat] = useState(false);
-  const [editableFloat, setEditableFloat] = useState(() => formatWithCommas(currentFloat));
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -60,12 +54,6 @@ export const ExpensesScreen: React.FC = () => {
   const handleQuickAddAmount = (addValue: number) => {
     const current = parseFromCommas(amount);
     setAmount(formatWithCommas(current + addValue));
-  };
-
-  const handleSaveFloat = () => {
-    const val = parseFromCommas(editableFloat) || 150000;
-    updateSettings({ daily_float: val, default_daily_float: val });
-    setIsEditingFloat(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -127,10 +115,10 @@ export const ExpensesScreen: React.FC = () => {
         <div>
           <h2 className="text-[24px] font-heading font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             <ReceiptText className="w-5 h-5 text-slate-600 dark:text-slate-300" />
-            <span>Cash box & expenses</span>
+            <span>Expenses</span>
           </h2>
           <p className="text-[14px] font-sans text-slate-500 dark:text-slate-400 mt-1">
-            Track the cash box: what came in, what was spent, and what is left.
+            Log and track what the depot spends each day.
           </p>
         </div>
       </div>
@@ -149,59 +137,8 @@ export const ExpensesScreen: React.FC = () => {
         </div>
       )}
 
-      {/* Float KPI Summary (3 Cards) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* 1. Daily Float Budget (Editable) */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 flex flex-col justify-between shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[12px] font-sans font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Cash in the box at start of day
-            </span>
-            <button
-              onClick={() => {
-                if (isEditingFloat) {
-                  handleSaveFloat();
-                } else {
-                  setEditableFloat(formatWithCommas(currentFloat));
-                  setIsEditingFloat(true);
-                }
-              }}
-              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700 cursor-pointer"
-            >
-              {isEditingFloat ? <Check className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" /> : <Edit2 className="w-3.5 h-3.5" />}
-            </button>
-          </div>
-
-          {isEditingFloat ? (
-            <div className="flex items-center gap-2 my-1">
-              <input
-                type="text"
-                inputMode="numeric"
-                value={editableFloat}
-                onChange={e => setEditableFloat(formatWithCommas(e.target.value))}
-                placeholder="150,000"
-                className="w-44 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-brand-500 text-[18px] font-mono tabular-nums font-bold text-slate-900 dark:text-white focus:outline-none"
-                autoFocus
-              />
-              <button
-                onClick={handleSaveFloat}
-                className="px-3 py-1.5 rounded-lg bg-brand-500 text-slate-950 text-[12px] font-sans font-bold shadow-sm cursor-pointer"
-              >
-                Save
-              </button>
-            </div>
-          ) : (
-            <div className="text-[32px] font-mono tabular-nums font-bold leading-tight text-slate-900 dark:text-slate-100">
-              {formatNaira(currentFloat)}
-            </div>
-          )}
-
-          <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-2">
-            Cash placed in the box at the start of the day.
-          </div>
-        </div>
-
-        {/* 2. Today's Total Expenses (Neutral text, never red for routine operations) */}
+      {/* Today's Expenses Summary */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 flex flex-col justify-between shadow-sm">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[12px] font-sans font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
@@ -214,22 +151,6 @@ export const ExpensesScreen: React.FC = () => {
           </div>
           <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-2">
             <span className="font-mono tabular-nums font-semibold">{todayExpenses.length}</span> payments recorded today.
-          </div>
-        </div>
-
-        {/* 3. Net Remaining Cash In Hand */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 flex flex-col justify-between shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[12px] font-sans font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Net Float In Hand
-            </span>
-            <Wallet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div className={`text-[32px] font-mono tabular-nums font-bold leading-tight ${todayStats.dailyFloatRemaining < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-            {formatNaira(todayStats.dailyFloatRemaining)}
-          </div>
-          <div className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-2">
-            Remaining physical petty cash in counter drawer.
           </div>
         </div>
       </div>
@@ -456,7 +377,7 @@ export const ExpensesScreen: React.FC = () => {
             className="w-full py-3.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] uppercase tracking-wider shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2"
           >
             <Plus className="w-[18px] h-[18px]" weight="bold" />
-            <span>Record Expense & Deduct from Float</span>
+            <span>Record Expense</span>
           </button>
         </form>
 

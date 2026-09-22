@@ -39,7 +39,10 @@ import {
   Clock,
   Users,
   Lightning,
-  Gauge
+  Gauge,
+  BeerBottle,
+  Jar,
+  Cube
 } from '@phosphor-icons/react';
 import { MiniNumberPad } from '../components/common/MiniNumberPad';
 
@@ -52,6 +55,17 @@ const StepBadge: React.FC<{ n: number; label: string }> = ({ n, label }) => (
     <span className="text-xs font-sans font-bold uppercase tracking-wider text-slate-500">{label}</span>
   </div>
 );
+
+/** Container icon by pack size, consistent across the item builder: bottle for
+ * retail-size bottles, jar for mid-size jerrycans, the same Package icon used
+ * elsewhere in this screen for the 25L company keg range, and a crate/cube for
+ * quarter-to-full drums. */
+const packSizeIcon = (litres: number) => {
+  if (litres <= 1) return BeerBottle;
+  if (litres <= 14) return Jar;
+  if (litres <= 30) return Package;
+  return Cube;
+};
 
 const PAYMENT_METHODS: { id: PaymentMethod; label: string }[] = [
   { id: 'cash', label: 'Cash' },
@@ -233,7 +247,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   // ---- shift gate & start shift ----
   const currentCashierName = currentUser?.full_name || currentUser?.email || 'Staff';
   const [gateInputs, setGateInputs] = useState<Record<string, string>>({});
-  const [gateOpeningFloat, setGateOpeningFloat] = useState(() => formatWithCommas(settings?.default_daily_float || 50000));
   const [gateError, setGateError] = useState<string | null>(null);
   const anyBulk = products.some(p => p.supply_model === 'bulk_truck');
   const gateBlocked = anyBulk && !shiftGateStatus.isPassed;
@@ -600,14 +613,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
     if (!activeShift) {
       const cashier = currentCashierName;
-      const floatVal = parseFromCommas(gateOpeningFloat);
-      if (floatVal < 0) {
-        failGate('Cash for customer change cannot be negative.');
-        return;
-      }
       const res = startShift({
         cashierName: cashier,
-        openingFloat: floatVal,
+        openingFloat: 0,
         notes: 'Morning shift opened with verified pump readings',
         openingReadings: readings
       });
@@ -758,7 +766,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
           <div className="space-y-1 mt-0.5">
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {!activeShift
-                ? 'Please enter opening pump readings and cash for customer change to start sales.'
+                ? 'Please enter opening pump readings to start sales.'
                 : `Shift active. Verify pump readings to unlock the sales terminal.`}
             </p>
             <div className="flex flex-wrap items-center gap-2 pt-0.5">
@@ -776,7 +784,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
       >
         <form onSubmit={submitGate} className="space-y-3">
           {!activeShift && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800">
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800">
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
@@ -798,37 +806,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   />
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1">Verified account login (non-editable for accountability).</p>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    Cash for Customer Change (NGN) *
-                  </label>
-                  {/* Invisible spacer matching the "Account Login" badge on the left column, so both inputs align at the same height. */}
-                  <span
-                    aria-hidden="true"
-                    className="text-[10px] font-bold px-2 py-0.5 rounded-md border border-transparent opacity-0 select-none flex items-center gap-1 pointer-events-none"
-                  >
-                    <UserCheck className="w-3 h-3" />
-                    Account Login
-                  </span>
-                </div>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono font-bold text-xs">
-                    ₦
-                  </span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    required
-                    value={gateOpeningFloat}
-                    onChange={e => setGateOpeningFloat(formatWithCommas(e.target.value))}
-                    placeholder="e.g. 50,000"
-                    className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500 shadow-2xs"
-                  />
-                </div>
-                <p className="text-[11px] text-slate-400 mt-1">Physical cash placed in drawer to make customer change.</p>
               </div>
             </div>
           )}
@@ -1749,7 +1726,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         This product has no pack sizes set. Configure them in the Inventory tab.
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                         {sellableSizes.map(s => {
                           const linePrice = priceSaleLine({
                             product,
@@ -1761,24 +1738,37 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                             packPrices
                           });
                           const selected = s.id === packSizeId;
+                          const Icon = packSizeIcon(s.litres);
                           return (
                             <button
                               key={s.id}
                               onClick={() => setPackSizeId(s.id)}
-                              className={`p-2.5 rounded-xl border text-left transition-all ${
+                              className={`relative p-3 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-0.5 cursor-pointer ${
                                 selected
-                                  ? 'border-brand-500 bg-brand-50/60 dark:bg-brand-950/40 shadow-sm'
-                                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700'
+                                  ? 'border-brand-500 bg-brand-50/70 dark:bg-brand-950/40 shadow-md ring-2 ring-brand-500/15'
+                                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm'
                               }`}
                             >
-                              <div className="text-xs font-sans font-bold text-slate-900 dark:text-white">{s.short}</div>
-                              <div className="text-xs font-mono text-slate-500">
+                              {selected && (
+                                <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-xs">
+                                  <Check className="w-2.5 h-2.5" weight="bold" />
+                                </span>
+                              )}
+                              <Icon
+                                className={`w-6 h-6 ${selected ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400 dark:text-slate-500'}`}
+                                weight={selected ? 'fill' : 'duotone'}
+                              />
+                              <span className="text-xs font-sans font-bold text-slate-900 dark:text-white mt-1 leading-tight">{s.short}</span>
+                              <span className="text-[10px] font-sans text-slate-500 dark:text-slate-400 leading-tight truncate max-w-full">
+                                {product.name}
+                              </span>
+                              <span className="text-xs font-mono font-semibold">
                                 {linePrice.unpriced ? (
                                   <span className="text-amber-600 dark:text-amber-400">no price</span>
                                 ) : (
-                                  formatNaira(linePrice.unitPrice)
+                                  <span className="text-brand-700 dark:text-brand-400">{formatNaira(linePrice.unitPrice)}</span>
                                 )}
-                              </div>
+                              </span>
                             </button>
                           );
                         })}

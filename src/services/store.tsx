@@ -134,7 +134,6 @@ interface StoreContextType {
     purchasedKegsToday: number;
     customerKegsFilledToday: number;
     expensesToday: number;
-    dailyFloatRemaining: number;
     grossSalesToday: number;
   };
 
@@ -389,7 +388,10 @@ function loadPersisted<T>(key: string, fallback: T): T {
  * fields with no matching column. `dipstick_variance_threshold` is a NOT NULL
  * column left over from the tank-dipstick feature (fully removed from the
  * app — see MOSCOW.md); sent as a fixed, unused 0 since nothing here ever
- * reads it back.
+ * reads it back. `default_daily_float`/`daily_float` are the same story: the
+ * depot doesn't start the day with any cash in the box, so the "opening cash
+ * float" feature was removed from Settings/Expenses/Start Shift entirely —
+ * these two NOT NULL columns are sent as a fixed 0.
  */
 function toAppSettingsRow(s: AppSettings) {
   return {
@@ -406,8 +408,8 @@ function toAppSettingsRow(s: AppSettings) {
     truck_shortfall_threshold: s.truck_shortfall_threshold,
     pump_variance_threshold: s.pump_variance_threshold,
     dipstick_variance_threshold: 0,
-    default_daily_float: s.default_daily_float,
-    daily_float: s.daily_float,
+    default_daily_float: 0,
+    daily_float: 0,
     shift_start_time: s.shift_start_time,
     shift_end_time: s.shift_end_time,
     require_pump_readings_to_start_shift: s.require_pump_readings_to_start_shift ?? true,
@@ -1343,8 +1345,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       .filter(e => !e.voided && depotDateKey(e.date) === todayStr)
       .reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
-    const dailyFloatRemaining = Math.max(0, settings.default_daily_float - expensesToday);
-
     return {
       cashTransferSales,
       cashSalesToday,
@@ -1357,10 +1357,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       purchasedKegsToday,
       customerKegsFilledToday,
       expensesToday,
-      dailyFloatRemaining,
       grossSalesToday
     };
-  }, [orders, expenses, settings.default_daily_float, customerStatsMap, kegInventory]);
+  }, [orders, expenses, customerStatsMap, kegInventory]);
 
   // ==========================================
   // ACTION HANDLERS
@@ -2389,7 +2388,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!activeShift) {
       return startShift({
         cashierName: currentUser.full_name || 'Depot Cashier',
-        openingFloat: settings.default_daily_float || 50000,
+        openingFloat: 0,
         notes: 'Shift opened with morning pump readings',
         openingReadings: readings
       });
