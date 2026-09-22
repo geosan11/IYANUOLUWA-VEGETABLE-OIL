@@ -296,6 +296,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   // an explicit choice at each step instead of inheriting a stale default.
   const selectProduct = (id: string) => {
     setProductId(id);
+    setIsKegOnlyMode(false);
     setVarietyId('');
     setPackSizeId('');
     setPumpId('');
@@ -1645,6 +1646,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           onTargetChange={setNumpadTarget}
                           onClose={() => setShowNumpad(false)}
                         />
+                      </div>
+                    )}
+
+                    {preview?.unpriced && (
+                      <div className="text-xs text-rose-600 dark:text-rose-400">
+                        No empty-keg buy price configured for {product.name}. Set it in the Inventory tab (25L pack size) to sell empty kegs.
                       </div>
                     )}
 
