@@ -35,14 +35,14 @@ import {
   Pencil,
   ShoppingCart,
   Package,
-  SignOut,
   Clock,
   Users,
   Lightning,
   Gauge,
   BeerBottle,
   Jar,
-  Cube
+  Cube,
+  Drop
 } from '@phosphor-icons/react';
 import { MiniNumberPad } from '../components/common/MiniNumberPad';
 
@@ -119,7 +119,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     setActiveReceipt,
     currentUser,
     settings,
-    addCustomer
+    addCustomer,
+    endShiftRequested,
+    clearEndShiftRequest,
+    tankStockByProduct
   } = useStore();
   const { can } = usePermissions();
   const { showToast } = useToast();
@@ -257,6 +260,21 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   const [closeShiftPumpInputs, setCloseShiftPumpInputs] = useState<Record<string, string>>({});
   const [closeShiftNotes, setCloseShiftNotes] = useState('');
   const [closeShiftError, setCloseShiftError] = useState<string | null>(null);
+
+  // Opens this modal when the top nav's End Shift button fires the request —
+  // that button lives outside this screen, so it can't set local state directly.
+  React.useEffect(() => {
+    if (!endShiftRequested || !activeShift) return;
+    const prefill: Record<string, string> = {};
+    for (const p of targetPumps) {
+      prefill[p.id] = p.last_meter_reading.toString();
+    }
+    setCloseShiftPumpInputs(prefill);
+    setCloseShiftCashCounted('');
+    setCloseShiftError(null);
+    setIsCloseShiftModalOpen(true);
+    clearEndShiftRequest();
+  }, [endShiftRequested, activeShift, targetPumps, clearEndShiftRequest]);
 
   const liveShiftCash = useMemo(() => {
     if (!activeShift) return null;
@@ -1255,73 +1273,14 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
         /* STANDARD NEW SALE BUILDER                                                 */
         /* ========================================================================= */
         <div>
-          {/* Active Shift Telemetry & Controls Bar */}
-          {activeShift && (
-            <div className="mb-5 p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border border-slate-800 shadow-md text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
-              <div className="flex items-center gap-3.5">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
-                  <GasPump className="w-5 h-5" weight="bold" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-sans font-extrabold text-[11px] uppercase tracking-wider">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      Live Shift Open
-                    </span>
-                    <span className="text-[14px] font-heading font-bold text-white">
-                      {activeShift.cashier_name || 'Staff'}
-                    </span>
-                  </div>
-                  <div className="text-[12px] font-sans text-slate-400 flex items-center gap-2 mt-0.5 flex-wrap">
-                    <span>Started at {formatDepotTime(activeShift.start_time)}</span>
-                    <span>·</span>
-                    <span className="inline-flex items-center gap-1 font-mono text-slate-300">
-                      <Clock className="w-3.5 h-3.5 text-brand-400" />
-                      Hours: {settings.shift_start_time || '07:00'} – {settings.shift_end_time || '18:00'}
-                    </span>
-                    {liveShiftCash && (
-                      <>
-                        <span>·</span>
-                        <span className="font-mono text-emerald-400 font-semibold tabular-nums">
-                          Till Cash: {formatNaira(activeShift.opening_float + liveShiftCash.cashSales - liveShiftCash.cashExpenses)}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  id="btn-end-shift-sales"
-                  onClick={() => {
-                    const prefill: Record<string, string> = {};
-                    for (const p of targetPumps) {
-                      prefill[p.id] = p.last_meter_reading.toString();
-                    }
-                    setCloseShiftPumpInputs(prefill);
-                    setCloseShiftCashCounted('');
-                    setCloseShiftError(null);
-                    setIsCloseShiftModalOpen(true);
-                  }}
-                  className="px-4 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 hover:text-rose-200 text-xs font-sans font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-sm"
-                >
-                  <SignOut className="w-4 h-4" weight="bold" />
-                  <span>End Shift</span>
-                </button>
-              </div>
-            </div>
-          )}
-
           <div className="grid grid-cols-1 split:grid-cols-12 gap-5">
             {/* ---------- BUILDER COLUMN (LEFT) ---------- */}
-            <div className="split:col-span-7 space-y-5">
+            <div className="split:col-span-8 space-y-5">
               {/* Card 1: Customer Selection (2 Options) */}
-              <section className="depot-card p-4 space-y-3">
+              <section className="depot-card p-3.5 space-y-2.5">
                 <StepBadge n={1} label="Customer Selection" />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 items-stretch">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch">
                   {/* Option 1: Big One-time Customer button (Full Height) */}
                   <button
                     type="button"
@@ -1331,39 +1290,39 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       setCustomerOpen(false);
                       setCustomerSearch('');
                     }}
-                    className={`h-full min-h-[104px] p-4 rounded-2xl border-2 transition-all flex flex-col justify-between text-left group cursor-pointer ${
+                    className={`h-full min-h-[64px] p-2.5 rounded-2xl border-2 transition-all flex items-center gap-2.5 text-left group cursor-pointer ${
                       isOneTime
                         ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-950 dark:text-emerald-100 shadow-md ring-2 ring-emerald-500/20'
                         : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-emerald-400/60 text-slate-800 dark:text-slate-200'
                     }`}
                   >
-                    <div className="flex items-center justify-between w-full">
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
-                        isOneTime
-                          ? 'bg-emerald-500 text-white shadow-xs'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 group-hover:bg-emerald-100 group-hover:text-emerald-600'
-                      }`}>
-                        <ShoppingCart className="w-5 h-5" weight="bold" />
-                      </div>
-                      {isOneTime && (
-                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-500 text-white font-sans font-bold text-[10px] uppercase tracking-wider shadow-xs">
-                          Active ✓
-                        </span>
-                      )}
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors shrink-0 ${
+                      isOneTime
+                        ? 'bg-emerald-500 text-white shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 group-hover:bg-emerald-100 group-hover:text-emerald-600'
+                    }`}>
+                      <ShoppingCart className="w-4 h-4" weight="bold" />
                     </div>
 
-                    <div className="pt-2">
-                      <div className="font-heading font-extrabold text-sm sm:text-base leading-tight">
-                        One-time Customer
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-heading font-extrabold text-sm leading-tight">
+                          One-time Customer
+                        </span>
+                        {isOneTime && (
+                          <span className="px-1.5 py-0.5 rounded-full bg-emerald-500 text-white font-sans font-bold text-[9px] uppercase tracking-wider shadow-xs shrink-0">
+                            Active ✓
+                          </span>
+                        )}
                       </div>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans mt-0.5 leading-snug">
-                        Walk-in Supermarket / Retail · Immediate Settlement (No Debt)
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans leading-snug truncate">
+                        Walk-in · Immediate Settlement (No Debt)
                       </p>
                     </div>
                   </button>
 
                   {/* Option 2: Beside it - Previous Customer Dropdown & Add Customer */}
-                  <div className={`p-4 rounded-2xl border-2 transition-all flex flex-col justify-between space-y-2.5 ${
+                  <div className={`p-2.5 rounded-2xl border-2 transition-all flex flex-col justify-center gap-1.5 ${
                     !isOneTime && customer
                       ? 'bg-brand-50/30 dark:bg-brand-950/20 border-brand-500/80 shadow-md ring-2 ring-brand-500/10'
                       : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
@@ -1382,15 +1341,15 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           setNewCustName(customerSearch.trim());
                           setAddCustomerError(null);
                         }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-[11px] font-sans font-extrabold shadow-xs transition-transform active:scale-95 cursor-pointer"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-500 hover:bg-brand-400 text-slate-950 text-[10px] font-sans font-extrabold shadow-xs transition-transform active:scale-95 cursor-pointer shrink-0"
                       >
-                        <Plus className="w-3.5 h-3.5" weight="bold" />
-                        <span>Add Customer</span>
+                        <Plus className="w-3 h-3" weight="bold" />
+                        <span>Add</span>
                       </button>
                     </div>
 
                     <div className="relative">
-                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
                         value={
                           customerOpen
@@ -1408,7 +1367,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           setCustomerSearch('');
                         }}
                         placeholder="Search previous customer..."
-                        className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-sans font-bold focus:outline-none focus:border-brand-500 shadow-2xs"
+                        className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-sans font-bold focus:outline-none focus:border-brand-500 shadow-2xs"
                       />
 
                       {customerOpen && (
@@ -1677,26 +1636,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   </div>
                 ) : (
                   <>
-                    {/* variety selector */}
-                    <div className="flex flex-wrap gap-1.5">
-                      {product.varieties.map(v => (
-                        <button
-                          key={v.id}
-                          onClick={() => setVarietyId(v.id)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-sans font-semibold border transition-colors ${
-                            v.id === varietyId
-                              ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
-                              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
-                          }`}
-                        >
-                          {v.name}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* dispensing pump selector — bulk (tank + pump) products only,
-                        and only once a variety is chosen (one step at a time) */}
-                    {varietyId && productPumps.length > 0 && (
+                    {/* dispensing pump selector — bulk (tank + pump) products only.
+                        Independent of variety, so it comes first regardless of
+                        which variety/pack size gets picked below. */}
+                    {productPumps.length > 0 && (
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-1.5 text-[11px] font-sans font-bold uppercase tracking-wider text-slate-500">
                           <GasPump className="w-3.5 h-3.5" />
@@ -1708,7 +1651,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                               key={p.id}
                               type="button"
                               onClick={() => setPumpId(p.id)}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-semibold border transition-colors ${
+                              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-semibold border transition-colors cursor-pointer ${
                                 p.id === pumpId
                                   ? 'bg-sky-600 text-white border-sky-600'
                                   : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
@@ -1721,62 +1664,88 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       </div>
                     )}
 
-                    {/* pack size tiles — gated behind every earlier step in the
-                        procedure so staff can't reach pricing before variety
-                        (and, for bulk products, a pump) are deliberately chosen */}
-                    {!varietyId ? (
-                      <div className="text-xs text-slate-400 dark:text-slate-500 italic">Select a variety to continue.</div>
-                    ) : productPumps.length > 0 && !pumpId ? (
+                    {/* Every variety of this product, each with its own full
+                        pack-size/price grid shown at once — no need to pick a
+                        variety first. Picking any size tile selects that
+                        variety + pack size together. */}
+                    {productPumps.length > 0 && !pumpId ? (
                       <div className="text-xs text-slate-400 dark:text-slate-500 italic">Select a dispensing pump to continue.</div>
                     ) : sellableSizes.length === 0 ? (
                       <div className="text-xs text-amber-700 dark:text-amber-400">
                         This product has no pack sizes set. Configure them in the Inventory tab.
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                        {sellableSizes.map(s => {
-                          const linePrice = priceSaleLine({
-                            product,
-                            varietyId,
-                            packSizeId: s.id,
-                            tier,
-                            qty: 1,
-                            containerMode: 'none',
-                            packPrices
-                          });
-                          const selected = s.id === packSizeId;
-                          const Icon = packSizeIcon(s.litres);
+                      <div className="space-y-4">
+                        {(tankStockByProduct[product.id]?.totalLitres ?? 0) > 0 && (
+                          <div className="flex items-center justify-end text-[11px] font-mono text-slate-400">
+                            <Drop className="w-3 h-3 text-amber-500 mr-1" weight="fill" />
+                            {tankStockByProduct[product.id].totalLitres.toLocaleString('en-US', { maximumFractionDigits: 0 })} L in tank
+                          </div>
+                        )}
+                        {product.varieties.map(v => {
+                          const varietyActive = v.id === varietyId;
                           return (
-                            <button
-                              key={s.id}
-                              onClick={() => setPackSizeId(s.id)}
-                              className={`relative p-3 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-0.5 cursor-pointer ${
-                                selected
-                                  ? 'border-brand-500 bg-brand-50/70 dark:bg-brand-950/40 shadow-md ring-2 ring-brand-500/15'
-                                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm'
-                              }`}
-                            >
-                              {selected && (
-                                <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-xs">
-                                  <Check className="w-2.5 h-2.5" weight="bold" />
+                            <div key={v.id} className="space-y-2">
+                              <div className={`flex items-center gap-2 text-xs font-sans font-extrabold uppercase tracking-wider ${
+                                varietyActive ? 'text-brand-700 dark:text-brand-400' : 'text-slate-500 dark:text-slate-400'
+                              }`}>
+                                <span className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
+                                  varietyActive ? 'bg-brand-500/15 dark:bg-brand-500/20' : 'bg-slate-100 dark:bg-slate-800'
+                                }`}>
+                                  <Jar className="w-3 h-3" weight={varietyActive ? 'fill' : 'duotone'} />
                                 </span>
-                              )}
-                              <Icon
-                                className={`w-6 h-6 ${selected ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400 dark:text-slate-500'}`}
-                                weight={selected ? 'fill' : 'duotone'}
-                              />
-                              <span className="text-xs font-sans font-bold text-slate-900 dark:text-white mt-1 leading-tight">{s.short}</span>
-                              <span className="text-[10px] font-sans text-slate-500 dark:text-slate-400 leading-tight truncate max-w-full">
-                                {product.name}
-                              </span>
-                              <span className="text-xs font-mono font-semibold">
-                                {linePrice.unpriced ? (
-                                  <span className="text-amber-600 dark:text-amber-400">no price</span>
-                                ) : (
-                                  <span className="text-brand-700 dark:text-brand-400">{formatNaira(linePrice.unitPrice)}</span>
-                                )}
-                              </span>
-                            </button>
+                                <span>{v.name}</span>
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                                {sellableSizes.map(s => {
+                                  const linePrice = priceSaleLine({
+                                    product,
+                                    varietyId: v.id,
+                                    packSizeId: s.id,
+                                    tier,
+                                    qty: 1,
+                                    containerMode: 'none',
+                                    packPrices
+                                  });
+                                  const selected = varietyActive && s.id === packSizeId;
+                                  const Icon = packSizeIcon(s.litres);
+                                  return (
+                                    <button
+                                      key={s.id}
+                                      onClick={() => { setVarietyId(v.id); setPackSizeId(s.id); }}
+                                      className={`relative p-3.5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-1.5 cursor-pointer ${
+                                        selected
+                                          ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/50 shadow-glow-brand ring-2 ring-brand-500/20'
+                                          : 'border-slate-200 dark:border-slate-700/70 bg-white dark:bg-slate-900 hover:border-brand-300 dark:hover:border-brand-600/60 hover:shadow-sm'
+                                      }`}
+                                    >
+                                      {selected && (
+                                        <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-xs">
+                                          <Check className="w-2.5 h-2.5" weight="bold" />
+                                        </span>
+                                      )}
+                                      <span className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                                        selected
+                                          ? 'bg-brand-500 text-white shadow-xs'
+                                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                                      }`}>
+                                        <Icon className="w-5 h-5" weight={selected ? 'fill' : 'duotone'} />
+                                      </span>
+                                      <span className="text-sm font-sans font-extrabold text-slate-900 dark:text-white leading-tight">{s.short}</span>
+                                      <span className="text-[13px] font-mono font-bold tracking-tight">
+                                        {linePrice.unpriced ? (
+                                          <span className="text-amber-600 dark:text-amber-400">no price</span>
+                                        ) : (
+                                          <span className={selected ? 'text-brand-700 dark:text-brand-300' : 'text-brand-600 dark:text-brand-400'}>
+                                            {formatNaira(linePrice.unitPrice)}
+                                          </span>
+                                        )}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
                           );
                         })}
                       </div>
@@ -2018,33 +1987,22 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
             {/* ---------- PAYMENT & SUMMARY COLUMN (RIGHT) ---------- */}
             {/* Note: Card 3 is removed. Payment is now Step 3. */}
-            <div className="split:col-span-5 space-y-4">
-              {/* Quick shortcut to Previous Transactions */}
-              <div className="depot-card p-3.5 flex items-center justify-between shadow-sm">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800/80 flex items-center justify-center text-brand-600 dark:text-brand-400">
-                    <ClockCounterClockwise className="w-4 h-4" weight="bold" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 dark:text-white">Previous Transactions</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">
-                      {sales.length} counter transaction{sales.length === 1 ? '' : 's'} on record
-                    </div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  id="btn-view-previous-transactions-card"
-                  onClick={() => setShowPreviousTransactions(true)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-sans font-bold border border-slate-200 dark:border-slate-700 transition-colors"
-                >
-                  View list →
-                </button>
-              </div>
-
+            <div className="split:col-span-4 space-y-4">
               {/* Step 3: Payment & Items Summary */}
               <section className="depot-card p-4 space-y-3.5">
-                <StepBadge n={3} label="Payment" />
+                <div className="flex items-center justify-between">
+                  <StepBadge n={3} label="Payment" />
+                  <button
+                    type="button"
+                    id="btn-view-previous-transactions-card"
+                    onClick={() => setShowPreviousTransactions(true)}
+                    title={`Previous Transactions — ${sales.length} counter transaction${sales.length === 1 ? '' : 's'} on record`}
+                    className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-brand-50 dark:bg-slate-800 dark:hover:bg-brand-950/50 text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-brand-400 border border-slate-200 dark:border-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+                    aria-label="View previous transactions"
+                  >
+                    <ClockCounterClockwise className="w-4 h-4" weight="bold" />
+                  </button>
+                </div>
 
                 {/* Items in Sale (only shown when lines exist, replacing the standalone Card 3) */}
                 {lines.length > 0 && (

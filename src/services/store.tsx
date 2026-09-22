@@ -105,7 +105,11 @@ interface StoreContextType {
   theme: 'light' | 'dark';
   setTheme: (theme: 'light' | 'dark') => void;
   toggleTheme: () => void;
-  
+  /** Set by the top nav's End Shift button; the New Sale screen watches this to open its close-shift modal, then clears it. */
+  endShiftRequested: boolean;
+  requestEndShift: () => void;
+  clearEndShiftRequest: () => void;
+
   // Computed values
   customerStatsMap: Record<string, CustomerCalculatedStats>;
   kegInventory: KegInventorySummary;
@@ -435,6 +439,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const toggleTheme = () => {
     setTheme(theme === 'dark' ? 'light' : 'dark');
   };
+
+  // Cross-screen "End Shift" trigger: the TopHeader (visible on every screen)
+  // sets this to open the New Sale screen's close-shift modal, which owns the
+  // actual pump-reading-prefill and cash-count flow.
+  const [endShiftRequested, setEndShiftRequested] = useState(false);
+  const requestEndShift = () => setEndShiftRequested(true);
+  const clearEndShiftRequest = () => setEndShiftRequested(false);
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -3104,6 +3115,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         theme,
         setTheme,
         toggleTheme,
+        endShiftRequested,
+        requestEndShift,
+        clearEndShiftRequest,
         customerStatsMap,
         kegInventory,
         tankStockByProduct,
