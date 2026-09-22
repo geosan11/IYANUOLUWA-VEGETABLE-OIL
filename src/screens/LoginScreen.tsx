@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../services/auth';
 import { useToast } from '../services/toast';
+import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { Envelope, LockKey, ArrowRight, WarningCircle, Drop, Spinner } from '@phosphor-icons/react';
 
 type Mode = 'sign-in' | 'sign-up';
@@ -15,6 +16,27 @@ export const LoginScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Fetch branding from DB so login screen shows the depot logo + name
+  const [brandName, setBrandName] = useState('Iyanuoluwa Depot');
+  const [brandLogo, setBrandLogo] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+    supabase
+      .from('app_settings')
+      .select('company_name, company_logo_url')
+      .eq('id', 1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          if (data.company_name) setBrandName(data.company_name as string);
+          if (data.company_logo_url) setBrandLogo(data.company_logo_url as string);
+          document.title = (data.company_name as string) || 'Iyanuoluwa Depot';
+        }
+      });
+  }, []);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,11 +75,19 @@ export const LoginScreen: React.FC = () => {
     <div className="min-h-screen w-full flex items-center justify-center bg-slate-100 dark:bg-slate-950 px-4 py-8">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center gap-2 mb-6">
-          <div className="w-14 h-14 rounded-2xl bg-brand-500 flex items-center justify-center text-slate-950 shadow-lg shadow-brand-500/20">
-            <Drop className="w-7 h-7" weight="fill" />
-          </div>
+          {brandLogo ? (
+            <img
+              src={brandLogo}
+              alt={brandName}
+              className="h-16 w-auto max-w-[160px] object-contain rounded-xl shadow-lg"
+            />
+          ) : (
+            <div className="w-14 h-14 rounded-2xl bg-brand-500 flex items-center justify-center text-slate-950 shadow-lg shadow-brand-500/20">
+              <Drop className="w-7 h-7" weight="fill" />
+            </div>
+          )}
           <h1 className="font-heading font-bold text-xl text-slate-900 dark:text-white text-center">
-            Iyanuoluwa Depot
+            {brandName}
           </h1>
           <p className="text-xs font-sans text-slate-500 dark:text-slate-400 text-center">
             Sign in to your depot operations account
