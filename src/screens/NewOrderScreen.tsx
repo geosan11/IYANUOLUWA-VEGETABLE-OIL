@@ -260,8 +260,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
   const liveShiftCash = useMemo(() => {
     if (!activeShift) return null;
-    return computeShiftCash(activeShift, orders, expenses, new Date());
-  }, [activeShift, orders, expenses]);
+    return computeShiftCash(activeShift, orders, expenses, new Date(), sales);
+  }, [activeShift, orders, expenses, sales]);
 
   const liveCloseVariance = useMemo(() => {
     if (!activeShift || !liveShiftCash || !closeShiftCashCounted.trim()) return null;

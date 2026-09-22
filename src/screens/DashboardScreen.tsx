@@ -373,7 +373,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         details: `Physical till count (${formatNaira(s.cash_counted || 0)}) did not match ledger expected balance (${formatNaira(s.expected_cash || 0)}). Cash variance recorded: ${formatNaira(s.cash_variance!)}.`,
         severity: 'red',
         actionLabel: 'Review Shift Ledger',
-        action: () => {}
+        action: () => onNavigate('order')
       });
     });
 

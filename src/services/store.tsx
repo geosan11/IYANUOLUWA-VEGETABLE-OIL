@@ -2061,7 +2061,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               container_amount: nextMode === 'bought' ? priced.containerAmount : null,
               line_amount: priced.lineAmount,
               amount: priced.lineAmount,
-              paid_amount: o.payment_method === 'credit' ? Math.min(o.paid_amount || 0, priced.lineAmount) : priced.lineAmount,
+              paid_amount:
+                o.payment_method === 'credit' || o.payment_method === 'split'
+                  ? Math.min(o.paid_amount || 0, priced.lineAmount)
+                  : priced.lineAmount,
               tank_allocations: nextAllocations,
               source_tank_id: nextAllocations[0]?.tank_id ?? o.source_tank_id,
               date: patch.date || o.date
