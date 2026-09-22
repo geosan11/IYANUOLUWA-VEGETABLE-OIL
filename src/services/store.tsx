@@ -23,6 +23,7 @@ import {
   ReceiptData,
   ContainerMode,
   PaymentMethod,
+  SinglePaymentMethod,
   PaymentSplit,
   Pump,
   PumpReading,
@@ -123,6 +124,9 @@ interface StoreContextType {
   };
   todayStats: {
     cashTransferSales: number;
+    cashSalesToday: number;
+    transferSalesToday: number;
+    posSalesToday: number;
     creditOutstanding: number;
     companyKegsOut: number;
     kegsAtDepot: number;
@@ -395,6 +399,7 @@ function toAppSettingsRow(s: AppSettings) {
     company_address: s.company_address,
     company_logo_url: s.company_logo_url,
     litres_per_keg: s.litres_per_keg,
+    default_litres_per_ton: s.default_litres_per_ton,
     total_company_kegs: s.total_company_kegs,
     kegs_at_depot_low_threshold: s.kegs_at_depot_low_threshold,
     low_stock_litres_threshold: s.low_stock_litres_threshold,
@@ -1296,6 +1301,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       .filter(o => o.payment_method === 'cash' || o.payment_method === 'transfer' || o.payment_method === 'pos' || o.payment_method === 'split')
       .reduce((sum, o) => sum + (o.paid_amount || 0), 0);
 
+    // Per-method breakdown of the above — a straight-method order counts its
+    // full paid_amount, a split order attributes each leg to its own method.
+    const sumByMethod = (method: SinglePaymentMethod) =>
+      todayOrders.reduce((sum, o) => {
+        if (o.payment_method === method) return sum + (o.paid_amount || 0);
+        if (o.payment_method === 'split' && o.payment_splits) {
+          return sum + o.payment_splits.filter(s => s.method === method).reduce((s, sp) => s + sp.amount, 0);
+        }
+        return sum;
+      }, 0);
+    const cashSalesToday = sumByMethod('cash');
+    const transferSalesToday = sumByMethod('transfer');
+    const posSalesToday = sumByMethod('pos');
+
     // Total revenue billed today, regardless of payment method — includes the
     // full value of credit sales (not yet collected), unlike cashTransferSales.
     const grossSalesToday = todayOrders.reduce((sum, o) => sum + Number(o.line_amount || 0), 0);
@@ -1328,6 +1347,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     return {
       cashTransferSales,
+      cashSalesToday,
+      transferSalesToday,
+      posSalesToday,
       creditOutstanding,
       companyKegsOut: kegInventory.totalKegsOut,
       kegsAtDepot: kegInventory.kegsAtDepot,

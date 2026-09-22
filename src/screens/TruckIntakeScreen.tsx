@@ -92,14 +92,14 @@ export const TruckIntakeScreen: React.FC = () => {
   const bulkMetrics = useMemo(() => {
     return calculateIntakeMetrics(
       parseInt(tons, 10) || 0,
-      selectedProduct.litres_per_ton || 1075,
+      selectedProduct.litres_per_ton || settings.default_litres_per_ton,
       parseFromCommas(actualKegs) || 0,
       parseInt(leftoverLitres, 10) || 0,
       kegInventory.kegsAtDepot,
       selectedProduct.litres_per_keg,
       settings.truck_shortfall_threshold
     );
-  }, [tons, selectedProduct, actualKegs, leftoverLitres, kegInventory.kegsAtDepot, settings.truck_shortfall_threshold]);
+  }, [tons, selectedProduct, actualKegs, leftoverLitres, kegInventory.kegsAtDepot, settings.truck_shortfall_threshold, settings.default_litres_per_ton]);
 
   // Live calculation metrics for pre-kegged
   const preKeggedMetrics = useMemo(() => {

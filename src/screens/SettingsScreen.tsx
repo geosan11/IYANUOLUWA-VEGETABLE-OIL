@@ -139,6 +139,7 @@ export const SettingsScreen: React.FC = () => {
 
   // 2. Keg Configuration Local State
   const [litresPerKeg, setLitresPerKeg] = useState(settings.litres_per_keg.toString());
+  const [defaultLitresPerTon, setDefaultLitresPerTon] = useState(settings.default_litres_per_ton.toString());
   const [totalCompanyKegs, setTotalCompanyKegs] = useState(settings.total_company_kegs.toString());
   const [kegsAtDepotLowThreshold, setKegsAtDepotLowThreshold] = useState(settings.kegs_at_depot_low_threshold.toString());
 
@@ -231,6 +232,7 @@ export const SettingsScreen: React.FC = () => {
     setCompanyPhone(settings.company_phone);
     setCompanyAddress(settings.company_address);
     setLitresPerKeg(settings.litres_per_keg.toString());
+    setDefaultLitresPerTon(settings.default_litres_per_ton.toString());
     setTotalCompanyKegs(settings.total_company_kegs.toString());
     setKegsAtDepotLowThreshold(settings.kegs_at_depot_low_threshold.toString());
     setLowStockThreshold(settings.low_stock_litres_threshold.toString());
@@ -294,6 +296,7 @@ export const SettingsScreen: React.FC = () => {
     const globalDefault = Math.max(1, numOr(litresPerKeg, 30));
     updateSettings({
       litres_per_keg: globalDefault,
+      default_litres_per_ton: Math.max(1, numOr(defaultLitresPerTon, 1075)),
       total_company_kegs: Math.max(0, numOr(totalCompanyKegs, 500)),
       kegs_at_depot_low_threshold: Math.max(0, numOr(kegsAtDepotLowThreshold, 20))
     });
@@ -836,7 +839,7 @@ export const SettingsScreen: React.FC = () => {
                   <span>Depot Fleet Asset &amp; Safety Controls</span>
                 </h4>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
                     <label htmlFor="default-fallback-litres-per-keg" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                       Default Fallback L/Keg
@@ -855,6 +858,26 @@ export const SettingsScreen: React.FC = () => {
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">L/keg</span>
                     </div>
                     <p className="text-[11px] font-sans text-slate-500">Global fallback when no product-specific size is configured.</p>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                    <label htmlFor="default-fallback-litres-per-ton" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                      Default Fallback L/Ton
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="default-fallback-litres-per-ton"
+                        type="number"
+                        step="1"
+                        min="1"
+                        value={defaultLitresPerTon}
+                        onChange={e => setDefaultLitresPerTon(e.target.value)}
+                        className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
+                        required
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">L/ton</span>
+                    </div>
+                    <p className="text-[11px] font-sans text-slate-500">Estimated litres per ton used on Truck Intake when a product has no density of its own set.</p>
                   </div>
 
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">

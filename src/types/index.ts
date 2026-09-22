@@ -349,6 +349,7 @@ export interface AppSettings {
   company_address: string;
   company_logo_url: string | null;
   litres_per_keg: number;
+  default_litres_per_ton: number;
   total_company_kegs: number;
   kegs_at_depot_low_threshold: number;
   low_stock_litres_threshold: number;

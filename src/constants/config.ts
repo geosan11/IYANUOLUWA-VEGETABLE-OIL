@@ -325,6 +325,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   company_address: 'Plot 14, Commercial Avenue, Alaba Depot, Lagos',
   company_logo_url: null,
   litres_per_keg: 25,
+  default_litres_per_ton: 1075,
   total_company_kegs: 500,
   kegs_at_depot_low_threshold: 20,
   low_stock_litres_threshold: 500,

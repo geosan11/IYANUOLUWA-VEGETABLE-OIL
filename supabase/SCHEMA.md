@@ -272,8 +272,9 @@ Entirely **derived** by `calculatePumpMeterVariance` from `pump_readings` + `ord
 ### `AppSettings` → `app_settings` (single row, `id = 1`)
 Every field maps 1:1 to a NOT NULL typed column: `company_name`, `company_phone`,
 `company_address`, `company_logo_url` (**null**), `litres_per_keg`,
-`total_company_kegs`, `kegs_at_depot_low_threshold`, `low_stock_litres_threshold`,
-`truck_shortfall_threshold`, `pump_variance_threshold`,
+`default_litres_per_ton` (fallback tons→litres ratio when a product has no
+density of its own, `0016`), `total_company_kegs`, `kegs_at_depot_low_threshold`,
+`low_stock_litres_threshold`, `truck_shortfall_threshold`, `pump_variance_threshold`,
 `dipstick_variance_threshold`, `default_daily_float`, `daily_float`.
 
 ### `UserRole` → `profiles.role` (in `0002`)

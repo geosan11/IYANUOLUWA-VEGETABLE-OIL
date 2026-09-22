@@ -1774,6 +1774,33 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 </span>
               </div>
 
+              <div className="grid grid-cols-3 gap-2">
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-center">
+                  <div className="text-[10px] font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    Cash
+                  </div>
+                  <div className="text-sm font-mono tabular-nums font-bold text-slate-900 dark:text-white mt-0.5">
+                    {formatNaira(todayStats.cashSalesToday)}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-center">
+                  <div className="text-[10px] font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    Transfer
+                  </div>
+                  <div className="text-sm font-mono tabular-nums font-bold text-slate-900 dark:text-white mt-0.5">
+                    {formatNaira(todayStats.transferSalesToday)}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-center">
+                  <div className="text-[10px] font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    POS/Card
+                  </div>
+                  <div className="text-sm font-mono tabular-nums font-bold text-slate-900 dark:text-white mt-0.5">
+                    {formatNaira(todayStats.posSalesToday)}
+                  </div>
+                </div>
+              </div>
+
               <div className="text-xs font-sans font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 Today's Paid Transactions
               </div>
