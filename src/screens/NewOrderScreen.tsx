@@ -199,7 +199,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   // ---- cart + payment ----
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
-  const [amountTendered, setAmountTendered] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showBackdate, setShowBackdate] = useState(false);
@@ -227,16 +226,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   // ---- Partial Payment Mode State ----
   const [partialDepositAmount, setPartialDepositAmount] = useState('');
   const [partialDepositMethod, setPartialDepositMethod] = useState<SinglePaymentMethod>('cash');
-  const [partialTendered, setPartialTendered] = useState('');
 
   // ---- Double / Split Payment Mode State ----
   const [splitLeg1Method, setSplitLeg1Method] = useState<SinglePaymentMethod>('cash');
   const [splitLeg1Amount, setSplitLeg1Amount] = useState('');
-  const [splitLeg1Tendered, setSplitLeg1Tendered] = useState('');
   const [splitLeg2Method, setSplitLeg2Method] = useState<SinglePaymentMethod>('transfer');
   const [splitLeg2Amount, setSplitLeg2Amount] = useState('');
-  const [splitLeg2Tendered, setSplitLeg2Tendered] = useState('');
-  const [splitLeg2Ref, setSplitLeg2Ref] = useState('');
 
   // ---- Target 3 dispensing bulk pumps ----
   const targetPumps = useMemo(() => {
@@ -358,16 +353,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   }, [product, varietyId, packSizeId, tier, qty, effectiveContainerMode, isKegOnlyMode, overrideOn, overrideValue, packPrices]);
 
   const cartTotal = lines.reduce((s, l) => s + l.lineAmount, 0);
-  const tenderedNum = parseFromCommas(amountTendered);
-  const changeDue = paymentMethod === 'cash' ? Math.max(0, tenderedNum - cartTotal) : 0;
-  const shortTender = paymentModeTab === 'single' && paymentMethod === 'cash' && amountTendered !== '' && tenderedNum < cartTotal;
 
   // Partial mode calculations
   const partialDepositNum = parseFromCommas(partialDepositAmount);
   const partialDebtNum = Math.max(0, Number((cartTotal - partialDepositNum).toFixed(2)));
-  const partialTenderedNum = partialTendered === '' ? partialDepositNum : parseFromCommas(partialTendered);
-  const partialChangeDue = partialDepositMethod === 'cash' ? Math.max(0, partialTenderedNum - partialDepositNum) : 0;
-  const partialShortTender = partialDepositMethod === 'cash' && partialTendered !== '' && partialTenderedNum < partialDepositNum;
 
   // Split mode calculations
   const splitLeg1Num = parseFromCommas(splitLeg1Amount);
@@ -376,14 +365,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   const splitRemaining = Math.max(0, Number((cartTotal - splitTotalAssigned).toFixed(2)));
   const splitOver = Math.max(0, Number((splitTotalAssigned - cartTotal).toFixed(2)));
   const isSplitBalanced = cartTotal > 0 && Math.abs(splitTotalAssigned - cartTotal) < 0.01;
-
-  const splitLeg1TenderedNum = splitLeg1Tendered === '' ? splitLeg1Num : parseFromCommas(splitLeg1Tendered);
-  const splitLeg1ChangeDue = splitLeg1Method === 'cash' ? Math.max(0, splitLeg1TenderedNum - splitLeg1Num) : 0;
-  const splitLeg1ShortTender = splitLeg1Method === 'cash' && splitLeg1Tendered !== '' && splitLeg1TenderedNum < splitLeg1Num;
-
-  const splitLeg2TenderedNum = splitLeg2Tendered === '' ? splitLeg2Num : parseFromCommas(splitLeg2Tendered);
-  const splitLeg2ChangeDue = splitLeg2Method === 'cash' ? Math.max(0, splitLeg2TenderedNum - splitLeg2Num) : 0;
-  const splitLeg2ShortTender = splitLeg2Method === 'cash' && splitLeg2Tendered !== '' && splitLeg2TenderedNum < splitLeg2Num;
 
   const creditPortion = paymentModeTab === 'partial'
     ? partialDebtNum
@@ -488,7 +469,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
         setIsAddCustomerOpen(true);
         return fail('Walk-in retail customers cannot buy on debt. Please register this customer or select an existing customer.');
       }
-      if (shortTender) return fail('Cash tendered is less than the total.');
       if (overLimitBlocked) return fail('This sale puts the customer over their debt limit — owner approval required.');
     } else if (paymentModeTab === 'partial') {
       if (partialDepositNum <= 0) {
@@ -501,7 +481,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
         setIsAddCustomerOpen(true);
         return fail('Walk-in retail customers cannot have remaining debt. Please register this customer or select an existing customer.');
       }
-      if (partialShortTender) return fail('Cash tendered for deposit is less than the deposit amount.');
       if (overLimitBlocked) return fail('The remaining debt puts the customer over their credit limit — owner approval required.');
     } else {
       if (!isSplitBalanced) {
@@ -514,8 +493,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
         setIsAddCustomerOpen(true);
         return fail('Walk-in retail customers cannot buy on debt. Please register this customer or select an existing customer.');
       }
-      if (splitLeg1ShortTender) return fail('Cash tendered for Leg 1 is less than the assigned amount.');
-      if (splitLeg2ShortTender) return fail('Cash tendered for Leg 2 is less than the assigned amount.');
       if (overLimitBlocked) return fail('The debt portion puts the customer over their credit limit — owner approval required.');
     }
 
@@ -523,9 +500,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
       ? [
           {
             method: partialDepositMethod,
-            amount: partialDepositNum,
-            amount_tendered: partialDepositMethod === 'cash' ? partialTenderedNum : undefined,
-            change_due: partialDepositMethod === 'cash' ? partialChangeDue : undefined
+            amount: partialDepositNum
           },
           {
             method: 'credit',
@@ -538,16 +513,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
       ? [
           {
             method: splitLeg1Method,
-            amount: splitLeg1Num,
-            amount_tendered: splitLeg1Method === 'cash' ? splitLeg1TenderedNum : undefined,
-            change_due: splitLeg1Method === 'cash' ? splitLeg1ChangeDue : undefined
+            amount: splitLeg1Num
           },
           {
             method: splitLeg2Method,
             amount: splitLeg2Num,
-            amount_tendered: splitLeg2Method === 'cash' ? splitLeg2TenderedNum : undefined,
-            change_due: splitLeg2Method === 'cash' ? splitLeg2ChangeDue : undefined,
-            reference: splitLeg2Ref.trim() || undefined,
             credit_term_days: splitLeg2Method === 'credit' ? creditTermDays : undefined,
             due_date: splitLeg2Method === 'credit' ? effectiveDueDate.toISOString() : undefined
           }
@@ -564,11 +534,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
       paymentSplits: splits,
       creditTermDays: isDebtInvolved ? creditTermDays : undefined,
       dueDate: isDebtInvolved ? effectiveDueDate.toISOString() : undefined,
-      amountTendered: paymentModeTab === 'single'
-        ? (paymentMethod === 'cash' && tenderedNum > 0 ? tenderedNum : null)
-        : paymentModeTab === 'partial'
-        ? (partialDepositMethod === 'cash' ? partialTenderedNum : null)
-        : (splitLeg1Method === 'cash' ? splitLeg1TenderedNum : splitLeg2Method === 'cash' ? splitLeg2TenderedNum : null),
+      amountTendered: null,
       note: note.trim() || undefined,
       pricingTier: customer?.type || 'retail',
       date: showBackdate ? fromDatetimeLocalValue(saleDateInput) : undefined,
@@ -593,14 +559,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     }
     showToast('success', `Sale recorded for ${customer?.name || 'customer'}: ${formatNaira(cartTotal)}.`);
     setLines([]);
-    setAmountTendered('');
     setPartialDepositAmount('');
-    setPartialTendered('');
     setSplitLeg1Amount('');
-    setSplitLeg1Tendered('');
     setSplitLeg2Amount('');
-    setSplitLeg2Tendered('');
-    setSplitLeg2Ref('');
     setPaymentModeTab('single');
     setNote('');
     setShowBackdate(false);
@@ -1148,10 +1109,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
               type="button"
               id="btn-back-to-new-sale"
               onClick={() => setShowPreviousTransactions(false)}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-sans font-bold transition-all active:scale-95"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 shadow-sm text-slate-800 dark:text-slate-200 text-xs font-sans font-bold transition-all active:scale-95 cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4 text-brand-600 dark:text-brand-400" weight="bold" />
-              <span>← Back to New Sale</span>
+              <span>Back to New Sale</span>
             </button>
 
             {onNavigate && (
@@ -1277,10 +1238,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
             {/* ---------- BUILDER COLUMN (LEFT) ---------- */}
             <div className="split:col-span-8 space-y-5">
               {/* Card 1: Customer Selection (2 Options) */}
-              <section className="depot-card p-3.5 space-y-2.5">
+              <section className="depot-card p-2.5 space-y-1.5">
                 <StepBadge n={1} label="Customer Selection" />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 items-stretch">
                   {/* Option 1: Big One-time Customer button (Full Height) */}
                   <button
                     type="button"
@@ -1290,23 +1251,23 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       setCustomerOpen(false);
                       setCustomerSearch('');
                     }}
-                    className={`h-full min-h-[64px] p-2.5 rounded-2xl border-2 transition-all flex items-center gap-2.5 text-left group cursor-pointer ${
+                    className={`h-full min-h-[44px] p-2 rounded-xl border-2 transition-all flex items-center gap-2 text-left group cursor-pointer ${
                       isOneTime
-                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-950 dark:text-emerald-100 shadow-md ring-2 ring-emerald-500/20'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-950 dark:text-emerald-100 shadow-sm ring-2 ring-emerald-500/20'
                         : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-emerald-400/60 text-slate-800 dark:text-slate-200'
                     }`}
                   >
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors shrink-0 ${
+                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors shrink-0 ${
                       isOneTime
                         ? 'bg-emerald-500 text-white shadow-xs'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-500 group-hover:bg-emerald-100 group-hover:text-emerald-600'
                     }`}>
-                      <ShoppingCart className="w-4 h-4" weight="bold" />
+                      <ShoppingCart className="w-3.5 h-3.5" weight="bold" />
                     </div>
 
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-heading font-extrabold text-sm leading-tight">
+                        <span className="font-heading font-extrabold text-xs leading-tight">
                           One-time Customer
                         </span>
                         {isOneTime && (
@@ -1315,21 +1276,21 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans leading-snug truncate">
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-sans leading-snug truncate">
                         Walk-in · Immediate Settlement (No Debt)
                       </p>
                     </div>
                   </button>
 
                   {/* Option 2: Beside it - Previous Customer Dropdown & Add Customer */}
-                  <div className={`p-2.5 rounded-2xl border-2 transition-all flex flex-col justify-center gap-1.5 ${
+                  <div className={`p-2 rounded-xl border-2 transition-all flex flex-col justify-center gap-1 ${
                     !isOneTime && customer
-                      ? 'bg-brand-50/30 dark:bg-brand-950/20 border-brand-500/80 shadow-md ring-2 ring-brand-500/10'
+                      ? 'bg-brand-50/30 dark:bg-brand-950/20 border-brand-500/80 shadow-sm ring-2 ring-brand-500/10'
                       : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
                   }`}>
                     <div className="flex items-center justify-between gap-2">
-                      <label className="text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                        <Users className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+                      <label className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                        <Users className="w-3 h-3 text-brand-600 dark:text-brand-400" />
                         <span>Registered Customer</span>
                       </label>
 
@@ -1341,7 +1302,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           setNewCustName(customerSearch.trim());
                           setAddCustomerError(null);
                         }}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-500 hover:bg-brand-400 text-slate-950 text-[10px] font-sans font-extrabold shadow-xs transition-transform active:scale-95 cursor-pointer shrink-0"
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-brand-500 hover:bg-brand-400 text-slate-950 text-[10px] font-sans font-extrabold shadow-xs transition-transform active:scale-95 cursor-pointer shrink-0"
                       >
                         <Plus className="w-3 h-3" weight="bold" />
                         <span>Add</span>
@@ -1349,7 +1310,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     </div>
 
                     <div className="relative">
-                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <Search className="w-3 h-3 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
                         value={
                           customerOpen
@@ -1367,7 +1328,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           setCustomerSearch('');
                         }}
                         placeholder="Search previous customer..."
-                        className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-sans font-bold focus:outline-none focus:border-brand-500 shadow-2xs"
+                        className="w-full pl-7 pr-3 py-1 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] font-sans font-bold focus:outline-none focus:border-brand-500 shadow-2xs"
                       />
 
                       {customerOpen && (
@@ -1696,7 +1657,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                 </span>
                                 <span>{v.name}</span>
                               </div>
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                              <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 lg:grid-cols-9 gap-1.5">
                                 {sellableSizes.map(s => {
                                   const linePrice = priceSaleLine({
                                     product,
@@ -1713,34 +1674,43 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                     <button
                                       key={s.id}
                                       onClick={() => { setVarietyId(v.id); setPackSizeId(s.id); }}
-                                      className={`relative p-3.5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-1.5 cursor-pointer ${
+                                      className={`relative rounded-xl border-2 text-center transition-all duration-150 flex flex-col h-full overflow-hidden cursor-pointer hover:scale-[1.03] hover:-translate-y-0.5 hover:z-10 hover:shadow-md ${
                                         selected
                                           ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/50 shadow-glow-brand ring-2 ring-brand-500/20'
-                                          : 'border-slate-200 dark:border-slate-700/70 bg-white dark:bg-slate-900 hover:border-brand-300 dark:hover:border-brand-600/60 hover:shadow-sm'
+                                          : 'border-slate-200 dark:border-slate-700/70 bg-white dark:bg-slate-900 hover:border-brand-300 dark:hover:border-brand-600/60'
                                       }`}
                                     >
                                       {selected && (
-                                        <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-xs">
-                                          <Check className="w-2.5 h-2.5" weight="bold" />
+                                        <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-xs z-10">
+                                          <Check className="w-2 h-2" weight="bold" />
                                         </span>
                                       )}
-                                      <span className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                                      <div className="flex flex-col items-center justify-center gap-1 p-1.5 pb-1 min-h-[64px]">
+                                        <span className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors shrink-0 ${
+                                          selected
+                                            ? 'bg-brand-500 text-white shadow-xs'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                                        }`}>
+                                          <Icon className="w-4 h-4" weight={selected ? 'fill' : 'duotone'} />
+                                        </span>
+                                        <span className="text-xs font-sans font-extrabold text-slate-900 dark:text-white leading-tight truncate max-w-full">{s.short}</span>
+                                      </div>
+
+                                      <div className={`mt-auto px-1 py-1 border-t text-center ${
                                         selected
-                                          ? 'bg-brand-500 text-white shadow-xs'
-                                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                                          ? 'bg-brand-600 border-brand-700/60'
+                                          : 'bg-slate-900 dark:bg-black/40 border-slate-800/60'
                                       }`}>
-                                        <Icon className="w-5 h-5" weight={selected ? 'fill' : 'duotone'} />
-                                      </span>
-                                      <span className="text-sm font-sans font-extrabold text-slate-900 dark:text-white leading-tight">{s.short}</span>
-                                      <span className="text-[13px] font-mono font-bold tracking-tight">
-                                        {linePrice.unpriced ? (
-                                          <span className="text-amber-600 dark:text-amber-400">no price</span>
-                                        ) : (
-                                          <span className={selected ? 'text-brand-700 dark:text-brand-300' : 'text-brand-600 dark:text-brand-400'}>
-                                            {formatNaira(linePrice.unitPrice)}
-                                          </span>
-                                        )}
-                                      </span>
+                                        <span className="text-[11px] font-mono font-bold tracking-tight">
+                                          {linePrice.unpriced ? (
+                                            <span className="text-amber-400">no price</span>
+                                          ) : (
+                                            <span className="text-emerald-300">
+                                              {formatNaira(linePrice.unitPrice)}
+                                            </span>
+                                          )}
+                                        </span>
+                                      </div>
                                     </button>
                                   );
                                 })}
@@ -1986,8 +1956,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
             </div>
 
             {/* ---------- PAYMENT & SUMMARY COLUMN (RIGHT) ---------- */}
-            {/* Note: Card 3 is removed. Payment is now Step 3. */}
-            <div className="split:col-span-4 space-y-4">
+            {/* Note: Card 3 is removed. Payment is now Step 3. Sticky + its own
+                scroll on desktop so Complete Sale stays reachable while the
+                (often much taller) item builder on the left scrolls the page. */}
+            <div className="split:col-span-4 space-y-4 split:sticky split:top-4 split:self-start split:max-h-[calc(100vh-7rem)] split:overflow-y-auto">
               {/* Step 3: Payment & Items Summary */}
               <section className="depot-card p-4 space-y-3.5">
                 <div className="flex items-center justify-between">
@@ -2067,12 +2039,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                 )}
 
                 {/* 3 Payment Mode Switcher: Full, Partial Payment (Deposit + Debt), Double Split */}
-                <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
+                <div className="grid grid-cols-3 gap-1 p-0.5 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
                   <button
                     type="button"
                     id="btn-payment-mode-single"
                     onClick={() => setPaymentModeTab('single')}
-                    className={`py-2 px-2 rounded-lg text-xs font-sans font-bold transition-all cursor-pointer ${
+                    className={`py-1 px-1.5 rounded-lg text-[11px] font-sans font-bold transition-all cursor-pointer ${
                       paymentModeTab === 'single'
                         ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
                         : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -2089,13 +2061,13 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         setPartialDepositAmount(String(Math.round(cartTotal * 0.5)));
                       }
                     }}
-                    className={`py-2 px-2 rounded-lg text-xs font-sans font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                    className={`py-1 px-1.5 rounded-lg text-[11px] font-sans font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
                       paymentModeTab === 'partial'
                         ? 'bg-amber-500 text-slate-950 shadow-xs font-black'
                         : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                     }`}
                   >
-                    <Clock className="w-3.5 h-3.5" weight="bold" />
+                    <Clock className="w-3 h-3" weight="bold" />
                     <span>Partial / Debt</span>
                   </button>
                   <button
@@ -2109,13 +2081,13 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         setSplitLeg2Amount(String(cartTotal - half));
                       }
                     }}
-                    className={`py-2 px-2 rounded-lg text-xs font-sans font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                    className={`py-1 px-1.5 rounded-lg text-[11px] font-sans font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
                       paymentModeTab === 'split'
                         ? 'bg-brand-500 text-slate-950 shadow-xs font-black'
                         : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                     }`}
                   >
-                    <Lightning className="w-3.5 h-3.5" weight="fill" />
+                    <Lightning className="w-3 h-3" weight="fill" />
                     <span>Double / Split</span>
                   </button>
                 </div>
@@ -2123,7 +2095,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                 {paymentModeTab === 'single' && (
                   /* Standard Single Payment */
                   <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-1.5">
                       {PAYMENT_METHODS.map(m => {
                         const isSelected = paymentMethod === m.id;
                         const theme = getPaymentModeTheme(m.id);
@@ -2132,9 +2104,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                             key={m.id}
                             type="button"
                             onClick={() => setPaymentMethod(m.id)}
-                            className={`py-2.5 px-3 rounded-xl text-xs font-sans font-bold border transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                            className={`py-1.5 px-2.5 rounded-lg text-xs font-sans font-bold border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                               isSelected
-                                ? theme.buttonActiveCls + ' scale-[1.02]'
+                                ? theme.buttonActiveCls + ' scale-[1.01]'
                                 : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                             }`}
                           >
@@ -2144,33 +2116,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         );
                       })}
                     </div>
-
-                    {paymentMethod === 'cash' && (
-                      <div className="space-y-1.5">
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
-                            ₦
-                          </span>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={amountTendered}
-                            onChange={e => setAmountTendered(formatWithCommas(e.target.value))}
-                            placeholder="Cash tendered (e.g. 100,000)"
-                            className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-sm"
-                          />
-                        </div>
-                        {amountTendered !== '' && (
-                          <div
-                            className={`text-xs font-mono ${
-                              shortTender ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
-                            }`}
-                          >
-                            {shortTender ? `Short ${formatNaira(cartTotal - tenderedNum)}` : `Change ${formatNaira(changeDue)}`}
-                          </div>
-                        )}
-                      </div>
-                    )}
 
                     {paymentMethod === 'credit' && (
                       isOneTime ? (
@@ -2345,27 +2290,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           })}
                         </div>
                       </div>
-
-                      {/* If Deposit is Cash, Show Tendered & Change */}
-                      {partialDepositMethod === 'cash' && (
-                        <div className="space-y-1.5 pt-1">
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={partialTendered}
-                            onChange={e => setPartialTendered(formatWithCommas(e.target.value))}
-                            placeholder="Cash tendered for deposit"
-                            className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-xs"
-                          />
-                          {partialTendered !== '' && (
-                            <div className={`text-xs font-mono font-medium ${partialShortTender ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                              {partialShortTender
-                                ? `Short ${formatNaira(partialDepositNum - partialTenderedNum)}`
-                                : `Change ${formatNaira(partialChangeDue)}`}
-                            </div>
-                          )}
-                        </div>
-                      )}
 
                       {/* Remaining Debt Summary */}
                       <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
@@ -2557,26 +2481,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           className="w-full pl-8 pr-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-xs"
                         />
                       </div>
-
-                      {splitLeg1Method === 'cash' && (
-                        <div className="space-y-1 pt-1">
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={splitLeg1Tendered}
-                            onChange={e => setSplitLeg1Tendered(formatWithCommas(e.target.value))}
-                            placeholder="Cash tendered (e.g. change calculation)"
-                            className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-xs"
-                          />
-                          {splitLeg1Tendered !== '' && (
-                            <div className={`text-[11px] font-mono ${splitLeg1ShortTender ? 'text-rose-600' : 'text-emerald-600'}`}>
-                              {splitLeg1ShortTender
-                                ? `Short ${formatNaira(splitLeg1Num - splitLeg1TenderedNum)}`
-                                : `Change ${formatNaira(splitLeg1ChangeDue)}`}
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
 
                     {/* Split Leg 2 */}
@@ -2639,26 +2543,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         />
                       </div>
 
-                      {splitLeg2Method === 'cash' && (
-                        <div className="space-y-1 pt-1">
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={splitLeg2Tendered}
-                            onChange={e => setSplitLeg2Tendered(formatWithCommas(e.target.value))}
-                            placeholder="Cash tendered (e.g. 50,000)"
-                            className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-xs"
-                          />
-                          {splitLeg2Tendered !== '' && (
-                            <div className={`text-[11px] font-mono ${splitLeg2ShortTender ? 'text-rose-600' : 'text-emerald-600'}`}>
-                              {splitLeg2ShortTender
-                                ? `Short ${formatNaira(splitLeg2Num - splitLeg2TenderedNum)}`
-                                : `Change ${formatNaira(splitLeg2ChangeDue)}`}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
                       {splitLeg2Method === 'credit' && (
                         <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2">
                           <div className="flex items-center justify-between">
@@ -2717,16 +2601,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                             </div>
                           )}
                         </div>
-                      )}
-
-                      {(splitLeg2Method === 'transfer' || splitLeg2Method === 'pos') && (
-                        <input
-                          type="text"
-                          value={splitLeg2Ref}
-                          onChange={e => setSplitLeg2Ref(e.target.value)}
-                          placeholder="Bank session / POS reference (optional)"
-                          className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] font-mono"
-                        />
                       )}
                     </div>
 
@@ -2797,7 +2671,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
                 <button
                   onClick={completeSale}
-                  disabled={lines.length === 0 || shortTender || overLimitBlocked}
+                  disabled={lines.length === 0 || overLimitBlocked}
                   className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-sans font-bold text-sm flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all"
                 >
                   <Check className="w-4 h-4" weight="bold" /> Complete sale · {formatNaira(cartTotal)}

@@ -32,7 +32,11 @@ import {
   Bank,
   Lightning,
   UserCheck,
-  Package
+  Package,
+  Tag,
+  CaretDown,
+  Check,
+  Jar
 } from '@phosphor-icons/react';
 
 interface Props {
@@ -89,12 +93,12 @@ const PAYMENT_MODE_CHIPS: { id: PaymentModeFilter; label: string }[] = [
   { id: 'split', label: 'Split / Double' }
 ];
 
-const KIND_META: Record<Kind, { label: string; Icon: typeof CreditCard; badge: string }> = {
-  sale: { label: 'Sale', Icon: Banknote, badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' },
-  payment: { label: 'Payment', Icon: CreditCard, badge: 'bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300' },
-  expense: { label: 'Expense', Icon: Undo2, badge: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' },
-  intake: { label: 'Intake', Icon: Truck, badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300' },
-  keg_return: { label: 'Keg Return', Icon: Package, badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300' }
+const KIND_META: Record<Kind, { label: string; Icon: typeof CreditCard; badge: string; barCls: string }> = {
+  sale: { label: 'Sale', Icon: Banknote, badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300', barCls: 'border-l-emerald-400 dark:border-l-emerald-600' },
+  payment: { label: 'Payment', Icon: CreditCard, badge: 'bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300', barCls: 'border-l-sky-400 dark:border-l-sky-600' },
+  expense: { label: 'Expense', Icon: Undo2, badge: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300', barCls: 'border-l-rose-400 dark:border-l-rose-600' },
+  intake: { label: 'Intake', Icon: Truck, badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300', barCls: 'border-l-amber-400 dark:border-l-amber-600' },
+  keg_return: { label: 'Keg Return', Icon: Package, badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300', barCls: 'border-l-indigo-400 dark:border-l-indigo-600' }
 };
 
 export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
@@ -128,11 +132,23 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
   const [search, setSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
   const [paymentModeFilter, setPaymentModeFilter] = useState<PaymentModeFilter>('all');
+  const [discountOnly, setDiscountOnly] = useState(false);
+  const [varietyFilter, setVarietyFilter] = useState<string>('all');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [auditFor, setAuditFor] = useState<string | null>(null);
   const [voidTarget, setVoidTarget] = useState<TxnRow | null>(null);
   const [editTarget, setEditTarget] = useState<TxnRow | null>(null);
+
+  const allVarieties = useMemo(() => {
+    const list: { id: string; name: string; productName: string }[] = [];
+    for (const p of products) {
+      for (const v of p.varieties) {
+        list.push({ id: v.id, name: v.name, productName: p.name });
+      }
+    }
+    return list;
+  }, [products]);
 
   const custName = (id: string) => customers.find(c => c.id === id)?.name || 'Walk-in';
   const prodName = (id: string) => products.find(p => p.id === id)?.name || 'Oil';
@@ -303,6 +319,15 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         const matchesSplit = r.paymentMethod === 'split' && r.sale?.payment_splits?.some(sp => sp.method === paymentModeFilter);
         if (!matchesDirect && !matchesSplit) return false;
       }
+      if (discountOnly) {
+        const hasDiscount = r.lines?.some(l => l.price_adjusted);
+        if (!hasDiscount) return false;
+      }
+      if (varietyFilter !== 'all') {
+        const matchesSale = r.lines?.some(l => l.variety_id === varietyFilter || l.variety_name === varietyFilter);
+        const matchesIntake = r.tank?.product_id === varietyFilter;
+        if (!matchesSale && !matchesIntake) return false;
+      }
       if (scope === 'today' && depotDateKey(r.date) !== today) return false;
       if (scope === 'shift' && activeShift) {
         const start = new Date(activeShift.start_time).getTime();
@@ -328,7 +353,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
       }
       return true;
     });
-  }, [allRows, kindFilter, paymentModeFilter, scope, activeShift, customFromMs, customToMs, search]);
+  }, [allRows, kindFilter, paymentModeFilter, discountOnly, varietyFilter, scope, activeShift, customFromMs, customToMs, search]);
 
   const kpi = useMemo(() => {
     let gross = 0;
@@ -601,10 +626,77 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
               </button>
             );
           })}
+          <span className="w-px bg-slate-200 dark:bg-slate-800 mx-1 hidden sm:inline-block" />
+
+          {/* Variety Hover Dropdown Filter */}
+          <div className="relative group inline-block">
+            <button
+              type="button"
+              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                varietyFilter !== 'all'
+                  ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
+                  : 'bg-white dark:bg-slate-900 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 border-slate-200 dark:border-slate-800'
+              }`}
+            >
+              <Jar className="w-3.5 h-3.5" weight={varietyFilter !== 'all' ? 'fill' : 'bold'} />
+              <span>{varietyFilter !== 'all' ? (allVarieties.find(v => v.id === varietyFilter)?.name || 'Variety') : 'Varieties'}</span>
+              <CaretDown className="w-3 h-3 group-hover:rotate-180 transition-transform duration-150" />
+            </button>
+            <div className="absolute left-0 top-full pt-1 z-30 hidden group-hover:block w-52 shadow-xl">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl py-1 shadow-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setVarietyFilter('all')}
+                  className={`w-full text-left px-3 py-1.5 text-xs font-sans font-semibold flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer ${
+                    varietyFilter === 'all'
+                      ? 'text-brand-600 dark:text-brand-400 font-bold bg-brand-50/70 dark:bg-brand-950/40'
+                      : 'text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  <span>All Varieties</span>
+                  {varietyFilter === 'all' && <Check className="w-3.5 h-3.5" weight="bold" />}
+                </button>
+                <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                {allVarieties.map(v => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => setVarietyFilter(v.id)}
+                    className={`w-full text-left px-3 py-1.5 text-xs font-sans flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer ${
+                      varietyFilter === v.id
+                        ? 'text-brand-600 dark:text-brand-400 font-bold bg-brand-50/70 dark:bg-brand-950/40'
+                        : 'text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <div className="truncate">
+                      <span className="font-semibold block truncate">{v.name}</span>
+                      <span className="text-[10px] text-slate-400 block truncate">{v.productName}</span>
+                    </div>
+                    {varietyFilter === v.id && <Check className="w-3.5 h-3.5 shrink-0 ml-1.5" weight="bold" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Discount / Price Adjustment Filter */}
+          <button
+            type="button"
+            onClick={() => setDiscountOnly(d => !d)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold border flex items-center gap-1.5 transition-all cursor-pointer ${
+              discountOnly
+                ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
+                : 'bg-white dark:bg-slate-900 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 border-slate-200 dark:border-slate-800'
+            }`}
+            title="Filter transactions with price adjustments or discounts"
+          >
+            <Tag className="w-3.5 h-3.5" weight={discountOnly ? 'fill' : 'bold'} />
+            <span>Discounts</span>
+          </button>
         </div>
 
         {scope === 'custom' && (
-          <div className="flex flex-wrap items-end gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+          <div className="flex flex-wrap items-end gap-2 p-3 rounded-xl bg-gray-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
             <label className="text-xs font-sans font-semibold text-slate-500">
               From
               <input
@@ -662,8 +754,8 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         <div className="depot-card rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-xs border-collapse">
-            <thead className="bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800">
-              <tr className="text-[10px] font-sans font-bold uppercase tracking-widest text-slate-400">
+            <thead className="bg-gray-50 dark:bg-slate-950 border-b-2 border-slate-200 dark:border-slate-800">
+              <tr className="text-[10px] font-sans font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
                 <th className="text-left px-3 py-2 whitespace-nowrap w-[88px]">Date</th>
                 <th className="text-left px-3 py-2 whitespace-nowrap">Type</th>
                 <th className="text-left px-3 py-2 whitespace-nowrap">Customer</th>
@@ -687,7 +779,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                 const rowAudits = auditLog.filter(a => row.auditIds.includes(a.entity_id));
                 return (
                   <React.Fragment key={row.id}>
-                    <tr className={`group ${row.voided ? 'opacity-50' : 'hover:bg-slate-50/60 dark:hover:bg-slate-800/30'}`}>
+                    <tr className={`group border-l-[3px] ${row.voided ? 'border-l-slate-300 dark:border-l-slate-700 opacity-50' : `${KIND_META[row.kind].barCls} hover:bg-gray-50 dark:hover:bg-slate-800/30`}`}>
 
                       {/* DATE & TIME — compact single cell */}
                       <td className="px-3 py-2 align-middle whitespace-nowrap w-[88px]">
@@ -708,7 +800,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                         {row.voided && (
                           <div className="mt-0.5">
                             <span className="text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400">
-                              Voided
+                              {row.kind === 'sale' ? 'Returned' : 'Voided'}
                             </span>
                           </div>
                         )}
@@ -803,7 +895,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                             ? 'text-rose-600 dark:text-rose-400'
                             : row.tone === 'neutral'
                             ? 'text-slate-400'
-                            : 'text-slate-900 dark:text-white'
+                            : 'text-emerald-700 dark:text-emerald-400'
                         }`}>
                           {row.amountLabel}
                         </span>
@@ -847,9 +939,9 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                             <button
                               onClick={() => setVoidTarget(row)}
                               className="p-1 rounded border bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
-                              title="Void"
+                              title={row.kind === 'sale' ? 'Return Sale' : 'Void'}
                             >
-                              <Ban className="w-3 h-3" />
+                              {row.kind === 'sale' ? <Undo2 className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
                             </button>
                           )}
                         </div>
@@ -860,8 +952,8 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                     {row.lines && row.lines.length > 0 && (
                       <tr>
                         <td className="p-0" />
-                        <td colSpan={3} className="pb-2 pt-0.5 bg-slate-50/60 dark:bg-slate-950/40" />
-                        <td colSpan={3} className="px-3 pb-2 pt-0.5 bg-slate-50/60 dark:bg-slate-950/40">
+                        <td colSpan={3} className="pb-2 pt-0.5 bg-gray-50/70 dark:bg-slate-950/40" />
+                        <td colSpan={3} className="px-3 pb-2 pt-0.5 bg-gray-50/70 dark:bg-slate-950/40">
                           <div className="space-y-1">
                             {row.lines.map(l => (
                               <div key={l.id} className="flex items-center justify-between text-[11px] font-sans text-slate-600 dark:text-slate-400">
@@ -885,8 +977,8 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                     {row.kind === 'payment' && row.payment && (
                       <tr>
                         <td className="p-0" />
-                        <td colSpan={3} className="pb-2 pt-0.5 bg-slate-50/60 dark:bg-slate-950/40" />
-                        <td colSpan={3} className="px-3 pb-2 pt-0.5 bg-slate-50/60 dark:bg-slate-950/40">
+                        <td colSpan={3} className="pb-2 pt-0.5 bg-gray-50/70 dark:bg-slate-950/40" />
+                        <td colSpan={3} className="px-3 pb-2 pt-0.5 bg-gray-50/70 dark:bg-slate-950/40">
                           <div className="space-y-1">
                             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Applied to</div>
                             {row.payment.applied_to.length === 0 && row.payment.overpayment_to_credit <= 0 && (
@@ -917,7 +1009,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                     {/* Audit trail */}
                     {showAudit && (
                       <tr>
-                        <td colSpan={7} className="px-3 pb-2 pt-1 bg-slate-50/60 dark:bg-slate-950/40">
+                        <td colSpan={7} className="px-3 pb-2 pt-1 bg-gray-50/70 dark:bg-slate-950/40">
                           <div className="space-y-1">
                             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Edit history</div>
                             {rowAudits.map(a => (
@@ -963,9 +1055,11 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                 ? voidPayment(voidTarget.entityId, reason)
                 : voidExpense(voidTarget.entityId, reason);
             if (r.success) {
-              showToast('success', `${KIND_META[voidTarget.kind].label} voided: ${voidTarget.title}.`);
+              showToast('success', voidTarget.kind === 'sale'
+                ? `Sale returned: ${voidTarget.title}.`
+                : `${KIND_META[voidTarget.kind].label} voided: ${voidTarget.title}.`);
             } else {
-              showToast('error', r.error || 'Could not void this transaction.');
+              showToast('error', r.error || (voidTarget.kind === 'sale' ? 'Could not return this sale.' : 'Could not void this transaction.'));
             }
             return r;
           }}
@@ -1017,11 +1111,23 @@ const VoidModal: React.FC<{
   const [reason, setReason] = useState('');
   const [err, setErr] = useState<string | null>(null);
   return (
-    <Modal isOpen onClose={onClose} title={<span className="flex items-center gap-2"><Ban className="w-4 h-4 text-rose-500" /> Void {KIND_META[row.kind].label.toLowerCase()}</span>}>
+    <Modal
+      isOpen
+      onClose={onClose}
+      title={
+        <span className="flex items-center gap-2">
+          {row.kind === 'sale' ? <Undo2 className="w-4 h-4 text-rose-500" /> : <Ban className="w-4 h-4 text-rose-500" />}
+          {row.kind === 'sale' ? 'Return sale' : `Void ${KIND_META[row.kind].label.toLowerCase()}`}
+        </span>
+      }
+    >
       <div className="space-y-3">
         <p className="text-xs font-sans text-slate-600 dark:text-slate-300">
-          <b>{row.title}</b> · {row.amountLabel} · {formatDepotDate(row.date)}. Voiding removes it from every balance and
-          restores stock. It stays visible with an audit note.
+          <b>{row.title}</b> · {row.amountLabel} · {formatDepotDate(row.date)}.{' '}
+          {row.kind === 'sale'
+            ? 'Returning removes it from every balance and restores the oil (and any taken containers) back to stock.'
+            : 'Voiding removes it from every balance and restores stock.'}{' '}
+          It stays visible with an audit note.
         </p>
         <textarea
           value={reason}
@@ -1044,7 +1150,7 @@ const VoidModal: React.FC<{
             }}
             className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-sans font-bold"
           >
-            Void it
+            {row.kind === 'sale' ? 'Return it' : 'Void it'}
           </button>
         </div>
       </div>
