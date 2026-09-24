@@ -14,7 +14,7 @@ import {
 } from '../services/businessLogic';
 import { priceSaleLine } from '../services/pricing';
 import { PACK_SIZES, packLabel, packShort, getPaymentModeTheme, ONE_TIME_CUSTOMER_ID } from '../constants/config';
-import { ContainerMode, CustomerType, PaymentMethod, SinglePaymentMethod, ReceiptData, PaymentSplit } from '../types';
+import { ContainerMode, CustomerType, SinglePaymentMethod, ReceiptData, PaymentSplit } from '../types';
 import { Modal } from '../components/common/Modal';
 import {
   MagnifyingGlass as Search,
@@ -29,20 +29,18 @@ import {
   Printer,
   ArrowSquareOut,
   GasPump,
-  Coins,
   UserCheck,
   Calculator,
-  Pencil,
   ShoppingCart,
   Package,
   Clock,
   Users,
-  Lightning,
   Gauge,
   BeerBottle,
   Jar,
   Cube,
-  Drop
+  Drop,
+  MagicWand
 } from '@phosphor-icons/react';
 import { MiniNumberPad } from '../components/common/MiniNumberPad';
 
@@ -67,7 +65,7 @@ const packSizeIcon = (litres: number) => {
   return Cube;
 };
 
-const PAYMENT_METHODS: { id: PaymentMethod; label: string }[] = [
+const PAYMENT_METHODS: { id: SinglePaymentMethod; label: string }[] = [
   { id: 'cash', label: 'Cash' },
   { id: 'transfer', label: 'Transfer' },
   { id: 'pos', label: 'Card / POS' },
@@ -198,7 +196,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
   // ---- cart + payment ----
   const [lines, setLines] = useState<DraftLine[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [payMethods, setPayMethods] = useState<SinglePaymentMethod[]>(['cash']);
+  const [payAmounts, setPayAmounts] = useState<Partial<Record<SinglePaymentMethod, string>>>({});
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showBackdate, setShowBackdate] = useState(false);
@@ -218,20 +217,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     const baseTime = showBackdate ? new Date(fromDatetimeLocalValue(saleDateInput)).getTime() : Date.now();
     return new Date(baseTime + Math.max(1, creditTermDays) * 86400000);
   }, [showBackdate, saleDateInput, creditTermDays]);
-
-  // ---- Payment Modes: 'single' (Full) | 'partial' (Deposit + Debt) | 'split' (Double) ----
-  type PaymentModeTab = 'single' | 'partial' | 'split';
-  const [paymentModeTab, setPaymentModeTab] = useState<PaymentModeTab>('single');
-
-  // ---- Partial Payment Mode State ----
-  const [partialDepositAmount, setPartialDepositAmount] = useState('');
-  const [partialDepositMethod, setPartialDepositMethod] = useState<SinglePaymentMethod>('cash');
-
-  // ---- Double / Split Payment Mode State ----
-  const [splitLeg1Method, setSplitLeg1Method] = useState<SinglePaymentMethod>('cash');
-  const [splitLeg1Amount, setSplitLeg1Amount] = useState('');
-  const [splitLeg2Method, setSplitLeg2Method] = useState<SinglePaymentMethod>('transfer');
-  const [splitLeg2Amount, setSplitLeg2Amount] = useState('');
 
   // ---- Target 3 dispensing bulk pumps ----
   const targetPumps = useMemo(() => {
@@ -354,23 +339,19 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
   const cartTotal = lines.reduce((s, l) => s + l.lineAmount, 0);
 
-  // Partial mode calculations
-  const partialDepositNum = parseFromCommas(partialDepositAmount);
-  const partialDebtNum = Math.max(0, Number((cartTotal - partialDepositNum).toFixed(2)));
-
-  // Split mode calculations
-  const splitLeg1Num = parseFromCommas(splitLeg1Amount);
-  const splitLeg2Num = parseFromCommas(splitLeg2Amount);
-  const splitTotalAssigned = Number((splitLeg1Num + splitLeg2Num).toFixed(2));
+  const isSplitPay = payMethods.length > 1;
+  const splitTotalAssigned = Number(
+    payMethods.reduce((s, m) => s + parseFromCommas(payAmounts[m] || ''), 0).toFixed(2)
+  );
   const splitRemaining = Math.max(0, Number((cartTotal - splitTotalAssigned).toFixed(2)));
   const splitOver = Math.max(0, Number((splitTotalAssigned - cartTotal).toFixed(2)));
   const isSplitBalanced = cartTotal > 0 && Math.abs(splitTotalAssigned - cartTotal) < 0.01;
 
-  const creditPortion = paymentModeTab === 'partial'
-    ? partialDebtNum
-    : paymentModeTab === 'split'
-    ? (splitLeg1Method === 'credit' ? splitLeg1Num : 0) + (splitLeg2Method === 'credit' ? splitLeg2Num : 0)
-    : (paymentMethod === 'credit' ? cartTotal : 0);
+  const creditPortion = !payMethods.includes('credit')
+    ? 0
+    : isSplitPay
+      ? parseFromCommas(payAmounts.credit || '')
+      : cartTotal;
 
   const projectedBalance = (customerStats?.currentBalance || 0) + creditPortion;
   const overLimit = !!customer && creditPortion > 0 && projectedBalance > customer.credit_limit;
@@ -388,6 +369,40 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     preview.lineAmount > 0 &&
     !priceAdjustMissingReason &&
     (productPumps.length === 0 || !!pumpId);
+
+  const cartQtyForPack = (vId: string, sId: string) =>
+    lines
+      .filter(l => l.productId === product?.id && l.varietyId === vId && l.packSizeId === sId && !l.kegOnly)
+      .reduce((s, l) => s + l.qty, 0);
+
+  const repriceDraft = (l: DraftLine, patch: { qty?: number; overrideUnitPrice?: number | null; priceAdjustReason?: string | null }): DraftLine => {
+    const prod = products.find(p => p.id === l.productId);
+    const nextQty = patch.qty ?? l.qty;
+    const nextOverride = patch.overrideUnitPrice !== undefined ? patch.overrideUnitPrice : l.overrideUnitPrice;
+    const nextReason = patch.priceAdjustReason !== undefined ? patch.priceAdjustReason : l.priceAdjustReason;
+    if (!prod) return { ...l, qty: nextQty, overrideUnitPrice: nextOverride, priceAdjustReason: nextReason };
+    const priced = priceSaleLine({
+      product: prod,
+      varietyId: l.varietyId,
+      packSizeId: l.packSizeId,
+      tier,
+      qty: nextQty,
+      containerMode: l.containerMode,
+      overrideUnitPrice: nextOverride,
+      packPrices,
+      kegOnly: l.kegOnly
+    });
+    return {
+      ...l,
+      qty: nextQty,
+      overrideUnitPrice: nextOverride,
+      priceAdjustReason: priced.priceAdjusted ? (nextReason || 'Counter rate') : null,
+      unitPrice: priced.unitPrice,
+      lineAmount: priced.lineAmount,
+      litres: priced.litres,
+      priceAdjusted: priced.priceAdjusted
+    };
+  };
 
   const addLine = () => {
     if (!product || !preview || !canAddLine) return;
@@ -415,10 +430,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
         pumpLabel: selectedPump?.label || null
       }
     ]);
-    // Full reset of the procedure — keep customer + tier, but variety, pump
-    // and pack size all go back to unselected so the next item is a fresh,
-    // deliberate walk through the same steps instead of inheriting this
-    // item's choices.
     setVarietyId('');
     setPumpId('');
     setPackSizeId('');
@@ -427,32 +438,129 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     setOverrideOn(false);
     setOverrideValue('');
     setPriceReason('');
-    setShowNumpad(false);
     setError(null);
   };
 
-  const editLine = (lineKey: string) => {
-    const l = lines.find(line => line.key === lineKey);
-    if (!l) return;
-    setProductId(l.productId);
-    setVarietyId(l.varietyId);
-    setPackSizeId(l.packSizeId);
-    setQty(l.qty);
-    setIsKegOnlyMode(l.kegOnly);
-    setPumpId(l.pumpId || '');
-    if (l.overrideUnitPrice !== null && l.overrideUnitPrice !== undefined) {
-      setOverrideOn(true);
-      setOverrideValue(formatWithCommas(l.overrideUnitPrice));
-      setPriceReason(l.priceAdjustReason || '');
-    } else {
-      setOverrideOn(false);
-      setOverrideValue('');
-      setPriceReason('');
+  const quickAddPack = (vId: string, sId: string) => {
+    if (!product) return;
+    if (productPumps.length > 0 && !pumpId) {
+      showToast('error', 'Select a dispensing pump first.');
+      return;
     }
-    removeLine(lineKey);
+    const packCfg = packConfig.find(c => c.pack_size_id === sId);
+    const containerMode: ContainerMode = packCfg?.returnable ? 'taken' : 'none';
+    const priced = priceSaleLine({
+      product,
+      varietyId: vId,
+      packSizeId: sId,
+      tier,
+      qty: 1,
+      containerMode,
+      packPrices,
+      kegOnly: false
+    });
+    setVarietyId(vId);
+    setPackSizeId(sId);
+    setQty(1);
+    setOverrideOn(false);
+    setOverrideValue('');
+    setPriceReason('');
+    setError(null);
+
+    if (priced.unpriced) {
+      showToast('error', 'No matrix price for this pack — set a unit price on the item in Payment.');
+    }
+
+    const variety = product.varieties.find(v => v.id === vId);
+    const selectedPump = productPumps.length > 0 ? pumps.find(p => p.id === pumpId) || null : null;
+    const pumpKey = selectedPump?.id || null;
+
+    setLines(prev => {
+      const existing = prev.find(
+        l =>
+          l.productId === product.id &&
+          l.varietyId === vId &&
+          l.packSizeId === sId &&
+          !l.kegOnly &&
+          l.pumpId === pumpKey
+      );
+      if (existing) {
+        return prev.map(l => (l.key === existing.key ? repriceDraft(l, { qty: l.qty + 1 }) : l));
+      }
+      return [
+        ...prev,
+        {
+          key: `dl-${Date.now()}-${prev.length}`,
+          productId: product.id,
+          productName: product.name,
+          varietyId: vId,
+          varietyName: variety?.name || '',
+          packSizeId: sId,
+          qty: 1,
+          containerMode,
+          overrideUnitPrice: null,
+          priceAdjustReason: null,
+          unitPrice: priced.unitPrice,
+          lineAmount: priced.lineAmount,
+          litres: priced.litres,
+          priceAdjusted: priced.priceAdjusted,
+          kegOnly: false,
+          pumpId: pumpKey,
+          pumpLabel: selectedPump?.label || null
+        }
+      ];
+    });
+  };
+
+  const updateLineQty = (key: string, nextQty: number) => {
+    if (nextQty < 1) {
+      setLines(prev => prev.filter(l => l.key !== key));
+      return;
+    }
+    setLines(prev => prev.map(l => (l.key === key ? repriceDraft(l, { qty: nextQty }) : l)));
+  };
+
+  const updateLinePrice = (key: string, raw: string) => {
+    const parsed = parseFromCommas(raw);
+    const override = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    setLines(prev => prev.map(l => (l.key === key ? repriceDraft(l, { overrideUnitPrice: override }) : l)));
+  };
+
+  const updateLineReason = (key: string, reason: string) => {
+    setLines(prev => prev.map(l => (l.key === key ? { ...l, priceAdjustReason: reason } : l)));
+  };
+
+  const resetLinePrice = (key: string) => {
+    setLines(prev => prev.map(l => (l.key === key ? repriceDraft(l, { overrideUnitPrice: null, priceAdjustReason: null }) : l)));
   };
 
   const removeLine = (key: string) => setLines(prev => prev.filter(l => l.key !== key));
+
+  const togglePayMethod = (id: SinglePaymentMethod) => {
+    setPayMethods(prev => {
+      if (prev.includes(id)) {
+        if (prev.length === 1) return prev;
+        setPayAmounts(amounts => {
+          const next = { ...amounts };
+          delete next[id];
+          return next;
+        });
+        return prev.filter(m => m !== id);
+      }
+      if (prev.length === 1) {
+        setPayAmounts({});
+      }
+      return [...prev, id];
+    });
+  };
+
+  const autoBalanceMethod = (id: SinglePaymentMethod) => {
+    const others = payMethods
+      .filter(m => m !== id)
+      .reduce((s, m) => s + parseFromCommas(payAmounts[m] || ''), 0);
+    const remaining = Math.max(0, Number((cartTotal - others).toFixed(2)));
+    setPayAmounts(prev => ({ ...prev, [id]: formatWithCommas(remaining) }));
+  };
 
   const fail = (msg: string) => {
     setError(msg);
@@ -463,77 +571,46 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     setError(null);
     if (!customer) return fail('Select a customer.');
     if (lines.length === 0) return fail('Add at least one item.');
+    if (lines.some(l => l.lineAmount <= 0 && !l.kegOnly)) {
+      return fail('Every item needs a unit price. Set the price on the unpriced line in Payment.');
+    }
+    if (lines.some(l => l.priceAdjusted && !l.priceAdjustReason?.trim())) {
+      return fail('Enter a reason for each custom rate before completing the sale.');
+    }
 
-    if (paymentModeTab === 'single') {
-      if (isOneTime && paymentMethod === 'credit') {
-        setIsAddCustomerOpen(true);
-        return fail('Walk-in retail customers cannot buy on debt. Please register this customer or select an existing customer.');
+    const debtSelected = payMethods.includes('credit');
+    if (debtSelected && isOneTime) {
+      setIsAddCustomerOpen(true);
+      return fail('Walk-in retail customers cannot buy on debt. Please register this customer or select an existing customer.');
+    }
+    if (overLimitBlocked) return fail('This sale puts the customer over their debt limit — owner approval required.');
+
+    if (isSplitPay) {
+      for (const m of payMethods) {
+        if (parseFromCommas(payAmounts[m] || '') <= 0) {
+          return fail('Each selected payment method needs an amount greater than zero.');
+        }
       }
-      if (overLimitBlocked) return fail('This sale puts the customer over their debt limit — owner approval required.');
-    } else if (paymentModeTab === 'partial') {
-      if (partialDepositNum <= 0) {
-        return fail('Please enter the deposit / partial payment amount.');
-      }
-      if (partialDepositNum >= cartTotal) {
-        return fail('Deposit amount is equal to or greater than the total. Please switch to Full Payment mode.');
-      }
-      if (isOneTime && partialDebtNum > 0) {
-        setIsAddCustomerOpen(true);
-        return fail('Walk-in retail customers cannot have remaining debt. Please register this customer or select an existing customer.');
-      }
-      if (overLimitBlocked) return fail('The remaining debt puts the customer over their credit limit — owner approval required.');
-    } else {
       if (!isSplitBalanced) {
         return fail(`Split payments must equal total (${formatNaira(cartTotal)}) exactly. Currently assigned: ${formatNaira(splitTotalAssigned)}.`);
       }
-      if (splitLeg1Num <= 0 || splitLeg2Num <= 0) {
-        return fail('Both payment legs must have an amount greater than zero.');
-      }
-      if (isOneTime && (splitLeg1Method === 'credit' || splitLeg2Method === 'credit')) {
-        setIsAddCustomerOpen(true);
-        return fail('Walk-in retail customers cannot buy on debt. Please register this customer or select an existing customer.');
-      }
-      if (overLimitBlocked) return fail('The debt portion puts the customer over their credit limit — owner approval required.');
     }
 
-    const splits: PaymentSplit[] | undefined = paymentModeTab === 'partial'
-      ? [
-          {
-            method: partialDepositMethod,
-            amount: partialDepositNum
-          },
-          {
-            method: 'credit',
-            amount: partialDebtNum,
-            credit_term_days: creditTermDays,
-            due_date: effectiveDueDate.toISOString()
-          }
-        ]
-      : paymentModeTab === 'split'
-      ? [
-          {
-            method: splitLeg1Method,
-            amount: splitLeg1Num
-          },
-          {
-            method: splitLeg2Method,
-            amount: splitLeg2Num,
-            credit_term_days: splitLeg2Method === 'credit' ? creditTermDays : undefined,
-            due_date: splitLeg2Method === 'credit' ? effectiveDueDate.toISOString() : undefined
-          }
-        ]
+    const splits: PaymentSplit[] | undefined = isSplitPay
+      ? payMethods.map(m => ({
+        method: m,
+        amount: parseFromCommas(payAmounts[m] || ''),
+        credit_term_days: m === 'credit' ? creditTermDays : undefined,
+        due_date: m === 'credit' ? effectiveDueDate.toISOString() : undefined
+      }))
       : undefined;
-
-    const isDebtInvolved = (paymentModeTab === 'single' && paymentMethod === 'credit') ||
-      (paymentModeTab === 'partial' && partialDebtNum > 0) ||
-      (paymentModeTab === 'split' && (splitLeg1Method === 'credit' || splitLeg2Method === 'credit'));
 
     const result = createSale({
       customerId: customer.id,
-      paymentMethod: paymentModeTab === 'single' ? paymentMethod : 'split',
+      paymentMethod: isSplitPay ? 'split' : payMethods[0],
       paymentSplits: splits,
-      creditTermDays: isDebtInvolved ? creditTermDays : undefined,
-      dueDate: isDebtInvolved ? effectiveDueDate.toISOString() : undefined,
+      creditTermDays: debtSelected ? creditTermDays : undefined,
+      dueDate: debtSelected ? effectiveDueDate.toISOString() : undefined,
       amountTendered: null,
       note: note.trim() || undefined,
       pricingTier: customer?.type || 'retail',
@@ -559,10 +636,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     }
     showToast('success', `Sale recorded for ${customer?.name || 'customer'}: ${formatNaira(cartTotal)}.`);
     setLines([]);
-    setPartialDepositAmount('');
-    setSplitLeg1Amount('');
-    setSplitLeg2Amount('');
-    setPaymentModeTab('single');
+    setPayMethods(['cash']);
+    setPayAmounts({});
     setNote('');
     setShowBackdate(false);
     setSaleDateInput(toDatetimeLocalValue());
@@ -731,7 +806,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
       {/* Mandatory Opening Meter Gate Modal */}
       <Modal
         isOpen={gateBlocked}
-        onClose={() => {}}
+        onClose={() => { }}
         hideCloseButton
         size="xl"
         title={
@@ -1020,13 +1095,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
               {/* Live Reconciliation Feedback Banner (Only shown once cashier enters their count) */}
               {closeShiftCashCounted.trim() !== '' && liveCloseVariance !== null && (
                 <div
-                  className={`p-3.5 rounded-2xl border text-xs font-sans flex items-center justify-between transition-all ${
-                    Math.abs(liveCloseVariance) < 0.01
-                      ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
-                      : liveCloseVariance < 0
+                  className={`p-3.5 rounded-2xl border text-xs font-sans flex items-center justify-between transition-all ${Math.abs(liveCloseVariance) < 0.01
+                    ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                    : liveCloseVariance < 0
                       ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200'
                       : 'bg-sky-50 dark:bg-sky-950/50 border-sky-300 dark:border-sky-800 text-sky-900 dark:text-sky-200'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-2.5">
                     <span className="text-lg">
@@ -1037,15 +1111,15 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         {Math.abs(liveCloseVariance) < 0.01
                           ? 'Till is Perfectly Balanced'
                           : liveCloseVariance < 0
-                          ? 'Cash Shortage Detected'
-                          : 'Cash Surplus Detected'}
+                            ? 'Cash Shortage Detected'
+                            : 'Cash Surplus Detected'}
                       </div>
                       <div className="text-[11px] opacity-80 mt-0.5">
                         {Math.abs(liveCloseVariance) < 0.01
                           ? `Drawer cash matches expected sales (${formatNaira(liveShiftCash.expectedCash)}) exactly.`
                           : liveCloseVariance < 0
-                          ? `Count is ₦${Math.abs(liveCloseVariance).toLocaleString()} less than expected (${formatNaira(liveShiftCash.expectedCash)}).`
-                          : `Count is ₦${liveCloseVariance.toLocaleString()} more than expected (${formatNaira(liveShiftCash.expectedCash)}).`}
+                            ? `Count is ₦${Math.abs(liveCloseVariance).toLocaleString()} less than expected (${formatNaira(liveShiftCash.expectedCash)}).`
+                            : `Count is ₦${liveCloseVariance.toLocaleString()} more than expected (${formatNaira(liveShiftCash.expectedCash)}).`}
                       </div>
                     </div>
                   </div>
@@ -1251,17 +1325,15 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       setCustomerOpen(false);
                       setCustomerSearch('');
                     }}
-                    className={`h-full min-h-[44px] p-2 rounded-xl border-2 transition-all flex items-center gap-2 text-left group cursor-pointer ${
-                      isOneTime
-                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-950 dark:text-emerald-100 shadow-sm ring-2 ring-emerald-500/20'
-                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-emerald-400/60 text-slate-800 dark:text-slate-200'
-                    }`}
+                    className={`h-full min-h-[44px] p-2 rounded-xl border-2 transition-all flex items-center gap-2 text-left group cursor-pointer ${isOneTime
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-950 dark:text-emerald-100 shadow-sm ring-2 ring-emerald-500/20'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-emerald-400/60 text-slate-800 dark:text-slate-200'
+                      }`}
                   >
-                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors shrink-0 ${
-                      isOneTime
-                        ? 'bg-emerald-500 text-white shadow-xs'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 group-hover:bg-emerald-100 group-hover:text-emerald-600'
-                    }`}>
+                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors shrink-0 ${isOneTime
+                      ? 'bg-emerald-500 text-white shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 group-hover:bg-emerald-100 group-hover:text-emerald-600'
+                      }`}>
                       <ShoppingCart className="w-3.5 h-3.5" weight="bold" />
                     </div>
 
@@ -1283,11 +1355,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   </button>
 
                   {/* Option 2: Beside it - Previous Customer Dropdown & Add Customer */}
-                  <div className={`p-2 rounded-xl border-2 transition-all flex flex-col justify-center gap-1 ${
-                    !isOneTime && customer
-                      ? 'bg-brand-50/30 dark:bg-brand-950/20 border-brand-500/80 shadow-sm ring-2 ring-brand-500/10'
-                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
-                  }`}>
+                  <div className={`p-2 rounded-xl border-2 transition-all flex flex-col justify-center gap-1 ${!isOneTime && customer
+                    ? 'bg-brand-50/30 dark:bg-brand-950/20 border-brand-500/80 shadow-sm ring-2 ring-brand-500/10'
+                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+                    }`}>
                     <div className="flex items-center justify-between gap-2">
                       <label className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1">
                         <Users className="w-3 h-3 text-brand-600 dark:text-brand-400" />
@@ -1316,8 +1387,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           customerOpen
                             ? customerSearch
                             : !isOneTime && customer
-                            ? customer.name
-                            : ''
+                              ? customer.name
+                              : ''
                         }
                         onChange={e => {
                           setCustomerSearch(e.target.value);
@@ -1346,9 +1417,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                     setCustomerOpen(false);
                                     setCustomerSearch('');
                                   }}
-                                  className={`w-full text-left px-3.5 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between transition-colors cursor-pointer ${
-                                    c.id === customerId ? 'bg-brand-50 dark:bg-brand-950/40 font-bold text-brand-900 dark:text-brand-300' : ''
-                                  }`}
+                                  className={`w-full text-left px-3.5 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between transition-colors cursor-pointer ${c.id === customerId ? 'bg-brand-50 dark:bg-brand-950/40 font-bold text-brand-900 dark:text-brand-300' : ''
+                                    }`}
                                 >
                                   <div className="min-w-0">
                                     <span className="font-sans font-semibold text-slate-800 dark:text-slate-200 block truncate">
@@ -1406,11 +1476,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     <button
                       key={p.id}
                       onClick={() => selectProduct(p.id)}
-                      className={`px-3.5 py-2 rounded-xl text-xs font-sans font-semibold border transition-all ${
-                        p.id === product.id && !isKegOnlyMode
-                          ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
-                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
-                      }`}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-sans font-semibold border transition-all ${p.id === product.id && !isKegOnlyMode
+                        ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
+                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                        }`}
                     >
                       {p.name}
                     </button>
@@ -1429,11 +1498,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         selectSellKegs();
                       }
                     }}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-sans font-bold border transition-all cursor-pointer ${
-                      isKegOnlyMode
-                        ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm ring-2 ring-amber-500/20'
-                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-amber-400'
-                    }`}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-sans font-bold border transition-all cursor-pointer ${isKegOnlyMode
+                      ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm ring-2 ring-amber-500/20'
+                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-amber-400'
+                      }`}
                   >
                     <Package className="w-4 h-4 text-amber-500" weight="bold" />
                     <span>Sell Empty Kegs</span>
@@ -1520,11 +1588,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                             setShowNumpad(prev => !prev || numpadTarget !== 'qty');
                             setNumpadTarget('qty');
                           }}
-                          className={`px-3 py-3 rounded-xl border text-xs font-sans font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                            showNumpad && numpadTarget === 'qty'
-                              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
-                              : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-amber-400'
-                          }`}
+                          className={`px-3 py-3 rounded-xl border text-xs font-sans font-bold flex items-center gap-1.5 transition-all cursor-pointer ${showNumpad && numpadTarget === 'qty'
+                            ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
+                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-amber-400'
+                            }`}
                           title="Open number pad"
                         >
                           <Calculator className="w-4 h-4" weight="bold" />
@@ -1540,11 +1607,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                             key={n}
                             type="button"
                             onClick={() => setQty(n)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-colors cursor-pointer ${
-                              qty === n
-                                ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
-                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
-                            }`}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-colors cursor-pointer ${qty === n
+                              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
+                              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
                           >
                             {n}
                           </button>
@@ -1559,9 +1625,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           qty={qty}
                           onQtyChange={setQty}
                           price={preview?.containerUnitPrice ?? 3000}
-                          onPriceChange={() => {}}
+                          onPriceChange={() => { }}
                           standardPrice={preview?.containerUnitPrice ?? 3000}
-                          onResetPrice={() => {}}
+                          onResetPrice={() => { }}
                           activeTarget="qty"
                           onTargetChange={setNumpadTarget}
                           onClose={() => setShowNumpad(false)}
@@ -1612,11 +1678,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                               key={p.id}
                               type="button"
                               onClick={() => setPumpId(p.id)}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-semibold border transition-colors cursor-pointer ${
-                                p.id === pumpId
-                                  ? 'bg-sky-600 text-white border-sky-600'
-                                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
-                              }`}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-semibold border transition-colors cursor-pointer ${p.id === pumpId
+                                ? 'bg-sky-600 text-white border-sky-600'
+                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                                }`}
                             >
                               {p.label}
                             </button>
@@ -1647,12 +1712,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           const varietyActive = v.id === varietyId;
                           return (
                             <div key={v.id} className="space-y-2">
-                              <div className={`flex items-center gap-2 text-xs font-sans font-extrabold uppercase tracking-wider ${
-                                varietyActive ? 'text-brand-700 dark:text-brand-400' : 'text-slate-500 dark:text-slate-400'
-                              }`}>
-                                <span className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
-                                  varietyActive ? 'bg-brand-500/15 dark:bg-brand-500/20' : 'bg-slate-100 dark:bg-slate-800'
+                              <div className={`flex items-center gap-2 text-xs font-sans font-extrabold uppercase tracking-wider ${varietyActive ? 'text-brand-700 dark:text-brand-400' : 'text-slate-500 dark:text-slate-400'
                                 }`}>
+                                <span className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${varietyActive ? 'bg-brand-500/15 dark:bg-brand-500/20' : 'bg-slate-100 dark:bg-slate-800'
+                                  }`}>
                                   <Jar className="w-3 h-3" weight={varietyActive ? 'fill' : 'duotone'} />
                                 </span>
                                 <span>{v.name}</span>
@@ -1670,15 +1733,39 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                   });
                                   const selected = varietyActive && s.id === packSizeId;
                                   const Icon = packSizeIcon(s.litres);
+                                  const inCart = cartQtyForPack(v.id, s.id);
                                   return (
-                                    <button
-                                      key={s.id}
-                                      onClick={() => { setVarietyId(v.id); setPackSizeId(s.id); }}
-                                      className={`relative rounded-xl border-2 text-center transition-all duration-150 flex flex-col h-full overflow-hidden cursor-pointer hover:scale-[1.03] hover:-translate-y-0.5 hover:z-10 hover:shadow-md ${
-                                        selected
-                                          ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/50 shadow-glow-brand ring-2 ring-brand-500/20'
-                                          : 'border-slate-200 dark:border-slate-700/70 bg-white dark:bg-slate-900 hover:border-brand-300 dark:hover:border-brand-600/60'
-                                      }`}
+                                    <div key={s.id} className="relative h-full">
+                                      {/* Quick add — one tap drops this pack straight into the
+                                          sale (merging into an identical line). Tapping the card
+                                          itself still just selects it for the qty/builder flow. */}
+                                      {!isKegOnlyMode && (
+                                        <button
+                                          type="button"
+                                          onClick={() => quickAddPack(v.id, s.id)}
+                                          className={`absolute bottom-1 right-1 z-20 w-5 h-5 rounded-full border flex items-center justify-center shadow-sm transition-colors cursor-pointer ${inCart > 0
+                                            ? 'bg-emerald-500 border-emerald-400 text-white'
+                                            : 'bg-slate-700/80 border-slate-500 text-slate-100 hover:bg-brand-500 hover:border-brand-400'
+                                            }`}
+                                          title={inCart > 0
+                                            ? `${inCart} × ${s.short} already in this sale — add one more`
+                                            : `Quick add one ${s.short} to the sale`}
+                                          aria-label={`Quick add one ${s.short}`}
+                                        >
+                                          {inCart > 0 ? (
+                                            <span className="text-[9px] font-mono font-bold leading-none">{inCart}</span>
+                                          ) : (
+                                            <MagicWand className="w-2.5 h-2.5" weight="bold" />
+                                          )}
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => { setVarietyId(v.id); setPackSizeId(s.id); }}
+                                        className={`w-full relative rounded-xl border-2 text-center transition-all duration-150 flex flex-col h-full overflow-hidden cursor-pointer hover:scale-[1.03] hover:-translate-y-0.5 hover:z-10 hover:shadow-md ${selected
+                                        ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/50 shadow-glow-brand ring-2 ring-brand-500/20'
+                                        : 'border-slate-200 dark:border-slate-700/70 bg-white dark:bg-slate-900 hover:border-brand-300 dark:hover:border-brand-600/60'
+                                        }`}
                                     >
                                       {selected && (
                                         <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-xs z-10">
@@ -1686,21 +1773,19 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                         </span>
                                       )}
                                       <div className="flex flex-col items-center justify-center gap-1 p-1.5 pb-1 min-h-[64px]">
-                                        <span className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors shrink-0 ${
-                                          selected
-                                            ? 'bg-brand-500 text-white shadow-xs'
-                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
-                                        }`}>
+                                        <span className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors shrink-0 ${selected
+                                          ? 'bg-brand-500 text-white shadow-xs'
+                                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                                          }`}>
                                           <Icon className="w-4 h-4" weight={selected ? 'fill' : 'duotone'} />
                                         </span>
                                         <span className="text-xs font-sans font-extrabold text-slate-900 dark:text-white leading-tight truncate max-w-full">{s.short}</span>
                                       </div>
 
-                                      <div className={`mt-auto px-1 py-1 border-t text-center ${
-                                        selected
-                                          ? 'bg-brand-600 border-brand-700/60'
-                                          : 'bg-slate-900 dark:bg-black/40 border-slate-800/60'
-                                      }`}>
+                                      <div className={`mt-auto px-1 py-1 border-t text-center ${selected
+                                        ? 'bg-brand-600 border-brand-700/60'
+                                        : 'bg-slate-900 dark:bg-black/40 border-slate-800/60'
+                                        }`}>
                                         <span className="text-[11px] font-mono font-bold tracking-tight">
                                           {linePrice.unpriced ? (
                                             <span className="text-amber-400">no price</span>
@@ -1712,6 +1797,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                         </span>
                                       </div>
                                     </button>
+                                    </div>
                                   );
                                 })}
                               </div>
@@ -1762,11 +1848,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                   setShowNumpad(prev => !prev || numpadTarget !== 'qty');
                                   setNumpadTarget('qty');
                                 }}
-                                className={`px-2.5 py-1.5 rounded-xl border text-xs font-sans font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                                  showNumpad && numpadTarget === 'qty'
-                                    ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
-                                    : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-brand-400'
-                                }`}
+                                className={`px-2.5 py-1.5 rounded-xl border text-xs font-sans font-bold flex items-center gap-1.5 transition-all cursor-pointer ${showNumpad && numpadTarget === 'qty'
+                                  ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
+                                  : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-brand-400'
+                                  }`}
                                 title="Open number pad for quick entry"
                               >
                                 <Calculator className="w-4 h-4" weight="bold" />
@@ -1783,11 +1868,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                 key={n}
                                 type="button"
                                 onClick={() => setQty(n)}
-                                className={`px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold border transition-colors cursor-pointer ${
-                                  qty === n
-                                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
-                                    : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
-                                }`}
+                                className={`px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold border transition-colors cursor-pointer ${qty === n
+                                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
+                                  : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
+                                  }`}
                               >
                                 {n}
                               </button>
@@ -1845,11 +1929,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                     setOverrideValue(String(preview.matrixUnitPrice ?? preview.unitPrice ?? ''));
                                   }
                                 }}
-                                className={`p-1.5 rounded-xl border text-xs font-sans font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                                  showNumpad && numpadTarget === 'price'
-                                    ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
-                                    : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                                }`}
+                                className={`p-1.5 rounded-xl border text-xs font-sans font-bold flex items-center gap-1 transition-all cursor-pointer ${showNumpad && numpadTarget === 'price'
+                                  ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
+                                  : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                                  }`}
                                 title="Edit price using number pad"
                               >
                                 <Calculator className="w-4 h-4" weight="bold" />
@@ -1886,11 +1969,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                     value={priceReason}
                                     onChange={e => setPriceReason(e.target.value)}
                                     placeholder="Reason note (Required)*"
-                                    className={`w-full px-3 py-1.5 rounded-xl text-xs font-sans border transition-all duration-300 outline-none ${
-                                      !priceReason.trim()
-                                        ? 'border-amber-500 dark:border-amber-400 bg-amber-50/90 dark:bg-amber-950/60 text-amber-950 dark:text-amber-100 placeholder-amber-700 dark:placeholder-amber-300 ring-2 ring-amber-500/60 shadow-md shadow-amber-500/20 animate-pulse'
-                                        : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-brand-500'
-                                    }`}
+                                    className={`w-full px-3 py-1.5 rounded-xl text-xs font-sans border transition-all duration-300 outline-none ${!priceReason.trim()
+                                      ? 'border-amber-500 dark:border-amber-400 bg-amber-50/90 dark:bg-amber-950/60 text-amber-950 dark:text-amber-100 placeholder-amber-700 dark:placeholder-amber-300 ring-2 ring-amber-500/60 shadow-md shadow-amber-500/20 animate-pulse'
+                                      : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-brand-500'
+                                      }`}
                                   />
                                 </div>
                               </div>
@@ -1986,7 +2068,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
                     <div className="space-y-1.5 max-h-48 overflow-y-auto divide-y divide-slate-200/50 dark:divide-slate-800/60">
                       {lines.map(l => (
-                        <div key={l.key} className="flex items-center justify-between gap-2 pt-1.5 first:pt-0">
+                        <div key={l.key} className="space-y-1.5 pt-1.5 first:pt-0">
+                          <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">
                             <div className="text-xs font-sans font-semibold text-slate-900 dark:text-white truncate">
                               {l.qty} × {packShort(l.packSizeId)} {l.kegOnly ? 'empty keg' : `· ${l.productName}`}
@@ -1996,7 +2079,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                 `${l.productName} keg · outright sale, no oil`
                               ) : (
                                 <>
-                                  {l.varietyName} · {formatNaira(l.unitPrice)}
+                                  {l.varietyName}
                                   {l.containerMode === 'taken' && ' · keg taken'}
                                   {l.containerMode === 'bought' && ' · keg bought'}
                                 </>
@@ -2010,20 +2093,72 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                             </span>
                             <button
                               type="button"
-                              onClick={() => editLine(l.key)}
-                              className="rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 p-1 cursor-pointer"
-                              title="Edit item price & quantity in builder"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
                               onClick={() => removeLine(l.key)}
                               className="rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-500 p-1 cursor-pointer"
                               aria-label="Remove line"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
+                          </div>
+                          </div>
+
+                          {/* Inline line editing — quantity, counter rate and the audit
+                              reason are corrected on the line itself rather than
+                              round-tripping back through the item builder. */}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => updateLineQty(l.key, l.qty - 1)}
+                                className="w-6 h-6 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer"
+                                aria-label="Decrease quantity"
+                              >
+                                <Minus className="w-3 h-3" weight="bold" />
+                              </button>
+                              <span className="w-8 text-center text-xs font-mono font-bold text-slate-900 dark:text-white tabular-nums">
+                                {l.qty}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => updateLineQty(l.key, l.qty + 1)}
+                                className="w-6 h-6 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer"
+                                aria-label="Increase quantity"
+                              >
+                                <Plus className="w-3 h-3" weight="bold" />
+                              </button>
+                            </div>
+
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold">₦</span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={formatWithCommas(l.unitPrice)}
+                                onChange={e => updateLinePrice(l.key, e.target.value)}
+                                aria-label={`Unit price for ${l.productName}`}
+                                className="w-24 pl-5 pr-2 py-1 rounded-md bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-xs text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                              />
+                            </div>
+
+                            {l.priceAdjusted && (
+                              <>
+                                <input
+                                  type="text"
+                                  value={l.priceAdjustReason ?? ''}
+                                  onChange={e => updateLineReason(l.key, e.target.value)}
+                                  placeholder="Rate reason*"
+                                  className="flex-1 min-w-[110px] px-2 py-1 rounded-md bg-amber-50/70 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-[11px] font-sans text-amber-900 dark:text-amber-200 focus:outline-none focus:border-amber-500"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => resetLinePrice(l.key)}
+                                  className="text-[10px] font-sans font-bold text-brand-600 dark:text-brand-400 hover:underline shrink-0 cursor-pointer"
+                                  title="Reset back to the standard tier rate"
+                                >
+                                  ↺ Standard
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -2038,86 +2173,106 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   </div>
                 )}
 
-                {/* 3 Payment Mode Switcher: Full, Partial Payment (Deposit + Debt), Double Split */}
-                <div className="grid grid-cols-3 gap-1 p-0.5 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
-                  <button
-                    type="button"
-                    id="btn-payment-mode-single"
-                    onClick={() => setPaymentModeTab('single')}
-                    className={`py-1 px-1.5 rounded-lg text-[11px] font-sans font-bold transition-all cursor-pointer ${
-                      paymentModeTab === 'single'
-                        ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    Full Payment
-                  </button>
-                  <button
-                    type="button"
-                    id="btn-payment-mode-partial"
-                    onClick={() => {
-                      setPaymentModeTab('partial');
-                      if (!partialDepositAmount && cartTotal > 0) {
-                        setPartialDepositAmount(String(Math.round(cartTotal * 0.5)));
-                      }
-                    }}
-                    className={`py-1 px-1.5 rounded-lg text-[11px] font-sans font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                      paymentModeTab === 'partial'
-                        ? 'bg-amber-500 text-slate-950 shadow-xs font-black'
-                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    <Clock className="w-3 h-3" weight="bold" />
-                    <span>Partial / Debt</span>
-                  </button>
-                  <button
-                    type="button"
-                    id="btn-payment-mode-split"
-                    onClick={() => {
-                      setPaymentModeTab('split');
-                      if (!splitLeg1Amount && cartTotal > 0) {
-                        const half = Math.round(cartTotal / 2);
-                        setSplitLeg1Amount(String(half));
-                        setSplitLeg2Amount(String(cartTotal - half));
-                      }
-                    }}
-                    className={`py-1 px-1.5 rounded-lg text-[11px] font-sans font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                      paymentModeTab === 'split'
-                        ? 'bg-brand-500 text-slate-950 shadow-xs font-black'
-                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    <Lightning className="w-3 h-3" weight="fill" />
-                    <span>Double / Split</span>
-                  </button>
-                </div>
-
-                {paymentModeTab === 'single' && (
-                  /* Standard Single Payment */
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {PAYMENT_METHODS.map(m => {
-                        const isSelected = paymentMethod === m.id;
-                        const theme = getPaymentModeTheme(m.id);
-                        return (
-                          <button
-                            key={m.id}
-                            type="button"
-                            onClick={() => setPaymentMethod(m.id)}
-                            className={`py-1.5 px-2.5 rounded-lg text-xs font-sans font-bold border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                              isSelected
-                                ? theme.buttonActiveCls + ' scale-[1.01]'
-                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                {/* Payment methods — pick one for a full payment, or two or more to split the sale across them. */}
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {PAYMENT_METHODS.map(m => {
+                      const isSelected = payMethods.includes(m.id);
+                      const theme = getPaymentModeTheme(m.id);
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => togglePayMethod(m.id)}
+                          aria-pressed={isSelected}
+                          className={`py-1.5 px-2.5 rounded-lg text-xs font-sans font-bold border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${isSelected
+                            ? theme.buttonActiveCls + ' scale-[1.01]'
+                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                             }`}
-                          >
-                            <span className={`w-2 h-2 rounded-full ${theme.dotCls} shrink-0`} />
-                            <span>{m.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
+                        >
+                          <span className={`w-2 h-2 rounded-full ${theme.dotCls} shrink-0`} />
+                          <span>{m.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
 
-                    {paymentMethod === 'credit' && (
+                    {isSplitPay && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-500">
+                            Allocating Across {payMethods.length} Methods
+                          </span>
+                          {payMethods.length === 2 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const half = Math.round(cartTotal / 2);
+                                setPayAmounts({
+                                  [payMethods[0]]: formatWithCommas(half),
+                                  [payMethods[1]]: formatWithCommas(cartTotal - half)
+                                });
+                              }}
+                              className="text-[11px] font-sans font-bold text-brand-600 dark:text-brand-400 hover:underline cursor-pointer"
+                            >
+                              ⚡ 50 / 50 Split
+                            </button>
+                          )}
+                        </div>
+
+                        {payMethods.map(m => {
+                          const theme = getPaymentModeTheme(m);
+                          return (
+                            <div key={m} className={`p-3 rounded-2xl border space-y-2 ${theme.bgSubtleCls} ${theme.borderCls}`}>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`text-[11px] font-sans font-black uppercase tracking-wider flex items-center gap-1.5 ${theme.textCls}`}>
+                                  <span className={`w-2 h-2 rounded-full ${theme.dotCls}`} />
+                                  {theme.label}
+                                </span>
+                                <div className="flex items-center gap-1">
+                                  {[0.25, 0.5, 0.75].map(pct => (
+                                    <button
+                                      key={pct}
+                                      type="button"
+                                      onClick={() => {
+                                        if (cartTotal > 0) {
+                                          setPayAmounts(prev => ({ ...prev, [m]: formatWithCommas(Math.round(cartTotal * pct)) }));
+                                        }
+                                      }}
+                                      className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-brand-500 hover:text-brand-600 cursor-pointer"
+                                    >
+                                      {pct * 100}%
+                                    </button>
+                                  ))}
+                                  <button
+                                    type="button"
+                                    onClick={() => autoBalanceMethod(m)}
+                                    className="px-2 py-0.5 rounded-md text-[10px] font-sans font-bold bg-white dark:bg-slate-950 text-brand-600 dark:text-brand-400 border border-slate-200 dark:border-slate-800 hover:border-brand-500 cursor-pointer"
+                                    title="Fill in whatever is left once the other methods are counted"
+                                  >
+                                    Balance
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₦</span>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={payAmounts[m] || ''}
+                                  onChange={e => setPayAmounts(prev => ({ ...prev, [m]: formatWithCommas(e.target.value) }))}
+                                  placeholder={m === 'credit' ? 'Amount on debt' : 'Amount taken now'}
+                                  className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-sm text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {payMethods.includes('credit') && (
                       isOneTime ? (
                         <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 space-y-2.5">
                           <div className="flex items-start gap-2.5">
@@ -2169,11 +2324,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                 key={days}
                                 type="button"
                                 onClick={() => setCreditTermDays(days)}
-                                className={`py-1 px-1.5 rounded-lg text-[11px] font-mono font-bold border transition-all cursor-pointer ${
-                                  creditTermDays === days
-                                    ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
-                                    : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-amber-400'
-                                }`}
+                                className={`py-1 px-1.5 rounded-lg text-[11px] font-mono font-bold border transition-all cursor-pointer ${creditTermDays === days
+                                  ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
+                                  : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-amber-400'
+                                  }`}
                               >
                                 {days}d
                               </button>
@@ -2208,11 +2362,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
                           {overLimit && (
                             <div
-                              className={`text-[11px] font-semibold pt-1 ${
-                                overLimitBlocked
-                                  ? 'text-rose-600 dark:text-rose-400'
-                                  : 'text-amber-600 dark:text-amber-400'
-                              }`}
+                              className={`text-[11px] font-semibold pt-1 ${overLimitBlocked
+                                ? 'text-rose-600 dark:text-rose-400'
+                                : 'text-amber-600 dark:text-amber-400'
+                                }`}
                             >
                               {overLimitBlocked
                                 ? '⚠ Over debt limit — owner approval required.'
@@ -2222,415 +2375,40 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         </div>
                       )
                     )}
-                  </div>
-                )}
 
-                {paymentModeTab === 'partial' && (
-                  /* Partial Payment Mode: Deposit Now + Remainder on Debt */
-                  <div className="space-y-3">
-                    <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                          <Coins className="w-4 h-4 text-brand-600 dark:text-brand-400" />
-                          Deposit Paid Now
+                    {isSplitPay && (
+                      <div
+                        className={`p-2.5 rounded-xl border text-xs font-sans flex items-center justify-between ${isSplitBalanced
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-bold'
+                          : splitRemaining > 0
+                            ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-900/60 text-amber-800 dark:text-amber-300'
+                            : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900/60 text-rose-800 dark:text-rose-300 font-bold'
+                          }`}
+                      >
+                        <span>
+                          {isSplitBalanced
+                            ? '✓ Fully Balanced (100%)'
+                            : splitRemaining > 0
+                              ? 'Remaining to allocate:'
+                              : 'Exceeds sale total by:'}
                         </span>
-                        <div className="flex items-center gap-1">
-                          {[0.25, 0.5, 0.75].map(pct => (
-                            <button
-                              key={pct}
-                              type="button"
-                              onClick={() => {
-                                if (cartTotal > 0) {
-                                  setPartialDepositAmount(String(Math.round(cartTotal * pct)));
-                                }
-                              }}
-                              className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-brand-500 hover:text-brand-600 cursor-pointer"
-                            >
-                              {pct * 100}%
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Deposit Amount Input */}
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₦</span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={partialDepositAmount}
-                          onChange={e => setPartialDepositAmount(formatWithCommas(e.target.value))}
-                          placeholder="Deposit amount paid now"
-                          className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-sm text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
-                        />
-                      </div>
-
-                      {/* Deposit Method Selector: Cash / Transfer / POS */}
-                      <div className="space-y-1">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Deposit Paid Via:</label>
-                        <div className="grid grid-cols-3 gap-1.5">
-                          {(['cash', 'transfer', 'pos'] as SinglePaymentMethod[]).map(m => {
-                            const isSelected = partialDepositMethod === m;
-                            const theme = getPaymentModeTheme(m);
-                            return (
-                              <button
-                                key={m}
-                                type="button"
-                                onClick={() => setPartialDepositMethod(m)}
-                                className={`py-2 px-2 rounded-lg text-xs font-sans font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                                  isSelected
-                                    ? theme.buttonActiveCls
-                                    : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-slate-300'
-                                }`}
-                              >
-                                <span className={`w-1.5 h-1.5 rounded-full ${theme.dotCls}`} />
-                                <span className="capitalize">{m === 'pos' ? 'Card / POS' : m}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Remaining Debt Summary */}
-                      <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
-                        <span className="text-xs font-sans font-semibold text-amber-800 dark:text-amber-300">
-                          Remaining Debt Balance:
-                        </span>
-                        <span className="font-mono font-black text-sm text-amber-900 dark:text-amber-200">
-                          {formatNaira(partialDebtNum)}
+                        <span className="font-mono font-bold tabular-nums">
+                          {isSplitBalanced
+                            ? formatNaira(cartTotal)
+                            : splitRemaining > 0
+                              ? formatNaira(splitRemaining)
+                              : `+${formatNaira(splitOver)}`}
                         </span>
                       </div>
-                    </div>
+                    )}
 
-                    {/* Customer Check for Partial Payment Debt */}
-                    {isOneTime ? (
-                      <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 space-y-2.5">
-                        <div className="flex items-start gap-2.5">
-                          <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                          <div>
-                            <div className="text-xs font-sans font-bold text-amber-900 dark:text-amber-200">
-                              Walk-in Retail Customer Selected
-                            </div>
-                            <p className="text-[11px] font-sans text-amber-700 dark:text-amber-300 mt-0.5">
-                              Walk-in customers cannot have remaining debt ({formatNaira(partialDebtNum)}). A registered customer account is required to log the debt.
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => setIsAddCustomerOpen(true)}
-                            className="flex-1 py-2 px-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
-                          >
-                            <Plus className="w-3.5 h-3.5" weight="bold" />
-                            <span>Add New Customer</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setCustomerOpen(true)}
-                            className="flex-1 py-2 px-3 rounded-xl bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 font-sans font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                          >
-                            <Search className="w-3.5 h-3.5" />
-                            <span>Select Customer</span>
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      /* Registered Customer Debt Logging Details */
-                      <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-2.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5" />
-                            Debt Terms for {customer?.name}
-                          </span>
-                          <span className="font-mono font-bold text-xs text-amber-900 dark:text-amber-200">
-                            {creditTermDays} Days
-                          </span>
-                        </div>
-
-                        {/* Quick Days Selector */}
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {[7, 14, 21, 30].map(days => (
-                            <button
-                              key={days}
-                              type="button"
-                              onClick={() => setCreditTermDays(days)}
-                              className={`py-1 px-1.5 rounded-lg text-[11px] font-mono font-bold border transition-all cursor-pointer ${
-                                creditTermDays === days
-                                  ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
-                                  : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-amber-400'
-                              }`}
-                            >
-                              {days}d
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* Custom Days Input */}
-                        <div className="flex items-center gap-2">
-                          <label className="text-[10px] uppercase font-bold text-slate-500 shrink-0">Custom Days:</label>
-                          <input
-                            type="number"
-                            min="1"
-                            max="365"
-                            value={creditTermDays}
-                            onChange={e => setCreditTermDays(Math.max(1, parseInt(e.target.value) || 1))}
-                            className="w-20 px-2 py-1 text-xs font-mono font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                          />
-                          <span className="text-[11px] text-slate-500 font-medium">days from {showBackdate ? 'sale date' : 'today'}</span>
-                        </div>
-
-                        {/* Live Due Date Badge */}
-                        <div className="text-[11px] font-sans text-slate-700 dark:text-slate-300 flex items-center justify-between pt-1.5 border-t border-amber-500/20">
-                          <span className="text-slate-500">Due Date:</span>
-                          <span className="font-bold text-amber-800 dark:text-amber-300 font-mono">
-                            {formatDepotDate(effectiveDueDate.toISOString())}
-                          </span>
-                        </div>
-
-                        <div className="text-[10px] text-slate-500">
-                          New balance: <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{formatNaira(projectedBalance)}</span>
-                        </div>
-
-                        {overLimit && (
-                          <div
-                            className={`text-[11px] font-semibold pt-1 ${
-                              overLimitBlocked
-                                ? 'text-rose-600 dark:text-rose-400'
-                                : 'text-amber-600 dark:text-amber-400'
-                            }`}
-                          >
-                            {overLimitBlocked
-                              ? '⚠ Over debt limit — owner approval required.'
-                              : '⚠ Over debt limit (owner override).'}
-                          </div>
-                        )}
+                    {!isSplitPay && cartTotal > 0 && (
+                      <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-900/60 text-xs font-sans text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
+                        <span>Full payment via {getPaymentModeTheme(payMethods[0]).label}</span>
+                        <span className="font-mono font-bold tabular-nums">{formatNaira(cartTotal)}</span>
                       </div>
                     )}
                   </div>
-                )}
-
-                {paymentModeTab === 'split' && (
-                  /* Double / Split Payment Mode */
-                  <div className="space-y-3">
-                    {/* Quick 50/50 Split Action */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-sans font-bold uppercase tracking-wider text-slate-500">
-                        Split Breakdown
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const half = Math.round(cartTotal / 2);
-                          setSplitLeg1Amount(String(half));
-                          setSplitLeg2Amount(String(cartTotal - half));
-                        }}
-                        className="text-[11px] font-sans font-bold text-brand-600 dark:text-brand-400 hover:underline cursor-pointer"
-                      >
-                        ⚡ 50 / 50 Split
-                      </button>
-                    </div>
-
-                    {/* Split Leg 1 */}
-                    <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                          Payment Leg 1
-                        </span>
-                        <span className="font-mono font-bold text-xs text-slate-900 dark:text-white">
-                          {formatNaira(splitLeg1Num)}
-                        </span>
-                      </div>
-
-                      {/* Method Selector */}
-                      <div className="grid grid-cols-3 gap-1.5">
-                        {(['cash', 'transfer', 'pos'] as SinglePaymentMethod[]).map(m => (
-                          <button
-                            key={m}
-                            type="button"
-                            onClick={() => setSplitLeg1Method(m)}
-                            className={`py-1.5 px-2 rounded-lg text-[11px] font-sans font-bold border transition-all cursor-pointer ${
-                              splitLeg1Method === m
-                                ? getPaymentModeTheme(m).buttonActiveCls
-                                : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800'
-                            }`}
-                          >
-                            <span className="capitalize">{m === 'pos' ? 'Card / POS' : m}</span>
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Leg 1 Amount */}
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₦</span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          required
-                          value={splitLeg1Amount}
-                          onChange={e => {
-                            const formatted = formatWithCommas(e.target.value);
-                            setSplitLeg1Amount(formatted);
-                            const valNum = parseFromCommas(formatted);
-                            if (valNum > 0 && cartTotal > 0) {
-                              const rem = Math.max(0, cartTotal - valNum);
-                              setSplitLeg2Amount(formatWithCommas(rem));
-                            }
-                          }}
-                          placeholder="Amount for Leg 1"
-                          className="w-full pl-8 pr-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-xs"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Split Leg 2 */}
-                    <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                          Payment Leg 2
-                        </span>
-                        <div className="flex items-center gap-2">
-                          {cartTotal > splitLeg1Num && (
-                            <button
-                              type="button"
-                              onClick={() => setSplitLeg2Amount(String(Math.max(0, cartTotal - splitLeg1Num)))}
-                              className="text-[10px] font-mono font-bold text-brand-600 dark:text-brand-400 hover:underline cursor-pointer"
-                            >
-                              Fill Remainder ({formatNaira(Math.max(0, cartTotal - splitLeg1Num))})
-                            </button>
-                          )}
-                          <span className="font-mono font-bold text-xs text-slate-900 dark:text-white">
-                            {formatNaira(splitLeg2Num)}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Method Selector (Includes Debt if not Walk-in) */}
-                      <div className="grid grid-cols-4 gap-1">
-                        {(['transfer', 'cash', 'pos', 'credit'] as SinglePaymentMethod[]).map(m => {
-                          const isCreditDisabled = m === 'credit' && isOneTime;
-                          return (
-                            <button
-                              key={m}
-                              type="button"
-                              disabled={isCreditDisabled}
-                              onClick={() => setSplitLeg2Method(m)}
-                              className={`py-1.5 px-1.5 rounded-lg text-[10px] font-sans font-bold border transition-all cursor-pointer ${
-                                isCreditDisabled
-                                  ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-900 text-slate-400'
-                                  : splitLeg2Method === m
-                                  ? getPaymentModeTheme(m).buttonActiveCls
-                                  : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800'
-                              }`}
-                            >
-                              <span className="capitalize">{m === 'pos' ? 'POS' : m === 'credit' ? 'Debt' : m}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {/* Leg 2 Amount */}
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₦</span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          required
-                          value={splitLeg2Amount}
-                          onChange={e => setSplitLeg2Amount(formatWithCommas(e.target.value))}
-                          placeholder="Amount for Leg 2 (e.g. 50,000)"
-                          className="w-full pl-8 pr-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-xs"
-                        />
-                      </div>
-
-                      {splitLeg2Method === 'credit' && (
-                        <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-sans font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400 flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              Debt Duration
-                            </span>
-                            <span className="font-mono font-bold text-xs text-amber-900 dark:text-amber-200">
-                              {creditTermDays} Days
-                            </span>
-                          </div>
-
-                          {/* Quick Days Selector */}
-                          <div className="grid grid-cols-4 gap-1">
-                            {[7, 14, 21, 30].map(days => (
-                              <button
-                                key={days}
-                                type="button"
-                                onClick={() => setCreditTermDays(days)}
-                                className={`py-1 px-1 rounded-md text-[10px] font-mono font-bold border transition-all cursor-pointer ${
-                                  creditTermDays === days
-                                    ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
-                                    : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-amber-400'
-                                }`}
-                              >
-                                {days}d
-                              </button>
-                            ))}
-                          </div>
-
-                          {/* Custom Days Input */}
-                          <div className="flex items-center gap-1.5">
-                            <label className="text-[9px] uppercase font-bold text-slate-500 shrink-0">Custom Days:</label>
-                            <input
-                              type="number"
-                              min="1"
-                              max="365"
-                              value={creditTermDays}
-                              onChange={e => setCreditTermDays(Math.max(1, parseInt(e.target.value) || 1))}
-                              className="w-16 px-1.5 py-0.5 text-xs font-mono font-bold rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                            />
-                            <span className="text-[10px] text-slate-500">days</span>
-                          </div>
-
-                          {/* Live Due Date Badge */}
-                          <div className="text-[10px] font-sans text-slate-700 dark:text-slate-300 flex items-center justify-between pt-1 border-t border-amber-500/20">
-                            <span className="text-slate-500">Due:</span>
-                            <span className="font-bold text-amber-800 dark:text-amber-300 font-mono">
-                              {formatDepotDate(effectiveDueDate.toISOString())}
-                            </span>
-                          </div>
-
-                          {overLimit && (
-                            <div className="text-rose-600 font-bold text-[10px]">
-                              {overLimitBlocked ? '⚠ Over credit limit (requires owner).' : '⚠ Over credit limit (override).'}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Live Split Balance Badge */}
-                    <div
-                      className={`p-2.5 rounded-xl border text-xs font-sans flex items-center justify-between ${
-                        isSplitBalanced
-                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-bold'
-                          : splitRemaining > 0
-                          ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-900/60 text-amber-800 dark:text-amber-300'
-                          : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900/60 text-rose-800 dark:text-rose-300 font-bold'
-                      }`}
-                    >
-                      <span>
-                        {isSplitBalanced
-                          ? '✓ Fully Balanced (100%)'
-                          : splitRemaining > 0
-                          ? `Remaining to allocate:`
-                          : `Exceeds sale total by:`}
-                      </span>
-                      <span className="font-mono font-bold tabular-nums">
-                        {isSplitBalanced
-                          ? formatNaira(cartTotal)
-                          : splitRemaining > 0
-                          ? formatNaira(splitRemaining)
-                          : `+${formatNaira(splitOver)}`}
-                      </span>
-                    </div>
-                  </div>
-                )}
 
                 <input
                   value={note}
@@ -2644,11 +2422,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     type="button"
                     onClick={() => setShowBackdate(v => !v)}
                     aria-pressed={showBackdate}
-                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-sans font-bold transition-all active:scale-95 ${
-                      showBackdate
-                        ? 'bg-brand-50 dark:bg-brand-950/40 border-brand-300 dark:border-brand-800 text-brand-700 dark:text-brand-400'
-                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
-                    }`}
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-sans font-bold transition-all active:scale-95 ${showBackdate
+                      ? 'bg-brand-50 dark:bg-brand-950/40 border-brand-300 dark:border-brand-800 text-brand-700 dark:text-brand-400'
+                      : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                      }`}
                   >
                     <ClockCounterClockwise className="w-3.5 h-3.5" weight="bold" />
                     <span>{showBackdate ? 'Using a specific date & time' : 'Backdate this sale'}</span>

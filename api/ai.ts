@@ -166,7 +166,7 @@ export default async function handler(req: any, res: any) {
   }
 
   const payload: AIRequestPayload = req.body;
-  const { action, provider = 'claude', claudeModel = 'claude-3-5-sonnet-20241022', snapshot, chatMessage } = payload;
+  const { action, claudeModel = 'claude-3-5-sonnet-20241022', snapshot, chatMessage } = payload;
 
   if (!snapshot) {
     return res.status(400).json({ success: false, error: 'Missing system snapshot payload.' });
