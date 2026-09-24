@@ -23,17 +23,31 @@ export const LoginScreen: React.FC = () => {
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
+    // Goes through the public_company_branding() RPC instead of selecting
+    // app_settings directly. This runs before sign-in, and no table grants
+    // SELECT to `anon`, so a direct read always came back empty and this
+    // screen silently kept its hardcoded fallback. The RPC is SECURITY
+    // DEFINER and returns only the two public branding fields (migration 0018).
     supabase
-      .from('app_settings')
-      .select('company_name, company_logo_url')
-      .eq('id', 1)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data) {
-          if (data.company_name) setBrandName(data.company_name as string);
-          if (data.company_logo_url) setBrandLogo(data.company_logo_url as string);
-          document.title = (data.company_name as string) || 'Iyanuoluwa Depot';
+      .rpc('public_company_branding')
+      .then(({ data, error }) => {
+        if (error) {
+          // Most likely migration 0018 hasn't been applied yet. Fall back to
+          // the built-in name/logo rather than leaving a blank header.
+          console.warn(
+            '[login] public_company_branding() unavailable — has migration 0018 been applied?',
+            error.message
+          );
+          return;
         }
+        const row = (Array.isArray(data) ? data[0] : data) as
+          | { company_name?: string | null; company_logo_url?: string | null }
+          | null
+          | undefined;
+        if (!row) return;
+        if (row.company_name) setBrandName(row.company_name);
+        if (row.company_logo_url) setBrandLogo(row.company_logo_url);
+        document.title = row.company_name || 'Iyanuoluwa Depot';
       });
   }, []);
 

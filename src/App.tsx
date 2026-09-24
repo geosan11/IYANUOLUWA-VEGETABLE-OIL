@@ -165,13 +165,17 @@ const MainLayout: React.FC = () => {
 };
 
 /**
- * Requires a signed-in Supabase session + a loaded `profiles` row before
- * rendering the app, and mirrors that profile into the local store's
+ * Mirrors the signed-in Supabase profile into the local store's
  * `currentUser`/`userRole` so every existing role-gated screen just works.
- * A no-op when Supabase isn't configured — local/offline mode is unaffected.
+ *
+ * Deliberately a child of `StoreProvider` (see `App` below) rather than part
+ * of the gate itself: the store's Supabase sync effects must only ever run
+ * with an authenticated session, because no table grants anything to `anon`
+ * (see 0002_auth_rls.sql) — syncing before sign-in reads zero rows and has
+ * every write rejected by RLS.
  */
-const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { ready, session, profile, profileLoading, signOut } = useAuth();
+const ProfileSync: React.FC = () => {
+  const { session, profile } = useAuth();
   const { setCurrentUser } = useStore();
 
   useEffect(() => {
@@ -187,6 +191,17 @@ const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, session]);
+
+  return null;
+};
+
+/**
+ * Requires a signed-in Supabase session + a loaded `profiles` row before
+ * rendering the app.
+ * A no-op when Supabase isn't configured — local/offline mode is unaffected.
+ */
+const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { ready, session, profile, profileLoading, signOut } = useAuth();
 
   if (!isSupabaseConfigured) return <>{children}</>;
 
@@ -241,11 +256,17 @@ export function App() {
     <IconContext.Provider value={{ weight: 'thin' }}>
       <ToastProvider>
         <AuthProvider>
-          <StoreProvider>
-            <AuthGate>
+          {/* StoreProvider deliberately sits INSIDE the gate: every Supabase
+              sync effect in store.tsx must run with an authenticated session,
+              since no table grants SELECT/INSERT to `anon`. Mounting it
+              outside meant a signed-out page load read zero rows and then
+              tried to push every local row up, with RLS rejecting each write. */}
+          <AuthGate>
+            <StoreProvider>
+              <ProfileSync />
               <MainLayout />
-            </AuthGate>
-          </StoreProvider>
+            </StoreProvider>
+          </AuthGate>
         </AuthProvider>
       </ToastProvider>
     </IconContext.Provider>

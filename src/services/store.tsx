@@ -562,13 +562,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem(STORAGE_KEYS.HUBS, JSON.stringify(hubs));
   }, [hubs]);
 
-  // Hubs are the one piece of business data actually persisted to Supabase
-  // today (everything else is still localStorage-only). Without this, a hub
-  // created in one browser was invisible on every other device, and looked
-  // "wiped" the moment a redeploy forced a hard reload of a browser that
-  // never had it cached. On mount: pull the real rows down, and push up any
-  // hub this browser created locally before it ever synced (so nothing a
-  // browser already has gets silently dropped by moving to Supabase).
+  // Settings-managed master data — hubs, app_settings, suppliers,
+  // physical_tanks, pumps, products, product_varieties — is mirrored to
+  // Supabase. Every TRANSACTIONAL table (sales/orders/sale_payments,
+  // customers, expenses, shifts, pump_readings, keg_returns, transfers,
+  // customer_credits) is still localStorage-only, so those still do not travel
+  // between devices. Without this hub sync in particular, a hub created in one
+  // browser was invisible on every other device, and looked "wiped" the moment
+  // a redeploy forced a hard reload of a browser that never had it cached. On
+  // mount: pull the real rows down, and push up any hub this browser created
+  // locally before it ever synced (so nothing a browser already has gets
+  // silently dropped by moving to Supabase).
   const hubsSyncedRef = useRef(false);
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase || hubsSyncedRef.current) return;

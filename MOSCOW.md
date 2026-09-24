@@ -47,7 +47,7 @@ mostly already delivered as follow-on polish this session.
 | Multi-hub architecture — multiple depot locations, hub-scoped data, a hub-manager role | ✅ |
 | AI Operations Advisor — plain-language summary of the day's numbers and anomalies | ✅ |
 | Settings — editable products, pack sizes/prices, pumps, categories, roles, without touching code | ✅ |
-| Server-backed persistence (Supabase/Postgres) instead of `localStorage` only | 🚧 — schema designed and migrations written (`supabase/migrations/`), app still reads/writes `localStorage` exclusively; only the optional logo upload touches Supabase today |
+| Server-backed persistence (Supabase/Postgres) instead of `localStorage` only | 🚧 — two layers today: **wired and live** are auth (`auth.users`/`profiles`) plus every Settings-managed master table (`hubs`, `app_settings`, `suppliers`, `physical_tanks`, `pumps`, `products`, `product_varieties`), the logo in Storage, and the public branding RPC. **Still `localStorage`-only** are all transactional tables — `sales`/`orders`/`sale_payments`, `customers`, `customer_credits`, `expenses`, `shifts`, `pump_readings`, `keg_returns`, `transfers`, `tank_dipstick_readings` — plus the pack-price matrix (`pack_prices` table doesn't exist yet), so sales/debts/prices still don't travel between devices. |
 | Server-side audit log (`audit_log` table) surviving a browser/device change | 🚧 — client-side `AuditEntry` log exists and is complete; nothing persists past `localStorage` |
 | Issued-document registry — record that a receipt/waybill/payment slip was printed, its number, for reprints and disputes | ⏳ |
 
