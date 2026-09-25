@@ -433,6 +433,15 @@ psql "$SUPABASE_DB_URL" -f supabase/migrations/0010_hubs_id_text.sql
 psql "$SUPABASE_DB_URL" -f supabase/migrations/0011_settings_grant_write_access.sql
 psql "$SUPABASE_DB_URL" -f supabase/migrations/0012_remove_placeholder_hubs.sql
 psql "$SUPABASE_DB_URL" -f supabase/migrations/0013_remove_remaining_placeholder_seed_rows.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0014_depot_assets_bucket.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0015_depot_assets_bucket_rls.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0016_default_litres_per_ton.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0017_remove_opening_cash_float.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0018_public_company_branding.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0019_sales_header_and_line_alignment.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0020_pack_prices_and_audit_log.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0021_walkin_customer_and_per_hub_open_shift.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0022_payments.sql
 psql "$SUPABASE_DB_URL" -f supabase/seed.sql
 ```
 
@@ -466,3 +475,35 @@ via `pglast`): `0001_init.sql` 57 statements, `0002_auth_rls.sql` 29,
 `supabase` CLI), so runtime checks — FK resolution order, `auth` schema
 references, the dynamic SQL built inside the `DO` blocks — were reviewed by hand
 but not executed.
+
+### The app ↔ SQL contract check
+
+`supabase/tools/check_ledger_schema.py` is the one check that no TypeScript test
+can make: the sync layer names columns in strings, so a column that a migration
+never created still compiles, still type-checks and still passes
+`src/services/ledger.test.ts` — then fails at runtime. The script parses every
+migration with the same `pglast` parser and compares the real column inventory
+against both lists in `ledger.ts`: the row mappers (what an insert sends) and
+`LEDGER_PULL_COLUMNS` (what a pull reads back).
+
+```bash
+pip install pglast
+python supabase/tools/check_ledger_schema.py    # from the repo root; exit 0 = no drift
+```
+
+Last run: **no drift** across all six mirrored tables — `customers` 9/9,
+`tanks` 15 pulled of 17, `sales` 18/18, `orders` 33 pulled of 47,
+`sale_payments` 10 of 11, `payments` 16/16, and every column written by a mapper
+exists.
+
+The columns listed as *not pulled* are reported for information only, and split
+in two. `orders.unit`, `orders.rate` and `orders.discount_reason` are written by
+`toOrderRow` to keep 0001's older columns populated (`unit`/`rate` were NOT NULL;
+`discount_reason` mirrors the price-adjustment reason) but are never read back —
+those three are named in the `WRITE_ONLY` allowlist in `ledger.test.ts`, which is
+what stops that test from demanding they be pulled too. The rest (`orders.keg_*`,
+`orders.meter_*`, `orders.shortfall`, `orders.delivered_qty`, the `orders` void
+audit trio, `tanks.last_dipstick_*`, `sale_payments.reference`) are legacy
+columns from 0001/0007 that the sales layer neither writes nor reads, so no
+allowlist is needed for them. Re-run the script after any migration that touches
+these six tables, and after any change to a mapper or to a pull list.
