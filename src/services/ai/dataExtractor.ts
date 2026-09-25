@@ -6,15 +6,18 @@ import {
   Customer,
   CustomerCalculatedStats,
   KegInventorySummary,
+  PackPrice,
   PumpVarianceAudit,
   Shift,
   AppSettings
 } from '../../types';
+import { retailRatePerLitre, retailRatePerLitreByProduct } from '../pricing';
 import { SystemSnapshot } from './types';
 
 interface ExtractParams {
   tanks: Tank[];
   products: Product[];
+  packPrices: PackPrice[];
   suppliers: Supplier[];
   orders: Order[];
   customers: Customer[];
@@ -46,6 +49,7 @@ export function extractSystemSnapshot(params: ExtractParams): SystemSnapshot {
   const {
     tanks,
     products,
+    packPrices,
     suppliers,
     orders,
     customerStatsMap,
@@ -57,9 +61,24 @@ export function extractSystemSnapshot(params: ExtractParams): SystemSnapshot {
     settings
   } = params;
 
+  // 0. Counter rate — the depot's own retail price per litre, derived from the
+  // owner's pack-price matrix (retail pack price ÷ that pack's litres). No ₦/L
+  // rate is built into this app: 0 means "no retail pack priced yet", and every
+  // money figure downstream is omitted rather than invented when it is 0.
+  const counterRatePerLitre = retailRatePerLitre(packPrices);
+  const retailRateByProduct = retailRatePerLitreByProduct(packPrices);
+
   // 1. Tank Stock by Product
-  const vegTanks = tanks.filter(t => t.product_id === 'golden_oil_30l');
-  const palmTanks = tanks.filter(t => t.product_id === 'red_oil_25l');
+  // The depot names its own products, so nothing here may assume a particular
+  // product id exists: bulk (tank-fed) products are the tank side of the
+  // snapshot, everything else is the pre-kegged/keg side. On a depot that has
+  // not been configured yet both sets are empty and every figure below stays
+  // honestly at 0 instead of describing products that aren't there.
+  const bulkProductIds = new Set(
+    products.filter(p => p.supply_model === 'bulk_truck').map(p => p.id)
+  );
+  const vegTanks = tanks.filter(t => bulkProductIds.has(t.product_id));
+  const palmTanks = tanks.filter(t => !bulkProductIds.has(t.product_id));
 
   const vegLitres = vegTanks.reduce((acc, t) => acc + (t.remaining_litres || 0), 0);
   const palmLitres = palmTanks.reduce((acc, t) => acc + (t.remaining_litres || 0), 0);
@@ -67,18 +86,22 @@ export function extractSystemSnapshot(params: ExtractParams): SystemSnapshot {
 
   // 2. Velocity & Burn Rate (Litres per day estimate)
   // Calculate average daily litres over available orders
-  const vegOrders = orders.filter(o => o.product_id === 'golden_oil_30l');
-  const palmOrders = orders.filter(o => o.product_id === 'red_oil_25l');
+  const vegOrders = orders.filter(o => bulkProductIds.has(o.product_id));
+  const palmOrders = orders.filter(o => !bulkProductIds.has(o.product_id));
 
   const totalVegSold = vegOrders.reduce((sum, o) => sum + (o.litres || 0), 0);
   const totalPalmSold = palmOrders.reduce((sum, o) => sum + (o.litres || 0), 0);
 
-  // Use a minimum 1-day divisor for safety, estimate daily velocity
-  const vegDailyBurn = totalVegSold > 0 ? Math.max(Math.round(totalVegSold / 7), 250) : 350;
-  const palmDailyBurn = totalPalmSold > 0 ? Math.max(Math.round(totalPalmSold / 7), 100) : 150;
+  // Velocity is derived only from actual sales over the last week. With no
+  // orders yet there is no burn rate to report, so it is 0 rather than an
+  // invented litres-per-day figure.
+  const vegDailyBurn = totalVegSold > 0 ? Math.round(totalVegSold / 7) : 0;
+  const palmDailyBurn = totalPalmSold > 0 ? Math.round(totalPalmSold / 7) : 0;
 
-  const vegRunwayDays = vegDailyBurn > 0 ? Math.round((vegLitres / vegDailyBurn) * 10) / 10 : 99;
-  const palmRunwayDays = palmDailyBurn > 0 ? Math.round((palmLitres / palmDailyBurn) * 10) / 10 : 99;
+  // 0 = "unknown" here, matching the 0/'' unconfigured contract used across the
+  // app: a depot with no sales history has no runway to state.
+  const vegRunwayDays = vegDailyBurn > 0 ? Math.round((vegLitres / vegDailyBurn) * 10) / 10 : 0;
+  const palmRunwayDays = palmDailyBurn > 0 ? Math.round((palmLitres / palmDailyBurn) * 10) / 10 : 0;
 
   // 3. Customer Credit & Debt Risk
   const topDebtors = Object.values(customerStatsMap)
@@ -99,7 +122,9 @@ export function extractSystemSnapshot(params: ExtractParams): SystemSnapshot {
   );
 
   // 4. Keg Inventory Exposure
-  const outrightKegPrice = 3500; // standard replacement cost in Lagos
+  // Valued at the depot's own configured outright keg price. Unset = 0, so the
+  // advisory reports no figure rather than an invented Lagos replacement cost.
+  const outrightKegPrice = settings.outright_keg_price || 0;
   const unreturnedValueExposureNaira = kegInventory.totalKegsOut * outrightKegPrice;
 
   const highKegHolders = Object.values(customerStatsMap)
@@ -127,12 +152,15 @@ export function extractSystemSnapshot(params: ExtractParams): SystemSnapshot {
     .filter(t => (t.shortfall || 0) > 0)
     .map(t => {
       const supplier = suppliers.find(s => s.id === t.supplier_id);
-      const isVeg = t.product_id === 'golden_oil_30l';
-      const estimatedRate = isVeg ? 3500 : 3000;
+      // Valued at the depot's own counter rate for THAT product (retail pack
+      // price ÷ pack litres). 0 = the product has no retail price yet, so the
+      // shortfall is reported in litres only — never at an invented ₦/L rate.
+      const estimatedRate = retailRateByProduct[t.product_id] ?? 0;
       return {
         truckOrWaybill: t.truck_label,
         supplier: supplier?.name || 'Bulk Hauler',
-        product: isVeg ? 'Golden Vegetable Oil' : 'Red Palm Oil',
+        // The product's real name — never a guessed 'Golden Vegetable Oil'.
+        product: products.find(p => p.id === t.product_id)?.name || t.product_id,
         shortfallLitres: t.shortfall,
         estimatedLossNaira: t.shortfall * estimatedRate
       };
@@ -149,9 +177,11 @@ export function extractSystemSnapshot(params: ExtractParams): SystemSnapshot {
     }));
 
   // 6. Pricing and Product Structure
+  // Every retail figure comes out of the owner's own pack-price matrix. A
+  // product with no retail pack priced yet reports 0 for both fields, which the
+  // prompts read as "not configured" instead of quoting a rate nobody set.
   const productsSummary = products.map(p => {
-    const isVeg = p.id === 'golden_oil_30l' || p.id === 'veg';
-    const retailRate = isVeg ? 3500 : 3000;
+    const retailRate = retailRateByProduct[p.id] ?? 0;
     return {
       id: p.id,
       name: p.name,
@@ -171,7 +201,8 @@ export function extractSystemSnapshot(params: ExtractParams): SystemSnapshot {
       palmLitres,
       kegsAtDepot: kegInventory.kegsAtDepot,
       totalFleet: kegInventory.totalCompanyKegs,
-      kegsWithCustomers: kegInventory.totalKegsOut
+      kegsWithCustomers: kegInventory.totalKegsOut,
+      kegsAtDepotLowThreshold: settings.kegs_at_depot_low_threshold || 0
     },
     todayPerformance: {
       cashSalesNaira: todayStats.cashTransferSales,
@@ -188,14 +219,14 @@ export function extractSystemSnapshot(params: ExtractParams): SystemSnapshot {
         currentLitres: vegLitres,
         dailyBurnRateLitres: vegDailyBurn,
         daysRunway: vegRunwayDays,
-        lowStockThresholdLitres: settings.low_stock_litres_threshold || 1000,
+        lowStockThresholdLitres: settings.low_stock_litres_threshold || 0,
         tankCount: vegTanks.length
       },
       palm: {
         currentLitres: palmLitres,
         dailyBurnRateLitres: palmDailyBurn,
         daysRunway: palmRunwayDays,
-        lowStockThresholdLitres: settings.low_stock_litres_threshold || 1000,
+        lowStockThresholdLitres: settings.low_stock_litres_threshold || 0,
         tankCount: palmTanks.length
       }
     },
@@ -211,11 +242,13 @@ export function extractSystemSnapshot(params: ExtractParams): SystemSnapshot {
       highKegHolders
     },
     lossPreventionAudit: {
+      pumpVarianceThresholdLitres: settings.pump_variance_threshold || 0,
       pumpVariances,
       intakeShortfalls,
       shiftDiscrepancies
     },
     pricingAndProducts: {
+      counterRatePerLitre,
       products: productsSummary
     }
   };

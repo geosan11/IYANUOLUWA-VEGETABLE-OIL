@@ -67,6 +67,8 @@ import {
   applyFifoPayment,
   calculateIntakeMetrics,
   calculatePreKeggedIntakeMetrics,
+  resolveLitresPerTon,
+  resolveLitresPerKeg,
   checkShiftOpeningMetersGate,
   ShiftOpeningGateStatus,
   calculatePumpMeterVariance,
@@ -1670,13 +1672,30 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!product) return { success: false, error: 'Product not found' };
     if (!data.supplierId) return { success: false, error: 'Supplier is required for bulk truck intake' };
 
+    const litresPerTon = resolveLitresPerTon(product, settings);
+    const litresPerKeg = resolveLitresPerKeg(product, settings);
+    if (litresPerTon <= 0) {
+      return {
+        success: false,
+        error: 'Set this product\'s density (litres per ton) in Settings before logging a bulk truck intake'
+      };
+    }
+    if (litresPerKeg <= 0) {
+      return {
+        success: false,
+        error: 'Set the keg size (litres per keg) in Settings before logging a bulk truck intake'
+      };
+    }
+
+    // The same resolved figures feed the on-screen preview, so the receipt can
+    // never disagree with what the operator was shown.
     const metrics = calculateIntakeMetrics(
       data.tons,
-      product.litres_per_ton || 1075,
+      litresPerTon,
       data.actualKegs,
       data.leftoverLitres,
       kegInventory.kegsAtDepot,
-      product.litres_per_keg,
+      litresPerKeg,
       settings.truck_shortfall_threshold
     );
 
@@ -1714,7 +1733,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!product) return { success: false, error: 'Product not found' };
     if (!data.supplierId) return { success: false, error: 'Supplier is required for pre-kegged intake' };
 
-    const metrics = calculatePreKeggedIntakeMetrics(data.kegsReceived, product.litres_per_keg);
+    const litresPerKeg = resolveLitresPerKeg(product, settings);
+    if (litresPerKeg <= 0) {
+      return {
+        success: false,
+        error: 'Set the keg size (litres per keg) in Settings before logging a pre-kegged intake'
+      };
+    }
+
+    const metrics = calculatePreKeggedIntakeMetrics(data.kegsReceived, litresPerKeg);
 
     const supplier = suppliers.find(s => s.id === data.supplierId);
     const supplierPrefix = supplier ? supplier.name.split(' ')[0].toUpperCase() : 'BATCH';

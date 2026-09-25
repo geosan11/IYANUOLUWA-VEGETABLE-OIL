@@ -14,6 +14,7 @@ import {
   AIChatMessage
 } from '../services/ai/types';
 import { formatNaira } from '../services/businessLogic';
+import { PACK_SIZES } from '../constants/config';
 import {
   Sparkle as Sparkles,
   ShieldCheck,
@@ -47,7 +48,7 @@ export const AIAdvisorScreen: React.FC = () => {
     {
       id: 'welcome',
       role: 'assistant',
-      text: 'Good day, Alhaja. I am monitoring your tanks, pump flowmeters, and debtor accounts. Ask me any question or run a full audit below.',
+      text: 'Good day. I am monitoring your tanks, pump flowmeters, and debtor accounts. Ask me any question or run a full audit below.',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -73,7 +74,8 @@ export const AIAdvisorScreen: React.FC = () => {
         activeAlerts: store.activeAlerts,
         pumpVarianceAudits: store.pumpVarianceAudits,
         shifts: store.shifts,
-        settings: store.settings
+        settings: store.settings,
+        packPrices: store.packPrices
       });
 
       await new Promise(r => setTimeout(r, 450));
@@ -122,7 +124,8 @@ export const AIAdvisorScreen: React.FC = () => {
         activeAlerts: store.activeAlerts,
         pumpVarianceAudits: store.pumpVarianceAudits,
         shifts: store.shifts,
-        settings: store.settings
+        settings: store.settings,
+        packPrices: store.packPrices
       });
 
       const replyText = await askOperationsQuestion(q, snapshot, {
@@ -158,7 +161,7 @@ export const AIAdvisorScreen: React.FC = () => {
       `*TOP ACTIONS FOR TODAY:*\n` +
       report.actionableDecisions.slice(0, 3).map((d, i) => `${i + 1}. [${d.priority}] ${d.action} — ${d.impactDescription}`).join('\n') +
       `\n\n*INVENTORY RUNWAY:*\n` +
-      report.inventoryForecasts.map(f => `• ${f.productName}: ${f.currentStockL.toLocaleString()}L (${f.estimatedDaysLeft} days left)`).join('\n');
+      report.inventoryForecasts.map(f => `• ${f.productName}: ${f.currentStockL.toLocaleString()}L (${f.burnRatePerDayL > 0 ? `${f.estimatedDaysLeft} days left` : 'runway unknown — no sales recorded yet'})`).join('\n');
 
     navigator.clipboard.writeText(text);
     setCopiedText(true);
@@ -193,10 +196,45 @@ export const AIAdvisorScreen: React.FC = () => {
     );
   }
 
+  // Counter value per litre, derived from the owner's own retail pack pricing
+  // (retail-tier pack price ÷ that pack's litres). Nothing configured = 0, so an
+  // invented ₦/litre rate is never used to size a loss.
+  const counterRatePerLitre = (() => {
+    for (const pp of store.packPrices) {
+      if (pp.tier !== 'retail' || pp.price <= 0) continue;
+      const litres = PACK_SIZES.find(s => s.id === pp.pack_size_id)?.litres || 0;
+      if (litres > 0) return pp.price / litres;
+    }
+    return 0;
+  })();
+
+  const shortfallLitresAtRisk = store.activeAlerts.deliveryShortfall.reduce((acc, s) => acc + s.shortfallLitres, 0);
+  const varianceLitresAtRisk = store.activeAlerts.pumpVariance.reduce((acc, p) => acc + Math.abs(p.variance), 0);
+
   // Calculate high-level summary indicators
   const totalMoneyAtRisk = store.todayStats.creditOutstanding +
-    (store.activeAlerts.deliveryShortfall.reduce((acc, s) => acc + (s.shortfallLitres * 3500), 0)) +
-    (store.activeAlerts.pumpVariance.reduce((acc, p) => acc + (Math.abs(p.variance) * 3500), 0));
+    ((shortfallLitresAtRisk + varianceLitresAtRisk) * counterRatePerLitre);
+
+  // AI runway buckets are the depot's own products (bulk = tank-fed, everything
+  // else = pre-kegged). The old 'veg'/'red' keys matched no product id at all,
+  // so these figures always fell back to invented placeholder litres.
+  const bulkProducts = store.products.filter(p => p.supply_model === 'bulk_truck');
+  const kegProducts = store.products.filter(p => p.supply_model !== 'bulk_truck');
+  const bulkProductName = bulkProducts[0]?.name || 'Bulk (tank-fed) oil';
+  const kegProductName = kegProducts[0]?.name || 'Pre-kegged / container oil';
+  const bulkYardLitres = bulkProducts.reduce((acc, p) => acc + (store.tankStockByProduct[p.id]?.totalLitres || 0), 0);
+  const kegYardLitres = kegProducts.reduce((acc, p) => acc + (store.tankStockByProduct[p.id]?.totalLitres || 0), 0);
+
+  // A runway figure only exists once the depot has sales history: with no burn
+  // rate there is no day count to show, so the cards dash out instead.
+  const vegForecast = report?.inventoryForecasts[0];
+  const palmForecast = report?.inventoryForecasts[1];
+  const vegRunway = vegForecast && vegForecast.burnRatePerDayL > 0 ? vegForecast.estimatedDaysLeft : null;
+  const palmRunway = palmForecast && palmForecast.burnRatePerDayL > 0 ? palmForecast.estimatedDaysLeft : null;
+  // Visual scale for the buffer bars: a full bar is 14 days (2× the 7-day reorder
+  // warning threshold). It is a display scale, not a claim about stock health.
+  const runwayBarWidth = (days: number | null) =>
+    days === null ? '0%' : `${Math.min(100, Math.round((days / 14) * 100))}%`;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-20 animate-in fade-in duration-300">
@@ -273,12 +311,12 @@ export const AIAdvisorScreen: React.FC = () => {
           </span>
           <div className="my-2 flex items-baseline gap-2">
             <span className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-slate-900 dark:text-white">
-              {report ? report.depotHealthScore : 88}
+              {report ? report.depotHealthScore : '—'}
             </span>
             <span className="text-xs font-bold text-slate-400 font-mono">/ 100</span>
           </div>
           <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 capitalize">
-            {report ? report.healthVerdict.replace('_', ' ') : 'Audited & Operational'}
+            {report ? report.healthVerdict.replace('_', ' ') : 'Awaiting audit'}
           </span>
         </div>
 
@@ -294,6 +332,9 @@ export const AIAdvisorScreen: React.FC = () => {
           </div>
           <span className="text-xs text-slate-500 dark:text-slate-400">
             {store.activeAlerts.overdueCredit.length} overdue debtor(s) · {store.activeAlerts.pumpVariance.length} pump variance(s)
+            {counterRatePerLitre <= 0 && (shortfallLitresAtRisk + varianceLitresAtRisk) > 0 && (
+              <> · {(shortfallLitresAtRisk + varianceLitresAtRisk).toLocaleString()}L of losses excluded until a retail pack price is set</>
+            )}
           </span>
         </div>
 
@@ -304,12 +345,12 @@ export const AIAdvisorScreen: React.FC = () => {
           </span>
           <div className="my-2 flex items-baseline gap-2">
             <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-amber-600 dark:text-amber-400">
-              {report?.inventoryForecasts[0]?.estimatedDaysLeft ?? 4.2}
+              {vegRunway ?? '—'}
             </span>
             <span className="text-xs font-medium text-slate-400">days left</span>
           </div>
           <span className="text-xs text-slate-500 dark:text-slate-400">
-            {store.tankStockByProduct['veg']?.totalLitres?.toLocaleString() || '2,500'}L in yard storage
+            {bulkYardLitres.toLocaleString()}L in yard storage
           </span>
         </div>
       </div>
@@ -338,24 +379,24 @@ export const AIAdvisorScreen: React.FC = () => {
               id: 'sample-1',
               priority: 'P1 - Immediate',
               action: 'Freeze credit line & demand payment before releasing next oil order',
-              rationale: 'Customer overdue grace period exceeded. Liquidate past-due invoices.',
-              impactDescription: 'Recovers ₦72,000 working capital immediately.',
+              rationale: 'Raised when a customer passes the depot payment grace period on their debit.',
+              impactDescription: 'Recovers past-due working capital as soon as the real audit runs.',
               ownerActionRole: 'Managing Director'
             },
             {
               id: 'sample-2',
               priority: 'P1 - Immediate',
-              action: 'Physically verify the tank level & inspect nozzle calibration on Pump 2',
-              rationale: 'Meter discrepancy of +50L registered on mechanical counter.',
-              impactDescription: 'Plugs potential ₦175,000 dispensing leakage per shift.',
+              action: 'Physically verify the tank level & inspect nozzle calibration on the flagged pump',
+              rationale: 'Raised when a pump meter delta exceeds the variance tolerance you set in Settings.',
+              impactDescription: 'Plugs recurring dispensing leakage, valued at your own counter rate.',
               ownerActionRole: 'Driver / Yardman'
             },
             {
               id: 'sample-3',
               priority: 'P2 - This Week',
-              action: 'Confirm bulk tanker allocation with refinery supplier for 25–30 metric tons',
-              rationale: 'Current counter burn rate gives 4.2 days of runway before stockout.',
-              impactDescription: 'Prevents revenue stoppage and covers customer demand.',
+              action: 'Book the next bulk tanker allocation with your refinery supplier',
+              rationale: 'Raised when yard stock reaches the low-stock litre threshold you configured in Settings.',
+              impactDescription: 'Prevents stockout-driven revenue stoppage at the counter.',
               ownerActionRole: 'Managing Director'
             }
           ]).map((decision, index) => (
@@ -395,51 +436,51 @@ export const AIAdvisorScreen: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Golden Vegetable Oil */}
+          {/* Bulk (tank-fed) oil — the depot's own configured product */}
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-                Golden Vegetable Oil
+                {bulkProductName}
               </span>
               <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                {store.tankStockByProduct['veg']?.totalLitres?.toLocaleString() || '2,500'} L
+                {bulkYardLitres.toLocaleString()} L
               </span>
             </div>
             <div className="mt-2 flex items-baseline gap-2">
               <span className="text-2xl font-black font-mono text-slate-900 dark:text-white">
-                {report?.inventoryForecasts[0]?.estimatedDaysLeft ?? 4.2}
+                {vegRunway ?? '—'}
               </span>
               <span className="text-xs text-slate-500">days of sales remaining</span>
             </div>
             <div className="mt-2.5 w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
-              <div className="h-full bg-amber-500 rounded-full" style={{ width: '45%' }} />
+              <div className="h-full bg-amber-500 rounded-full" style={{ width: runwayBarWidth(vegRunway) }} />
             </div>
             <p className="mt-2.5 text-[11px] text-slate-500 dark:text-slate-400">
-              {report?.inventoryForecasts[0]?.reorderRecommendation || 'Book 25–30 metric ton tanker delivery within 48 hours.'}
+              {vegForecast?.reorderRecommendation || 'No audit has been run yet — generate a fresh audit for reorder guidance.'}
             </p>
           </div>
 
-          {/* Red Palm Oil */}
+          {/* Pre-kegged / container oil — the depot's own configured product */}
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">
-                Red Palm Oil
+                {kegProductName}
               </span>
               <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                {store.tankStockByProduct['red']?.totalLitres?.toLocaleString() || '1,250'} L
+                {kegYardLitres.toLocaleString()} L
               </span>
             </div>
             <div className="mt-2 flex items-baseline gap-2">
               <span className="text-2xl font-black font-mono text-slate-900 dark:text-white">
-                {report?.inventoryForecasts[1]?.estimatedDaysLeft ?? 8.3}
+                {palmRunway ?? '—'}
               </span>
               <span className="text-xs text-slate-500">days of sales remaining</span>
             </div>
             <div className="mt-2.5 w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
-              <div className="h-full bg-brand-500 rounded-full" style={{ width: '70%' }} />
+              <div className="h-full bg-brand-500 rounded-full" style={{ width: runwayBarWidth(palmRunway) }} />
             </div>
             <p className="mt-2.5 text-[11px] text-slate-500 dark:text-slate-400">
-              {report?.inventoryForecasts[1]?.reorderRecommendation || 'Sufficient inventory buffer in physical tanks for counter dispensing.'}
+              {palmForecast?.reorderRecommendation || 'No audit has been run yet — generate a fresh audit for reorder guidance.'}
             </p>
           </div>
         </div>

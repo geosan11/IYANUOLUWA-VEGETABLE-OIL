@@ -41,7 +41,7 @@ export const FloatingAIBuddy: React.FC<FloatingAIBuddyProps> = ({ onNavigate }) 
     {
       id: 'welcome',
       role: 'assistant',
-      text: 'Hello Alhaja! I am your **Claude Operations Buddy**.\n\nI monitor your yard tanks, pump flowmeters, and debtor accounts — and I can also **search the internet** for current Nigerian market prices, diesel costs, and commodity trends.\n\nHow can I help you right now?',
+      text: 'Hello! I am your **Claude Operations Buddy**.\n\nI monitor your yard tanks, pump flowmeters, and debtor accounts — and I can also **search the internet** for current Nigerian market prices, diesel costs, and commodity trends.\n\nHow can I help you right now?',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       provider: 'claude'
     }
@@ -72,7 +72,8 @@ export const FloatingAIBuddy: React.FC<FloatingAIBuddyProps> = ({ onNavigate }) 
       activeAlerts: store.activeAlerts,
       pumpVarianceAudits: store.pumpVarianceAudits,
       shifts: store.shifts,
-      settings: store.settings
+      settings: store.settings,
+      packPrices: store.packPrices
     });
   };
 

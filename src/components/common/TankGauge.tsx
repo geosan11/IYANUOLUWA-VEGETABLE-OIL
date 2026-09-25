@@ -1,6 +1,7 @@
 import React from 'react';
 import { useStore } from '../../services/store';
 import { hexToRgba } from '../../services/color';
+import { configuredNumber, resolveLitresPerKeg } from '../../services/businessLogic';
 
 interface TankGaugeProps {
   productId: string;
@@ -9,8 +10,18 @@ interface TankGaugeProps {
   totalCapacityLitres?: number;
   truckLabel?: string;
   shortfall?: number;
-  /** Litres above which the shortfall flag shows. Callers with settings should pass `settings.truck_shortfall_threshold`. */
+  /**
+   * Litres above which the shortfall flag shows. Callers with settings should
+   * pass `settings.truck_shortfall_threshold`. 0 = no tolerance configured,
+   * so nothing is flagged rather than everything.
+   */
   shortfallThresholdLitres?: number;
+  /**
+   * Resolved litres per keg for this product (`resolveLitresPerKeg`). Falls
+   * back to the depot-wide figure from Settings; when neither is configured
+   * the keg line is hidden instead of dividing by zero.
+   */
+  kegSizeLitres?: number;
   size?: 'sm' | 'md' | 'lg';
   showLabels?: boolean;
 }
@@ -19,20 +30,29 @@ export const TankGauge: React.FC<TankGaugeProps> = ({
   productId,
   productName,
   remainingLitres,
-  totalCapacityLitres = 15000,
+  totalCapacityLitres = 0,
   truckLabel,
   shortfall = 0,
-  shortfallThresholdLitres = 50,
+  shortfallThresholdLitres = 0,
+  kegSizeLitres,
   size = 'md',
   showLabels = true,
 }) => {
-  const { products } = useStore();
+  const { products, settings } = useStore();
   const product = products.find(p => p.id === productId);
+  // This product's own keg size, else the depot default, else 0 (unset).
+  const kegSize = configuredNumber(kegSizeLitres) || resolveLitresPerKeg(product, settings);
+  // Same contract for capacity: only a capacity the depot actually configured
+  // can produce a fill %, so an unset one shows no percentage at all rather
+  // than a clamped 100%.
+  const capacityKnown = totalCapacityLitres > 0;
   const colorLight = product?.color_light || '#F59E0B';
   const colorDark = product?.color_dark || '#B45309';
 
-  const percentage = Math.min(100, Math.max(0, (remainingLitres / (totalCapacityLitres || 1)) * 100));
-  const isLowStock = percentage < 15;
+  const percentage = capacityKnown
+    ? Math.min(100, Math.max(0, (remainingLitres / totalCapacityLitres) * 100))
+    : 0;
+  const isLowStock = capacityKnown && percentage < 15;
 
   // Height and width configurations with responsive scaling
   const heightClasses = {
@@ -58,7 +78,7 @@ export const TankGauge: React.FC<TankGaugeProps> = ({
           {isLowStock && (
             <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
           )}
-          <span>{percentage.toFixed(0)}%</span>
+          <span>{capacityKnown ? `${percentage.toFixed(0)}%` : '—'}</span>
         </div>
 
         {/* Measurement tick marks */}
@@ -119,15 +139,21 @@ export const TankGauge: React.FC<TankGaugeProps> = ({
               Litres
             </span>
           </div>
-          <div className="text-xs font-mono text-slate-500 dark:text-slate-400 tabular-nums">
-            ≈ {Math.round(remainingLitres / (product?.litres_per_keg || 25)).toLocaleString()} Kegs (25L)
-          </div>
+          {kegSize > 0 ? (
+            <div className="text-xs font-mono text-slate-500 dark:text-slate-400 tabular-nums">
+              ≈ {Math.round(remainingLitres / kegSize).toLocaleString()} Kegs ({kegSize}L)
+            </div>
+          ) : (
+            <div className="text-xs font-sans text-slate-500 dark:text-slate-400">
+              Set the keg size in Settings to see keg equivalents
+            </div>
+          )}
           {truckLabel && (
             <div className="text-xs text-slate-600 dark:text-slate-400 font-sans truncate max-w-[180px] mx-auto">
               {truckLabel}
             </div>
           )}
-          {shortfall > shortfallThresholdLitres && (
+          {shortfallThresholdLitres > 0 && shortfall > shortfallThresholdLitres && (
             <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono tabular-nums font-bold bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/30">
               Shortfall: -{shortfall.toFixed(0)}L
             </div>

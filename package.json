@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "tsx src/services/businessLogic.test.ts && tsx src/services/ledger.test.ts",
+    "test": "tsx src/services/businessLogic.test.ts && tsx src/services/ledger.test.ts && tsx src/services/ai/aiService.test.ts",
     "typecheck": "tsc --noEmit",
     "typecheck:api": "tsc -p api/tsconfig.json",
     "prepare": "git config core.hooksPath .githooks"

@@ -258,7 +258,7 @@ export const KegsScreen: React.FC = () => {
         <div className="text-right">
           <div className="inline-flex items-center gap-1 font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 text-xs">
             <ArrowDownLeft className="w-3.5 h-3.5" />
-            <span>+{item.qty} Kegs (25L)</span>
+            <span>+{item.qty} {item.qty === 1 ? 'Keg' : 'Kegs'}</span>
           </div>
         </div>
       </div>
@@ -754,7 +754,7 @@ export const KegsScreen: React.FC = () => {
                   )}
                   <div>
                     <label htmlFor="detail-return-qty" className="block text-xs font-sans font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Kegs Returned to Yard (25L Jerrycans)
+                      Containers Returned to Yard
                     </label>
                     <div className="flex items-center gap-2">
                       <input

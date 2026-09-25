@@ -304,7 +304,7 @@ export const ScreenAccessPanel: React.FC = () => {
 
       {!loading && !loadError && profiles.length === 0 && (
         <p className="text-xs font-sans text-slate-400 py-4 text-center">
-          No accounts yet — send the login screen's "Create account" link to your team.
+          No accounts yet — use the form above to add the first team member.
         </p>
       )}
 

@@ -4,21 +4,32 @@ import { Package } from '@phosphor-icons/react';
 interface KegVisual25LProps {
   remainingLitres: number;
   totalCapacityLitres?: number;
+  /** Resolved litres per keg (`resolveLitresPerKeg`). 0 = not configured. */
   kegSizeLitres?: number;
+  /** Shown under the visual — was the hardcoded "Pre-Kegged Palm Oil". */
+  productName?: string;
   size?: 'sm' | 'md' | 'lg';
   showLabels?: boolean;
 }
 
 export const KegVisual25L: React.FC<KegVisual25LProps> = ({
   remainingLitres,
-  totalCapacityLitres = 15000,
-  kegSizeLitres = 25,
+  totalCapacityLitres = 0,
+  kegSizeLitres = 0,
+  productName,
   size = 'lg',
   showLabels = true
 }) => {
-  const currentKegs = Math.max(0, Math.round(remainingLitres / kegSizeLitres));
-  const maxKegs = Math.max(1, Math.round(totalCapacityLitres / kegSizeLitres));
-  const percentage = Math.min(100, Math.max(0, (remainingLitres / totalCapacityLitres) * 100));
+  // Guarded: an unconfigured keg size must never divide — this rendered
+  // "∞ Kegs" once the seeded products (which had shipped a 25L default) were
+  // removed. An unset capacity likewise must not read as 100% full.
+  const kegsKnown = kegSizeLitres > 0;
+  const capacityKnown = totalCapacityLitres > 0;
+  const currentKegs = kegsKnown ? Math.max(0, Math.round(remainingLitres / kegSizeLitres)) : 0;
+  const maxKegs = kegsKnown && capacityKnown ? Math.max(1, Math.round(totalCapacityLitres / kegSizeLitres)) : 0;
+  const percentage = capacityKnown
+    ? Math.min(100, Math.max(0, (remainingLitres / totalCapacityLitres) * 100))
+    : 0;
   const isLowStock = percentage < 15;
 
   const containerSizes = {
@@ -39,7 +50,7 @@ export const KegVisual25L: React.FC<KegVisual25LProps> = ({
       <div className="w-full flex items-center justify-between mb-2 px-1">
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-rose-500/10 text-rose-700 dark:text-rose-300 text-xs font-sans font-bold border border-rose-500/25">
           <Package className="w-3.5 h-3.5 text-rose-500" weight="fill" />
-          <span>25L Company Keg</span>
+          <span>{kegsKnown ? `${kegSizeLitres}L Company Keg` : 'Company Keg'}</span>
         </span>
 
         <span
@@ -227,7 +238,7 @@ export const KegVisual25L: React.FC<KegVisual25LProps> = ({
               fill="#BE123C"
               letterSpacing="0.5"
             >
-              25L
+              {kegsKnown ? `${kegSizeLitres}L` : 'KEG'}
             </text>
           </g>
 
@@ -289,19 +300,21 @@ export const KegVisual25L: React.FC<KegVisual25LProps> = ({
       {showLabels && (
         <div className="mt-3.5 text-center w-full space-y-1">
           <div className="text-xs font-sans font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Pre-Kegged Palm Oil
+            {productName || 'Kegged Stock'}
           </div>
           <div className="text-2xl font-mono font-extrabold text-slate-900 dark:text-white tabular-nums flex items-baseline justify-center gap-1.5">
-            <span>{currentKegs.toLocaleString()}</span>
+            <span>{kegsKnown ? currentKegs.toLocaleString() : '—'}</span>
             <span className="text-sm font-sans font-bold text-rose-600 dark:text-rose-400">
-              Kegs (25L)
+              {kegsKnown ? `Kegs (${kegSizeLitres}L)` : 'Keg size not set'}
             </span>
           </div>
           <div className="text-xs font-mono text-slate-500 dark:text-slate-400 tabular-nums">
             {remainingLitres.toLocaleString()} Litres Total
           </div>
           <div className="text-xs text-slate-400 dark:text-slate-500 font-sans pt-0.5">
-            Capacity: {currentKegs} / {maxKegs} Stored
+            {kegsKnown && capacityKnown
+              ? `Capacity: ${currentKegs} / ${maxKegs} Stored`
+              : 'Set the keg size and tank capacity in Settings to see keg capacity'}
           </div>
         </div>
       )}

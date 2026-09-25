@@ -48,7 +48,8 @@ These files define the Postgres target the app has migrated onto.
 | `supabase/migrations/0020_pack_prices_and_audit_log.sql` | `pack_prices` — the Inventory price matrix 0011 flagged as having "no table yet", which is why the product catalogue synced between devices but its prices didn't. And `audit_log`, append-only by construction: SELECT + INSERT policies and deliberately no UPDATE/DELETE, so RLS denies rewriting the trail. |
 | `supabase/migrations/0021_walkin_customer_and_per_hub_open_shift.sql` | Seeds the `cust-walkin` customer row — the app writes every walk-in sale against that synthetic id and `orders.customer_id` is `on delete restrict`, so without the row every walk-in sale fails its FK — adds `customers.hub_id` (informational; customers stay depot-wide), and replaces the global `uniq_one_open_shift` with a per-hub one so a second hub can open a shift. |
 | `supabase/migrations/0022_payments.sql` | `payments` — the customer-receipt table the app's `Payment` type has needed since it was introduced (a live REST probe returned 404 for both `payments` and `payment_allocations`: neither has ever existed). Deliberately a different grain from 0007's `sale_payments`: one receipt, allocated across many sale lines via an `applied_to` jsonb column (not normalised into `payment_allocations` yet), with `overpayment_to_credit` covering the change pushed to store credit. RLS: read-all + staff insert/update + hub isolation, and no DELETE — a voided receipt stays visible as the correction trail. |
-| `supabase/seed.sql` | Real reference data only (products, varieties, rate cards, expense categories, the singleton `app_settings` row) — every depot starts with a genuinely clean transactional ledger, matching the (already-cleaned) seed constants in `src/constants/config.ts`. |
+| `supabase/migrations/0023_default_litres_per_ton_not_invented.sql` | Changes `app_settings.default_litres_per_ton`'s database default from `1075` to `0`. 0016 stamped one palm-oil-typical ratio onto every depot, so a new settings row (or any insert omitting the column) converted tons with a figure the owner never chose — 1,075 L/ton is not a universal conversion. `0` matches the app's own "not configured" semantics (`resolveLitresPerTon` falls through on 0). Stored values are left alone: a seeded 1075 and a typed 1075 are indistinguishable, so clearing it stays an owner decision in Settings → Density & Conversions. |
+| *(no `seed.sql`)* | `supabase/seed.sql` has been **deleted**. It seeded a two-product catalogue (`veg` / `red`, with 1,075 L/ton and 25 L kegs), rate cards, expense categories and the singleton `app_settings` row — invented commercial figures that then had to be unwound from the live database by `0012`/`0013`. A new install now starts genuinely empty: the owner adds products, keg sizes, densities and prices in Settings/Inventory, and `app_settings` starts at 0/blank, which the app reads as "not configured" rather than a real magnitude. Migrations alone are enough — `supabase db reset` / `migration up` need no seed step. |
 | `supabase/functions/create-staff-account/` | Edge Function (in active use): owner sets a username + password directly for a new team member, no email required — maps the username to a synthetic address under the hood. Deploy: `supabase functions deploy create-staff-account`. |
 | `supabase/functions/invite-user/` | Edge Function (built, not currently wired into the UI): sends a real Supabase auth invite email to a new team member and sets their role/hub/screen access. Deploy: `supabase functions deploy invite-user` — see `supabase/functions/README.md`. |
 
@@ -406,9 +407,54 @@ all computed at read time in `businessLogic.ts` / `store.tsx`.
   preferences; only an `owner` can change a `role` (enforced by the
   `profiles_guard_role` trigger).
 - The Supabase **`service_role`** key and the table owner bypass RLS — that is
-  how `seed.sql` and server-side jobs write freely.
+  how server-side jobs (and, historically, `seed.sql`) write freely.
 - **RPC stubs** (signatures only, bodies deferred): `revalidate_fifo_tank_draw`,
   `approve_credit_override`, `post_customer_payment`, `factory_reset`.
+
+---
+
+## Accounts, sign-in & password recovery
+
+Auth bootstrap is deliberately owner-driven — there is **no self-service sign-up
+in the app** (the old "Create account" tab on the login screen was removed):
+
+- The first **owner** account is created in the Supabase dashboard
+  (Authentication → Users → Add user), then promoted:
+  `update profiles set role = 'owner' where id = '<auth uid>';`
+- Everyone else is created from **Team & Access → Add team member**, which calls
+  the `create-staff-account` Edge Function (username + password the owner hands
+  over) or `invite-user` (email invite). New auth users land as `role = 'staff'`
+  (`0002_auth_rls.sql`) until an owner promotes them.
+- **Sign-in** accepts a real email *or* a bare username. A bare username is
+  mapped to `<username>@staff.iyanuoluwa.local` in `src/services/auth.tsx` — keep
+  `STAFF_LOGIN_DOMAIN` in sync with the same constant in
+  `supabase/functions/create-staff-account/index.ts`.
+
+### Password recovery (dashboard setup required)
+
+`LoginScreen`'s "Forgot password?" emails a one-time reset link;
+`ResetPasswordScreen` renders while the client is in recovery mode (it is gated
+on `passwordRecovery` in `src/App.tsx`, *before* the session/profile checks,
+because a recovery link signs the user in for real). Three things must be set in
+the Supabase dashboard or the flow cannot complete:
+
+1. **Authentication → URL Configuration → Redirect URLs** — allow-list every
+   origin the app is served from, including `http://localhost:5173/`. The link
+   returns to the app root and the client reads the tokens from the URL hash.
+2. **Authentication → Email Templates → Reset password** — enabled, with the
+   `{{ .ConfirmationURL }}` link pointing at a redirect URL from step 1.
+3. **Authentication → SMTP** — production needs a real SMTP provider; the
+   built-in sender is rate-limited and meant for testing only.
+
+Code path: `requestPasswordReset()` / `updatePassword()` in
+`src/services/auth.tsx`, the `PASSWORD_RECOVERY` / `USER_UPDATED` / `SIGNED_OUT`
+handling in its `onAuthStateChange` effect, and `AuthShell` /
+`ResetPasswordScreen` in `src/screens/`.
+
+**Limitation:** staff accounts created with a bare username exist only on the
+synthetic address above, which has no inbox, so a reset email can never reach
+them. `requestPasswordReset()` rejects a username up front and directs them to
+the owner, who resets those accounts from Team & Access.
 
 ---
 
@@ -420,7 +466,7 @@ Requires the Supabase CLI (`npm i -g supabase`) or `psql`.
 # One-time
 supabase init                         # if this repo has no supabase/config.toml yet
 
-# Local dev DB: apply every migration, then seed.sql, from scratch
+# Local dev DB: apply every migration, from scratch (no seed file — see above)
 supabase db reset
 
 # Apply new migrations to a running/linked project without wiping data
@@ -450,21 +496,24 @@ psql "$SUPABASE_DB_URL" -f supabase/migrations/0019_sales_header_and_line_alignm
 psql "$SUPABASE_DB_URL" -f supabase/migrations/0020_pack_prices_and_audit_log.sql
 psql "$SUPABASE_DB_URL" -f supabase/migrations/0021_walkin_customer_and_per_hub_open_shift.sql
 psql "$SUPABASE_DB_URL" -f supabase/migrations/0022_payments.sql
-psql "$SUPABASE_DB_URL" -f supabase/seed.sql
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0023_default_litres_per_ton_not_invented.sql
 ```
 
 **Where the live project stands:** every migration through `0022` is applied to
 the linked project as of 25 Sep 2026 — `supabase db push --linked` applied
 `0018`–`0022`, and `supabase migration list --linked` now shows the `Local` and
-`Remote` columns matching row for row. Check that at any time: a blank `Remote`
+`Remote` columns matching row for row. `0023` is written but **not yet applied**
+— run `supabase db push --linked` to change that column's default to 0; until
+then a newly inserted `app_settings` row still inherits the old 1,075. Check the
+state at any time: a blank `Remote`
 value means the file has not been applied, and if the two columns disagree the
 app is running against a schema older (or newer) than this code expects. Note
-that `db push` only runs files under `supabase/migrations/` — `seed.sql` is not
-one, so it is a local-dev/first-provisioning convenience, not part of a live
-push. The live depot's `app_settings` row and catalog came from the app itself
-(and, historically, from `seed.sql` run directly — the reason `0012` and `0013`
-had to delete that run's placeholder rows), so never re-run `seed.sql` against
-it.
+that `db push` only runs files under `supabase/migrations/`. The live depot's
+`app_settings` row and catalog came from the app itself (and, historically, from
+`seed.sql` run directly — the reason `0012` and `0013` had to delete that run's
+placeholder rows). That file has since been deleted, so there is nothing left to
+re-run by accident: migrations alone provision a fresh database, and an empty
+one is now the honest starting point.
 
 Run `0003` and `0004` as two separate statements/files, in that order — `0003`
 only adds `'hub_manager'` to the `user_role` enum, because PostgreSQL refuses
@@ -489,9 +538,9 @@ bare Postgres without the `auth` schema.
 
 ### Validation done here
 
-All three files were parsed with **libpg_query** (the actual PostgreSQL parser,
-via `pglast`): `0001_init.sql` 57 statements, `0002_auth_rls.sql` 29,
-`seed.sql` 18 — all parse clean. Full execution against a live PostgreSQL 15 was
+The original files were parsed with **libpg_query** (the actual PostgreSQL
+parser, via `pglast`): `0001_init.sql` 57 statements, `0002_auth_rls.sql` 29,
+and the since-deleted `seed.sql` 18 — all parse clean. Full execution against a live PostgreSQL 15 was
 **not** possible in this environment (no `psql`, Docker daemon not running, no
 `supabase` CLI), so runtime checks — FK resolution order, `auth` schema
 references, the dynamic SQL built inside the `DO` blocks — were reviewed by hand

@@ -11,6 +11,41 @@ import { packLitres } from '../constants/config';
 
 const round2 = (n: number): number => Number((n || 0).toFixed(2));
 
+/**
+ * The depot's own counter (retail) rate per litre: the retail-tier price of a
+ * pack whose litre size is known, divided by that pack's litres.
+ *
+ * Nothing in this app carries a built-in ₦/litre figure. A depot that has not
+ * priced a single retail pack gets 0 here, and every caller must read 0 as "not
+ * configured" — state the litres, omit the money — instead of quoting a rate
+ * the owner never set.
+ */
+export function retailRatePerLitre(packPrices: PackPrice[]): number {
+  for (const pp of packPrices) {
+    if (pp.tier !== 'retail' || pp.price <= 0) continue;
+    const litres = packLitres(pp.pack_size_id);
+    if (litres > 0) return round2(pp.price / litres);
+  }
+  return 0;
+}
+
+/**
+ * The same derivation keyed by product id, so litres lost on one product's
+ * tank/pump are valued at THAT product's own counter rate rather than at a
+ * sibling product's price. A product with no retail pack price is absent from
+ * the map (absent = not configured, never 0-as-a-real-rate confusion).
+ */
+export function retailRatePerLitreByProduct(packPrices: PackPrice[]): Record<string, number> {
+  const rates: Record<string, number> = {};
+  for (const pp of packPrices) {
+    if (pp.tier !== 'retail' || pp.price <= 0) continue;
+    if (rates[pp.product_id] !== undefined) continue;
+    const litres = packLitres(pp.pack_size_id);
+    if (litres > 0) rates[pp.product_id] = round2(pp.price / litres);
+  }
+  return rates;
+}
+
 /** Look up the absolute price for ONE pack. `null` = not priced yet. */
 export function lookupPackPrice(
   packPrices: PackPrice[],

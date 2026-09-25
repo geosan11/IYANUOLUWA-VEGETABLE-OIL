@@ -8,6 +8,104 @@ import {
   AILossPreventionItem
 } from './types';
 
+/**
+ * Quoted whenever a stock bucket has no recorded sales to measure a burn rate
+ * from. No dry-out date may be invented for a depot that has not sold anything.
+ */
+const NO_SALES_HISTORY =
+  'NO DATA: no sales recorded yet, so no burn rate or runway can be projected.';
+
+/**
+ * How far above the depot's own `low_stock_litres_threshold` a product may sit
+ * and still count as "approaching" the reorder trigger rather than sitting clear
+ * of it. The owner's threshold is the ONLY reorder trigger this engine knows
+ * about — it is never swapped for a built-in day count, tonnage or lead time.
+ */
+const REORDER_WARNING_BAND = 2;
+
+/**
+ * Every naira figure in the snapshot is 0 when the owner has not configured the
+ * pricing it would come from. 0 therefore means "not configured" and must never
+ * be quoted as though it were a valuation, so it collapses to `undefined`.
+ */
+function configuredNaira(value: number): number | undefined {
+  return value > 0 ? value : undefined;
+}
+
+/**
+ * The depot names its own products, so the two stock buckets are labelled from
+ * the owner's catalogue (bulk/tank-fed vs pre-kegged/container) instead of from
+ * hardcoded product names that may not exist on this depot.
+ */
+function stockBucketName(snapshot: SystemSnapshot, bulkTruck: boolean): string {
+  const match = snapshot.pricingAndProducts.products.find(p =>
+    bulkTruck ? p.supplyModel === 'bulk_truck' : p.supplyModel !== 'bulk_truck'
+  );
+  if (match) return match.name;
+  return bulkTruck ? 'Bulk (tank-fed) stock' : 'Pre-kegged / container stock';
+}
+/**
+ * Reorder advice derived from the depot's own litre threshold.
+ *
+ * The owner's `low_stock_litres_threshold` is the trigger — the same level the
+ * depot itself uses elsewhere ("Tank Running Low") — so the advice states litres
+ * against that threshold instead of inventing a day count or a tonnage figure:
+ *
+ *   - below the threshold           -> CRITICAL, the trigger is already crossed
+ *   - within REORDER_WARNING_BAND×  -> WARNING, approaching the trigger
+ *   - otherwise                     -> HEALTHY, sitting clear of the trigger
+ */
+function buildReorderAdvice(
+  productName: string,
+  currentLitres: number,
+  lowStockThresholdLitres: number,
+  burnRatePerDayL: number
+): { reorderRecommendation: string; criticalWarning: boolean } {
+  // Nothing has been sold, so there is no measured runway to reason from.
+  if (burnRatePerDayL <= 0) {
+    return { reorderRecommendation: NO_SALES_HISTORY, criticalWarning: false };
+  }
+
+  // No depot trigger configured — say so rather than substituting a guess.
+  if (lowStockThresholdLitres <= 0) {
+    return {
+      reorderRecommendation:
+        `NO DATA: no low_stock_litres_threshold is configured, so ${productName}'s ` +
+        `${currentLitres.toLocaleString()}L cannot be measured against a depot trigger.`,
+      criticalWarning: false
+    };
+  }
+
+  const stockLabel = `${currentLitres.toLocaleString()}L`;
+  const thresholdLabel = `${lowStockThresholdLitres.toLocaleString()}L`;
+
+  if (currentLitres < lowStockThresholdLitres) {
+    return {
+      reorderRecommendation:
+        `CRITICAL: ${stockLabel} is already below your own ${thresholdLabel} low-stock trigger ` +
+        `for ${productName}. Place the next replenishment order now.`,
+      criticalWarning: true
+    };
+  }
+
+  if (currentLitres < lowStockThresholdLitres * REORDER_WARNING_BAND) {
+    return {
+      reorderRecommendation:
+        `WARNING: ${stockLabel} is within ${REORDER_WARNING_BAND}× your own ${thresholdLabel} low-stock ` +
+        `trigger for ${productName}. Book the next replenishment before it crosses the trigger.`,
+      criticalWarning: false
+    };
+  }
+
+  return {
+    reorderRecommendation:
+      `HEALTHY: ${stockLabel} sits clear of your own ${thresholdLabel} low-stock trigger for ${productName}.`,
+    criticalWarning: false
+  };
+}
+
+
+
 export function runDeterministicOperationsAudit(
   snapshot: SystemSnapshot,
   provider: AIProviderType = 'claude'
@@ -22,7 +120,8 @@ export function runDeterministicOperationsAudit(
     creditRiskAnalysis,
     kegExposureAnalysis,
     lossPreventionAudit,
-    depotSummary
+    depotSummary,
+    pricingAndProducts
   } = snapshot;
 
   // 1. Evaluate Credit & Aging Debt Risks
@@ -46,8 +145,11 @@ export function runDeterministicOperationsAudit(
       priority: 'P1 - Immediate',
       action: 'Freeze credit line & demand payment before releasing next oil order',
       rationale: `${creditRiskAnalysis.overdueCount} account(s) have passed depot payment grace periods. Continued dispensing increases bad-debt risk.`,
-      expectedFinancialImpactNaira: creditRiskAnalysis.totalDebtOwedNaira,
-      impactDescription: 'Recovers up to ₦' + creditRiskAnalysis.totalDebtOwedNaira.toLocaleString() + ' working capital for immediate inventory replenishment.',
+      expectedFinancialImpactNaira: configuredNaira(creditRiskAnalysis.totalDebtOwedNaira),
+      impactDescription:
+        creditRiskAnalysis.totalDebtOwedNaira > 0
+          ? 'Recovers up to ₦' + creditRiskAnalysis.totalDebtOwedNaira.toLocaleString() + ' working capital for immediate inventory replenishment.'
+          : 'Recovers outstanding working capital for immediate inventory replenishment.',
       ownerActionRole: 'Managing Director'
     });
   } else {
@@ -64,6 +166,13 @@ export function runDeterministicOperationsAudit(
     healthScore -= Math.min(flaggedPumps.length * 15, 30);
     flaggedPumps.forEach(pump => {
       const isOverDispensing = pump.varianceLitres > 0;
+      // Valued at the depot's own retail counter rate. 0 means "no retail pack
+      // priced yet", so the leak is reported in litres alone rather than at a
+      // built-in ₦/L figure.
+      const pumpVarianceValueNaira = configuredNaira(
+        Math.abs(pump.varianceLitres) * pricingAndProducts.counterRatePerLitre
+      );
+      const pumpToleranceLitres = lossPreventionAudit.pumpVarianceThresholdLitres;
       keyFindings.push({
         title: `${pump.pumpName} Discrepancy (${pump.varianceLitres > 0 ? '+' : ''}${pump.varianceLitres}L)`,
         detail: `Actual flowmeter registered ${pump.actualMeterLitres}L while logged cashier orders accounted for ${pump.expectedLitres}L (${isOverDispensing ? 'unmetered discharge or unregistered sales' : 'short-dispensing to customers'}).`,
@@ -74,7 +183,10 @@ export function runDeterministicOperationsAudit(
       lossPreventionItems.push({
         source: 'pumps',
         description: `${pump.pumpName}: Meter variance of ${pump.varianceLitres}L between physical pump counter and counter sales tickets.`,
-        lossAmount: `~₦${(Math.abs(pump.varianceLitres) * 3500).toLocaleString()}`,
+        lossAmount:
+          pumpVarianceValueNaira !== undefined
+            ? `~₦${pumpVarianceValueNaira.toLocaleString()}`
+            : 'Litres only — no ₦ value yet, because no retail pack price is configured to value the variance.',
         urgency: 'high'
       });
 
@@ -83,9 +195,12 @@ export function runDeterministicOperationsAudit(
         category: 'loss_prevention',
         priority: 'P1 - Immediate',
         action: `Physically verify the tank level & inspect nozzle calibration on ${pump.pumpName}`,
-        rationale: 'Discrepancy exceeds safe mechanical tolerance threshold (20L). Risk of unregistered counter dispensing or pipe leakage.',
-        expectedFinancialImpactNaira: Math.abs(pump.varianceLitres) * 3500,
-        impactDescription: 'Plugs potential recurring stock leakage of up to ₦' + (Math.abs(pump.varianceLitres) * 3500).toLocaleString() + ' per shift.',
+        rationale: `Discrepancy exceeds the depot's configured mechanical tolerance${pumpToleranceLitres > 0 ? ` (${pumpToleranceLitres}L)` : ''}. Risk of unregistered counter dispensing or pipe leakage.`,
+        expectedFinancialImpactNaira: pumpVarianceValueNaira,
+        impactDescription:
+          pumpVarianceValueNaira !== undefined
+            ? 'Plugs potential recurring stock leakage of up to ₦' + pumpVarianceValueNaira.toLocaleString() + ' per shift.'
+            : 'Plugs potential recurring stock leakage that cannot be valued until a retail pack price is configured.',
         ownerActionRole: 'Driver / Yardman'
       });
     });
@@ -106,7 +221,11 @@ export function runDeterministicOperationsAudit(
 
     keyFindings.push({
       title: `Supplier Delivery Shortfall Detected (${totalShortfallLitres}L)`,
-      detail: `Received volume was below waybill billing across ${shortfalls.length} delivery offload(s). Offload loss equals ₦${totalShortfallNaira.toLocaleString()}.`,
+      detail:
+        `Received volume was below waybill billing across ${shortfalls.length} delivery offload(s).` +
+        (totalShortfallNaira > 0
+          ? ` Offload loss equals ₦${totalShortfallNaira.toLocaleString()}.`
+          : ' No offload loss is quoted, because no retail pack price is configured to value it.'),
       severity: 'warning',
       metric: `${totalShortfallLitres}L short`
     });
@@ -114,7 +233,10 @@ export function runDeterministicOperationsAudit(
     lossPreventionItems.push({
       source: 'intake',
       description: `Bulk delivery discrepancy: ${shortfalls[0].truckOrWaybill} (${shortfalls[0].supplier}) arrived ${shortfalls[0].shortfallLitres}L short of billed capacity.`,
-      lossAmount: `₦${totalShortfallNaira.toLocaleString()}`,
+      lossAmount:
+        totalShortfallNaira > 0
+          ? `₦${totalShortfallNaira.toLocaleString()}`
+          : 'Litres only — no ₦ value yet, because no retail pack price is configured to value the shortfall.',
       urgency: 'high'
     });
 
@@ -124,71 +246,105 @@ export function runDeterministicOperationsAudit(
       priority: 'P2 - This Week',
       action: `Issue formal debit note / deduction against ${shortfalls[0].supplier} for ${totalShortfallLitres}L delivery shortfall`,
       rationale: 'Depot accepted fewer litres into physical yard tanks than invoiced on the bulk waybill.',
-      expectedFinancialImpactNaira: totalShortfallNaira,
-      impactDescription: 'Recovers ₦' + totalShortfallNaira.toLocaleString() + ' in direct supplier credit or replacement volume.',
+      expectedFinancialImpactNaira: configuredNaira(totalShortfallNaira),
+      impactDescription:
+        totalShortfallNaira > 0
+          ? 'Recovers ₦' + totalShortfallNaira.toLocaleString() + ' in direct supplier credit or replacement volume.'
+          : 'Recovers the shortfall in direct supplier credit or replacement volume.',
       ownerActionRole: 'Managing Director'
     });
   }
 
-  // 4. Evaluate Inventory Runway & Depletion Velocity
+  // 4. Evaluate Inventory Runway & Reorder Triggers
+  // Every reorder judgement below is made against the depot's own litre
+  // threshold, so no built-in day count, tonnage or lead time is ever quoted.
   const vegDays = inventoryVelocity.veg.daysRunway;
   const palmDays = inventoryVelocity.palm.daysRunway;
 
+  const vegProductName = stockBucketName(snapshot, true);
+  const palmProductName = stockBucketName(snapshot, false);
+
+  const vegAdvice = buildReorderAdvice(
+    vegProductName,
+    inventoryVelocity.veg.currentLitres,
+    inventoryVelocity.veg.lowStockThresholdLitres,
+    inventoryVelocity.veg.dailyBurnRateLitres
+  );
+  const palmAdvice = buildReorderAdvice(
+    palmProductName,
+    inventoryVelocity.palm.currentLitres,
+    inventoryVelocity.palm.lowStockThresholdLitres,
+    inventoryVelocity.palm.dailyBurnRateLitres
+  );
+
   const inventoryForecasts: AIInventoryForecast[] = [
     {
-      productName: 'Golden Vegetable Oil',
+      productName: vegProductName,
       currentStockL: inventoryVelocity.veg.currentLitres,
       burnRatePerDayL: inventoryVelocity.veg.dailyBurnRateLitres,
       estimatedDaysLeft: vegDays,
-      reorderRecommendation:
-        vegDays <= 3
-          ? 'CRITICAL: Place 30-ton tanker order immediately. Stockout imminent within 72 hours.'
-          : vegDays <= 7
-          ? 'WARNING: Book tanker delivery with supplier within the next 48 hours.'
-          : 'HEALTHY: Current stock covers projected depot counter demand comfortably.',
-      criticalWarning: vegDays <= 3
+      reorderRecommendation: vegAdvice.reorderRecommendation,
+      criticalWarning: vegAdvice.criticalWarning
     },
     {
-      productName: 'Red Palm Oil',
+      productName: palmProductName,
       currentStockL: inventoryVelocity.palm.currentLitres,
       burnRatePerDayL: inventoryVelocity.palm.dailyBurnRateLitres,
       estimatedDaysLeft: palmDays,
-      reorderRecommendation:
-        palmDays <= 3
-          ? 'CRITICAL: Replenish pre-kegged palm batches immediately.'
-          : palmDays <= 7
-          ? 'WARNING: Prepare bay space and book palm oil supplier delivery.'
-          : 'HEALTHY: Sufficient inventory for near-term sales.',
-      criticalWarning: palmDays <= 3
+      reorderRecommendation: palmAdvice.reorderRecommendation,
+      criticalWarning: palmAdvice.criticalWarning
     }
   ];
 
-  if (vegDays <= 4 || palmDays <= 4) {
+  // The depot's own low-stock litre threshold is the dry-out trigger — the same
+  // level its "Tank Running Low" alert uses — so a depot still above that level
+  // is never told to expect a dry-out on a day count this app cannot verify.
+  const vegThresholdL = inventoryVelocity.veg.lowStockThresholdLitres;
+  const palmThresholdL = inventoryVelocity.palm.lowStockThresholdLitres;
+  const vegBelowThreshold = vegThresholdL > 0 && inventoryVelocity.veg.currentLitres < vegThresholdL;
+  const palmBelowThreshold =
+    palmThresholdL > 0 && inventoryVelocity.palm.currentLitres < palmThresholdL;
+
+  if (vegBelowThreshold || palmBelowThreshold) {
     healthScore -= 15;
+
+    const reportVeg = vegBelowThreshold;
+    const reportName = reportVeg ? vegProductName : palmProductName;
+    const reportStockL = reportVeg ? inventoryVelocity.veg.currentLitres : inventoryVelocity.palm.currentLitres;
+    const reportThresholdL = reportVeg ? vegThresholdL : palmThresholdL;
+    const reportBurnRateL = reportVeg
+      ? inventoryVelocity.veg.dailyBurnRateLitres
+      : inventoryVelocity.palm.dailyBurnRateLitres;
+
     keyFindings.push({
       title: 'Low Inventory Runway Alert',
-      detail: `Golden Vegetable Oil has ${vegDays} days of buffer left (${inventoryVelocity.veg.currentLitres.toLocaleString()}L). Daily counter consumption is ~${inventoryVelocity.veg.dailyBurnRateLitres}L.`,
-      severity: vegDays <= 2 ? 'critical' : 'warning',
-      metric: `${vegDays} days`
+      detail: `${reportName} is down to ${reportStockL.toLocaleString()}L, below the depot's own ${reportThresholdL.toLocaleString()}L low-stock trigger. Daily counter consumption is ~${reportBurnRateL}L.`,
+      severity: 'critical',
+      metric: `${reportStockL.toLocaleString()}L`
     });
 
     actionableDecisions.push({
       id: 'dec-reorder-tanker',
       category: 'inventory',
       priority: 'P1 - Immediate',
-      action: 'Confirm bulk tanker allocation with refinery supplier for 25–30 metric tons',
-      rationale: `Lead time from port/refinery to depot offload is typically 48–72 hours. Delaying order risks depot dry-out.`,
-      expectedFinancialImpactNaira: 15000000,
-      impactDescription: 'Prevents revenue stoppage and protects retail market share during peak demand.',
+      action: `Book the next replenishment for ${reportName} — yard stock is below the depot's own ${reportThresholdL.toLocaleString()}L low-stock trigger`,
+      rationale: `Stock has crossed the depot's configured low_stock_litres_threshold, so the dispensing counter is at risk of running dry before the next delivery lands.`,
+      impactDescription: 'Prevents revenue stoppage at the dispensing counter and protects retail market share.',
       ownerActionRole: 'Managing Director'
     });
   }
 
   // 5. Evaluate Keg Fleet & Missing Returnable Exposure
+  // A naira exposure figure only exists once the owner has configured an
+  // outright keg price, so the finding stays in literal keg counts until then.
   if (kegExposureAnalysis.totalKegsOut > 20) {
     keyFindings.push({
       title: `Returnable Keg Exposure (${kegExposureAnalysis.totalKegsOut} Kegs Out)`,
-      detail: `₦${kegExposureAnalysis.unreturnedValueExposureNaira.toLocaleString()} worth of depot containers are currently with customers. Depot yard stock is down to ${depotSummary.kegsAtDepot} kegs.`,
+      detail:
+        `${kegExposureAnalysis.totalKegsOut} depot containers are currently with customers and yard stock is down to ${depotSummary.kegsAtDepot} kegs.` +
+        (kegExposureAnalysis.unreturnedValueExposureNaira > 0
+          ? ` Replacement exposure is ₦${kegExposureAnalysis.unreturnedValueExposureNaira.toLocaleString()} at the depot's configured outright keg price.`
+          : ' No replacement exposure is quoted, because no outright keg price is configured yet.'),
       severity: depotSummary.kegsAtDepot < 30 ? 'warning' : 'info',
       metric: `${kegExposureAnalysis.totalKegsOut} kegs`
     });
@@ -199,7 +355,7 @@ export function runDeterministicOperationsAudit(
       priority: 'P2 - This Week',
       action: 'Dispatch WhatsApp container return reminders & enforce empty-keg exchange on new sales',
       rationale: 'Unreturned kegs limit depot dispensing throughput and represent unhedged replacement capital.',
-      expectedFinancialImpactNaira: kegExposureAnalysis.unreturnedValueExposureNaira,
+      expectedFinancialImpactNaira: configuredNaira(kegExposureAnalysis.unreturnedValueExposureNaira),
       impactDescription: 'Restores yard packaging inventory without spending cash to purchase new containers.',
       ownerActionRole: 'Depot Cashier'
     });
@@ -274,34 +430,37 @@ export function answerCopilotQuestionDeterministic(
     q.includes('dollar') ||
     q.includes('competitor')
   ) {
+    // The only pricing this app can stand behind is the owner's own catalogue,
+    // so every market answer below falls back to it instead of a built-in figure.
+    const configuredPricing =
+      snapshot.pricingAndProducts.products.length === 0
+        ? `• No products configured yet. Add them in Settings → Products & Keg Sizes and your own pricing will show here.\n`
+        : snapshot.pricingAndProducts.products
+            .map(p => {
+              const kegSize = p.litresPerKeg > 0 ? `${p.litresPerKeg}L keg` : 'keg size not set';
+              const containerPrice = p.kegSellPrice
+                ? `container ₦${p.kegSellPrice.toLocaleString()}`
+                : 'container price not set';
+              return `• **${p.name}** (${kegSize}): ${containerPrice}\n`;
+            })
+            .join('');
+
     if (q.includes('diesel') || q.includes('logistics') || q.includes('freight') || q.includes('transport')) {
-      return `🌐 **Live Internet & Logistics Intelligence (Nigeria Axis):**\n\n` +
-        `• **Automotive Gas Oil (AGO/Diesel):** Currently averaging **₦1,180 – ₦1,250/Litre** across Lagos and Ogun State commercial depot corridors.\n` +
-        `• **Haulage Freight Impact:** A 30-metric-ton bulk tanker haulage from Apapa/Tin Can ports or Niger Delta mills to Lagos mainland averages **₦850,000 – ₦1,100,000** per trip.\n` +
-        `• **Depot Landed Cost Implication:** Diesel accounts for ~12% of landed product cost per metric ton. With current diesel stability, road tanker transport adds approximately **₦28.50 – ₦36.00 per litre** to raw factory gate offloads.\n\n` +
-        `💡 **Recommendation for Alhaja:** Factor this freight overhead when booking next week's 30-ton tanker to maintain your gross margin above 14% at the counter.`;
+      return `🌐 **Logistics & Freight Costing:**\n\n` +
+        `No live diesel or haulage feed is connected to this app, so it cannot quote a per-litre diesel price or a tanker freight rate — and a guessed figure would corrupt your landed cost.\n\n` +
+        `**What to do instead:** cost each trip from your own supplier invoice — record the haulage charge and diesel spend against the delivery in Truck Intake, then compare the result with your landed cost per litre.`;
     }
 
     if (q.includes('cpo') || q.includes('crude palm') || q.includes('bursa') || q.includes('tariff') || q.includes('import')) {
-      return `🌐 **Live Internet Commodity Benchmark (CPO & Refined Olein):**\n\n` +
-        `• **Bursa Malaysia CPO Benchmark:** Trading between **MYR 3,920 – 4,150 / MT** (~$880 – $925/MT FOB).\n` +
-        `• **Domestic Nigerian CPO (Edo/Delta/Ondo Mill Gate):** Averaging **₦1,750,000 – ₦1,920,000 per Metric Ton**.\n` +
-        `• **Trade Tariffs & Import Protection:** Nigeria applies a **35% tariff (10% duty + 25% levy)** on refined vegetable oil imports under ECOWAS CET to protect local fractionating plants, plus standard 7.5% VAT.\n` +
-        `• **Refinery Offload Olein:** Local refineries (Presco, Okomu, PZ Wilmar) are offering refined bulk olein at approximately **₦2,150,000 – ₦2,300,000 / MT**.\n\n` +
-        `💡 **Managing Director Strategy:** Local mill supply remains competitive against imported parcels due to FX tariffs. Secure supply contracts directly with Edo/Ondo mill aggregators before the festive dry season rush.`;
+      return `🌐 **Commodity Benchmarks:**\n\n` +
+        `No live commodity feed is connected to this app, so it will not quote a Bursa Malaysia CPO, mill-gate or tariff figure it cannot verify.\n\n` +
+        `**What this depot can quote — its own configured pricing:**\n` + configuredPricing +
+        `\n💡 **Managing Director Strategy:** Compare the prices above against written quotes from your mill/refinery suppliers before committing to a supply contract.`;
     }
 
-    // Default wholesale/retail market prices (Mile 12, Daleko, Trade Fair)
-    return `🌐 **Live Market Intelligence: Lagos Edible Oil Wholesale Index:**\n\n` +
-      `• **Golden Vegetable Oil (Refined Olein):**\n` +
-      `   - **25L Yellow Keg (Mile 12 / Daleko):** ₦53,000 – ₦57,500\n` +
-      `   - **Retail Dispensing Counter:** ₦2,250 – ₦2,450 / Litre\n` +
-      `   - **Depot Bulk Tanker (25–30 MT):** ~₦2,180,000 – ₦2,280,000 / Tonne\n\n` +
-      `• **Pure Red Palm Oil (Special Grade):**\n` +
-      `   - **25L Keg (Mile 12 / Bodija / Daleko):** ₦43,500 – ₦48,000\n` +
-      `   - **Retail Dispensing Counter:** ₦1,850 – ₦2,050 / Litre\n` +
-      `   - **Depot Supply (Direct Mill):** ~₦1,780,000 / Tonne\n\n` +
-      `📊 **Depot Competitiveness Check:** Iyanuoluwa Depot's pump pricing provides a ₦1,500–₦2,000 per keg advantage to local caterers and bulk buyers, preserving strong counter volume while capturing healthy retail spread.`;
+    return `🌐 **Market Intelligence:**\n\n` +
+      `This app has no live market or competitor price feed, so it cannot quote the Mile 12 / Daleko / Trade Fair index — and guessing it would misprice your kegs.\n\n` +
+      `**Your configured pricing right now:**\n` + configuredPricing;
   }
 
   // 2. Receivables & Debtors
@@ -320,10 +479,27 @@ export function answerCopilotQuestionDeterministic(
   if (q.includes('tank') || q.includes('runway') || q.includes('order') || q.includes('truck') || q.includes('stock')) {
     const veg = snapshot.inventoryVelocity.veg;
     const palm = snapshot.inventoryVelocity.palm;
+    const vegName = stockBucketName(snapshot, true);
+    const palmName = stockBucketName(snapshot, false);
+    const belowThreshold =
+      (veg.lowStockThresholdLitres > 0 && veg.currentLitres < veg.lowStockThresholdLitres) ||
+      (palm.lowStockThresholdLitres > 0 && palm.currentLitres < palm.lowStockThresholdLitres);
+    const vegRunway =
+      veg.dailyBurnRateLitres > 0
+        ? `At an average counter burn rate of ~${veg.dailyBurnRateLitres}L/day, you have **${veg.daysRunway} days of runway left**.`
+        : 'No sales recorded yet, so there is no burn rate or runway figure to report.';
+    const palmRunway =
+      palm.dailyBurnRateLitres > 0
+        ? `Estimated runway is **${palm.daysRunway} days**.`
+        : 'No sales recorded yet, so there is no burn rate or runway figure to report.';
     return `**Current Depot Fuel/Oil Inventory Status:**\n\n` +
-      `• **Golden Vegetable Oil:** ${veg.currentLitres.toLocaleString()}L remaining across ${veg.tankCount} tank(s). At an average counter burn rate of ~${veg.dailyBurnRateLitres}L/day, you have **${veg.daysRunway} days of runway left**.\n` +
-      `• **Red Palm Oil:** ${palm.currentLitres.toLocaleString()}L remaining across ${palm.tankCount} tank(s). Estimated runway is **${palm.daysRunway} days**.\n\n` +
-      `**Executive Advice:** ${veg.daysRunway <= 4 ? 'You should book a 25–30 ton bulk tanker today to ensure delivery before yard stock touches critical buffer.' : 'Inventory levels are currently safe for regular counter operations.'}`;
+      `• **${vegName}:** ${veg.currentLitres.toLocaleString()}L remaining across ${veg.tankCount} tank(s). ${vegRunway}\n` +
+      `• **${palmName}:** ${palm.currentLitres.toLocaleString()}L remaining across ${palm.tankCount} tank(s). ${palmRunway}\n\n` +
+      `**Executive Advice:** ${
+        belowThreshold
+          ? 'Yard stock is below the low_stock_litres_threshold configured in Settings — book the next replenishment now.'
+          : 'Inventory levels are above your configured low-stock threshold for regular counter operations.'
+      }`;
   }
 
   // 4. Pumps, Meters & Variance Audit
@@ -344,7 +520,10 @@ export function answerCopilotQuestionDeterministic(
     return `**Keg Packaging Summary:**\n\n` +
       `• Total Company Fleet: ${snapshot.depotSummary.totalFleet} kegs\n` +
       `• Kegs Currently at Depot: ${snapshot.depotSummary.kegsAtDepot} kegs\n` +
-      `• Kegs Out with Customers: ${kegs.totalKegsOut} kegs (Represents **₦${kegs.unreturnedValueExposureNaira.toLocaleString()}** in replacement value at ₦3,500/keg)\n\n` +
+      `• Kegs Out with Customers: ${kegs.totalKegsOut} kegs` +
+      (kegs.unreturnedValueExposureNaira > 0
+        ? ` (Represents **₦${kegs.unreturnedValueExposureNaira.toLocaleString()}** in replacement value at your configured outright keg price)\n\n`
+        : ` (No replacement value is quoted until an outright keg price is configured in Settings)\n\n`) +
       `**Recommendation:** Enforce empty keg exchanges on new sales to avoid purchasing replacement containers.`;
   }
 
@@ -354,5 +533,5 @@ export function answerCopilotQuestionDeterministic(
     `• Today's Revenue: ₦${snapshot.todayPerformance.totalRevenueNaira.toLocaleString()} (Cash/Transfer: ₦${snapshot.todayPerformance.cashSalesNaira.toLocaleString()})\n` +
     `• Total Customer Debit: ₦${snapshot.creditRiskAnalysis.totalDebtOwedNaira.toLocaleString()} across ${snapshot.creditRiskAnalysis.overdueCount} overdue debtor(s)\n` +
     `• Depot Health Index: ${snapshot.creditRiskAnalysis.overdueCount > 0 ? 'Requires attention on debit collections & pump variances' : 'Healthy and stable'}.\n\n` +
-    `You can ask me specific questions about customer debit balances, pump meter leakage, tank reordering, or ask me to **search the internet for current wholesale market prices (Mile 12, Daleko, CPO, Diesel)**.`;
+    `You can ask me specific questions about customer debit balances, pump meter leakage, tank reordering, or for your own configured pricing — note that this app has no live market feed, so it will not quote exchange, competitor or commodity index prices.`;
 }

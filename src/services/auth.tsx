@@ -27,9 +27,9 @@ async function describeFunctionsError(error: unknown): Promise<string> {
 const STAFF_LOGIN_DOMAIN = 'staff.iyanuoluwa.local';
 
 /**
- * The login field accepts either a real email (owner, self-signed-up
- * accounts) or a bare username (staff/driver accounts the owner created
- * directly in Team Members, which have no real email — see
+ * The login field accepts either a real email (the owner account, or a team
+ * member an owner invited by email) or a bare username (staff/driver accounts
+ * the owner created directly in Team Members, which have no real email — see
  * create-staff-account). Anything without an "@" is treated as a username
  * and mapped to the same synthetic address the Edge Function created it
  * under.
@@ -171,8 +171,22 @@ interface AuthContextValue {
   /** True only while profiles is being (re)fetched for an existing session. */
   profileLoading: boolean;
   signIn: (email: string, password: string) => Promise<AuthResult>;
-  signUp: (email: string, password: string, fullName: string) => Promise<AuthResult>;
   signOut: () => Promise<void>;
+  /**
+   * Sends a Supabase password-recovery email. Resolves with `error: null`
+   * even when no account matches the address — Supabase deliberately does not
+   * disclose that — so the screen can never leak which emails exist.
+   */
+  requestPasswordReset: (emailOrUsername: string) => Promise<AuthResult>;
+  /** Sets a new password for the signed-in user (the recovery screen's action). */
+  updatePassword: (newPassword: string) => Promise<AuthResult>;
+  /**
+   * True only while the app must show the "set a new password" screen instead
+   * of the depot UI — i.e. the user arrived through a password-recovery link.
+   * A recovery link signs them in with a real session, so without this flag
+   * AuthGate would render the full app and the reset screen would be skipped.
+   */
+  passwordRecovery: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -182,6 +196,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<AuthProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
 
   const fetchProfile = useCallback(async (userId: string) => {
     if (!supabase) return;
@@ -215,7 +230,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, newSession) => {
+      // PASSWORD_RECOVERY fires when the client consumes a recovery link from
+      // the hash (the client runs the implicit flow by default). The session it
+      // sets is a real one, so AuthGate checks this flag BEFORE rendering the
+      // app — otherwise the user would land straight in the depot UI and never
+      // see the "set a new password" screen.
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true);
+      // USER_UPDATED covers the normal exit (updatePassword succeeded);
+      // SIGNED_OUT covers abandoning the reset and signing out instead.
+      if (event === 'USER_UPDATED' || event === 'SIGNED_OUT') setPasswordRecovery(false);
       setSession(newSession);
       if (newSession?.user) {
         fetchProfile(newSession.user.id);
@@ -236,13 +260,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error: error?.message ?? null };
   }, []);
 
-  const signUp = useCallback(async (email: string, password: string, fullName: string): Promise<AuthResult> => {
+  /**
+   * Sends a password-recovery email. A bare username is rejected up front:
+   * owner-created staff accounts live on a synthetic address under
+   * STAFF_LOGIN_DOMAIN that has no inbox, so a recovery mail could never reach
+   * them — better to explain that than to send a link into the void. When an
+   * address IS supplied, Supabase returns success regardless of whether the
+   * account exists, which is exactly the behaviour we want (no enumeration).
+   */
+  const requestPasswordReset = useCallback(async (emailOrUsername: string): Promise<AuthResult> => {
     if (!supabase) return { error: 'Supabase is not configured for this deployment.' };
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName } }
+    const trimmed = emailOrUsername.trim();
+    if (!trimmed.includes('@')) {
+      return {
+        error:
+          'Password reset needs a real email address. Staff accounts created with a username can only be reset by the owner — ask them in Team & Access.'
+      };
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(trimmed.toLowerCase(), {
+      // The recovery link returns to the app root; the client picks the tokens
+      // out of the URL hash and fires PASSWORD_RECOVERY (see the effect above).
+      // This origin must be allow-listed under Authentication → URL
+      // Configuration → Redirect URLs in the Supabase dashboard, or the link
+      // lands here with no session.
+      redirectTo: `${window.location.origin}/`
     });
+    return { error: error?.message ?? null };
+  }, []);
+
+  const updatePassword = useCallback(async (newPassword: string): Promise<AuthResult> => {
+    if (!supabase) return { error: 'Supabase is not configured for this deployment.' };
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (!error) {
+      // Leave recovery mode immediately rather than waiting on the
+      // USER_UPDATED event, so the app renders on the same tick.
+      setPasswordRecovery(false);
+    }
     return { error: error?.message ?? null };
   }, []);
 
@@ -262,8 +315,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         profile,
         profileLoading,
         signIn,
-        signUp,
-        signOut
+        signOut,
+        requestPasswordReset,
+        updatePassword,
+        passwordRecovery
       }}
     >
       {children}

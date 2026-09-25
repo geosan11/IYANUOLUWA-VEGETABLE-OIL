@@ -55,9 +55,14 @@ export const TruckTankIllustration: React.FC<TruckTankIllustrationProps> = ({
 
   const driverName = parseDriverName(tank.truck_label);
 
-  // Placard styling
-  const placardText = isVeg ? 'VEG-1090' : 'PALM-1085';
-  const placardTitle = isVeg ? 'VEGETABLE OIL' : 'PALM OIL';
+  // Placard styling — the density comes from the product itself. This used to
+  // be a hardcoded 'VEG-1090' / 'PALM-1085' stamped on every tanker regardless
+  // of what the depot had actually configured.
+  const densityPerTon = product?.litres_per_ton && product.litres_per_ton > 0
+    ? Math.round(product.litres_per_ton)
+    : null;
+  const placardText = densityPerTon ? `${densityPerTon} L/TON` : 'DENSITY N/A';
+  const placardTitle = (product?.name || (isVeg ? 'VEGETABLE OIL' : 'PALM OIL')).toUpperCase();
 
   // Gradient IDs for SVG
   const gradientId = `truck-liquid-grad-${tank.id}`;

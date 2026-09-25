@@ -13,6 +13,7 @@ import { ReceiptModal } from './components/common/ReceiptModal';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { FloatingAIBuddy } from './components/common/FloatingAIBuddy';
 import { LoginScreen } from './screens/LoginScreen';
+import { ResetPasswordScreen } from './screens/ResetPasswordScreen';
 
 import { DashboardScreen } from './screens/DashboardScreen';
 import { TruckIntakeScreen } from './screens/TruckIntakeScreen';
@@ -201,23 +202,28 @@ const ProfileSync: React.FC = () => {
  * A no-op when Supabase isn't configured — local/offline mode is unaffected.
  */
 const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { ready, session, profile, profileLoading, signOut } = useAuth();
+  const { ready, session, profile, profileLoading, passwordRecovery, signOut } = useAuth();
 
   if (!isSupabaseConfigured) return <>{children}</>;
 
   if (!ready) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-slate-100 dark:bg-slate-950">
+      <div className="min-h-screen w-full flex items-center justify-center bg-[#FAF6ED] dark:bg-[#070d1a]">
         <Spinner className="w-8 h-8 text-brand-500 animate-spin" weight="bold" />
       </div>
     );
   }
 
+  // A password-recovery link signs the user in for real, so this must be
+  // checked BEFORE the session/profile branches below — otherwise they would
+  // land in the depot UI instead of choosing a new password.
+  if (passwordRecovery) return <ResetPasswordScreen />;
+
   if (!session) return <LoginScreen />;
 
   if (!profile) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-slate-100 dark:bg-slate-950 px-4">
+      <div className="min-h-screen w-full flex items-center justify-center bg-[#FAF6ED] dark:bg-[#070d1a] px-4">
         <div className="depot-card p-6 max-w-sm text-center space-y-3">
           {profileLoading ? (
             <>

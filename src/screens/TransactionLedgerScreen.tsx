@@ -12,7 +12,7 @@ import {
   toDatetimeLocalValue,
   fromDatetimeLocalValue
 } from '../services/businessLogic';
-import { packShort, PAYMENT_MODE_THEME, getPaymentModeTheme, ONE_TIME_CUSTOMER_ID } from '../constants/config';
+import { packShort, packLabel, PAYMENT_MODE_THEME, getPaymentModeTheme, ONE_TIME_CUSTOMER_ID } from '../constants/config';
 import { Sale, Order, Payment, Expense, Tank, KegReturn, ReceiptData, ContainerMode, PaymentMethod, CustomerType, PaymentSplit } from '../types';
 import {
   Scroll as ScrollText,
@@ -289,9 +289,9 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         auditIds: [kr.id],
         date: kr.date,
         title: custName(kr.customer_id),
-        subtitle: `${kr.qty} × 25L Jerrycan${kr.qty === 1 ? '' : 's'} returned to store${kr.note ? ` · ${kr.note}` : ''}`,
+        subtitle: `${kr.qty} × ${kr.pack_size_id ? packLabel(kr.pack_size_id) : 'container'}${kr.qty === 1 ? '' : 's'} returned to store${kr.note ? ` · ${kr.note}` : ''}`,
         amount: 0,
-        amountLabel: `+${kr.qty} Kegs (25L)`,
+        amountLabel: `+${kr.qty} Keg${kr.qty === 1 ? '' : 's'}${kr.pack_size_id ? ` (${packShort(kr.pack_size_id)})` : ''}`,
         tone: 'in',
         voided: false,
         paymentMethod: undefined,

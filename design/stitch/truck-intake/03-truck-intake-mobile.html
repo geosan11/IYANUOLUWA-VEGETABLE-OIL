@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Truck intake (mobile) — reference mockup</title>
+<!--
+  Static reference mockup, not shipped code. Mirrors src/screens/TruckIntakeScreen.tsx
+  (view 1, "Log a delivery") after the redesign: numbered plain-language steps, one
+  green CTA, single-layer depot-cards, real waybill/scale figures only.
+-->
+<link rel="stylesheet" href="mockup.css" />
+</head>
+<body>
+  <figure style="max-width:420px;margin:0 auto">
+    <figcaption>3 · Log a delivery — mobile (390px), bulk tanker</figcaption>
+
+    <div class="hdr">
+      <div>
+        <p class="eyebrow" style="margin:0"><span class="dot"></span>Inbound logistics &amp; stock delivery</p>
+        <h1>Truck delivery intake</h1>
+        <p class="lede">Log incoming bulk oil deliveries and verify against the supplier waybill.</p>
+      </div>
+      <div class="seg">
+        <button type="button" aria-pressed="true">🚚 Log a delivery</button>
+        <button type="button" aria-pressed="false">🏬 Tanks &amp; delivery history <span class="count">2</span></button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <span class="badge badge-amber">Truck in the yard</span>
+          <h2 style="margin-top:6px">🚚 Log this delivery</h2>
+          <p class="lede">Enter the waybill figures — the litres and kegs are worked out for you below.</p>
+        </div>
+        <button class="reset" type="button">↻ Reset</button>
+      </div>
+
+      <h3 class="step">1. What is the truck carrying?</h3>
+      <div class="choices">
+        <button type="button" aria-pressed="true"><span class="pip"></span>Golden Veg Oil — bulk tanker</button>
+        <button type="button" aria-pressed="false"><span class="pip"></span>Red Palm Oil — pre-kegged 25L</button>
+      </div>
+
+      <h3 class="step">2. Who sent it, and who drove it?</h3>
+      <div class="grid2">
+        <div>
+          <label for="m-sup">Supplier / refinery <span class="req">*</span></label>
+          <select id="m-sup"><option>Iyanuoluwa Refinery, Warri</option><option>Delta Oil Mills</option></select>
+        </div>
+        <div>
+          <label for="m-drv">Driver name <span class="opt">(optional)</span></label>
+          <input id="m-drv" type="text" placeholder="e.g. Musa Abdullahi" />
+        </div>
+      </div>
+
+      <h3 class="step">3. Waybill figures — the litres are calculated for you</h3>
+      <div class="grid2">
+        <div>
+          <label for="m-tons">Scale weight (tons) <span class="req">*</span></label>
+          <div class="steppers">
+            <button type="button" aria-label="Decrease tons by 1">−</button>
+            <div class="unit" style="flex:1">
+              <input id="m-tons" class="bigfig" type="text" value="10" />
+              <span class="tag">TONS</span>
+            </div>
+            <button type="button" aria-label="Increase tons by 1">+</button>
+          </div>
+        </div>
+        <div class="calc">
+          <div class="cap"><span>Calculated volume (read-only)</span><span class="chip">1,075 L / TON</span></div>
+          <span class="out">10,750 L</span>
+          <span class="note">Equivalent to ~430 standard 25L company kegs.</span>
+        </div>
+      </div>
+
+      <h3 class="step">4. Which tank is it going into?</h3>
+      <div class="tank-row">
+        <div>
+          <div style="font:600 12px/1.4 ui-sans-serif,system-ui;color:var(--ink-muted)">
+            Receiving tank: <strong style="color:var(--ink)">Main Tank 1</strong>
+          </div>
+          <div class="mono" style="font-size:12px;color:var(--ink-muted)">(24,500 L · 41% full)</div>
+        </div>
+        <button class="link" type="button">Change tank</button>
+      </div>
+      <div>
+        <label for="m-kegs">Kegs filled &amp; counted at discharge <span class="req">*</span></label>
+        <div class="unit">
+          <input id="m-kegs" class="bigfig" type="text" value="358" />
+          <span class="tag">KEGS</span>
+        </div>
+        <p class="lede" style="margin-top:6px">Actual count of 25L jerrycans filled directly during tanker discharge.</p>
+      </div>
+
+      <h3 class="step" style="margin-top:22px">5. Check the figures before you record</h3>
+      <div class="check">
+        <div class="line"><span>⚖️ Waybill vs. what came out of the truck</span><span class="pill ok">0 L — exact match</span></div>
+        <div class="figs">
+          <span>Waybill says: <strong>10,750 L</strong></span>
+          <span>Counted: <strong>10,750 L</strong></span>
+          <span>Difference: <strong>0 L</strong></span>
+        </div>
+      </div>
+      <p class="warn" style="color:#B45309">⚠ This delivery needs ≈430 kegs to decant, but only 120 are available at depot. Arrange more empty kegs before offloading.</p>
+
+      <button class="cta" type="button" style="margin-top:16px">⬇ Record this delivery</button>
+      <button class="ghost" type="button">▸ Add pipe residual, delivery time or a yard note</button>
+    </div>
+
+    <div class="foot-card">
+      <span style="color:var(--ink-muted)">Latest logged: <strong style="color:var(--ink)">Iyanuoluwa Refinery Truck-4821</strong> <span class="mono">(+10,750 L)</span></span>
+      <button class="link" type="button">See tanks &amp; delivery history (4) →</button>
+    </div>
+  </figure>
+</body>
+</html>

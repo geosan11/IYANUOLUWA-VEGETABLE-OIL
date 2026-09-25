@@ -41,6 +41,8 @@ export interface SystemSnapshot {
     kegsAtDepot: number;
     totalFleet: number;
     kegsWithCustomers: number;
+    /** The depot's own `kegs_at_depot_low_threshold`; 0 = none configured. */
+    kegsAtDepotLowThreshold: number;
   };
   todayPerformance: {
     cashSalesNaira: number;
@@ -82,7 +84,8 @@ export interface SystemSnapshot {
   };
   kegExposureAnalysis: {
     totalKegsOut: number;
-    unreturnedValueExposureNaira: number; // calculated at outright price (e.g. ₦3,500/keg)
+    /** Kegs out × the depot's own configured `outright_keg_price` (0 when unset). */
+    unreturnedValueExposureNaira: number;
     highKegHolders: {
       name: string;
       kegsOut: number;
@@ -91,12 +94,15 @@ export interface SystemSnapshot {
     }[];
   };
   lossPreventionAudit: {
+    /** The depot's own `pump_variance_threshold`; 0 = none configured. */
+    pumpVarianceThresholdLitres: number;
     pumpVariances: {
       pumpId: string;
       pumpName: string;
       expectedLitres: number;
       actualMeterLitres: number;
       varianceLitres: number;
+      /** Carried from the depot's configured threshold — never re-guessed here. */
       alert: boolean;
     }[];
     intakeShortfalls: {
@@ -114,11 +120,18 @@ export interface SystemSnapshot {
     }[];
   };
   pricingAndProducts: {
+    /**
+     * Depot-wide counter rate per litre, derived from the owner's retail pack
+     * prices (`retailRatePerLitre`). 0 = no retail pack priced yet, so no money
+     * figure may be quoted from it.
+     */
+    counterRatePerLitre: number;
     products: {
       id: string;
       name: string;
       supplyModel: string;
       litresPerKeg: number;
+      /** This product's own retail pack price ÷ pack litres; 0 = not priced. */
       retailPricePerLitre: number;
       effectiveRetailKegPrice: number;
       kegSellPrice?: number;

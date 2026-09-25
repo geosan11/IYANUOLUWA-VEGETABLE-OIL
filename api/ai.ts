@@ -265,8 +265,9 @@ export default async function handler(req: any, res: any) {
 async function callClaudeAudit(apiKey: string, model: string, snapshot: any): Promise<AIAnalysisReport | null> {
   const url = 'https://api.anthropic.com/v1/messages';
 
-  const systemInstruction = `You are an elite Operations & Supply Chain Director auditing Iyanuoluwa Vegetable & Palm Oil Depot in Lagos, Nigeria.
-Analyze the depot operational data. Respond ONLY with a valid JSON object matching the audit report structure with depotHealthScore, healthVerdict, executiveSummary, keyFindings, actionableDecisions, inventoryForecasts, and lossPreventionItems. Do not add markdown backticks.`;
+  const systemInstruction = `You are an elite Operations & Supply Chain Director auditing this vegetable & palm oil depot in Lagos, Nigeria.
+Analyze only the depot operational data supplied in the snapshot. Never invent a naira rate, litre volume, threshold, tolerance, lead time or price that is not present in the snapshot: a value of 0 means "not configured", so say it is not configured and tell the owner which setting to fill in.
+Respond ONLY with a valid JSON object matching the audit report structure with depotHealthScore, healthVerdict, executiveSummary, keyFindings, actionableDecisions, inventoryForecasts, and lossPreventionItems. Do not add markdown backticks.`;
 
   const res = await fetch(url, {
     method: 'POST',
@@ -315,13 +316,10 @@ async function callClaudeChat(apiKey: string, model: string, question: string, s
       model,
       max_tokens: 1500,
       temperature: 0.3,
-      system: `You are the executive AI Operations & Market Intelligence Copilot for Alhaja / Managing Director of Iyanuoluwa Vegetable & Palm Oil Depot in Lagos, Nigeria.
-You analyze internal depot telemetry (tanks, flowmeters, debit balances, cash reconciliations) and provide authoritative answers in Naira.
-In addition, you serve as a live business research assistant for external market intelligence:
-- Current wholesale vegetable & palm oil prices in Lagos (Mile 12, Daleko, Trade Fair, Bodija)
-- Benchmark Crude Palm Oil (CPO) rates (Bursa Malaysia, domestic mill gate in Edo/Ondo/Delta)
-- Diesel (AGO) fuel prices and haulage freight rates per metric ton
-- ECOWAS trade tariffs (35% refined oil duty/levy), FX rates, and import factors.
+      system: `You are the executive AI Operations & Market Intelligence Copilot for the Managing Director of this vegetable & palm oil depot in Lagos, Nigeria.
+You analyze internal depot telemetry (tanks, flowmeters, debit balances, cash reconciliations) and answer in Naira.
+HARD RULE on figures: every internal number (price, ₦/litre rate, threshold, tolerance, volume, keg price) must come from the depot snapshot. A value of 0 means "not configured" — report it as not configured and name the setting the owner must fill in. Never substitute a typical Nigerian market rate, a guessed price, lead time or tolerance.
+You have no live market feed. For external topics (Lagos wholesale prices, CPO benchmarks, diesel/AGO and haulage rates, tariffs, FX) say plainly that no live feed is connected; if you do state something from training data, label it as an undated estimate and tell the owner to confirm it against a written supplier quote.
 Always use "debit" instead of "credit" for customer receivables. Provide structured, executive-level answers with bold numbers and bullet points.`,
       messages: [
         {

@@ -43,6 +43,13 @@ export const InventoryScreen: React.FC = () => {
   const { isOwner, canOperate } = usePermissions();
   const { showToast } = useToast();
 
+  // The company keg standard is whatever the owner configured in Settings.
+  // 0 means "not configured", so the copy below talks about kegs/containers
+  // in general instead of asserting a 25L container that may not be the one
+  // this depot actually sells.
+  const companyKegSize = settings.litres_per_keg || 0;
+  const kegSizeLabel = companyKegSize > 0 ? `${companyKegSize}L ` : '';
+
   const [tab, setTab] = useState<Tab>('prices');
   const [activeProductId, setActiveProductId] = useState<string>(products[0]?.id || '');
   const activeProduct = products.find(p => p.id === activeProductId) || products[0] || null;
@@ -60,14 +67,19 @@ export const InventoryScreen: React.FC = () => {
   const [productFormName, setProductFormName] = useState('');
   const [productFormSupplyModel, setProductFormSupplyModel] = useState<SupplyModel>('bulk_truck');
   const [productFormVarieties, setProductFormVarieties] = useState('Standard');
-  const [productFormKegPrice, setProductFormKegPrice] = useState('3500');
+  const [productFormKegPrice, setProductFormKegPrice] = useState('');
 
-  // Empty Kegs & Container Pricing tab state
+  // Empty Kegs & Container Pricing tab state. Blank means "not set", so the
+  // owner types the real figures instead of confirming an invented ₦3,500.
   const [outrightKegPrice, setOutrightKegPrice] = useState<string>(
-    (settings.outright_keg_price ?? 3500).toString()
+    settings.outright_keg_price && settings.outright_keg_price > 0
+      ? settings.outright_keg_price.toString()
+      : ''
   );
   const [kegDepositPrice, setKegDepositPrice] = useState<string>(
-    (settings.keg_deposit_price ?? 2000).toString()
+    settings.keg_deposit_price && settings.keg_deposit_price > 0
+      ? settings.keg_deposit_price.toString()
+      : ''
   );
 
   const flashSaved = (msg: string) => {
@@ -96,7 +108,7 @@ export const InventoryScreen: React.FC = () => {
     setProductFormName('');
     setProductFormSupplyModel('bulk_truck');
     setProductFormVarieties('Standard');
-    setProductFormKegPrice('3,500');
+    setProductFormKegPrice('');
     setIsProductModalOpen(true);
   };
 
@@ -105,7 +117,7 @@ export const InventoryScreen: React.FC = () => {
     setProductFormName(prod.name);
     setProductFormSupplyModel(prod.supply_model);
     setProductFormVarieties(prod.varieties.map(v => v.name).join(', '));
-    setProductFormKegPrice(formatWithCommas(prod.keg_sell_price ?? 3500));
+    setProductFormKegPrice(prod.keg_sell_price && prod.keg_sell_price > 0 ? formatWithCommas(prod.keg_sell_price) : '');
     setIsProductModalOpen(true);
   };
 
@@ -120,7 +132,9 @@ export const InventoryScreen: React.FC = () => {
       .filter(Boolean);
     const safeVarieties = varietyNames.length > 0 ? varietyNames : ['Standard'];
 
-    const parsedKegPrice = parseFromCommas(productFormKegPrice) || 3500;
+    // A blank price means "not charged / not set" (0), never a substituted
+    // 3,500 that the depot never agreed with a customer.
+    const parsedKegPrice = parseFromCommas(productFormKegPrice) || 0;
 
     if (editingProduct) {
       // Edit existing product
@@ -149,8 +163,11 @@ export const InventoryScreen: React.FC = () => {
       const newProd = addProduct({
         name: cleanName,
         supply_model: productFormSupplyModel,
-        litres_per_ton: productFormSupplyModel === 'bulk_truck' ? 1090 : null,
-        litres_per_keg: 25,
+        // Nothing invented: density and keg size start unset (null / 0, i.e.
+        // "not configured") and stay that way until the owner sets them in
+        // Settings — that's also what keeps the depot's own fallback honest.
+        litres_per_ton: null,
+        litres_per_keg: 0,
         keg_sell_price: parsedKegPrice,
         varieties: newVarieties,
         pack_config: [
@@ -249,13 +266,13 @@ export const InventoryScreen: React.FC = () => {
   };
 
   const handleSaveContainerPrices = () => {
-    const numOutright = parseFloat(outrightKegPrice) || 3500;
-    const numDeposit = parseFloat(kegDepositPrice) || 2000;
+    const numOutright = parseFloat(outrightKegPrice) || 0;
+    const numDeposit = parseFloat(kegDepositPrice) || 0;
     updateSettings({
       outright_keg_price: numOutright,
       keg_deposit_price: numDeposit
     });
-    flashSaved('Saved company 25L keg and container pricing.');
+    flashSaved(`Saved company ${kegSizeLabel}keg and container pricing.`);
   };
 
   if (!isOwner && !canOperate('inventory')) {
@@ -292,7 +309,7 @@ export const InventoryScreen: React.FC = () => {
           <div>
             <h1 className="text-lg font-heading font-bold text-slate-900 dark:text-white leading-tight">Inventory & pricing</h1>
             <p className="text-[12px] text-slate-500 dark:text-slate-400">
-              Pack-size price matrix, container rules, 25L fleet pricing and stock.
+              Pack-size price matrix, container rules, {kegSizeLabel}fleet pricing and stock.
             </p>
           </div>
         </div>
@@ -425,10 +442,11 @@ export const InventoryScreen: React.FC = () => {
           setDepositPrice={setKegDepositPrice}
           onSave={handleSaveContainerPrices}
           kegInventory={kegInventory}
+          kegSizeLabel={kegSizeLabel}
         />
       )}
 
-      {tab === 'stock' && <StockView productId={activeProduct.id} stockView={stockView} />}
+      {tab === 'stock' && <StockView productId={activeProduct.id} stockView={stockView} kegSizeLabel={kegSizeLabel} />}
 
       {/* Product Add / Edit Modal */}
       {isProductModalOpen && (
@@ -490,7 +508,7 @@ export const InventoryScreen: React.FC = () => {
                 >
                   <div className="font-heading font-bold text-[13px]">Pre-Kegged Jerrycans</div>
                   <div className="text-[11px] font-sans mt-0.5 opacity-80">
-                    Delivered pre-packaged in 25L kegs / pallets (e.g. Palm Oil).
+                    Delivered pre-packaged in {kegSizeLabel}kegs / pallets (e.g. Palm Oil).
                   </div>
                 </button>
               </div>
@@ -515,7 +533,7 @@ export const InventoryScreen: React.FC = () => {
 
             <div>
               <label htmlFor="product-keg-price" className="block text-xs font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Default 25L Container Outright Buy Price (₦)
+                Default {kegSizeLabel}Container Outright Buy Price (₦)
               </label>
               <input
                 id="product-keg-price"
@@ -523,7 +541,7 @@ export const InventoryScreen: React.FC = () => {
                 inputMode="numeric"
                 value={productFormKegPrice}
                 onChange={e => setProductFormKegPrice(formatWithCommas(e.target.value))}
-                placeholder="3,500"
+                placeholder="Amount you charge"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tabular-nums text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
@@ -920,7 +938,9 @@ const PackConfigEditor: React.FC<{
 const StockView: React.FC<{
   productId: string;
   stockView: Record<string, { tankLitres: number; kegsOut: number }>;
-}> = ({ productId, stockView }) => {
+  /** The configured company keg size, e.g. "25L " — empty when unset. */
+  kegSizeLabel?: string;
+}> = ({ productId, stockView, kegSizeLabel = '' }) => {
   const s = stockView[productId] || { tankLitres: 0, kegsOut: 0 };
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -936,7 +956,7 @@ const StockView: React.FC<{
         <div className="text-2xl font-heading font-extrabold text-slate-900 dark:text-white tabular-nums mt-1">
           {s.kegsOut.toLocaleString()}
         </div>
-        <div className="text-[11px] text-slate-400 mt-1">Returnable 25L kegs out with customers.</div>
+        <div className="text-[11px] text-slate-400 mt-1">Returnable {kegSizeLabel}kegs out with customers.</div>
       </div>
       <div className="sm:col-span-2 flex items-center gap-2 text-[11px] text-slate-500 px-1">
         <Package className="w-3.5 h-3.5" /> Read-only. Stock changes flow from Truck Intake and sales.
@@ -954,7 +974,9 @@ const ContainerPricingView: React.FC<{
   setDepositPrice: React.Dispatch<React.SetStateAction<string>>;
   onSave: () => void;
   kegInventory: ReturnType<typeof useStore>['kegInventory'];
-}> = ({ outrightPrice, setOutrightPrice, depositPrice, setDepositPrice, onSave, kegInventory }) => {
+  /** The configured company keg size, e.g. "25L " — empty when unset. */
+  kegSizeLabel?: string;
+}> = ({ outrightPrice, setOutrightPrice, depositPrice, setDepositPrice, onSave, kegInventory, kegSizeLabel = '' }) => {
   return (
     <div className="space-y-6">
       {/* Fleet Overview Cards */}
@@ -965,10 +987,10 @@ const ContainerPricingView: React.FC<{
           </div>
           <div className="text-2xl font-heading font-extrabold text-slate-900 dark:text-white tabular-nums mt-1">
             {kegInventory.totalCompanyKegs.toLocaleString()}{' '}
-            <span className="text-sm font-sans font-medium text-slate-400">Kegs (25L)</span>
+            <span className="text-sm font-sans font-medium text-slate-400">Kegs{kegSizeLabel.trim() ? ` (${kegSizeLabel.trim()})` : ''}</span>
           </div>
           <div className="text-[11px] text-slate-400 mt-1">
-            Total standard 25L company kegs owned.
+            Total standard {kegSizeLabel}company kegs owned.
           </div>
         </div>
 
@@ -1004,7 +1026,7 @@ const ContainerPricingView: React.FC<{
         <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
           <h3 className="text-base font-heading font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <Database className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-            <span>Standard 25L Company Keg Pricing Rules</span>
+            <span>Standard {kegSizeLabel}Company Keg Pricing Rules</span>
           </h3>
           <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
             Configure financial rules when company containers leave the store or are returned.
@@ -1026,12 +1048,12 @@ const ContainerPricingView: React.FC<{
                 min="0"
                 value={outrightPrice}
                 onChange={e => setOutrightPrice(e.target.value)}
-                placeholder="3500"
+                placeholder="Price per container"
                 className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono tabular-nums text-base font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
               />
             </div>
             <p className="text-[11px] font-sans text-slate-500 dark:text-slate-400 leading-relaxed">
-              Default price billed per container when a customer buys company 25L kegs outright and retains them permanently (Zero return debt).
+              Default price billed per container when a customer buys company {kegSizeLabel}kegs outright and retains them permanently (Zero return debt).
             </p>
           </div>
 
@@ -1049,12 +1071,12 @@ const ContainerPricingView: React.FC<{
                 min="0"
                 value={depositPrice}
                 onChange={e => setDepositPrice(e.target.value)}
-                placeholder="2000"
+                placeholder="Refund per container"
                 className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono tabular-nums text-base font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
               />
             </div>
             <p className="text-[11px] font-sans text-slate-500 dark:text-slate-400 leading-relaxed">
-              Standard refund credit credited to customer ledger when they return undamaged company 25L kegs.
+              Standard refund credit credited to customer ledger when they return undamaged company {kegSizeLabel}kegs.
             </p>
           </div>
         </div>

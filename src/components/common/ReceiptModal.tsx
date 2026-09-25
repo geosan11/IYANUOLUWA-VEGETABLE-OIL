@@ -45,7 +45,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
       : mode === 'taken'
       ? 'Company Container (Returnable Loan)'
       : 'Bulk / Customer Container';
-  const productName = (id: string) => products.find(p => p.id === id)?.name || 'Oil';
+  const productName = (id: string) => products.find(p => p.id === id)?.name || 'Product (removed)';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">

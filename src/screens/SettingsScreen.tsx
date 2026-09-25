@@ -143,11 +143,24 @@ export const SettingsScreen: React.FC = () => {
   const [totalCompanyKegs, setTotalCompanyKegs] = useState(settings.total_company_kegs.toString());
   const [kegsAtDepotLowThreshold, setKegsAtDepotLowThreshold] = useState(settings.kegs_at_depot_low_threshold.toString());
 
-  // Per-product Litres per Keg (Company standard: 25L kegs)
+  // Per-product keg size and density. A configured figure shows as-is; 0/null
+  // shows as an empty field — the old code displayed a hardcoded 25L, which
+  // made every product look configured even when the owner had set nothing.
+  const configuredField = (value: number | null | undefined) =>
+    value && value > 0 ? value.toString() : '';
+
   const [productLitresPerKeg, setProductLitresPerKeg] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
     products.forEach(p => {
-      map[p.id] = (p.litres_per_keg ?? 25).toString();
+      map[p.id] = configuredField(p.litres_per_keg);
+    });
+    return map;
+  });
+
+  const [productLitresPerTon, setProductLitresPerTon] = useState<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    products.forEach(p => {
+      map[p.id] = configuredField(p.litres_per_ton);
     });
     return map;
   });
@@ -157,7 +170,16 @@ export const SettingsScreen: React.FC = () => {
       const next = { ...prev };
       products.forEach(p => {
         if (next[p.id] === undefined) {
-          next[p.id] = (p.litres_per_keg ?? 25).toString();
+          next[p.id] = configuredField(p.litres_per_keg);
+        }
+      });
+      return next;
+    });
+    setProductLitresPerTon(prev => {
+      const next = { ...prev };
+      products.forEach(p => {
+        if (next[p.id] === undefined) {
+          next[p.id] = configuredField(p.litres_per_ton);
         }
       });
       return next;
@@ -169,7 +191,7 @@ export const SettingsScreen: React.FC = () => {
   // of hardcoded 'veg'/'red' lookups, so it stays correct as products are
   // added, renamed, or removed.
   const kegFleetSummaryText = products.length > 0
-    ? products.map(p => `${p.name}: ${productLitresPerKeg[p.id] || (p.litres_per_keg ?? 25)}L`).join(' · ')
+    ? products.map(p => `${p.name}: ${productLitresPerKeg[p.id] ? `${productLitresPerKeg[p.id]}L` : 'not set'}`).join(' · ')
     : 'No products configured';
 
 
@@ -178,15 +200,15 @@ export const SettingsScreen: React.FC = () => {
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [newProductName, setNewProductName] = useState('');
   const [newProductModel, setNewProductModel] = useState<SupplyModel>('bulk_truck');
-  const [newProductLitresPerKeg, setNewProductLitresPerKeg] = useState('30');
-  const [newProductLitresPerTon, setNewProductLitresPerTon] = useState('1075');
-  const [newProductKegSellPrice, setNewProductKegSellPrice] = useState('3500');
+  const [newProductLitresPerKeg, setNewProductLitresPerKeg] = useState('');
+  const [newProductLitresPerTon, setNewProductLitresPerTon] = useState('');
+  const [newProductKegSellPrice, setNewProductKegSellPrice] = useState('');
   const [newProductVarieties, setNewProductVarieties] = useState<{ id: string; name: string }[]>([]);
 
   // Add Physical Tank Form State
   const [newTankLabel, setNewTankLabel] = useState('');
   const [newTankProductId, setNewTankProductId] = useState(() => products[0]?.id || '');
-  const [newTankCapacity, setNewTankCapacity] = useState('15000');
+  const [newTankCapacity, setNewTankCapacity] = useState('');
   const [newTankHubId, setNewTankHubId] = useState(() => activeHubId !== 'all' ? activeHubId : (hubs[0]?.id || ''));
 
   // Edit Physical Tank Modal State
@@ -291,19 +313,33 @@ export const SettingsScreen: React.FC = () => {
   const handleSaveKegConfig = (e: React.FormEvent) => {
     e.preventDefault();
     if (denyIfNoSettingsAccess()) return;
-    const globalDefault = Math.max(1, numOr(litresPerKeg, 30));
+    // No invented fallbacks: a blank field means "not configured" and is saved
+    // as 0, which the rest of the app reads as "ask the owner" instead of a
+    // silently substituted 30L keg / 1,075 L-per-ton / 500 keg fleet.
+    const globalDefault = Math.max(0, numOr(litresPerKeg, 0));
     updateSettings({
       litres_per_keg: globalDefault,
-      default_litres_per_ton: Math.max(1, numOr(defaultLitresPerTon, 1075)),
-      total_company_kegs: Math.max(0, numOr(totalCompanyKegs, 500)),
-      kegs_at_depot_low_threshold: Math.max(0, numOr(kegsAtDepotLowThreshold, 20))
+      default_litres_per_ton: Math.max(0, numOr(defaultLitresPerTon, 0)),
+      total_company_kegs: Math.max(0, numOr(totalCompanyKegs, 0)),
+      kegs_at_depot_low_threshold: Math.max(0, numOr(kegsAtDepotLowThreshold, 0))
     });
 
-    // Save customized litres per keg per product (e.g. Palm Oil 25L, Vegetable Oil 30L)
+    // Save each product's own keg size and density. A cleared field writes 0
+    // (or null for a pre-kegged product, which has no tons at all) so the
+    // product falls back to the depot default instead of a stale figure.
     products.forEach(p => {
-      const val = parseFloat(productLitresPerKeg[p.id]);
-      if (!isNaN(val) && val > 0) {
-        updateProduct(p.id, { litres_per_keg: val });
+      const kegRaw = productLitresPerKeg[p.id];
+      if (kegRaw !== undefined) {
+        const kegVal = parseFloat(kegRaw);
+        if (kegRaw.trim() === '') updateProduct(p.id, { litres_per_keg: 0 });
+        else if (!isNaN(kegVal) && kegVal > 0) updateProduct(p.id, { litres_per_keg: kegVal });
+      }
+
+      const tonRaw = productLitresPerTon[p.id];
+      if (tonRaw !== undefined) {
+        const tonVal = parseFloat(tonRaw);
+        if (tonRaw.trim() === '') updateProduct(p.id, { litres_per_ton: null });
+        else if (!isNaN(tonVal) && tonVal > 0) updateProduct(p.id, { litres_per_ton: tonVal });
       }
     });
 
@@ -318,9 +354,12 @@ export const SettingsScreen: React.FC = () => {
     if (denyIfNoSettingsAccess()) return;
     if (!newProductName.trim()) return;
 
-    const kegSell = numOr(newProductKegSellPrice, 3500);
-    const lPerKeg = parseFloat(newProductLitresPerKeg) || 30;
-    const lPerTon = newProductModel === 'bulk_truck' ? (parseFloat(newProductLitresPerTon) || 1075) : null;
+    // Blank fields save as 0 / null ("not configured") rather than the old
+    // 3,500 / 30L / 1,075 fallbacks, which were written into the record as if
+    // the owner had chosen them.
+    const kegSell = Math.max(0, numOr(newProductKegSellPrice, 0));
+    const lPerKeg = Math.max(0, numOr(newProductLitresPerKeg, 0));
+    const lPerTon = newProductModel === 'bulk_truck' ? Math.max(0, numOr(newProductLitresPerTon, 0)) : null;
 
     let varieties: ProductVariety[] = newProductVarieties
       .filter(v => v.name.trim())
@@ -365,9 +404,9 @@ export const SettingsScreen: React.FC = () => {
     setEditingProductId(p.id);
     setNewProductName(p.name);
     setNewProductModel(p.supply_model);
-    setNewProductLitresPerKeg(p.litres_per_keg.toString());
-    setNewProductLitresPerTon(p.litres_per_ton ? p.litres_per_ton.toString() : '1075');
-    setNewProductKegSellPrice(p.keg_sell_price ? p.keg_sell_price.toString() : '3500');
+    setNewProductLitresPerKeg(configuredField(p.litres_per_keg));
+    setNewProductLitresPerTon(configuredField(p.litres_per_ton));
+    setNewProductKegSellPrice(configuredField(p.keg_sell_price));
     setNewProductVarieties((p.varieties || []).map(v => ({ id: v.id, name: v.name })));
     setIsProductModalOpen(true);
   };
@@ -376,9 +415,9 @@ export const SettingsScreen: React.FC = () => {
     setEditingProductId(null);
     setNewProductName('');
     setNewProductModel('bulk_truck');
-    setNewProductLitresPerKeg('30');
-    setNewProductLitresPerTon('1075');
-    setNewProductKegSellPrice('3500');
+    setNewProductLitresPerKeg('');
+    setNewProductLitresPerTon('');
+    setNewProductKegSellPrice('');
     setNewProductVarieties([]);
     setIsProductModalOpen(true);
   };
@@ -391,7 +430,7 @@ export const SettingsScreen: React.FC = () => {
     addPhysicalTank({
       label: newTankLabel.trim(),
       product_id: newTankProductId,
-      capacity_litres: numOr(newTankCapacity, 15000),
+      capacity_litres: Math.max(0, numOr(newTankCapacity, 0)),
       hub_id: newTankHubId || undefined
     });
     setNewTankLabel('');
@@ -439,9 +478,9 @@ export const SettingsScreen: React.FC = () => {
     e.preventDefault();
     if (denyIfNoSettingsAccess()) return;
     updateSettings({
-      low_stock_litres_threshold: Math.max(0, numOr(lowStockThreshold, 500)),
-      truck_shortfall_threshold: Math.max(0, numOr(truckShortfallThreshold, 50)),
-      pump_variance_threshold: Math.max(0, numOr(pumpVarianceThreshold, 20))
+      low_stock_litres_threshold: Math.max(0, numOr(lowStockThreshold, 0)),
+      truck_shortfall_threshold: Math.max(0, numOr(truckShortfallThreshold, 0)),
+      pump_variance_threshold: Math.max(0, numOr(pumpVarianceThreshold, 0))
     });
     showNotification('Operational alert thresholds updated!');
     setActiveMobileSheet(null);
@@ -463,9 +502,15 @@ export const SettingsScreen: React.FC = () => {
 
   const handleResetData = () => {
     if (denyIfNotOwner()) return;
-    if (window.confirm('Clear this browser\'s local data (tanks, orders, kegs, pumps, suppliers, physical tanks, expenses, pricing) and restore default values? This only affects this device.')) {
+    // There is no longer a "set of defaults" to restore — nothing is seeded —
+    // so this is a cache wipe, not a factory reset. Say which it is, because
+    // on a device with no cloud account it destroys the only copy of the data.
+    const message = isSupabaseConfigured
+      ? 'Clear this device\'s local cache (tanks, orders, kegs, pumps, suppliers, pricing)? Your records live in your cloud account and will re-sync on the next load. This only affects this device.'
+      : 'Clear this device\'s local cache? This device is not connected to a cloud account, so this erases every record entered here and there is no backup to restore it from. This cannot be undone.';
+    if (window.confirm(message)) {
       resetToSeedData();
-      showNotification('Local data on this device reset to defaults.');
+      showNotification('This device\'s local cache cleared.');
     }
   };
 
@@ -764,7 +809,7 @@ export const SettingsScreen: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {products.map(p => {
                     const isPalm = p.supply_model === 'pre_kegged';
-                    const currentL = productLitresPerKeg[p.id] ?? (p.litres_per_keg?.toString() || '25');
+                    const currentL = productLitresPerKeg[p.id] ?? configuredField(p.litres_per_keg);
                     return (
                       <div
                         key={p.id}
@@ -803,6 +848,7 @@ export const SettingsScreen: React.FC = () => {
                               step="1"
                               min="0"
                               value={currentL}
+                              placeholder="e.g. 25"
                               onChange={e =>
                                 setProductLitresPerKeg(prev => ({
                                   ...prev,
@@ -810,7 +856,6 @@ export const SettingsScreen: React.FC = () => {
                                 }))
                               }
                               className="w-full px-3.5 py-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
-                              required
                             />
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">
                               L / keg
@@ -822,6 +867,41 @@ export const SettingsScreen: React.FC = () => {
                               : 'Standard depot yellow jerrycan capacity filled at depot bulk dispensing pumps.'}
                           </p>
                         </div>
+
+                        {/* Density — bulk tanker products only. Pre-kegged oil
+                            never arrives by weight, so it has no litres-per-ton. */}
+                        {!isPalm && (
+                          <div className="space-y-1.5">
+                            <label htmlFor={`product-litres-per-ton-${p.id}`} className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
+                              Density: Litres per Ton (L / ton)
+                            </label>
+                            <div className="relative">
+                              <input
+                                id={`product-litres-per-ton-${p.id}`}
+                                type="number"
+                                step="1"
+                                min="0"
+                                value={productLitresPerTon[p.id] ?? ''}
+                                placeholder="e.g. 1075"
+                                onChange={e =>
+                                  setProductLitresPerTon(prev => ({
+                                    ...prev,
+                                    [p.id]: e.target.value.replace(/[^0-9]/g, '')
+                                  }))
+                                }
+                                className="w-full px-3.5 py-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">
+                                L / ton
+                              </span>
+                            </div>
+                            <p className="text-[11px] font-sans text-slate-500 leading-snug">
+                              Litres in one ton of this oil — this is what turns a waybill tonnage into litres on
+                              Truck Intake. Leave it blank to use the depot fallback in the fleet controls below;
+                              while neither is set, a bulk intake can't be recorded.
+                            </p>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -845,15 +925,15 @@ export const SettingsScreen: React.FC = () => {
                         id="default-fallback-litres-per-keg"
                         type="number"
                         step="1"
-                        min="1"
+                        min="0"
                         value={litresPerKeg}
+                        placeholder="e.g. 25"
                         onChange={e => setLitresPerKeg(e.target.value)}
                         className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
-                        required
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">L/keg</span>
                     </div>
-                    <p className="text-[11px] font-sans text-slate-500">Global fallback when no product-specific size is configured.</p>
+                    <p className="text-[11px] font-sans text-slate-500">Depot-wide fallback when a product has no keg size of its own. Blank or 0 means not configured — keg-equivalent figures are then hidden instead of guessed.</p>
                   </div>
 
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
@@ -865,15 +945,15 @@ export const SettingsScreen: React.FC = () => {
                         id="default-fallback-litres-per-ton"
                         type="number"
                         step="1"
-                        min="1"
+                        min="0"
                         value={defaultLitresPerTon}
+                        placeholder="e.g. 1075"
                         onChange={e => setDefaultLitresPerTon(e.target.value)}
                         className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
-                        required
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">L/ton</span>
                     </div>
-                    <p className="text-[11px] font-sans text-slate-500">Estimated litres per ton used on Truck Intake when a product has no density of its own set.</p>
+                    <p className="text-[11px] font-sans text-slate-500">Depot-wide fallback used on Truck Intake when a product has no density of its own. Blank or 0 means not configured — the intake screen will ask for it rather than compute with a guess.</p>
                   </div>
 
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
@@ -1015,19 +1095,23 @@ export const SettingsScreen: React.FC = () => {
                           <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                             <span className="text-[10px] font-sans uppercase text-slate-500 block">Keg Container Size</span>
                             <span className="font-bold text-slate-900 dark:text-white">
-                              {p.litres_per_keg} Litres
+                              {p.litres_per_keg > 0 ? `${p.litres_per_keg} Litres` : 'Not set'}
                             </span>
                           </div>
                           <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                             <span className="text-[10px] font-sans uppercase text-slate-500 block">Density Multiplier</span>
                             <span className="font-bold text-slate-900 dark:text-white">
-                              {p.litres_per_ton ? `${p.litres_per_ton} L/Ton` : 'N/A (Pre-Kegged)'}
+                              {p.supply_model === 'pre_kegged'
+                                ? 'N/A (Pre-Kegged)'
+                                : p.litres_per_ton && p.litres_per_ton > 0
+                                  ? `${p.litres_per_ton} L/Ton`
+                                  : 'Not set'}
                             </span>
                           </div>
                           <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                             <span className="text-[10px] font-sans uppercase text-slate-500 block">Fallback Container Price</span>
                             <span className="font-bold text-amber-600 dark:text-amber-400">
-                              {formatNaira(p.keg_sell_price || 3500)}
+                              {p.keg_sell_price && p.keg_sell_price > 0 ? formatNaira(p.keg_sell_price) : 'Not set'}
                             </span>
                           </div>
                         </div>
@@ -2277,7 +2361,7 @@ export const SettingsScreen: React.FC = () => {
                     type="number"
                     step="1"
                     min="0"
-                    placeholder="e.g. 3500"
+                    placeholder="Price per container"
                     value={newProductKegSellPrice}
                     onChange={e => setNewProductKegSellPrice(e.target.value.replace(/[^0-9]/g, ''))}
                     className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-mono font-bold"

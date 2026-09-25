@@ -36,7 +36,10 @@ MAPPERS = {
     'toPaymentRow': 'payments'
 }
 LEDGER = 'src/services/ledger.ts'
-SQL_FILES = sorted(glob.glob('supabase/migrations/*.sql')) + ['supabase/seed.sql']
+# Migrations only: `supabase/seed.sql` used to be appended here, but it seeded an
+# invented two-product catalogue and has been deleted — migrations alone
+# provision a database now.
+SQL_FILES = sorted(glob.glob('supabase/migrations/*.sql'))
 
 
 def name_of(node):

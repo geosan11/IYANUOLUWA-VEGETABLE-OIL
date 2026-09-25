@@ -1,6 +1,9 @@
 import {
   calculateLitres,
   calculateIntakeMetrics,
+  resolveLitresPerTon,
+  resolveLitresPerKeg,
+  configuredNumber,
   calculateCustomerStats,
   buildCustomerStatement,
   calculateKegInventory,
@@ -86,11 +89,11 @@ assert(calculateLitres('keg', 10, 30) === 300, 'Unit conversion: 10 kegs = 300L'
 assert(calculateLitres('litre', 150, 30) === 150, 'Unit conversion: 150L = 150L');
 
 // 2. TRUCK INTAKE & SHORTFALL
-const intake1 = calculateIntakeMetrics(10, 1090, 360, 20, 100, 30);
+const intake1 = calculateIntakeMetrics(10, 1090, 360, 20, 100, 30, 50);
 assert(intake1.expectedLitres === 10900, 'Intake: expectedLitres is 10,900L');
 assert(intake1.recoveredLitres === 10820, 'Intake: recoveredLitres is 10,820L');
 assert(intake1.shortfall === 80, 'Intake: shortfall is 80L');
-assert(intake1.isShortfallHigh === true, 'Intake: 80L shortfall > default 50L threshold flagged true');
+assert(intake1.isShortfallHigh === true, 'Intake: 80L shortfall > a configured 50L tolerance flagged true');
 assert(intake1.exceedsDepotKegCapacity === true, 'Intake: 363.3 expected kegs > 100 depot kegs warning');
 
 const intakeHiThresh = calculateIntakeMetrics(10, 1090, 360, 20, 100, 30, 100);
@@ -557,6 +560,45 @@ assert(gateCheckPass.missingPumps.length === 0, 'Shift meter gate: zero missing 
 // 21. PER-PRODUCT LITRES PER KEG (Veg 30L vs Palm 25L)
 assert(calculateLitres('keg', 10, 30) === 300, 'Per-product capacity: 10 veg kegs (30L) = 300L');
 assert(calculateLitres('keg', 10, 25) === 250, 'Per-product capacity: 10 palm kegs (25L) = 250L');
+
+// 21b. DENSITY / KEG-SIZE RESOLUTION — one source of truth, 0 means "not set"
+const bulkProd = { litres_per_ton: 1090, litres_per_keg: 30 };
+const preKeggedProd = { litres_per_ton: null, litres_per_keg: 25 };
+const cageyProd = { litres_per_ton: null, litres_per_keg: 0 };
+const settingsStub = { default_litres_per_ton: 1075, litres_per_keg: 25 };
+
+assert(resolveLitresPerTon(bulkProd, settingsStub) === 1090, 'Resolution: the product\'s own density wins over the depot default');
+assert(resolveLitresPerTon(preKeggedProd, settingsStub) === 1075, 'Resolution: a product with no density (null) inherits the depot default');
+assert(resolveLitresPerTon(preKeggedProd, null) === 0, 'Resolution: no product density and no setting = 0, never a hardcoded guess');
+assert(resolveLitresPerKeg(cageyProd, settingsStub) === 25, 'Resolution: a 0 keg size inherits the depot default');
+assert(resolveLitresPerKeg(null, null) === 0, 'Resolution: nothing configured resolves to 0');
+assert(configuredNumber(1075) === 1075 && configuredNumber(0) === 0 && configuredNumber(null) === 0 && configuredNumber(NaN) === 0 && configuredNumber(-5) === 0, 'Resolution: configuredNumber rejects 0, null, NaN and negatives');
+
+// Unconfigured density/keg size must never divide (this returned Infinity
+// before the seed products were removed).
+const unsetIntake = calculateIntakeMetrics(10, 0, 0, 0, 100, 0, 0);
+assert(unsetIntake.expectedKegs === 0, 'Intake: an unconfigured keg size yields 0 expected kegs, not Infinity');
+assert(unsetIntake.expectedLitres === 0, 'Intake: an unconfigured density yields 0 expected litres');
+assert(unsetIntake.shortfall === 0 && Number.isFinite(unsetIntake.shortfall), 'Intake: shortfall stays finite without a density');
+assert(unsetIntake.isShortfallHigh === false, 'Intake: no tolerance configured means no false shortfall alarm');
+assert(unsetIntake.exceedsDepotKegCapacity === false, 'Intake: no false capacity breach while unconfigured');
+
+// Preview/parity: the same resolved figures drive the on-screen preview and
+// the recorded receipt, so they can never disagree.
+const resolvedTon = resolveLitresPerTon(preKeggedProd, settingsStub);
+const resolvedKeg = resolveLitresPerKeg(bulkProd, settingsStub);
+const previewMetrics = calculateIntakeMetrics(10, resolvedTon, 358, 0, 100, resolvedKeg, 50);
+const receiptMetrics = calculateIntakeMetrics(10, resolvedTon, 358, 0, 100, resolvedKeg, 50);
+assert(
+  previewMetrics.expectedLitres === receiptMetrics.expectedLitres &&
+  previewMetrics.expectedKegs === receiptMetrics.expectedKegs &&
+  previewMetrics.shortfall === receiptMetrics.shortfall,
+  'Parity: the preview and the recorded receipt compute identical intake maths'
+);
+
+// calculateLitres carries no hidden default any more.
+assert(calculateLitres('keg', 10) === 0 && calculateLitres('ton', 10) === 0, 'Unit conversion: unconfigured keg size/density converts to 0, not a guessed 25/1075');
+assert(calculateLitres('ton', 2, 25, 1075) === 2150, 'Unit conversion: explicit density still converts exactly (2 tons = 2,150L)');
 
 // 22b. CUSTOMER RUNNING STATEMENT
 const stmtCustomer: Customer = { id: 'c-stmt', name: 'Statement Cust', type: 'agent', credit_limit: 200000, credit_term_days: 14, phone: '0800' };

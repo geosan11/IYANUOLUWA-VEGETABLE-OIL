@@ -17,35 +17,77 @@ import {
   PumpReading,
   Product,
   Shift,
-  Sale
+  Sale,
+  AppSettings
 } from '../types';
-import { LITRES_PER_KEG, packLitres } from '../constants/config';
+import { packLitres } from '../constants/config';
 
 export { packLitres };
 
 /**
  * 1. UNIT CONVERSION
  * litres = unit === 'ton' ? qty * litresPerTon : unit === 'keg' ? qty * litresPerKeg : qty
+ *
+ * Both figures are supplied by the caller (see the resolvers below). There is
+ * deliberately no built-in fallback: 0 means "not configured" and yields 0,
+ * which the screens check for and refuse to record rather than guessing.
  */
 export function calculateLitres(
   unit: UnitType,
   qty: number,
-  litresPerKeg = LITRES_PER_KEG,
-  litresPerTon: number | null = 1075
+  litresPerKeg = 0,
+  litresPerTon: number | null = null
 ): number {
   const numericQty = Number(qty) || 0;
-  if (unit === 'ton') return numericQty * (litresPerTon || 1075);
-  if (unit === 'keg') return numericQty * litresPerKeg;
+  if (unit === 'ton') return numericQty * configuredNumber(litresPerTon);
+  if (unit === 'keg') return numericQty * configuredNumber(litresPerKeg);
   return numericQty;
 }
 
 /**
+ * 1b. DENSITY / KEG-SIZE RESOLUTION
+ * The single place that decides which figure the depot is actually using:
+ *
+ *   the product's own value  →  the depot-wide setting  →  0 (not configured)
+ *
+ * A product with a null/0 density (a pre-kegged product has no tons at all)
+ * therefore inherits the Settings default instead of a hardcoded number, and
+ * the Settings screen shows that same default as the fallback. 0 means "the
+ * owner hasn't told us yet" — callers must check for it and ask for it, never
+ * compute with an invented value.
+ */
+export function resolveLitresPerTon(
+  product: Pick<Product, 'litres_per_ton'> | null | undefined,
+  settings?: Pick<AppSettings, 'default_litres_per_ton'> | null
+): number {
+  return configuredNumber(product?.litres_per_ton) || configuredNumber(settings?.default_litres_per_ton);
+}
+
+export function resolveLitresPerKeg(
+  product: Pick<Product, 'litres_per_keg'> | null | undefined,
+  settings?: Pick<AppSettings, 'litres_per_keg'> | null
+): number {
+  return configuredNumber(product?.litres_per_keg) || configuredNumber(settings?.litres_per_keg);
+}
+
+/**
+ * A finite value > 0, else 0. The app-wide "is this configured?" test — used
+ * for densities, keg sizes, capacities and variance tolerances alike, so that
+ * a 0 in Settings reads as "not set yet" instead of a real magnitude.
+ */
+export function configuredNumber(value: number | null | undefined): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/**
  * 2. TRUCK INTAKE METRICS (bulk_truck only)
- * expected_litres = tons * product.litres_per_ton
+ * expected_litres = tons * litresPerTon      (product density, else Settings)
  * expected_kegs   = expected_litres / litresPerKeg
  * recovered       = (actual_kegs_filled * litresPerKeg) + leftover_litres_recovered
  * shortfall       = expected_litres - recovered
- * isShortfallHigh = shortfall > thresholdLitres (default 50L)
+ * isShortfallHigh = shortfall > thresholdLitres, and only once a tolerance has
+ *                   actually been configured (0 = no tolerance → never flag)
  */
 export interface IntakeMetrics {
   expectedLitres: number;
@@ -62,24 +104,29 @@ export function calculateIntakeMetrics(
   actualKegsFilled: number,
   leftoverLitresRecovered: number,
   kegsAtDepot: number,
-  litresPerKeg = LITRES_PER_KEG,
-  thresholdLitres = 50
+  litresPerKeg = 0,
+  thresholdLitres = 0
 ): IntakeMetrics {
   const numTons = Number(tons) || 0;
   const numActualKegs = Number(actualKegsFilled) || 0;
   const numLeftovers = Number(leftoverLitresRecovered) || 0;
+  const perTon = configuredNumber(litresPerTon);
+  const perKeg = configuredNumber(litresPerKeg);
 
-  const expectedLitres = numTons * (litresPerTon || 1075);
-  const expectedKegs = expectedLitres > 0 ? expectedLitres / litresPerKeg : 0;
-  const recoveredLitres = (numActualKegs * litresPerKeg) + numLeftovers;
+  const expectedLitres = numTons * perTon;
+  // Guarded: an unconfigured keg size must never divide (that yielded
+  // Infinity before the seeds were removed).
+  const expectedKegs = expectedLitres > 0 && perKeg > 0 ? expectedLitres / perKeg : 0;
+  const recoveredLitres = (numActualKegs * perKeg) + numLeftovers;
   const shortfall = expectedLitres - recoveredLitres;
+  const threshold = configuredNumber(thresholdLitres);
 
   return {
     expectedLitres: Number(expectedLitres.toFixed(2)),
     expectedKegs: Number(expectedKegs.toFixed(1)),
     recoveredLitres: Number(recoveredLitres.toFixed(2)),
     shortfall: Number(shortfall.toFixed(2)),
-    isShortfallHigh: shortfall > thresholdLitres,
+    isShortfallHigh: threshold > 0 && shortfall > threshold,
     exceedsDepotKegCapacity: expectedKegs > kegsAtDepot
   };
 }
@@ -99,7 +146,7 @@ export function calculatePreKeggedIntakeMetrics(
   litresPerKeg: number
 ): PreKeggedIntakeMetrics {
   const kegs = Math.max(0, Number(kegsReceived) || 0);
-  const exactLitres = Number((kegs * (litresPerKeg || 25)).toFixed(2));
+  const exactLitres = Number((kegs * configuredNumber(litresPerKeg)).toFixed(2));
   return {
     exactLitres,
     kegsReceived: kegs
@@ -1006,17 +1053,6 @@ export function checkShiftOpeningMetersGate(
     missingPumps,
     loggedReadings
   };
-}
-
-/**
- * 14. VOLUME FORMATTER
- * Formats litres cleanly with company standard 25L keg equivalents.
- * Drums are completely eliminated per company standard.
- */
-export function formatVolumeWithDrums(litres: number): string {
-  if (litres <= 0) return '0 L';
-  const kegs = Math.round(litres / 25);
-  return `${litres.toLocaleString()} L (≈ ${kegs.toLocaleString()} kegs)`;
 }
 
 

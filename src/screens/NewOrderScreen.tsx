@@ -125,6 +125,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   const { can } = usePermissions();
   const { showToast } = useToast();
 
+  // The company keg standard lives in Settings (Keg Configuration), not in
+  // this file: 0 means the owner hasn't set it yet, so the copy below says
+  // "keg" rather than asserting a 25L container.
+  const companyKegSize = settings.litres_per_keg || 0;
+
   // ---- In-page Previous Transactions View toggle ----
   const [showPreviousTransactions, setShowPreviousTransactions] = useState(false);
   const [txnSearch, setTxnSearch] = useState('');
@@ -171,12 +176,21 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     setCustomerSearch('');
     setNewCustName('');
     setNewCustPhone('+234');
-    setNewCustLimit('150000');
+    setNewCustLimit('');
   };
 
   // ---- item builder ----
   const [productId, setProductId] = useState<string>(products[0]?.id || '');
   const product = products.find(p => p.id === productId) || null;
+
+  // The catalogue loads asynchronously (from Supabase) and can legitimately be
+  // empty on a brand-new install, so re-point at the first real product once
+  // one exists, and off any product that has since been deleted.
+  React.useEffect(() => {
+    if (products.length === 0) return;
+    if (products.some(p => p.id === productId)) return;
+    setProductId(products[0].id);
+  }, [products, productId]);
   const [varietyId, setVarietyId] = useState<string>('');
   const [packSizeId, setPackSizeId] = useState<string>('');
   const [qty, setQty] = useState<number>(1);
@@ -1518,9 +1532,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         </div>
                         <div>
                           <div className="text-sm font-sans font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                            <span>25L Company Keg</span>
+                            <span>{companyKegSize > 0 ? `${companyKegSize}L Company Keg` : 'Company Keg'}</span>
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 font-semibold">
-                              Standard 25L Keg
+                              Standard {companyKegSize > 0 ? `${companyKegSize}L ` : ''}Keg
                             </span>
                           </div>
                           <div className="text-xs text-slate-500 dark:text-slate-400 font-sans">
@@ -1637,7 +1651,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
                     {preview?.unpriced && (
                       <div className="text-xs text-rose-600 dark:text-rose-400">
-                        No empty-keg buy price configured for {product.name}. Set it in the Inventory tab (25L pack size) to sell empty kegs.
+                        No empty-keg buy price configured for {product.name}. Set it in the Inventory tab (pack-size pricing) to sell empty kegs.
                       </div>
                     )}
 
@@ -2446,9 +2460,17 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   </div>
                 )}
 
+                {/* Nothing can be sold from an empty catalogue — say so rather
+                    than leaving a disabled button with no explanation. */}
+                {products.length === 0 && (
+                  <div className="text-xs font-sans font-medium text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-900/60 rounded-lg px-3 py-2">
+                    No products configured yet. Add your first product — name, keg size, density and pack prices — in Settings → Products &amp; Keg Sizes, then come back to sell it.
+                  </div>
+                )}
+
                 <button
                   onClick={completeSale}
-                  disabled={lines.length === 0 || overLimitBlocked}
+                  disabled={lines.length === 0 || overLimitBlocked || products.length === 0}
                   className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-sans font-bold text-sm flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all"
                 >
                   <Check className="w-4 h-4" weight="bold" /> Complete sale · {formatNaira(cartTotal)}

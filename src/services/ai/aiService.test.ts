@@ -6,8 +6,19 @@
 import { extractSystemSnapshot } from './dataExtractor';
 import { runDeterministicOperationsAudit, answerCopilotQuestionDeterministic } from './deterministicEngine';
 import { AVAILABLE_MODELS } from './types';
-import { DEFAULT_PRODUCTS, DEFAULT_SUPPLIERS } from '../../constants/config';
-import { Tank, Customer, CustomerCalculatedStats, KegInventorySummary, PumpVarianceAudit, Shift, AppSettings } from '../../types';
+import { DEFAULT_SETTINGS, DEFAULT_SUPPLIERS } from '../../constants/config';
+import {
+  Tank,
+  Product,
+  PackPrice,
+  Order,
+  Customer,
+  CustomerCalculatedStats,
+  KegInventorySummary,
+  PumpVarianceAudit,
+  Shift,
+  AppSettings
+} from '../../types';
 
 function assert(condition: boolean, msg: string) {
   if (!condition) {
@@ -48,6 +59,110 @@ const mockTanks: Tank[] = [
     supplier_id: 'sup-2',
     supply_model: 'pre_kegged'
   }
+];
+
+/* ---------------------------------------------------------------------------
+ * DEPOT-OWNED CATALOGUE
+ * Nothing in this app ships with a product, a pack price or a sales history —
+ * they are all blank by default (DEFAULT_PRODUCTS / DEFAULT_PACK_PRICES are
+ * `[]`). The test therefore supplies them, and every naira/rate/threshold the
+ * AI quotes below must trace back to THIS data rather than to a built-in
+ * figure.
+ * ------------------------------------------------------------------------- */
+const mockProducts: Product[] = [
+  {
+    id: 'golden_oil_30l',
+    name: 'Golden Vegetable Oil',
+    supply_model: 'bulk_truck',
+    litres_per_ton: 1075,
+    litres_per_keg: 30,
+    keg_sell_price: 42000,
+    varieties: [{ id: 'var-golden-std', name: 'Standard' }],
+    pack_config: [
+      { pack_size_id: 'sz_30', returnable: false, container_buy_price: 0, sort: 0 },
+      { pack_size_id: 'sz_25', returnable: true, container_buy_price: 2000, sort: 1 }
+    ],
+    color_light: '#f59e0b',
+    color_dark: '#b45309'
+  },
+  {
+    id: 'red_oil_25l',
+    name: 'Red Palm Oil',
+    supply_model: 'pre_kegged',
+    litres_per_ton: null,
+    litres_per_keg: 25,
+    keg_sell_price: 28000,
+    varieties: [{ id: 'var-red-std', name: 'Standard' }],
+    pack_config: [
+      { pack_size_id: 'sz_25', returnable: true, container_buy_price: 2000, sort: 0 }
+    ],
+    color_light: '#ef4444',
+    color_dark: '#7f1d1d'
+  }
+];
+
+// Retail tier only for the counter rate: 186,000 ÷ 30L = ₦6,200/L (veg) and
+// 100,000 ÷ 25L = ₦4,000/L (palm). The agent-tier row exists purely to prove the
+// engine reads the RETAIL tier and each product's OWN pack price.
+const mockPackPrices: PackPrice[] = [
+  { product_id: 'golden_oil_30l', variety_id: 'var-golden-std', pack_size_id: 'sz_30', tier: 'retail', price: 186000 },
+  { product_id: 'golden_oil_30l', variety_id: 'var-golden-std', pack_size_id: 'sz_30', tier: 'agent', price: 150000 },
+  { product_id: 'red_oil_25l', variety_id: 'var-red-std', pack_size_id: 'sz_25', tier: 'retail', price: 100000 }
+];
+
+/** One historical sale line — only `product_id` and `litres` feed velocity. */
+function mockOrder(
+  id: string,
+  productId: string,
+  varietyId: string,
+  packSizeId: string,
+  qty: number,
+  litres: number,
+  unitPrice: number
+): Order {
+  return {
+    id,
+    sale_id: `sale-${id}`,
+    customer_id: 'cust-1',
+    product_id: productId,
+    variety_id: varietyId,
+    variety_name: 'Standard',
+    pack_size_id: packSizeId,
+    qty,
+    litres,
+    unit_price: unitPrice,
+    original_unit_price: unitPrice,
+    price_adjusted: false,
+    price_adjust_reason: null,
+    oil_amount: qty * unitPrice,
+    container_mode: 'taken',
+    returnable: true,
+    container_unit_price: 2000,
+    container_amount: null,
+    line_amount: qty * unitPrice,
+    amount: qty * unitPrice,
+    pricing_tier: 'retail',
+    payment_method: 'cash',
+    paid_amount: qty * unitPrice,
+    due_date: null,
+    date: '2026-09-09',
+    source_tank_id: null,
+    pump_id: null,
+    hub_id: 'hub-1'
+  };
+}
+
+// 6,720L veg + 1,225L palm over the last 7 days => 960L/day and 175L/day burn.
+// Against 2,500L / 1,250L on hand that is a 2.6-day and 7.1-day runway, both
+// still above the depot's own 1,000L low-stock threshold, so no dry-out alert
+// fires and the reorder advice must be driven by that threshold, not by a
+// built-in day count.
+const mockOrders: Order[] = [
+  mockOrder('line-1', 'golden_oil_30l', 'var-golden-std', 'sz_30', 112, 3360, 186000),
+  mockOrder('line-2', 'golden_oil_30l', 'var-golden-std', 'sz_30', 112, 3360, 186000),
+  mockOrder('line-3', 'red_oil_25l', 'var-red-std', 'sz_25', 20, 500, 100000),
+  mockOrder('line-4', 'red_oil_25l', 'var-red-std', 'sz_25', 20, 500, 100000),
+  mockOrder('line-5', 'red_oil_25l', 'var-red-std', 'sz_25', 9, 225, 100000)
 ];
 
 const mockCustomer: Customer = {
@@ -132,9 +247,10 @@ const mockSettings: AppSettings = {
 // ---------------------------------------------------------------------------
 const snapshot = extractSystemSnapshot({
   tanks: mockTanks,
-  products: DEFAULT_PRODUCTS,
+  products: mockProducts,
+  packPrices: mockPackPrices,
   suppliers: DEFAULT_SUPPLIERS,
-  orders: [],
+  orders: mockOrders,
   customers: [mockCustomer],
   customerStatsMap: mockCustomerStatsMap,
   kegInventory: mockKegInventory,
@@ -169,6 +285,48 @@ assert(snapshot.lossPreventionAudit.pumpVariances.length === 1, 'Snapshot captur
 assert(snapshot.lossPreventionAudit.pumpVariances[0].varianceLitres === 50, 'Snapshot records +50L pump variance');
 assert(snapshot.lossPreventionAudit.intakeShortfalls.length === 1, 'Snapshot captures bulk delivery shortfall (80L)');
 
+// --- Every rate/threshold must come from the depot's own configuration ------
+assert(
+  snapshot.pricingAndProducts.counterRatePerLitre === 6200,
+  'Counter rate is derived from the depot retail pack price ÷ pack litres (186,000 ÷ 30L = ₦6,200/L)'
+);
+assert(
+  snapshot.pricingAndProducts.products.find(p => p.id === 'golden_oil_30l')?.retailPricePerLitre === 6200,
+  'Veg product is rated at its own retail pack price, not the sibling product nor the wholesale tier'
+);
+assert(
+  snapshot.pricingAndProducts.products.find(p => p.id === 'red_oil_25l')?.retailPricePerLitre === 4000,
+  'Palm product is rated at its own retail pack price (100,000 ÷ 25L = ₦4,000/L)'
+);
+assert(
+  snapshot.lossPreventionAudit.pumpVarianceThresholdLitres === 20,
+  'Pump variance tolerance is read from Settings (pump_variance_threshold), not built in'
+);
+assert(
+  snapshot.inventoryVelocity.veg.lowStockThresholdLitres === 1000 &&
+    snapshot.inventoryVelocity.palm.lowStockThresholdLitres === 1000,
+  'Low-stock litre threshold is read from Settings (low_stock_litres_threshold)'
+);
+assert(
+  snapshot.depotSummary.kegsAtDepotLowThreshold === 20,
+  'Keg yard low-stock threshold is read from Settings (kegs_at_depot_low_threshold)'
+);
+assert(
+  snapshot.kegExposureAnalysis.unreturnedValueExposureNaira === 0,
+  'No naira keg exposure is invented while no outright keg price is configured'
+);
+assert(
+  snapshot.lossPreventionAudit.intakeShortfalls[0].estimatedLossNaira === 496000,
+  'Intake shortfall is valued at THAT product own retail rate (80L × ₦6,200/L = ₦496,000)'
+);
+
+// --- Velocity is measured from real sales, never assumed --------------------
+assert(
+  snapshot.inventoryVelocity.veg.dailyBurnRateLitres === 960 &&
+    snapshot.inventoryVelocity.palm.dailyBurnRateLitres === 175,
+  'Burn rate is measured from recorded order litres (6,720L ÷ 7 = 960L/day, 1,225L ÷ 7 = 175L/day)'
+);
+
 // ---------------------------------------------------------------------------
 // TEST 2: Deterministic Operations Audit Engine
 // ---------------------------------------------------------------------------
@@ -192,6 +350,52 @@ assert(intakeDecision !== undefined, 'Audit generates supplier shortfall debit n
 assert(auditReport.inventoryForecasts.length === 2, 'Audit produces runway forecasts for both Veg and Palm Oil');
 assert(auditReport.lossPreventionItems.length >= 2, 'Audit produces loss prevention item list with calculated Naira exposure');
 
+// --- Reorder advice is threshold-derived, never a built-in day count --------
+assert(
+  auditReport.inventoryForecasts[0].estimatedDaysLeft === 2.6,
+  'Veg runway is computed from measured burn rate (2,500L ÷ 960L/day = 2.6 days)'
+);
+assert(
+  auditReport.inventoryForecasts[1].estimatedDaysLeft === 7.1,
+  'Palm runway is computed from measured burn rate (1,250L ÷ 175L/day = 7.1 days)'
+);
+assert(
+  auditReport.inventoryForecasts[1].reorderRecommendation.startsWith('WARNING') &&
+    auditReport.inventoryForecasts[1].reorderRecommendation.includes('1,000L'),
+  'Palm reorder trigger cites the depot own 1,000L threshold instead of a hardcoded day count'
+);
+assert(
+  auditReport.inventoryForecasts[0].reorderRecommendation.startsWith('HEALTHY'),
+  'Veg reorder advice is HEALTHY: stock covers 2.6 days vs the 1,000L (1 day of cover) threshold'
+);
+assert(
+  auditReport.inventoryForecasts.every(f => !f.reorderRecommendation.match(/\b(72 hours|30-ton|25–30 tons)\b/)) === true,
+  'No built-in tonnage or 72-hour lead time leaks into the reorder advice'
+);
+
+// --- Every naira figure in the report traces back to configured pricing -----
+const pumpLossItem = auditReport.lossPreventionItems.find(i => i.source === 'pumps');
+assert(
+  pumpLossItem?.lossAmount.includes('310,000') === true,
+  'Pump leakage is valued at the depot own counter rate (50L × ₦6,200/L = ₦310,000)'
+);
+const intakeLossItem = auditReport.lossPreventionItems.find(i => i.source === 'intake');
+assert(
+  intakeLossItem?.lossAmount.includes('496,000') === true,
+  'Intake shortfall exposure uses the configured rate, not a built-in ₦/L figure'
+);
+const kegFinding = auditReport.keyFindings.find(f => f.title.startsWith('Returnable Keg Exposure'));
+assert(
+  kegFinding !== undefined && !kegFinding.detail.includes('₦'),
+  'Keg exposure finding quotes no naira figure at all until an outright keg price is set'
+);
+assert(
+  auditReport.actionableDecisions.every(
+    d => d.expectedFinancialImpactNaira === undefined || d.expectedFinancialImpactNaira > 0
+  ) === true,
+  'No decision is ever sized at an invented ₦0'
+);
+
 // ---------------------------------------------------------------------------
 // TEST 3: Claude Model Configuration
 // ---------------------------------------------------------------------------
@@ -210,6 +414,78 @@ assert(pumpAnswer.includes('Pump 2') && pumpAnswer.includes('50L'), 'Copilot cit
 
 const tankAnswer = answerCopilotQuestionDeterministic('When should we book our next oil tanker?', snapshot);
 assert(tankAnswer.includes('Golden Vegetable Oil') && tankAnswer.includes('runway'), 'Copilot provides inventory runway analysis');
+
+// ---------------------------------------------------------------------------
+// TEST 5: A brand-new, unconfigured depot is never quoted an invented figure
+// ---------------------------------------------------------------------------
+const unconfiguredSnapshot = extractSystemSnapshot({
+  tanks: mockTanks,
+  products: [],
+  packPrices: [],
+  suppliers: DEFAULT_SUPPLIERS,
+  orders: [],
+  customers: [mockCustomer],
+  customerStatsMap: mockCustomerStatsMap,
+  kegInventory: mockKegInventory,
+  todayStats: {
+    cashTransferSales: 0,
+    creditOutstanding: 0,
+    companyKegsOut: 0,
+    kegsAtDepot: 0,
+    kegsSoldToday: 0,
+    purchasedKegsToday: 0,
+    customerKegsFilledToday: 0,
+    expensesToday: 0
+  },
+  activeAlerts: {
+    overdueCredit: [],
+    overLimit: [],
+    deliveryShortfall: [{ tank: mockTanks[0], shortfallLitres: 80 }],
+    pumpVariance: mockPumpVarianceAudits,
+    totalAlertCount: 2
+  },
+  pumpVarianceAudits: mockPumpVarianceAudits,
+  shifts: [],
+  settings: { ...DEFAULT_SETTINGS }
+});
+
+assert(
+  unconfiguredSnapshot.pricingAndProducts.counterRatePerLitre === 0,
+  'Unconfigured depot reports a 0 counter rate (0 = not configured, never a real rate)'
+);
+assert(
+  unconfiguredSnapshot.inventoryVelocity.veg.lowStockThresholdLitres === 0 &&
+    unconfiguredSnapshot.depotSummary.kegsAtDepotLowThreshold === 0,
+  'Unconfigured depot reports 0 thresholds instead of app-supplied default numbers'
+);
+
+const unconfiguredReport = runDeterministicOperationsAudit(unconfiguredSnapshot, 'claude');
+const unconfiguredPumpLoss = unconfiguredReport.lossPreventionItems.find(i => i.source === 'pumps');
+assert(
+  unconfiguredPumpLoss?.lossAmount.includes('no ₦ value yet') === true,
+  'Pump leakage is stated in litres only while no retail pack price exists'
+);
+assert(
+  unconfiguredReport.actionableDecisions.every(d => d.expectedFinancialImpactNaira === undefined) === true,
+  'An unconfigured depot is given no naira-sized decision at all (never a ₦0 impact)'
+);
+assert(
+  unconfiguredReport.inventoryForecasts.every(f => f.reorderRecommendation.startsWith('NO DATA')) === true,
+  'With no sales history the audit refuses to project a dry-out date'
+);
+assert(
+  unconfiguredReport.inventoryForecasts.every(f => !f.reorderRecommendation.match(/\d+\s?days?\b/)) === true,
+  'No invented day count reaches the reorder advice for an unconfigured depot'
+);
+
+const unconfiguredMarketAnswer = answerCopilotQuestionDeterministic(
+  'What is the current CPO market price?',
+  unconfiguredSnapshot
+);
+assert(
+  unconfiguredMarketAnswer.includes('No products configured yet') && !unconfiguredMarketAnswer.includes('₦'),
+  'Copilot admits there is no configured pricing and no live market feed instead of quoting a rate'
+);
 
 console.log('====================================================');
 console.log('AI TEST SUITE RESULTS: ALL TESTS PASSED (100%)');

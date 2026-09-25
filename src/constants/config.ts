@@ -17,13 +17,10 @@ import {
   Shift,
   Supplier,
   PhysicalTank,
-  CustomerType,
   Hub,
   UserProfile,
   PaymentMethod
 } from '../types';
-
-export const LITRES_PER_KEG = 25;
 
 /* ------------------------------------------------------------------ *
  * PACK SIZES — the fixed, standardized set of containers the depot
@@ -141,126 +138,16 @@ export const getPaymentModeTheme = (method: string): PaymentModeTheme => {
  * PRODUCTS + varieties + per-product pack config
  * ------------------------------------------------------------------ */
 
-export const DEFAULT_PRODUCTS: Product[] = [
-  {
-    id: 'veg',
-    name: 'Golden Vegetable Oil',
-    supply_model: 'bulk_truck',
-    litres_per_ton: 1075,
-    litres_per_keg: 25,
-    keg_sell_price: 3500,
-    varieties: [
-      { id: 'veg-soya', name: 'Pure Soya (Grade A)' },
-      { id: 'veg-olein', name: 'Triple-Refined Palm Olein' },
-      { id: 'veg-groundnut', name: 'Groundnut / Peanut Blend' },
-      { id: 'veg-corn', name: 'Refined Corn / Maize Oil' }
-    ],
-    pack_config: [
-      { pack_size_id: 'sz_1', returnable: false, container_buy_price: 0, sort: 0 },
-      { pack_size_id: 'sz_12_5', returnable: false, container_buy_price: 0, sort: 1 },
-      { pack_size_id: 'sz_14', returnable: false, container_buy_price: 0, sort: 2 },
-      { pack_size_id: 'sz_25', returnable: true, container_buy_price: 3500, sort: 3 },
-      { pack_size_id: 'sz_28', returnable: false, container_buy_price: 0, sort: 4 },
-      { pack_size_id: 'sz_30', returnable: false, container_buy_price: 0, sort: 5 },
-      { pack_size_id: 'sz_56', returnable: false, container_buy_price: 0, sort: 6 },
-      { pack_size_id: 'sz_112_5', returnable: false, container_buy_price: 0, sort: 7 },
-      { pack_size_id: 'sz_256', returnable: false, container_buy_price: 0, sort: 8 }
-    ],
-    color_light: '#FCD34D',
-    color_dark: '#B45309'
-  },
-  {
-    id: 'red',
-    name: 'Red / Palm Oil',
-    supply_model: 'pre_kegged',
-    litres_per_ton: null,
-    litres_per_keg: 25,
-    keg_sell_price: 3000,
-    varieties: [
-      { id: 'red-edo', name: 'Grade-A Edo Spec' },
-      { id: 'red-ondo', name: 'Ondo Local Producer' }
-    ],
-    pack_config: [
-      { pack_size_id: 'sz_1', returnable: false, container_buy_price: 0, sort: 0 },
-      { pack_size_id: 'sz_12_5', returnable: false, container_buy_price: 0, sort: 1 },
-      { pack_size_id: 'sz_14', returnable: false, container_buy_price: 0, sort: 2 },
-      { pack_size_id: 'sz_25', returnable: true, container_buy_price: 3000, sort: 3 },
-      { pack_size_id: 'sz_28', returnable: false, container_buy_price: 0, sort: 4 },
-      { pack_size_id: 'sz_30', returnable: false, container_buy_price: 0, sort: 5 },
-      { pack_size_id: 'sz_56', returnable: false, container_buy_price: 0, sort: 6 },
-      { pack_size_id: 'sz_112_5', returnable: false, container_buy_price: 0, sort: 7 },
-      { pack_size_id: 'sz_256', returnable: false, container_buy_price: 0, sort: 8 }
-    ],
-    color_light: '#F87171',
-    color_dark: '#7F1D1D'
-  }
-];
+export const DEFAULT_PRODUCTS: Product[] = [];
 
-/* ------------------------------------------------------------------ *
- * PRICE MATRIX — one absolute price per (product, variety, pack size, tier).
- * Seeded from a small model so ~100 rows aren't hand-written; the owner
- * tunes every cell in the Inventory tab.
+/* ------------------------------------------------------------------
+ * PRICE MATRIX - one absolute price per (product, variety, pack size, tier).
+ * Starts EMPTY: the owner sets every cell in the Inventory tab. No price
+ * model is seeded any more - nothing may invent a price the depot never
+ * agreed with a customer.
  * ------------------------------------------------------------------ */
 
-const TIER_BASE_PER_LITRE: Record<string, Record<CustomerType, number>> = {
-  veg: { retail: 5200, agent: 4800, corporate: 4500 },
-  red: { retail: 5600, agent: 5100, corporate: 4800 }
-};
-
-// A litre in a small pack costs more, a litre in a big drum costs less —
-// 25L (the standard company keg) is the baseline. Seed defaults only; the
-// owner tunes every actual price cell in the Inventory tab afterward.
-const SIZE_FACTOR: Record<string, number> = {
-  sz_1: 1.15,
-  sz_12_5: 1.08,
-  sz_14: 1.06,
-  sz_25: 1.0,
-  sz_28: 0.98,
-  sz_30: 0.97,
-  sz_56: 0.92,
-  sz_112_5: 0.88,
-  sz_256: 0.85
-};
-
-// Per-litre premium/discount for each variety, applied on top of the tier base.
-const VARIETY_PREMIUM_PER_LITRE: Record<string, number> = {
-  'veg-soya': 0,
-  'veg-olein': -100,
-  'veg-groundnut': 250,
-  'veg-corn': 150,
-  'red-edo': 0,
-  'red-ondo': -150
-};
-
-const round50 = (n: number) => Math.round(n / 50) * 50;
-
-function buildDefaultPackPrices(products: Product[]): PackPrice[] {
-  const tiers: CustomerType[] = ['retail', 'agent', 'corporate'];
-  const rows: PackPrice[] = [];
-  for (const product of products) {
-    const base = TIER_BASE_PER_LITRE[product.id] ?? TIER_BASE_PER_LITRE.veg;
-    for (const variety of product.varieties) {
-      const varietyPremium = VARIETY_PREMIUM_PER_LITRE[variety.id] ?? 0;
-      for (const cfg of product.pack_config) {
-        const litres = packLitres(cfg.pack_size_id);
-        const factor = SIZE_FACTOR[cfg.pack_size_id] ?? 1;
-        for (const tier of tiers) {
-          const perLitre = (base[tier] + varietyPremium) * factor;
-          rows.push({
-            product_id: product.id,
-            variety_id: variety.id,
-            pack_size_id: cfg.pack_size_id,
-            tier,
-            price: round50(litres * perLitre)
-          });
-        }
-      }
-    }
-  }
-  return rows;
-}
-
-export const DEFAULT_PACK_PRICES: PackPrice[] = buildDefaultPackPrices(DEFAULT_PRODUCTS);
+export const DEFAULT_PACK_PRICES: PackPrice[] = [];
 
 /* ------------------------------------------------------------------ *
  * OTHER CATALOG DATA (unchanged)
@@ -319,24 +206,30 @@ export const ONE_TIME_CUSTOMER: Customer = {
 // screen).
 export const DEFAULT_CUSTOMERS: Customer[] = [ONE_TIME_CUSTOMER];
 
+// A brand-new depot has no settings at all: every value below is blank or 0,
+// and the owner fills them in from Settings (Keg Configuration, Company
+// Details, Thresholds). 0 means not configured - see configuredNumber() in
+// services/businessLogic.ts. Nothing may treat a 0 here as a real magnitude.
+// Shift times keep usable defaults because grouping sales/readings into depot
+// days needs a window; they are workflow values, not depot data.
 export const DEFAULT_SETTINGS: AppSettings = {
-  company_name: 'Iyanuoluwa Vegetable & Palm Oil Depot',
-  company_phone: '+234 802 000 1122',
-  company_address: 'Plot 14, Commercial Avenue, Alaba Depot, Lagos',
+  company_name: '',
+  company_phone: '',
+  company_address: '',
   company_logo_url: null,
-  litres_per_keg: 25,
-  default_litres_per_ton: 1075,
-  total_company_kegs: 500,
-  kegs_at_depot_low_threshold: 20,
-  low_stock_litres_threshold: 500,
-  truck_shortfall_threshold: 50,
-  pump_variance_threshold: 20,
+  litres_per_keg: 0,
+  default_litres_per_ton: 0,
+  total_company_kegs: 0,
+  kegs_at_depot_low_threshold: 0,
+  low_stock_litres_threshold: 0,
+  truck_shortfall_threshold: 0,
+  pump_variance_threshold: 0,
   shift_start_time: '07:00',
   shift_end_time: '18:00',
   require_pump_readings_to_start_shift: true,
   require_pump_readings_to_close_shift: true,
-  outright_keg_price: 3500,
-  keg_deposit_price: 2000
+  outright_keg_price: 0,
+  keg_deposit_price: 0
 };
 
 // Seed initial tanks to show working depot operation

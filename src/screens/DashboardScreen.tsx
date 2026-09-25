@@ -11,7 +11,7 @@ import { BottomSheet } from '../components/common/BottomSheet';
 import { SlideOverDrawer } from '../components/common/SlideOverDrawer';
 import { Modal } from '../components/common/Modal';
 import { useIsDesktopSplit } from '../hooks/useBreakpoint';
-import { formatNaira, formatDepotDate, formatDepotTime, computeShiftCash, getDepotToday, depotDateKey, formatWithCommas, parseFromCommas, DEPOT_TZ } from '../services/businessLogic';
+import { formatNaira, formatDepotDate, formatDepotTime, computeShiftCash, getDepotToday, depotDateKey, formatWithCommas, parseFromCommas, resolveLitresPerKeg, DEPOT_TZ } from '../services/businessLogic';
 import { getPaymentModeTheme } from '../constants/config';
 import {
   CurrencyDollar as DollarSign,
@@ -91,7 +91,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   const productStockSummaries = products.map(p => {
     const isKegModel = p.supply_model === 'pre_kegged';
     const stock = tankStockByProduct[p.id]?.totalLitres || 0;
-    const litresPerKeg = p.litres_per_keg || 25;
+    const litresPerKeg = resolveLitresPerKeg(p, settings);
     const kegsSoldToday = orders
       .filter(o => !o.voided && depotDateKey(o.date) === todayStr && o.product_id === p.id)
       .reduce((sum, o) => sum + Number(o.qty || 0), 0);
@@ -104,7 +104,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       stock,
       litresPerKeg,
       kegsSoldToday,
-      capacity: configuredCapacity > 0 ? configuredCapacity : (isKegModel ? 15000 : 30000),
+      capacity: configuredCapacity,
       accentColor: accentColorFor(p.id)
     };
   });
@@ -1252,7 +1252,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       <div className="grid grid-cols-1 split:grid-cols-2 gap-6">
         {productStockSummaries.map(summary => {
           const p = summary.product;
-          const kegDisplay = Math.round(summary.stock / summary.litresPerKeg);
+          // Guarded: an unconfigured keg size must never divide (it showed
+          // "Infinity Kegs" once the seeded products were removed).
+          const kegsKnown = summary.litresPerKeg > 0;
+          const kegDisplay = kegsKnown ? Math.round(summary.stock / summary.litresPerKeg) : 0;
           const productTanks = tanks.filter(t => t.product_id === p.id);
           return (
             <div
@@ -1273,13 +1276,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                           className="text-[10px] px-2 py-0.5 rounded-full font-mono font-bold border"
                           style={{ backgroundColor: `${summary.accentColor}1A`, color: summary.accentColor, borderColor: `${summary.accentColor}40` }}
                         >
-                          {summary.litresPerKeg}L Kegs Only
+                          {kegsKnown ? `${summary.litresPerKeg}L Kegs Only` : 'Keg size not set'}
                         </span>
                       )}
                     </h3>
                     <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
                       {summary.isKegModel
-                        ? `Pre-Kegged ${summary.litresPerKeg}L Containers · Available in Warehouse`
+                        ? (kegsKnown
+                            ? `Pre-Kegged ${summary.litresPerKeg}L Containers · Available in Warehouse`
+                            : 'Pre-Kegged Containers · Available in Warehouse')
                         : 'First-In, First-Out: Oldest oil delivered is dispensed first.'}
                     </p>
                   </div>
@@ -1291,7 +1296,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                         {kegDisplay.toLocaleString()} Kegs
                       </div>
                       <div className="text-xs text-slate-500 dark:text-slate-400">
-                        {summary.stock.toLocaleString()} L ({summary.litresPerKeg}L per keg)
+                        {summary.stock.toLocaleString()} L {kegsKnown ? `(${summary.litresPerKeg}L per keg)` : '(keg size not set)'}
                       </div>
                       <div className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">
                         Sold Today: {summary.kegsSoldToday} kegs
@@ -1303,7 +1308,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                         {summary.stock.toLocaleString()} L
                       </div>
                       <div className="text-xs text-slate-500 dark:text-slate-400">
-                        ≈ {kegDisplay.toLocaleString()} Kegs ({summary.litresPerKeg}L)
+                        {kegsKnown
+                          ? `≈ ${kegDisplay.toLocaleString()} Kegs (${summary.litresPerKeg}L)`
+                          : 'Set the keg size in Settings for keg equivalents'}
                       </div>
                       <div className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">
                         Quantity Sold Today: {summary.kegsSoldToday}
@@ -1319,6 +1326,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                     remainingLitres={summary.stock}
                     totalCapacityLitres={summary.capacity}
                     kegSizeLitres={summary.litresPerKeg}
+                    productName={p.name}
                     size="md"
                   />
                 ) : (
@@ -1327,6 +1335,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                     productName={`${p.name} Depletion`}
                     remainingLitres={summary.stock}
                     totalCapacityLitres={summary.capacity}
+                    kegSizeLitres={summary.litresPerKeg}
+                    shortfallThresholdLitres={settings.truck_shortfall_threshold}
                     size="lg"
                   />
                 )}
@@ -1337,12 +1347,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                     {summary.isKegModel && (
                       <Package className="w-3.5 h-3.5" style={{ color: summary.accentColor }} weight="bold" />
                     )}
-                    <span>{summary.isKegModel ? `Active ${summary.litresPerKeg}L Keg Lots & Deliveries` : 'Active In-Feed Tanks'}</span>
+                    <span>{summary.isKegModel ? (kegsKnown ? `Active ${summary.litresPerKeg}L Keg Lots & Deliveries` : 'Active Keg Lots & Deliveries') : 'Active In-Feed Tanks'}</span>
                   </div>
                   {productTanks.map((t, idx) => {
                     const pct = Math.min(100, (t.remaining_litres / (t.received_litres || 1)) * 100);
-                    const kegCount = Math.round(t.remaining_litres / summary.litresPerKeg);
-                    const totalKegs = Math.round(t.received_litres / summary.litresPerKeg);
+                    const kegCount = kegsKnown ? Math.round(t.remaining_litres / summary.litresPerKeg) : 0;
+                    const totalKegs = kegsKnown ? Math.round(t.received_litres / summary.litresPerKeg) : 0;
                     const isExpanded = expandedRowId === t.id;
                     return (
                       <button
