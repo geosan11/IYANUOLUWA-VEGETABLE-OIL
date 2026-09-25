@@ -152,14 +152,17 @@ export function readLedgerOutbox(): OutboxEntry[] {
   }
 }
 
-function writeLedgerOutbox(entries: OutboxEntry[]): void {
+function writeLedgerOutbox(entries: OutboxEntry[]): boolean {
+  let persisted = false;
   try {
     if (entries.length === 0) localStorage.removeItem(OUTBOX_KEY);
     else localStorage.setItem(OUTBOX_KEY, JSON.stringify(entries));
+    persisted = true;
   } catch (err) {
     console.warn('[ledger] Could not persist the sync outbox — localStorage may be full.', err);
   }
   notifyOutboxChange();
+  return persisted;
 }
 
 // ---------------------------------------------------------------------------
@@ -190,6 +193,11 @@ export function ledgerOutboxCount(): number {
  * Queue rows to be written. One entry per (table, id): a second edit of the
  * same row REPLACES the first, so a row edited ten times is one write carrying
  * its latest state — not ten writes replaying history.
+ *
+ * Returns the size of the queue, or **0 when the write itself failed** — a full
+ * or blocked localStorage must not look like a successful queue, or the caller
+ * (which advances its change-detection baseline only on a non-zero answer) would
+ * forget rows that never made it anywhere.
  */
 export function enqueueLedgerRows(drafts: LedgerDraft[]): number {
   if (drafts.length === 0) return ledgerOutboxCount();
@@ -207,8 +215,8 @@ export function enqueueLedgerRows(drafts: LedgerDraft[]): number {
     });
   }
   const next = [...byKey.values()];
-  writeLedgerOutbox(next);
-  return next.length;
+  const persisted = writeLedgerOutbox(next);
+  return persisted ? next.length : 0;
 }
 
 export function clearLedgerOutbox(): void {

@@ -1,8 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Read env variables (optional: works offline/locally if not set)
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+// Read env variables (optional: works offline/locally if not set).
+// `import.meta.env` only exists under Vite, so it is read defensively: Node
+// (the test suites, any script) has no `env` on import.meta at all, and a plain
+// property read there would throw before the module could even load.
+const viteEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+const supabaseUrl = viteEnv.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = viteEnv.VITE_SUPABASE_ANON_KEY || '';
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl &&
