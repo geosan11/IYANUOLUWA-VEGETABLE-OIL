@@ -7,12 +7,20 @@ manages — are wired to Supabase and live.
 The transactional layer is wired too, in `src/services/ledger.ts`: it pulls
 `customers`, `tanks` (intakes), `sales`, `orders` + `sale_payments` (tender legs)
 and `payments` down, uploads whatever exists only on this device, and mirrors
-every later change through a durable outbox. It engages only once migrations
-0019–0022 are actually applied — it probes for `sales` first and stays inert
-otherwise — so until then the app keeps writing `localStorage` only, exactly as
-it did before. Still `localStorage`-only by design: `expenses`, `shifts`,
-`pump_readings`, `keg_returns`, `transfers`, `tank_dipstick_readings` and
-`customer_credits`.
+every later change through a durable outbox.
+
+**Every migration through 0022 is now applied to the live project** (pushed on
+25 Sep 2026; `supabase migration list --linked` shows no pending row), so the
+gate that kept this layer inert is open: it probes for `sales`, finds it, and
+starts pulling/uploading on the next signed-in load of a build that contains it.
+The probe stays in place deliberately — an un-migrated or restored-earlier
+database still gets the old `localStorage`-only behaviour instead of a stream of
+failed writes. Note that applying the migrations and *shipping the app that uses
+them* are two separate steps: until a build with `ledger.ts` is deployed, the
+live site keeps writing `localStorage` only.
+
+Still `localStorage`-only by design: `expenses`, `shifts`, `pump_readings`,
+`keg_returns`, `transfers`, `tank_dipstick_readings` and `customer_credits`.
 
 These files define the Postgres target the app has migrated onto.
 
@@ -444,6 +452,19 @@ psql "$SUPABASE_DB_URL" -f supabase/migrations/0021_walkin_customer_and_per_hub_
 psql "$SUPABASE_DB_URL" -f supabase/migrations/0022_payments.sql
 psql "$SUPABASE_DB_URL" -f supabase/seed.sql
 ```
+
+**Where the live project stands:** every migration through `0022` is applied to
+the linked project as of 25 Sep 2026 — `supabase db push --linked` applied
+`0018`–`0022`, and `supabase migration list --linked` now shows the `Local` and
+`Remote` columns matching row for row. Check that at any time: a blank `Remote`
+value means the file has not been applied, and if the two columns disagree the
+app is running against a schema older (or newer) than this code expects. Note
+that `db push` only runs files under `supabase/migrations/` — `seed.sql` is not
+one, so it is a local-dev/first-provisioning convenience, not part of a live
+push. The live depot's `app_settings` row and catalog came from the app itself
+(and, historically, from `seed.sql` run directly — the reason `0012` and `0013`
+had to delete that run's placeholder rows), so never re-run `seed.sql` against
+it.
 
 Run `0003` and `0004` as two separate statements/files, in that order — `0003`
 only adds `'hub_manager'` to the `user_role` enum, because PostgreSQL refuses
