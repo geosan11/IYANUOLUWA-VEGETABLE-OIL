@@ -44,6 +44,7 @@ function stockBucketName(snapshot: SystemSnapshot, bulkTruck: boolean): string {
   if (match) return match.name;
   return bulkTruck ? 'Bulk (tank-fed) stock' : 'Pre-kegged / container stock';
 }
+
 /**
  * Reorder advice derived from the depot's own litre threshold.
  *
@@ -103,8 +104,6 @@ function buildReorderAdvice(
     criticalWarning: false
   };
 }
-
-
 
 export function runDeterministicOperationsAudit(
   snapshot: SystemSnapshot,
