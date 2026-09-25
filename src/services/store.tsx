@@ -78,6 +78,23 @@ import {
 } from './businessLogic';
 import { priceSaleLine } from './pricing';
 import { scanAndTriggerAutonomousAlerts, getAlertSettings, requestPushNotificationPermission } from './alertService';
+import {
+  diffLedgerRows,
+  enqueueLedgerRows,
+  flushLedgerOutbox,
+  isLedgerSchemaReady,
+  ledgerOutboxCount,
+  pullLedgerTable,
+  snapshotLedgerRows,
+  toCustomerRow,
+  toOrderRow,
+  toPaymentRow,
+  toSalePaymentLegs,
+  toSaleRow,
+  toTankRow,
+  LEDGER_PULL_COLUMNS
+} from './ledger';
+import type { LedgerDraft, LedgerSnapshot, LedgerTable } from './ledger';
 
 interface StoreContextType {
   products: Product[];
@@ -617,6 +634,263 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       cancelled = true;
     };
   }, []);
+
+  // ==========================================================================
+  // LEDGER SYNC — the transactional half: customers, stock intakes, sales,
+  // sale lines, tender legs and customer payments.
+  //
+  // src/services/ledger.ts carries the design notes. The shape mirrors the
+  // master-data effects above (pull down, upload only what exists on this
+  // device), with one addition: once the first sync has landed, every later
+  // change to these five arrays is mirrored through a durable outbox, so a sale
+  // rung up with no signal is queued for the database instead of living only in
+  // this browser's localStorage.
+  // ==========================================================================
+  const ledgerSyncedRef = useRef(false);
+  /** id → JSON of the row as last synced; anything different is a change. */
+  const ledgerBaselineRef = useRef<LedgerSnapshot>({});
+  /** Live mirror of the state arrays, so the async sync reads current rows. */
+  const ledgerArraysRef = useRef({
+    customers,
+    tanks: allTanks,
+    sales: allSales,
+    orders: allOrders,
+    payments: allPayments
+  });
+  /** Previous array identities — an unchanged array needs no comparison. */
+  const ledgerPrevArraysRef = useRef(ledgerArraysRef.current);
+  const ledgerFlushingRef = useRef(false);
+  const ledgerErrorNotifiedRef = useRef(false);
+
+  useEffect(() => {
+    ledgerArraysRef.current = {
+      customers,
+      tanks: allTanks,
+      sales: allSales,
+      orders: allOrders,
+      payments: allPayments
+    };
+  }, [customers, allTanks, allSales, allOrders, allPayments]);
+
+  /**
+   * Drain the outbox. Never throws: a failed write leaves the rows queued, so
+   * this only ever reports. The toast is deliberately raised once per outage
+   * rather than once per sale — a busy counter with no signal should not spend
+   * the whole shift dismissing the same message.
+   */
+  const runLedgerFlush = async () => {
+    if (ledgerFlushingRef.current) return;
+    ledgerFlushingRef.current = true;
+    try {
+      const result = await flushLedgerOutbox();
+      if (result.pushed > 0) {
+        console.info(`[ledger] Synced ${result.pushed} row(s) to the database.`);
+      }
+      if (result.error) {
+        if (!ledgerErrorNotifiedRef.current) {
+          ledgerErrorNotifiedRef.current = true;
+          showToast(
+            'error',
+            `${result.remaining} ledger row(s) are safe on this device but haven't reached the database yet (${result.error}). They will retry automatically.`
+          );
+        }
+      } else {
+        ledgerErrorNotifiedRef.current = false;
+      }
+    } finally {
+      ledgerFlushingRef.current = false;
+    }
+  };
+
+  // First sync of the session: download the real ledger, then upload whatever
+  // this device holds that the database has never seen. Nothing here deletes.
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || ledgerSyncedRef.current) return;
+    ledgerSyncedRef.current = true;
+    let cancelled = false;
+
+    (async () => {
+      // Inert on a project where 0019-0022 haven't been applied: this device
+      // keeps working exactly as it does today.
+      if (!(await isLedgerSchemaReady())) return;
+
+      const [remoteCustomers, remoteTanks, remoteSales, remoteOrders, remotePayments] = await Promise.all([
+        pullLedgerTable<Customer>('customers', LEDGER_PULL_COLUMNS.customers, { column: 'created_at' }),
+        pullLedgerTable<Tank>('tanks', LEDGER_PULL_COLUMNS.tanks, { column: 'date' }),
+        pullLedgerTable<Sale>('sales', LEDGER_PULL_COLUMNS.sales, { column: 'date' }),
+        pullLedgerTable<Order>('orders', LEDGER_PULL_COLUMNS.orders, { column: 'date' }),
+        pullLedgerTable<Payment>('payments', LEDGER_PULL_COLUMNS.payments, { column: 'date' })
+      ]);
+      if (cancelled) return;
+
+      const local = ledgerArraysRef.current;
+
+      // Rows the database has never seen. The walk-in customer is excluded
+      // because 0021 seeds that row server-side and this device's copy is the
+      // synthetic ONE_TIME_CUSTOMER the app injects itself.
+      const localOnlyOf = <T extends { id: string }>(remote: T[], rows: T[]): T[] => {
+        const ids = new Set(remote.map(r => r.id));
+        return rows.filter(r => !ids.has(r.id) && r.id !== ONE_TIME_CUSTOMER_ID);
+      };
+
+      const upload = async <T extends { id: string }>(
+        table: LedgerTable,
+        label: string,
+        rows: T[],
+        toRow: (row: T) => Record<string, unknown>
+      ) => {
+        if (rows.length === 0) return;
+        const { error } = await supabase!.from(table).upsert(rows.map(toRow), { onConflict: 'id' });
+        if (error) {
+          console.error(`[ledger] Failed to upload local-only ${label}:`, error.message);
+          showToast(
+            'error',
+            `${rows.length} ${label} exist on this device only — they haven't synced to the database (${error.message}).`
+          );
+          return;
+        }
+        console.info(`[ledger] Uploaded ${rows.length} ${label} that existed only on this device.`);
+      };
+
+      // Merge one table: the database wins on id conflicts, while local-only
+      // rows both survive and go up. A failed read returns the local rows
+      // untouched, because "no answer" is not the same as "no rows".
+      const syncTable = async <T extends { id: string }>(
+        table: LedgerTable,
+        label: string,
+        remote: T[] | null,
+        rows: T[],
+        toRow: (row: T) => Record<string, unknown>
+      ): Promise<T[]> => {
+        if (!remote) return rows;
+        const localOnly = localOnlyOf(remote, rows);
+        await upload(table, label, localOnly, toRow);
+        return [...remote, ...localOnly];
+      };
+
+      // Parents before children — orders.sale_id → sales (0019), and both
+      // orders.customer_id and payments.customer_id → customers.
+      const customersMerged = await syncTable('customers', 'customers', remoteCustomers, local.customers, toCustomerRow);
+      const tanksMerged = await syncTable('tanks', 'stock intakes', remoteTanks, local.tanks, toTankRow);
+      const salesMerged = await syncTable('sales', 'sales', remoteSales, local.sales, toSaleRow);
+      const ordersMerged = await syncTable('orders', 'sale lines', remoteOrders, local.orders, toOrderRow);
+      const paymentsMerged = await syncTable('payments', 'payments', remotePayments, local.payments, toPaymentRow);
+
+      // Tender legs for sales that existed only here, once their parent sales
+      // are safely in the database.
+      if (remoteSales) {
+        const legs = localOnlyOf(remoteSales, local.sales).flatMap(sale =>
+          toSalePaymentLegs(sale, local.orders.filter(o => o.sale_id === sale.id))
+        );
+        await upload('sale_payments', 'tender legs', legs, (draft: LedgerDraft) => draft.row);
+      }
+
+      if (cancelled) return;
+
+      // The baseline is the state both sides now agree on, captured BEFORE the
+      // setState calls below so the mirror effect reads "nothing has changed"
+      // instead of re-uploading the whole ledger.
+      ledgerBaselineRef.current = {
+        customers: snapshotLedgerRows(customersMerged, toCustomerRow),
+        tanks: snapshotLedgerRows(tanksMerged, toTankRow),
+        sales: snapshotLedgerRows(salesMerged, toSaleRow),
+        orders: snapshotLedgerRows(ordersMerged, toOrderRow),
+        payments: snapshotLedgerRows(paymentsMerged, toPaymentRow)
+      };
+      // The walk-in customer is a fixed app row: keep it if the database
+      // hasn't been given it yet (0019 can be applied without 0021).
+      setCustomers(
+        customersMerged.some(c => c.id === ONE_TIME_CUSTOMER_ID)
+          ? customersMerged
+          : [ONE_TIME_CUSTOMER, ...customersMerged]
+      );
+      setTanks(tanksMerged);
+      setSales(salesMerged);
+      setOrders(ordersMerged);
+      setPayments(paymentsMerged);
+      console.info(
+        '[ledger] Ledger sync armed — sales, orders, payments, customers and stock intakes now mirror to the database.'
+      );
+      // Anything a previous session queued while offline leaves now.
+      if (ledgerOutboxCount() > 0) void runLedgerFlush();
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // A dropped connection is the normal case, not an error case: retry the queue
+  // when the browser reports the network is back, and whenever this device
+  // returns to the app.
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    const retry = () => {
+      void isLedgerSchemaReady().then(ready => {
+        if (ready && ledgerOutboxCount() > 0) void runLedgerFlush();
+      });
+    };
+    window.addEventListener('online', retry);
+    window.addEventListener('visibilitychange', retry);
+    return () => {
+      window.removeEventListener('online', retry);
+      window.removeEventListener('visibilitychange', retry);
+    };
+  }, []);
+
+  // Mirror every later change through the outbox. Silent until the first sync
+  // has armed the baseline, so an offline first run uploads its whole backlog
+  // in one pass instead of queueing a row at a time.
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+    const baseline = ledgerBaselineRef.current;
+    if (!baseline.customers) return;
+
+    // Only the arrays that actually changed are compared, so a sale doesn't
+    // pay for stringifying the whole ledger.
+    const prev = ledgerPrevArraysRef.current;
+    const drafts: LedgerDraft[] = [
+      ...(prev.customers !== customers
+        ? diffLedgerRows('customers', baseline.customers, customers, toCustomerRow)
+        : []),
+      ...(prev.tanks !== allTanks ? diffLedgerRows('tanks', baseline.tanks, allTanks, toTankRow) : []),
+      ...(prev.sales !== allSales ? diffLedgerRows('sales', baseline.sales, allSales, toSaleRow) : []),
+      ...(prev.orders !== allOrders ? diffLedgerRows('orders', baseline.orders, allOrders, toOrderRow) : []),
+      ...(prev.payments !== allPayments
+        ? diffLedgerRows('payments', baseline.payments, allPayments, toPaymentRow)
+        : [])
+    ];
+    ledgerPrevArraysRef.current = {
+      customers,
+      tanks: allTanks,
+      sales: allSales,
+      orders: allOrders,
+      payments: allPayments
+    };
+    if (drafts.length === 0) return;
+
+    // Tender legs follow their parents: a changed sale, or a changed line,
+    // means that sale's legs may have moved too.
+    const touchedSaleIds = new Set([
+      ...drafts.filter(d => d.table === 'sales').map(d => d.id),
+      ...drafts.filter(d => d.table === 'orders').map(d => String(d.row.sale_id ?? ''))
+    ]);
+    for (const saleId of touchedSaleIds) {
+      const sale = allSales.find(s => s.id === saleId);
+      if (sale) drafts.push(...toSalePaymentLegs(sale, allOrders.filter(o => o.sale_id === saleId)));
+    }
+
+    // The baseline only advances once the rows are actually in the queue: if
+    // localStorage refused the write, the next render must still see them as
+    // changed, or they would be lost.
+    if (enqueueLedgerRows(drafts) === 0) return;
+    baseline.customers = snapshotLedgerRows(customers, toCustomerRow);
+    baseline.tanks = snapshotLedgerRows(allTanks, toTankRow);
+    baseline.sales = snapshotLedgerRows(allSales, toSaleRow);
+    baseline.orders = snapshotLedgerRows(allOrders, toOrderRow);
+    baseline.payments = snapshotLedgerRows(allPayments, toPaymentRow);
+    void runLedgerFlush();
+  }, [customers, allTanks, allSales, allOrders, allPayments]);
 
   // app_settings is a single row (id=1). Pull it down once; if it doesn't
   // exist yet, push this browser's current settings up as the first row.

@@ -5,6 +5,7 @@ import { isSupabaseConfigured } from '../../services/supabase';
 import { formatDepotTime } from '../../services/businessLogic';
 import { PlusCircle, Drop, Package, List, Sun, Moon, CaretDown, Buildings, Check, Bell, Warning, SignOut, Envelope, GasPump, Clock } from '@phosphor-icons/react';
 import { NAV_ITEMS, getVisibleNavItems } from '../../constants/nav';
+import { LedgerSyncBadge } from './LedgerSyncBadge';
 
 interface TopHeaderProps {
   currentTab: string;
@@ -202,6 +203,10 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
       {/* Right: Quick Stats, Hub Selector, User Profile, Theme, and Action Button */}
       <div className="flex items-center gap-2 sm:gap-2.5 lg:gap-3 flex-shrink-0">
+        {/* Ledger Sync Pill — only rendered while rows are queued on this device
+            or the device is offline. */}
+        <LedgerSyncBadge />
+
         {/* Depot Oil Volume Pill (Single line, hidden on smaller screens) */}
         <div
           className="hidden xl:flex items-center gap-2 h-9 px-3 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono tabular-nums whitespace-nowrap flex-shrink-0"
