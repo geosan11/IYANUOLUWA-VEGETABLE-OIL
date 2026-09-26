@@ -13,8 +13,8 @@ import {
   parseFromCommas
 } from '../services/businessLogic';
 import { priceSaleLine } from '../services/pricing';
-import { PACK_SIZES, packLabel, packShort, getPaymentModeTheme, ONE_TIME_CUSTOMER_ID } from '../constants/config';
-import { ContainerMode, CustomerType, SinglePaymentMethod, ReceiptData, PaymentSplit } from '../types';
+import { PACK_SIZES, packShort, getPaymentModeTheme, ONE_TIME_CUSTOMER_ID } from '../constants/config';
+import { ContainerMode, CustomerType, SinglePaymentMethod, ReceiptData, PaymentSplit, Product } from '../types';
 import { Modal } from '../components/common/Modal';
 import {
   MagnifyingGlass as Search,
@@ -71,6 +71,20 @@ const PAYMENT_METHODS: { id: SinglePaymentMethod; label: string }[] = [
   { id: 'pos', label: 'Card / POS' },
   { id: 'credit', label: 'Debt' }
 ];
+
+/**
+ * Counter-facing product-tab labels. The catalogue's own `name` (Settings →
+ * Products, synced from Supabase) is what the ledger, receipts and Inventory
+ * must keep printing — only the counter's product tabs want the short,
+ * customer-facing word. Keyed lower-cased and trimmed so a stray trailing
+ * space or a changed capitalisation in the catalogue can't silently undo the
+ * rename.
+ */
+const TILE_LABEL_OVERRIDES: Record<string, string> = {
+  'golden vegetable oil': 'Vegetable Oil'
+};
+
+const tileLabel = (p: Product) => TILE_LABEL_OVERRIDES[p.name.trim().toLowerCase()] ?? p.name;
 
 interface DraftLine {
   key: string;
@@ -180,17 +194,27 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   };
 
   // ---- item builder ----
-  const [productId, setProductId] = useState<string>(products[0]?.id || '');
+  // The counter's product tiles — and whichever product the screen opens on —
+  // follow one deterministic order no matter what order the catalogue arrives in
+  // from Supabase: the bulk-dispensed golden vegetable oil first, its pre-kegged
+  // sibling next, then anything else alphabetically by name. Previously both
+  // came straight from `products[0]`, i.e. whatever the last fetch returned
+  // first, so the same depot could open on a different product each time.
+  const orderedProducts = useMemo(() => {
+    const rank = (p: Product) => (p.supply_model === 'bulk_truck' ? 0 : 1);
+    return [...products].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+  }, [products]);
+  const [productId, setProductId] = useState<string>(orderedProducts[0]?.id || '');
   const product = products.find(p => p.id === productId) || null;
 
   // The catalogue loads asynchronously (from Supabase) and can legitimately be
   // empty on a brand-new install, so re-point at the first real product once
   // one exists, and off any product that has since been deleted.
   React.useEffect(() => {
-    if (products.length === 0) return;
+    if (orderedProducts.length === 0) return;
     if (products.some(p => p.id === productId)) return;
-    setProductId(products[0].id);
-  }, [products, productId]);
+    setProductId(orderedProducts[0].id);
+  }, [products, orderedProducts, productId]);
   const [varietyId, setVarietyId] = useState<string>('');
   const [packSizeId, setPackSizeId] = useState<string>('');
   const [qty, setQty] = useState<number>(1);
@@ -202,9 +226,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
    */
   const [isKegOnlyMode, setIsKegOnlyMode] = useState(false);
   const [pumpId, setPumpId] = useState<string>('');
-  const [overrideOn, setOverrideOn] = useState(false);
-  const [overrideValue, setOverrideValue] = useState('');
-  const [priceReason, setPriceReason] = useState('');
   const [showNumpad, setShowNumpad] = useState(false);
   const [numpadTarget, setNumpadTarget] = useState<'qty' | 'price'>('qty');
 
@@ -212,6 +233,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [payMethods, setPayMethods] = useState<SinglePaymentMethod[]>(['cash']);
   const [payAmounts, setPayAmounts] = useState<Partial<Record<SinglePaymentMethod, string>>>({});
+  /**
+   * Amounts typed by hand. In a split the newest method stays on auto-pilot —
+   * it always carries whatever the other methods left over — until someone
+   * types in its field (or taps a percent chip), which hands it back to them.
+   */
+  const [payManual, setPayManual] = useState<Partial<Record<SinglePaymentMethod, boolean>>>({});
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showBackdate, setShowBackdate] = useState(false);
@@ -312,9 +339,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     setVarietyId('');
     setPackSizeId('');
     setPumpId('');
-    setOverrideOn(false);
-    setOverrideValue('');
-    setPriceReason('');
   };
 
   const selectSellKegs = () => {
@@ -323,9 +347,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     setPumpId('');
     setPackSizeId('sz_25');
     setQty(1);
-    setOverrideOn(false);
-    setOverrideValue('');
-    setPriceReason('');
   };
 
   const filteredCustomers = useMemo(() => {
@@ -345,17 +366,68 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
       tier,
       qty,
       containerMode: effectiveContainerMode,
-      overrideUnitPrice: overrideOn && overrideValue ? parseFromCommas(overrideValue) : null,
       packPrices,
       kegOnly: isKegOnlyMode
     });
-  }, [product, varietyId, packSizeId, tier, qty, effectiveContainerMode, isKegOnlyMode, overrideOn, overrideValue, packPrices]);
+  }, [product, varietyId, packSizeId, tier, qty, effectiveContainerMode, isKegOnlyMode, packPrices]);
 
   const cartTotal = lines.reduce((s, l) => s + l.lineAmount, 0);
+  const cartLitres = lines.reduce((s, l) => s + l.litres, 0);
+
+  // List price = what this sale would total with no counter rate typed by hand on
+  // any line: each line is re-priced through the SAME matrix/tier/quantity inputs
+  // it was charged with, so tier and quantity effects cancel out and the only
+  // thing the difference can carry is a hand-typed rate. Lines the matrix has no
+  // price for (or whose product has since been deleted) fall back to their
+  // charged amount, so they contribute no discount rather than inventing one.
+  const listSubtotal = useMemo(
+    () =>
+      lines.reduce((sum, l) => {
+        const prod = products.find(p => p.id === l.productId);
+        if (!prod) return sum + l.lineAmount;
+        const standard = priceSaleLine({
+          product: prod,
+          varietyId: l.varietyId,
+          packSizeId: l.packSizeId,
+          tier,
+          qty: l.qty,
+          containerMode: l.containerMode,
+          packPrices,
+          kegOnly: l.kegOnly
+        });
+        return sum + (standard.unpriced ? l.lineAmount : standard.lineAmount);
+      }, 0),
+    [lines, products, tier, packPrices]
+  );
+  // A hand-typed rate below the matrix shows as the counter-rate discount; a rate
+  // ABOVE it shows as an uplift, so Subtotal and Total always reconcile on screen.
+  const rateDiscount = Math.max(0, Number((listSubtotal - cartTotal).toFixed(2)));
+  const rateUplift = Math.max(0, Number((cartTotal - listSubtotal).toFixed(2)));
 
   const isSplitPay = payMethods.length > 1;
+  // ---- Split auto-allocation ----
+  // A second method used to sit at nothing until its amount was typed by hand,
+  // and every later change to the sale re-opened the gap. The newest method now
+  // carries the leftover on its own: pick the methods, type only the part
+  // actually received on the earlier one(s), and the last one stays balanced.
+  const newestPayMethod = payMethods[payMethods.length - 1];
+  const autoPayMethod: SinglePaymentMethod | null =
+    isSplitPay && !payManual[newestPayMethod] ? newestPayMethod : null;
+  const autoPayRemainder = Math.max(0, Number((
+    cartTotal - payMethods.reduce(
+      (s, m) => (m === autoPayMethod ? s : s + parseFromCommas(payAmounts[m] || '')),
+      0
+    )
+  ).toFixed(2)));
+  // Everything below reads these amounts rather than payAmounts, so the auto
+  // method's share counts towards the split the moment a second method is
+  // picked — and is what actually gets submitted.
+  const effectivePayAmounts: Partial<Record<SinglePaymentMethod, string>> = { ...payAmounts };
+  if (autoPayMethod) {
+    effectivePayAmounts[autoPayMethod] = autoPayRemainder > 0 ? formatWithCommas(autoPayRemainder) : '';
+  }
   const splitTotalAssigned = Number(
-    payMethods.reduce((s, m) => s + parseFromCommas(payAmounts[m] || ''), 0).toFixed(2)
+    payMethods.reduce((s, m) => s + parseFromCommas(effectivePayAmounts[m] || ''), 0).toFixed(2)
   );
   const splitRemaining = Math.max(0, Number((cartTotal - splitTotalAssigned).toFixed(2)));
   const splitOver = Math.max(0, Number((splitTotalAssigned - cartTotal).toFixed(2)));
@@ -364,15 +436,16 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
   const creditPortion = !payMethods.includes('credit')
     ? 0
     : isSplitPay
-      ? parseFromCommas(payAmounts.credit || '')
+      ? parseFromCommas(effectivePayAmounts.credit || '')
       : cartTotal;
 
   const projectedBalance = (customerStats?.currentBalance || 0) + creditPortion;
   const overLimit = !!customer && creditPortion > 0 && projectedBalance > customer.credit_limit;
   const overLimitBlocked = overLimit && !can('authorizeCreditOverride');
 
-  const priceAdjustMissingReason = !!preview?.priceAdjusted && !priceReason.trim();
-
+  // A rate below the matrix can now only be set on the line itself in the cart,
+  // where the reason note lives, so adding to the sale is never blocked on a
+  // missing reason here — it only needs a genuinely priced line.
   const canAddLine =
     !!product &&
     !!varietyId &&
@@ -381,12 +454,25 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     !!preview &&
     !preview.unpriced &&
     preview.lineAmount > 0 &&
-    !priceAdjustMissingReason &&
     (productPumps.length === 0 || !!pumpId);
 
+  // What one tap on a pack tile would actually merge into, so the badge has to
+  // be keyed on exactly the same fields quickAddPack merges on — pump included.
+  // Counting every pump's lines together made the badge lie the moment the same
+  // pack existed on two pumps (2 on Pump A + 1 on Pump B read "3" while the tap
+  // only bumped Pump B to 2), and before a pump is chosen nothing can be added
+  // for a bulk product, so an unselected pump correctly reads as no badge.
+  const draftPumpKey = productPumps.length > 0 ? pumpId || null : null;
   const cartQtyForPack = (vId: string, sId: string) =>
     lines
-      .filter(l => l.productId === product?.id && l.varietyId === vId && l.packSizeId === sId && !l.kegOnly)
+      .filter(
+        l =>
+          l.productId === product?.id &&
+          l.varietyId === vId &&
+          l.packSizeId === sId &&
+          !l.kegOnly &&
+          l.pumpId === draftPumpKey
+      )
       .reduce((s, l) => s + l.qty, 0);
 
   const repriceDraft = (l: DraftLine, patch: { qty?: number; overrideUnitPrice?: number | null; priceAdjustReason?: string | null }): DraftLine => {
@@ -422,36 +508,56 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     if (!product || !preview || !canAddLine) return;
     const variety = product.varieties.find(v => v.id === varietyId);
     const selectedPump = productPumps.length > 0 ? pumps.find(p => p.id === pumpId) || null : null;
-    setLines(prev => [
-      ...prev,
-      {
-        key: `dl-${Date.now()}-${prev.length}`,
-        productId: product.id,
-        productName: product.name,
-        varietyId,
-        varietyName: variety?.name || '',
-        packSizeId,
-        qty,
-        containerMode: effectiveContainerMode,
-        overrideUnitPrice: overrideOn && overrideValue ? parseFromCommas(overrideValue) : null,
-        priceAdjustReason: preview.priceAdjusted ? (priceReason.trim() || 'Counter rate') : null,
-        unitPrice: preview.unitPrice,
-        lineAmount: preview.lineAmount,
-        litres: preview.litres,
-        priceAdjusted: preview.priceAdjusted,
-        kegOnly: isKegOnlyMode,
-        pumpId: selectedPump?.id || null,
-        pumpLabel: selectedPump?.label || null
+    const pumpKey = selectedPump?.id || null;
+    // An identical line — same product, variety, pack size and pump — is merged
+    // into rather than appended, matching the one-tap "+" on a pack tile. This
+    // is the same bug the quick-add path was cured of: without it, adding the
+    // same item twice left two rows the cashier had to reconcile by hand. Only
+    // merged when the rate matches, so a counter rate typed here stays its own
+    // line instead of silently re-pricing the row it would have landed in.
+    setLines(prev => {
+      const existing = prev.find(
+        l =>
+          l.productId === product.id &&
+          l.varietyId === varietyId &&
+          l.packSizeId === packSizeId &&
+          l.kegOnly === isKegOnlyMode &&
+          l.pumpId === pumpKey
+      );
+      if (existing && existing.unitPrice === preview.unitPrice) {
+        return prev.map(l => (l.key === existing.key ? repriceDraft(l, { qty: l.qty + qty }) : l));
       }
-    ]);
+      return [
+        ...prev,
+        {
+          key: `dl-${Date.now()}-${prev.length}`,
+          productId: product.id,
+          productName: product.name,
+          varietyId,
+          varietyName: variety?.name || '',
+          packSizeId,
+          qty,
+          containerMode: effectiveContainerMode,
+          // No counter rate can be typed while building the line any more, so
+          // the rate always comes from the matrix here; staff adjust a rate on
+          // the line in the cart, where the reason note is captured.
+          overrideUnitPrice: null,
+          priceAdjustReason: null,
+          unitPrice: preview.unitPrice,
+          lineAmount: preview.lineAmount,
+          litres: preview.litres,
+          priceAdjusted: preview.priceAdjusted,
+          kegOnly: isKegOnlyMode,
+          pumpId: pumpKey,
+          pumpLabel: selectedPump?.label || null
+        }
+      ];
+    });
     setVarietyId('');
     setPumpId('');
     setPackSizeId('');
     setQty(1);
     setIsKegOnlyMode(false);
-    setOverrideOn(false);
-    setOverrideValue('');
-    setPriceReason('');
     setError(null);
   };
 
@@ -476,9 +582,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     setVarietyId(vId);
     setPackSizeId(sId);
     setQty(1);
-    setOverrideOn(false);
-    setOverrideValue('');
-    setPriceReason('');
     setError(null);
 
     if (priced.unpriced) {
@@ -550,6 +653,16 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
   const removeLine = (key: string) => setLines(prev => prev.filter(l => l.key !== key));
 
+  /** Takes a method off auto-pilot (amount typed by hand) or puts it back on. */
+  const markPayManual = (id: SinglePaymentMethod, manual: boolean) => {
+    setPayManual(prev => {
+      const next: Partial<Record<SinglePaymentMethod, boolean>> = { ...prev };
+      if (manual) next[id] = true;
+      else delete next[id];
+      return next;
+    });
+  };
+
   const togglePayMethod = (id: SinglePaymentMethod) => {
     setPayMethods(prev => {
       if (prev.includes(id)) {
@@ -559,21 +672,41 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
           delete next[id];
           return next;
         });
+        setPayManual(marks => {
+          const next = { ...marks };
+          delete next[id];
+          return next;
+        });
         return prev.filter(m => m !== id);
       }
       if (prev.length === 1) {
         setPayAmounts({});
       }
+      // The method just picked sits at the end of the list, so it starts on
+      // auto-pilot and needs no amount of its own — drop any "typed by hand"
+      // mark it still carried in case it is being re-added.
+      setPayManual(marks => {
+        const next = { ...marks };
+        delete next[id];
+        return next;
+      });
       return [...prev, id];
     });
   };
 
   const autoBalanceMethod = (id: SinglePaymentMethod) => {
+    // On the newest method "Balance" hands it back to auto-pilot, where it
+    // keeps carrying the leftover as the sale changes.
+    if (id === payMethods[payMethods.length - 1]) {
+      markPayManual(id, false);
+      return;
+    }
     const others = payMethods
       .filter(m => m !== id)
       .reduce((s, m) => s + parseFromCommas(payAmounts[m] || ''), 0);
     const remaining = Math.max(0, Number((cartTotal - others).toFixed(2)));
     setPayAmounts(prev => ({ ...prev, [id]: formatWithCommas(remaining) }));
+    markPayManual(id, true);
   };
 
   const fail = (msg: string) => {
@@ -601,7 +734,13 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
     if (isSplitPay) {
       for (const m of payMethods) {
-        if (parseFromCommas(payAmounts[m] || '') <= 0) {
+        if (parseFromCommas(effectivePayAmounts[m] || '') <= 0) {
+          // The auto method's share is computed, so a zero there means the
+          // methods above it already overrun the sale — say that, not "type an
+          // amount", which the cashier cannot act on.
+          if (m === autoPayMethod && splitOver > 0) {
+            return fail(`The other methods already add up to more than the ${formatNaira(cartTotal)} total — lower one of them.`);
+          }
           return fail('Each selected payment method needs an amount greater than zero.');
         }
       }
@@ -613,7 +752,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     const splits: PaymentSplit[] | undefined = isSplitPay
       ? payMethods.map(m => ({
         method: m,
-        amount: parseFromCommas(payAmounts[m] || ''),
+        amount: parseFromCommas(effectivePayAmounts[m] || ''),
         credit_term_days: m === 'credit' ? creditTermDays : undefined,
         due_date: m === 'credit' ? effectiveDueDate.toISOString() : undefined
       }))
@@ -652,6 +791,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     setLines([]);
     setPayMethods(['cash']);
     setPayAmounts({});
+    setPayManual({});
     setNote('');
     setShowBackdate(false);
     setSaleDateInput(toDatetimeLocalValue());
@@ -1486,7 +1626,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
                 {/* product selector */}
                 <div className="flex flex-wrap gap-2">
-                  {products.map(p => (
+                  {orderedProducts.map(p => (
                     <button
                       key={p.id}
                       onClick={() => selectProduct(p.id)}
@@ -1495,7 +1635,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                         }`}
                     >
-                      {p.name}
+                      {tileLabel(p)}
                     </button>
                   ))}
                   <button
@@ -1505,9 +1645,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         setIsKegOnlyMode(false);
                         setPackSizeId('');
                         setQty(1);
-                        setOverrideOn(false);
-                        setOverrideValue('');
-                        setPriceReason('');
                       } else {
                         selectSellKegs();
                       }
@@ -1651,7 +1788,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
                     {preview?.unpriced && (
                       <div className="text-xs text-rose-600 dark:text-rose-400">
-                        No empty-keg buy price configured for {product.name}. Set it in the Inventory tab (pack-size pricing) to sell empty kegs.
+                        No empty-keg buy price configured for {tileLabel(product)}. Set it in the Inventory tab (pack-size pricing) to sell empty kegs.
                       </div>
                     )}
 
@@ -1734,7 +1871,19 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                 </span>
                                 <span>{v.name}</span>
                               </div>
-                              <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 lg:grid-cols-9 gap-1.5">
+                              {/* Keg disposition is automatic now, not a manual
+                                  choice — so this is a notice, not a control. It
+                                  used to sit inside the quantity / price block
+                                  that the one-tap tiles replaced, so it lives
+                                  with the tiles, and only for the pack that is
+                                  actually selected. */}
+                              {varietyActive && isReturnable && (
+                                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                  <Package className="w-3.5 h-3.5" weight="bold" />
+                                  <span>Company keg goes out on loan (returnable) — use Sell Empty Kegs to sell one outright.</span>
+                                </div>
+                              )}
+                              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-8 gap-1.5">
                                 {sellableSizes.map(s => {
                                   const linePrice = priceSaleLine({
                                     product,
@@ -1757,7 +1906,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                         <button
                                           type="button"
                                           onClick={() => quickAddPack(v.id, s.id)}
-                                          className={`absolute bottom-1 right-1 z-20 w-5 h-5 rounded-full border flex items-center justify-center shadow-sm transition-colors cursor-pointer ${inCart > 0
+                                          className={`absolute bottom-0.5 right-0.5 z-20 w-4 h-4 rounded-full border flex items-center justify-center shadow-sm transition-colors cursor-pointer ${inCart > 0
                                             ? 'bg-emerald-500 border-emerald-400 text-white'
                                             : 'bg-slate-700/80 border-slate-500 text-slate-100 hover:bg-brand-500 hover:border-brand-400'
                                             }`}
@@ -1767,9 +1916,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                           aria-label={`Quick add one ${s.short}`}
                                         >
                                           {inCart > 0 ? (
-                                            <span className="text-[9px] font-mono font-bold leading-none">{inCart}</span>
+                                            <span className="text-[8px] font-mono font-bold leading-none">{inCart}</span>
                                           ) : (
-                                            <MagicWand className="w-2.5 h-2.5" weight="bold" />
+                                            <MagicWand className="w-2 h-2" weight="bold" />
                                           )}
                                         </button>
                                       )}
@@ -1786,21 +1935,21 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                           <Check className="w-2 h-2" weight="bold" />
                                         </span>
                                       )}
-                                      <div className="flex flex-col items-center justify-center gap-1 p-1.5 pb-1 min-h-[64px]">
-                                        <span className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors shrink-0 ${selected
+                                      <div className="flex flex-col items-center justify-center gap-1 p-1 pb-0.5 min-h-[48px]">
+                                        <span className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors shrink-0 ${selected
                                           ? 'bg-brand-500 text-white shadow-xs'
                                           : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                                           }`}>
-                                          <Icon className="w-4 h-4" weight={selected ? 'fill' : 'duotone'} />
+                                          <Icon className="w-3 h-3" weight={selected ? 'fill' : 'duotone'} />
                                         </span>
-                                        <span className="text-xs font-sans font-extrabold text-slate-900 dark:text-white leading-tight truncate max-w-full">{s.short}</span>
+                                        <span className="text-[11px] font-sans font-extrabold text-slate-900 dark:text-white leading-tight truncate max-w-full">{s.short}</span>
                                       </div>
 
-                                      <div className={`mt-auto px-1 py-1 border-t text-center ${selected
+                                      <div className={`mt-auto px-0.5 py-0.5 border-t text-center ${selected
                                         ? 'bg-brand-600 border-brand-700/60'
                                         : 'bg-slate-900 dark:bg-black/40 border-slate-800/60'
                                         }`}>
-                                        <span className="text-[11px] font-mono font-bold tracking-tight">
+                                        <span className="text-[10px] font-mono font-bold tracking-tight">
                                           {linePrice.unpriced ? (
                                             <span className="text-amber-400">no price</span>
                                           ) : (
@@ -1821,243 +1970,149 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       </div>
                     )}
 
-                    {packSizeId && preview && (
-                      <div className="space-y-3.5 pt-1">
-                        {/* qty stepper + number pad */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-3">
-                            <span className="text-xs text-slate-500 w-16">Quantity</span>
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => setQty(q => Math.max(1, q - 1))}
-                                className="w-10 h-10 rounded-xl border-2 border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-400 dark:hover:border-slate-600 cursor-pointer"
-                              >
-                                <Minus className="w-4 h-4" weight="bold" />
-                              </button>
-                              <input
-                                type="number"
-                                min={0}
-                                step={1}
-                                value={qty}
-                                onFocus={() => {
-                                  setShowNumpad(true);
-                                  setNumpadTarget('qty');
-                                }}
-                                onChange={e => setQty(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
-                                className="w-20 text-center py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border-2 border-slate-300 dark:border-slate-700 font-mono font-black text-base focus:border-brand-500"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setQty(q => q + 1)}
-                                className="w-10 h-10 rounded-xl border-2 border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-400 dark:hover:border-slate-600 cursor-pointer"
-                              >
-                                <Plus className="w-4 h-4" weight="bold" />
-                              </button>
-
-                              {/* Quick Number Pad Toggle */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setShowNumpad(prev => !prev || numpadTarget !== 'qty');
-                                  setNumpadTarget('qty');
-                                }}
-                                className={`px-2.5 py-1.5 rounded-xl border text-xs font-sans font-bold flex items-center gap-1.5 transition-all cursor-pointer ${showNumpad && numpadTarget === 'qty'
-                                  ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
-                                  : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-brand-400'
-                                  }`}
-                                title="Open number pad for quick entry"
-                              >
-                                <Calculator className="w-4 h-4" weight="bold" />
-                                <span>Pad</span>
-                              </button>
-                            </div>
-                            <span className="text-xs text-slate-400 font-mono">{preview.litres.toLocaleString()} L</span>
-                          </div>
-
-                          {/* Quick Qty Preset Pills */}
-                          <div className="flex items-center gap-1 pl-[76px] flex-wrap">
-                            {[5, 10, 20, 25, 50, 100].map(n => (
-                              <button
-                                key={n}
-                                type="button"
-                                onClick={() => setQty(n)}
-                                className={`px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold border transition-colors cursor-pointer ${qty === n
-                                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
-                                  : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
-                                  }`}
-                              >
-                                {n}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* keg disposition — automatic, not a manual choice any more */}
-                        {isReturnable && (
-                          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                            <Package className="w-3.5 h-3.5" />
-                            <span>Company keg goes out on loan (returnable) — use Sell Empty Kegs to sell one outright.</span>
-                          </div>
-                        )}
-
-                        {/* price (directly editable) */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-3">
-                            <span className="text-xs text-slate-500 w-16">Unit Price</span>
-                            <div className="flex items-center gap-2">
-                              <div className="relative w-44">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono font-bold text-sm">
-                                  ₦
-                                </span>
-                                <input
-                                  type="text"
-                                  inputMode="numeric"
-                                  value={overrideOn ? formatWithCommas(overrideValue) : formatWithCommas(preview.matrixUnitPrice != null ? preview.matrixUnitPrice : preview.unitPrice)}
-                                  onFocus={() => {
-                                    setShowNumpad(true);
-                                    setNumpadTarget('price');
-                                    if (!overrideOn) {
-                                      setOverrideOn(true);
-                                      setOverrideValue(formatWithCommas(preview.matrixUnitPrice ?? preview.unitPrice ?? ''));
-                                    }
-                                  }}
-                                  onChange={e => {
-                                    setOverrideOn(true);
-                                    setOverrideValue(formatWithCommas(e.target.value));
-                                  }}
-                                  placeholder="0"
-                                  className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-black text-base text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
-                                />
-                              </div>
-                              <span className="text-xs text-slate-400 font-sans">/ {packShort(packSizeId)}</span>
-
-                              {/* Price Pad Button */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setShowNumpad(prev => !prev || numpadTarget !== 'price');
-                                  setNumpadTarget('price');
-                                  if (!overrideOn) {
-                                    setOverrideOn(true);
-                                    setOverrideValue(String(preview.matrixUnitPrice ?? preview.unitPrice ?? ''));
-                                  }
-                                }}
-                                className={`p-1.5 rounded-xl border text-xs font-sans font-bold flex items-center gap-1 transition-all cursor-pointer ${showNumpad && numpadTarget === 'price'
-                                  ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
-                                  : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                                  }`}
-                                title="Edit price using number pad"
-                              >
-                                <Calculator className="w-4 h-4" weight="bold" />
-                              </button>
-
-                              {overrideOn && preview.priceAdjusted && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setOverrideOn(false);
-                                    setOverrideValue('');
-                                    setPriceReason('');
-                                  }}
-                                  className="text-xs font-sans text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1 cursor-pointer"
-                                  title="Reset back to standard tier rate"
-                                >
-                                  ↺ Reset standard
-                                </button>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Mandatory Price Override Feedback with Glowing Compulsory Input */}
-                          {preview.priceAdjusted && (
-                            <div className="pl-[76px] space-y-1.5 text-xs">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-sans font-medium text-[11px]">
-                                  Custom rate (Standard: {formatNaira(preview.matrixUnitPrice ?? 0)})
-                                </span>
-                                <div className="relative flex-1 min-w-[210px] max-w-sm">
-                                  <input
-                                    type="text"
-                                    required
-                                    value={priceReason}
-                                    onChange={e => setPriceReason(e.target.value)}
-                                    placeholder="Reason note (Required)*"
-                                    className={`w-full px-3 py-1.5 rounded-xl text-xs font-sans border transition-all duration-300 outline-none ${!priceReason.trim()
-                                      ? 'border-amber-500 dark:border-amber-400 bg-amber-50/90 dark:bg-amber-950/60 text-amber-950 dark:text-amber-100 placeholder-amber-700 dark:placeholder-amber-300 ring-2 ring-amber-500/60 shadow-md shadow-amber-500/20 animate-pulse'
-                                      : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-brand-500'
-                                      }`}
-                                  />
-                                </div>
-                              </div>
-                              {!priceReason.trim() && (
-                                <div className="text-[11px] font-sans font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1 animate-pulse">
-                                  <span>⚠</span>
-                                  <span>Reason note is mandatory for custom rate before adding to sale.</span>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* INTERACTIVE MINI NUMBER PAD (COLLAPSIBLE / ON-DEMAND) */}
-                        {showNumpad && (
-                          <div className="pt-1">
-                            <MiniNumberPad
-                              qty={qty}
-                              onQtyChange={setQty}
-                              price={overrideOn ? overrideValue : (preview.matrixUnitPrice ?? preview.unitPrice ?? '')}
-                              onPriceChange={val => {
-                                setOverrideOn(true);
-                                setOverrideValue(val);
-                              }}
-                              standardPrice={preview.matrixUnitPrice}
-                              onResetPrice={() => {
-                                setOverrideOn(false);
-                                setOverrideValue('');
-                                setPriceReason('');
-                              }}
-                              activeTarget={numpadTarget}
-                              onTargetChange={setNumpadTarget}
-                              onClose={() => setShowNumpad(false)}
-                            />
-                          </div>
-                        )}
-
-                        {preview.unpriced && (
-                          <div className="text-xs text-rose-600 dark:text-rose-400">
-                            No matrix price configured for {product.name} / {product.varieties.find(v => v.id === varietyId)?.name} /{' '}
-                            {packLabel(packSizeId)} at the {tier} tier. Enter a custom price above to sell.
-                          </div>
-                        )}
-
-                        <div className="flex items-center justify-between pt-1">
-                          <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">
-                            Line: {formatNaira(preview.lineAmount)}
-                          </span>
-                          <button
-                            onClick={addLine}
-                            disabled={!canAddLine}
-                            className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-sans font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
-                          >
-                            <Plus className="w-4 h-4" weight="bold" />
-                            {preview.priceAdjusted && !priceReason.trim() ? 'Reason Required' : 'Add to sale'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </>
                 )}
               </section>
             </div>
 
-            {/* ---------- PAYMENT & SUMMARY COLUMN (RIGHT) ---------- */}
-            {/* Note: Card 3 is removed. Payment is now Step 3. Sticky + its own
-                scroll on desktop so Complete Sale stays reachable while the
-                (often much taller) item builder on the left scrolls the page. */}
-            <div className="split:col-span-4 space-y-4 split:sticky split:top-4 split:self-start split:max-h-[calc(100vh-7rem)] split:overflow-y-auto">
-              {/* Step 3: Payment & Items Summary */}
-              <section className="depot-card p-4 space-y-3.5">
+            {/* ---------- CART + PAYMENT & SUMMARY COLUMN (RIGHT) ---------- */}
+            {/* Two stacked cards: the cart (what is being sold) and the payment
+                card (financial summary, method, Complete Sale). The column keeps
+                its own scroll on desktop so the button stays reachable while the
+                (often much taller) item builder on the left scrolls the page — and
+                inside the cart the list is capped and scrolls on its own, so with
+                a long sale the figures and the button never move. */}
+            <div className="split:col-span-4 space-y-2 split:sticky split:top-4 split:self-start split:max-h-[calc(100vh-7rem)] split:overflow-y-auto">
+              {/* Step 3a: Items in Sale — always rendered, so an empty cart reads
+                  as empty instead of the whole section silently disappearing. */}
+              <section className="depot-card p-2.5 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-6 h-6 rounded-lg bg-brand-500/20 text-brand-700 dark:text-brand-400 flex items-center justify-center shrink-0">
+                      <ShoppingCart className="w-3.5 h-3.5" weight="bold" />
+                    </span>
+                    <span className="text-xs font-sans font-bold uppercase tracking-wider text-slate-500 truncate">
+                      Items in Sale
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-300 tabular-nums shrink-0">
+                      {lines.length}
+                    </span>
+                  </div>
+                  <span className="font-mono text-sm font-extrabold text-slate-900 dark:text-white tabular-nums shrink-0">
+                    {formatNaira(cartTotal)}
+                  </span>
+                </div>
+
+                {lines.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-950/40 px-3 py-4 text-center">
+                    <ShoppingCart className="w-4 h-4 text-slate-300 dark:text-slate-600 mx-auto" />
+                    <p className="text-xs font-sans text-slate-400 dark:text-slate-500 mt-1.5">
+                      No items yet — pick a pack size in <b className="font-bold">Add an item</b> and it drops in here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 max-h-56 overflow-y-auto overscroll-contain pr-1">
+                    {lines.map(l => (
+                        <div key={l.key} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 p-2 space-y-1.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-sans font-bold text-slate-900 dark:text-white truncate">
+                                  {l.varietyName || l.productName}
+                                </span>
+                                {l.priceAdjusted && (
+                                  <span className="px-1.5 py-px rounded bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-[9px] font-sans font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 shrink-0">
+                                    Adjusted
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                {packShort(l.packSizeId)} · {l.kegOnly ? `${l.productName} keg · outright sale, no oil` : l.productName}
+                                {l.containerMode === 'taken' && ' · keg taken'}
+                                {l.containerMode === 'bought' && ' · keg bought'}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeLine(l.key)}
+                              className="w-7 h-7 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-500 hover:border-rose-300 dark:hover:border-rose-800 flex items-center justify-center shrink-0 transition-colors cursor-pointer"
+                              aria-label="Remove line"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {/* Inline line editing — quantity, counter rate and the audit
+                              reason are corrected on the line itself rather than
+                              round-tripping back through the item builder. */}
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-0.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => updateLineQty(l.key, l.qty - 1)}
+                                className="w-6 h-6 rounded-md text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                aria-label="Decrease quantity"
+                              >
+                                <Minus className="w-3 h-3" weight="bold" />
+                              </button>
+                              <span className="w-7 text-center text-xs font-mono font-bold text-slate-900 dark:text-white tabular-nums">
+                                {l.qty}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => updateLineQty(l.key, l.qty + 1)}
+                                className="w-6 h-6 rounded-md text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                aria-label="Increase quantity"
+                              >
+                                <Plus className="w-3 h-3" weight="bold" />
+                              </button>
+                            </div>
+
+                            <div className="relative shrink-0">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold">₦</span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={formatWithCommas(l.unitPrice)}
+                                onChange={e => updateLinePrice(l.key, e.target.value)}
+                                aria-label={`Unit price for ${l.productName}`}
+                                className="w-24 pl-5 pr-2 py-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono font-bold text-xs text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                              />
+                            </div>
+
+                            <span className="ml-auto text-xs font-mono font-black text-slate-900 dark:text-white tabular-nums shrink-0">
+                              {formatNaira(l.lineAmount)}
+                            </span>
+                          </div>
+
+                          {l.priceAdjusted && (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <input
+                                type="text"
+                                value={l.priceAdjustReason ?? ''}
+                                onChange={e => updateLineReason(l.key, e.target.value)}
+                                placeholder="Rate reason*"
+                                className="flex-1 min-w-[110px] px-2 py-1 rounded-md bg-amber-50/70 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-[11px] font-sans text-amber-900 dark:text-amber-200 focus:outline-none focus:border-amber-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => resetLinePrice(l.key)}
+                                className="text-[10px] font-sans font-bold text-brand-600 dark:text-brand-400 hover:underline shrink-0 cursor-pointer"
+                                title="Reset back to the standard tier rate"
+                              >
+                                ↺ Standard
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </section>
+
+              {/* Step 3b: Payment — financial summary first, then the method, then
+                  Complete Sale. */}
+              <section className="depot-card p-2.5 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <StepBadge n={3} label="Payment" />
                   <button
@@ -2072,124 +2127,52 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   </button>
                 </div>
 
-                {/* Items in Sale (only shown when lines exist, replacing the standalone Card 3) */}
-                {lines.length > 0 && (
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
-                    <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500">
-                      <span>Items in Sale ({lines.length})</span>
-                      <span className="text-slate-900 dark:text-white font-mono text-xs">{formatNaira(cartTotal)}</span>
-                    </div>
-
-                    <div className="space-y-1.5 max-h-48 overflow-y-auto divide-y divide-slate-200/50 dark:divide-slate-800/60">
-                      {lines.map(l => (
-                        <div key={l.key} className="space-y-1.5 pt-1.5 first:pt-0">
-                          <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="text-xs font-sans font-semibold text-slate-900 dark:text-white truncate">
-                              {l.qty} × {packShort(l.packSizeId)} {l.kegOnly ? 'empty keg' : `· ${l.productName}`}
-                            </div>
-                            <div className="text-xs text-slate-500 truncate">
-                              {l.kegOnly ? (
-                                `${l.productName} keg · outright sale, no oil`
-                              ) : (
-                                <>
-                                  {l.varietyName}
-                                  {l.containerMode === 'taken' && ' · keg taken'}
-                                  {l.containerMode === 'bought' && ' · keg bought'}
-                                </>
-                              )}
-                              {l.priceAdjusted && ' · adjusted'}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">
-                              {formatNaira(l.lineAmount)}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => removeLine(l.key)}
-                              className="rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-500 p-1 cursor-pointer"
-                              aria-label="Remove line"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                          </div>
-
-                          {/* Inline line editing — quantity, counter rate and the audit
-                              reason are corrected on the line itself rather than
-                              round-tripping back through the item builder. */}
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => updateLineQty(l.key, l.qty - 1)}
-                                className="w-6 h-6 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer"
-                                aria-label="Decrease quantity"
-                              >
-                                <Minus className="w-3 h-3" weight="bold" />
-                              </button>
-                              <span className="w-8 text-center text-xs font-mono font-bold text-slate-900 dark:text-white tabular-nums">
-                                {l.qty}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => updateLineQty(l.key, l.qty + 1)}
-                                className="w-6 h-6 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer"
-                                aria-label="Increase quantity"
-                              >
-                                <Plus className="w-3 h-3" weight="bold" />
-                              </button>
-                            </div>
-
-                            <div className="relative">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold">₦</span>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={formatWithCommas(l.unitPrice)}
-                                onChange={e => updateLinePrice(l.key, e.target.value)}
-                                aria-label={`Unit price for ${l.productName}`}
-                                className="w-24 pl-5 pr-2 py-1 rounded-md bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-xs text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
-                              />
-                            </div>
-
-                            {l.priceAdjusted && (
-                              <>
-                                <input
-                                  type="text"
-                                  value={l.priceAdjustReason ?? ''}
-                                  onChange={e => updateLineReason(l.key, e.target.value)}
-                                  placeholder="Rate reason*"
-                                  className="flex-1 min-w-[110px] px-2 py-1 rounded-md bg-amber-50/70 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-[11px] font-sans text-amber-900 dark:text-amber-200 focus:outline-none focus:border-amber-500"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => resetLinePrice(l.key)}
-                                  className="text-[10px] font-sans font-bold text-brand-600 dark:text-brand-400 hover:underline shrink-0 cursor-pointer"
-                                  title="Reset back to the standard tier rate"
-                                >
-                                  ↺ Standard
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
-                      <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Total</span>
-                      <span className="text-base font-mono font-extrabold text-slate-900 dark:text-white">
-                        {formatNaira(cartTotal)}
+                {/* Financial summary — Subtotal at the matrix rates, a discount row
+                    when staff typed a lower counter rate on any line, and the Total
+                    this sale is actually charging (the exact figure Complete Sale
+                    submits). Both sides are priced from the same matrix/tier/quantity
+                    inputs, so a hand-typed rate is the only thing that can move them. */}
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-sans">
+                    <span className="text-slate-500 dark:text-slate-400">Subtotal</span>
+                    <span className="font-mono text-xs font-bold text-slate-900 dark:text-white tabular-nums">
+                      {formatNaira(listSubtotal)}
+                    </span>
+                  </div>
+                  {rateDiscount > 0 && (
+                    <div className="flex items-center justify-between text-xs font-sans">
+                      <span className="text-slate-500 dark:text-slate-400">Discount (counter rate)</span>
+                      <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                        −{formatNaira(rateDiscount)}
                       </span>
                     </div>
+                  )}
+                  {rateUplift > 0 && (
+                    <div className="flex items-center justify-between text-xs font-sans">
+                      <span className="text-slate-500 dark:text-slate-400">Uplift (counter rate)</span>
+                      <span className="font-mono text-xs font-bold text-amber-600 dark:text-amber-400 tabular-nums">
+                        +{formatNaira(rateUplift)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-baseline justify-between gap-1.5 rounded-xl bg-slate-900 dark:bg-slate-800 ring-1 ring-black/5 dark:ring-white/10 px-3 py-2 shadow-sm">
+                    <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-400">Total</span>
+                    <span className="text-lg leading-none font-mono font-black text-white tabular-nums">
+                      {formatNaira(cartTotal)}
+                    </span>
                   </div>
-                )}
+                  <div className="text-[10px] font-sans text-slate-400 dark:text-slate-500 text-center tabular-nums">
+                    {lines.length} {lines.length === 1 ? 'item' : 'items'}
+                    {cartLitres > 0 && ` · ${cartLitres.toLocaleString('en-US', { maximumFractionDigits: 1 })} L`}
+                  </div>
+                </div>
 
-                {/* Payment methods — pick one for a full payment, or two or more to split the sale across them. */}
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-1.5">
+                {/* Payment methods — one segmented control: pick one for a full payment,
+                    or two or more to split the sale across them. Four across on a phone
+                    and on a wide screen; back to two across in the middle widths where
+                    the split-pane column is too narrow for four. */}
+                <div className="space-y-2">
+                  <div className="grid grid-cols-4 split:grid-cols-2 xl:grid-cols-4 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
                     {PAYMENT_METHODS.map(m => {
                       const isSelected = payMethods.includes(m.id);
                       const theme = getPaymentModeTheme(m.id);
@@ -2199,12 +2182,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           type="button"
                           onClick={() => togglePayMethod(m.id)}
                           aria-pressed={isSelected}
-                          className={`py-1.5 px-2.5 rounded-lg text-xs font-sans font-bold border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${isSelected
-                            ? theme.buttonActiveCls + ' scale-[1.01]'
-                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                          className={`py-1.5 px-1 rounded-lg text-xs font-sans font-medium leading-tight border transition-all flex items-center justify-center gap-1 cursor-pointer ${isSelected
+                            ? theme.buttonActiveCls
+                            : 'bg-transparent text-slate-500 dark:text-slate-400 border-transparent hover:bg-white dark:hover:bg-slate-900 hover:text-slate-700 dark:hover:text-slate-200'
                             }`}
                         >
-                          <span className={`w-2 h-2 rounded-full ${theme.dotCls} shrink-0`} />
+                          <span className={`w-1.5 h-1.5 rounded-full ${theme.dotCls} shrink-0`} />
                           <span>{m.label}</span>
                         </button>
                       );
@@ -2226,6 +2209,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                   [payMethods[0]]: formatWithCommas(half),
                                   [payMethods[1]]: formatWithCommas(cartTotal - half)
                                 });
+                                // Pin the first half only. The newest method
+                                // stays on auto-pilot, where "the rest" is that
+                                // same half — and stays right if the sale changes.
+                                markPayManual(payMethods[0], true);
+                                markPayManual(payMethods[1], false);
                               }}
                               className="text-[11px] font-sans font-bold text-brand-600 dark:text-brand-400 hover:underline cursor-pointer"
                             >
@@ -2237,11 +2225,16 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                         {payMethods.map(m => {
                           const theme = getPaymentModeTheme(m);
                           return (
-                            <div key={m} className={`p-3 rounded-2xl border space-y-2 ${theme.bgSubtleCls} ${theme.borderCls}`}>
+                            <div key={m} className={`p-2.5 rounded-xl border space-y-1.5 ${theme.bgSubtleCls} ${theme.borderCls}`}>
                               <div className="flex items-center justify-between gap-2">
                                 <span className={`text-[11px] font-sans font-black uppercase tracking-wider flex items-center gap-1.5 ${theme.textCls}`}>
                                   <span className={`w-2 h-2 rounded-full ${theme.dotCls}`} />
                                   {theme.label}
+                                  {m === autoPayMethod && (
+                                    <span className="px-1.5 py-px rounded-full bg-brand-500/15 text-brand-700 dark:text-brand-300 text-[9px] font-sans font-bold normal-case tracking-normal">
+                                      auto
+                                    </span>
+                                  )}
                                 </span>
                                 <div className="flex items-center gap-1">
                                   {[0.25, 0.5, 0.75].map(pct => (
@@ -2251,6 +2244,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                       onClick={() => {
                                         if (cartTotal > 0) {
                                           setPayAmounts(prev => ({ ...prev, [m]: formatWithCommas(Math.round(cartTotal * pct)) }));
+                                          markPayManual(m, true);
                                         }
                                       }}
                                       className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-brand-500 hover:text-brand-600 cursor-pointer"
@@ -2262,7 +2256,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                     type="button"
                                     onClick={() => autoBalanceMethod(m)}
                                     className="px-2 py-0.5 rounded-md text-[10px] font-sans font-bold bg-white dark:bg-slate-950 text-brand-600 dark:text-brand-400 border border-slate-200 dark:border-slate-800 hover:border-brand-500 cursor-pointer"
-                                    title="Fill in whatever is left once the other methods are counted"
+                                    title={m === newestPayMethod
+                                      ? 'Let this method balance itself again — it carries whatever the others leave over'
+                                      : 'Fill in whatever is left once the other methods are counted'}
                                   >
                                     Balance
                                   </button>
@@ -2274,10 +2270,13 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                 <input
                                   type="text"
                                   inputMode="numeric"
-                                  value={payAmounts[m] || ''}
-                                  onChange={e => setPayAmounts(prev => ({ ...prev, [m]: formatWithCommas(e.target.value) }))}
+                                  value={effectivePayAmounts[m] || ''}
+                                  onChange={e => {
+                                    setPayAmounts(prev => ({ ...prev, [m]: formatWithCommas(e.target.value) }));
+                                    markPayManual(m, true);
+                                  }}
                                   placeholder={m === 'credit' ? 'Amount on debt' : 'Amount taken now'}
-                                  className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-sm text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                                  className="w-full pl-8 pr-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-sm text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
                                 />
                               </div>
                             </div>
@@ -2288,7 +2287,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
                     {payMethods.includes('credit') && (
                       isOneTime ? (
-                        <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 space-y-2.5">
+                        <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 space-y-2">
                           <div className="flex items-start gap-2.5">
                             <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                             <div>
@@ -2320,7 +2319,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           </div>
                         </div>
                       ) : (
-                        <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-2.5">
+                        <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
                               <Clock className="w-3.5 h-3.5" />
@@ -2428,7 +2427,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   value={note}
                   onChange={e => setNote(e.target.value)}
                   placeholder="Note (optional)"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                  className="w-full px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                 />
 
                 <div className="space-y-1.5">
@@ -2436,7 +2435,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     type="button"
                     onClick={() => setShowBackdate(v => !v)}
                     aria-pressed={showBackdate}
-                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-sans font-bold transition-all active:scale-95 ${showBackdate
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-sans font-bold transition-all active:scale-95 ${showBackdate
                       ? 'bg-brand-50 dark:bg-brand-950/40 border-brand-300 dark:border-brand-800 text-brand-700 dark:text-brand-400'
                       : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
                       }`}
@@ -2449,13 +2448,13 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       type="datetime-local"
                       value={saleDateInput}
                       onChange={e => setSaleDateInput(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-xs"
+                      className="w-full px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-xs"
                     />
                   )}
                 </div>
 
                 {error && (
-                  <div className="text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-lg px-3 py-2">
+                  <div className="text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-lg px-2.5 py-1.5">
                     {error}
                   </div>
                 )}
@@ -2463,7 +2462,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                 {/* Nothing can be sold from an empty catalogue — say so rather
                     than leaving a disabled button with no explanation. */}
                 {products.length === 0 && (
-                  <div className="text-xs font-sans font-medium text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-900/60 rounded-lg px-3 py-2">
+                  <div className="text-xs font-sans font-medium text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-900/60 rounded-lg px-2.5 py-1.5">
                     No products configured yet. Add your first product — name, keg size, density and pack prices — in Settings → Products &amp; Keg Sizes, then come back to sell it.
                   </div>
                 )}
@@ -2471,7 +2470,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                 <button
                   onClick={completeSale}
                   disabled={lines.length === 0 || overLimitBlocked || products.length === 0}
-                  className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-sans font-bold text-sm flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all"
+                  className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-sans font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25 active:scale-[0.99] transition-all"
                 >
                   <Check className="w-4 h-4" weight="bold" /> Complete sale · {formatNaira(cartTotal)}
                   <ChevronRight className="w-4 h-4" weight="bold" />
