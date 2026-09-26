@@ -22,7 +22,8 @@ import {
   fromDatetimeLocalValue,
   formatWithCommas,
   parseFromCommas,
-  keepDigitsAndDecimal
+  keepDigitsAndDecimal,
+  numberOrBlank
 } from './businessLogic';
 import { lookupPackPrice, priceSaleLine } from './pricing';
 import {
@@ -561,17 +562,55 @@ assert(gateCheckPass.missingPumps.length === 0, 'Shift meter gate: zero missing 
 assert(calculateLitres('keg', 10, 30) === 300, 'Per-product capacity: 10 veg kegs (30L) = 300L');
 assert(calculateLitres('keg', 10, 25) === 250, 'Per-product capacity: 10 palm kegs (25L) = 250L');
 
-// 21b. DENSITY / KEG-SIZE RESOLUTION — one source of truth, 0 means "not set"
+// 21b. DENSITY / KEG-SIZE RESOLUTION — one source of truth, 0 means "not set".
+// Precedence: the depot standard in Settings wins while it is set, and a
+// product's own figure applies only while that depot field is blank. That is
+// the reverse of the old order, which let a legacy product row (a seeded 1,075)
+// silently beat the density the owner had just typed into Settings — the owner
+// saw 1,075 on Truck Intake no matter what they saved.
 const bulkProd = { litres_per_ton: 1090, litres_per_keg: 30 };
 const preKeggedProd = { litres_per_ton: null, litres_per_keg: 25 };
 const cageyProd = { litres_per_ton: null, litres_per_keg: 0 };
-const settingsStub = { default_litres_per_ton: 1075, litres_per_keg: 25 };
+const settingsStub = { default_litres_per_ton: 1125, litres_per_keg: 25 };
+const blankSettingsStub = { default_litres_per_ton: 0, litres_per_keg: 0 };
 
-assert(resolveLitresPerTon(bulkProd, settingsStub) === 1090, 'Resolution: the product\'s own density wins over the depot default');
-assert(resolveLitresPerTon(preKeggedProd, settingsStub) === 1075, 'Resolution: a product with no density (null) inherits the depot default');
-assert(resolveLitresPerTon(preKeggedProd, null) === 0, 'Resolution: no product density and no setting = 0, never a hardcoded guess');
-assert(resolveLitresPerKeg(cageyProd, settingsStub) === 25, 'Resolution: a 0 keg size inherits the depot default');
+assert(resolveLitresPerTon(bulkProd, settingsStub) === 1125, 'Resolution: the depot density in Settings beats the product row (1,125 over a legacy 1,090)');
+assert(resolveLitresPerTon(bulkProd, blankSettingsStub) === 1090, 'Resolution: a blank depot density falls back to the product\'s own (1,090) — the previous behaviour, untouched');
+assert(resolveLitresPerTon(preKeggedProd, settingsStub) === 1125, 'Resolution: a product with no density (null) uses the depot density');
+assert(resolveLitresPerTon(preKeggedProd, blankSettingsStub) === 0, 'Resolution: nothing configured on either side = 0, never a hardcoded guess');
+assert(resolveLitresPerTon(preKeggedProd, null) === 0, 'Resolution: no product density and no settings row at all = 0');
+assert(resolveLitresPerKeg(bulkProd, settingsStub) === 25, 'Resolution: the depot keg standard beats the product\'s own 30L keg');
+assert(resolveLitresPerKeg(bulkProd, blankSettingsStub) === 30, 'Resolution: a blank depot keg standard falls back to the product\'s own keg size');
+assert(resolveLitresPerKeg(cageyProd, settingsStub) === 25, 'Resolution: a 0 keg size uses the depot keg standard');
+assert(resolveLitresPerKeg(cageyProd, blankSettingsStub) === 0, 'Resolution: neither keg size configured = 0');
 assert(resolveLitresPerKeg(null, null) === 0, 'Resolution: nothing configured resolves to 0');
+assert(resolveLitresPerTon(null, settingsStub) === 1125, 'Resolution: the depot density stands even with no product selected');
+
+// The figure the owner actually cares about: 10 tons of waybill at the depot's
+// own 1,125 L/ton is 11,250 L — not the 10,750 L the old precedence produced
+// from the product row's stale 1,075.
+const depotDensityTons = calculateIntakeMetrics(10, resolveLitresPerTon(bulkProd, settingsStub), 450, 0, 450, 25, 0);
+assert(depotDensityTons.expectedLitres === 11250, 'Resolution: 10 tons at the depot 1,125 L/ton = 11,250 L');
+const productDensityTons = calculateIntakeMetrics(10, resolveLitresPerTon(bulkProd, blankSettingsStub), 450, 0, 450, 30, 0);
+assert(productDensityTons.expectedLitres === 10900, 'Resolution: with the depot density blank, the product\'s own 1,090 gives 10,900 L');
+
+// 21c. SETTINGS-FIELD NUMBER PARSING (`numberOrBlank`)
+// The fleet fields display grouped figures, so what the owner sees in the box
+// has to read back identically: "1,125" is one thousand one hundred and
+// twenty-five, never 1 (which a bare `parseFloat` produced by stopping at the
+// comma) and never 1.125.
+assert(numberOrBlank('1,125', 0) === 1125, 'Settings field: "1,125" saves 1125, not 1');
+assert(numberOrBlank('1125', 0) === 1125, 'Settings field: an ungrouped "1125" saves 1125');
+assert(numberOrBlank(1125, 0) === 1125, 'Settings field: a numeric value passes straight through');
+assert(numberOrBlank('1,000,000', 0) === 1000000, 'Settings field: every thousands separator is stripped');
+assert(numberOrBlank('', 0) === 0, 'Settings field: a blank field yields the fallback (0 = not configured)');
+assert(numberOrBlank('   ', 7) === 7, 'Settings field: whitespace counts as blank, so the fallback stands');
+assert(numberOrBlank(null, 7) === 7 && numberOrBlank(undefined, 7) === 7, 'Settings field: null/undefined yield the fallback');
+assert(numberOrBlank('abc', 7) === 7 && numberOrBlank('₦', 7) === 7, 'Settings field: a field with no digit at all yields the fallback, not 0');
+assert(numberOrBlank('0', 9) === 0, 'Settings field: a typed 0 is a real 0, not the fallback');
+assert(numberOrBlank('12.5', 0) === 12.5, 'Settings field: a fractional figure survives intact');
+assert(Math.max(0, numberOrBlank('1,125', 0)) === 1125, 'Settings field: the Math.max(0, …) wrapper SettingsScreen applies keeps 1125');
+assert(numberOrBlank('1,075', 0) !== 1, 'Settings field: the old parseFloat bug (1,075 → 1) can never come back');
 assert(configuredNumber(1075) === 1075 && configuredNumber(0) === 0 && configuredNumber(null) === 0 && configuredNumber(NaN) === 0 && configuredNumber(-5) === 0, 'Resolution: configuredNumber rejects 0, null, NaN and negatives');
 
 // Unconfigured density/keg size must never divide (this returned Infinity

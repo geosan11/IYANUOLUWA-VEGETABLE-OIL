@@ -96,24 +96,46 @@ export const TruckIntakeScreen: React.FC = () => {
   const selectedProduct = products.find(p => p.id === productId) || products[0];
 
   // One source of truth for both the live preview below and the recorded
-  // receipt: the product's own figures, else the depot defaults in Settings,
-  // else 0 meaning "not configured". Nothing here invents a density or a keg
-  // size, so what the operator sees is exactly what gets written.
+  // receipt: the depot figures in Settings, else the product's own, else 0
+  // meaning "not configured". Nothing here invents a density or a keg size, so
+  // what the operator sees is exactly what gets written.
   const litresPerTon = resolveLitresPerTon(selectedProduct, settings);
   const litresPerKeg = resolveLitresPerKeg(selectedProduct, settings);
   const companyKegSize = configuredNumber(settings.litres_per_keg);
   const isBulkTruck = selectedProduct?.supply_model === 'bulk_truck';
-  const densityFromProduct = configuredNumber(selectedProduct?.litres_per_ton) > 0;
-  const kegSizeFromProduct = configuredNumber(selectedProduct?.litres_per_keg) > 0;
+  const productDensity = configuredNumber(selectedProduct?.litres_per_ton);
+  const productKegSize = configuredNumber(selectedProduct?.litres_per_keg);
+
+  // Which figure is actually doing the work, and what it displaced. The depot
+  // standard in Settings wins while it is set, so the chip names it as the
+  // source and says which product figure it is overriding — that is what stops
+  // a Settings edit from looking like it did nothing, and a product row from
+  // looking live when it isn't.
+  const densityFromDepot = configuredNumber(settings.default_litres_per_ton) > 0;
+  const kegSizeFromDepot = configuredNumber(settings.litres_per_keg) > 0;
+  const densitySourceLabel = litresPerTon <= 0
+    ? ''
+    : densityFromDepot
+      ? productDensity > 0 && productDensity !== litresPerTon
+        ? `depot setting · product ${productDensity.toLocaleString()} not used`
+        : 'depot setting'
+      : 'this product';
+  const kegSourceLabel = litresPerKeg <= 0
+    ? ''
+    : kegSizeFromDepot
+      ? productKegSize > 0 && productKegSize !== litresPerKeg
+        ? `depot setting · product ${productKegSize} not used`
+        : 'depot setting'
+      : 'this product';
 
   // What would stop this delivery being recorded: no density to turn tons into
   // litres, or no keg size to turn counted kegs into litres.
   const configBlocker = !selectedProduct
     ? 'Add a product in Settings before recording a delivery.'
     : isBulkTruck && litresPerTon <= 0
-      ? `Set the density (litres per ton) for ${selectedProduct.name} in Settings before recording a bulk intake.`
+      ? `Set the depot density (L/ton) in Settings — or ${selectedProduct.name}'s own density — before recording a bulk intake.`
       : litresPerKeg <= 0
-        ? `Set the keg size (litres per keg) for ${selectedProduct.name} in Settings before recording a delivery.`
+        ? `Set the depot keg standard (L/keg) in Settings — or ${selectedProduct.name}'s own capacity — before recording a delivery.`
         : null;
 
   // Live calculation metrics for bulk truck
@@ -605,17 +627,19 @@ export const TruckIntakeScreen: React.FC = () => {
                           </span>
                           <span className="text-[11px] font-mono font-bold text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-900/80 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
                             {litresPerTon > 0
-                              ? `${litresPerTon.toLocaleString()} L / TON${densityFromProduct ? '' : ' (depot default)'}`
+                              ? `${litresPerTon.toLocaleString()} L / TON · ${densitySourceLabel}`
                               : 'Density not set'}
                           </span>
                         </div>
                         <div className="font-mono tabular-nums text-2xl font-extrabold text-slate-950 dark:text-white mt-1">
-                          {bulkMetrics.expectedLitres.toLocaleString()} L
+                          {tons.trim() === '' ? '—' : `${bulkMetrics.expectedLitres.toLocaleString()} L`}
                         </div>
                         <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          {litresPerKeg > 0
-                            ? `Equivalent to ~${bulkMetrics.expectedKegs} standard ${litresPerKeg}L company kegs.`
-                            : 'Set the keg size in Settings to see the keg equivalent.'}
+                          {tons.trim() === ''
+                            ? 'Enter the scale weight above to calculate litres.'
+                            : litresPerKeg > 0
+                              ? `Equivalent to ~${bulkMetrics.expectedKegs} standard ${litresPerKeg}L company kegs.`
+                              : 'Set the keg standard in Settings to see the keg equivalent.'}
                         </span>
                       </div>
                     </div>
@@ -676,7 +700,7 @@ export const TruckIntakeScreen: React.FC = () => {
                           </span>
                           <span className="text-[11px] font-mono font-bold text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-900/80 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
                             {litresPerKeg > 0
-                              ? `${litresPerKeg} L / KEG${kegSizeFromProduct ? '' : ' (depot default)'}`
+                              ? `${litresPerKeg} L / KEG · ${kegSourceLabel}`
                               : 'Keg size not set'}
                           </span>
                         </div>

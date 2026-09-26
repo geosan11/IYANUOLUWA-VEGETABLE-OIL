@@ -69,6 +69,7 @@ import {
   calculatePreKeggedIntakeMetrics,
   resolveLitresPerTon,
   resolveLitresPerKeg,
+  configuredNumber,
   checkShiftOpeningMetersGate,
   ShiftOpeningGateStatus,
   calculatePumpMeterVariance,
@@ -1677,13 +1678,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (litresPerTon <= 0) {
       return {
         success: false,
-        error: 'Set this product\'s density (litres per ton) in Settings before logging a bulk truck intake'
+        error: 'Set the depot density (litres per ton) in Settings → Keg Configuration, or this product\'s own density, before logging a bulk truck intake'
       };
     }
     if (litresPerKeg <= 0) {
       return {
         success: false,
-        error: 'Set the keg size (litres per keg) in Settings before logging a bulk truck intake'
+        error: 'Set the depot keg standard (litres per keg) in Settings → Keg Configuration, or this product\'s own capacity, before logging a bulk truck intake'
       };
     }
 
@@ -1737,7 +1738,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (litresPerKeg <= 0) {
       return {
         success: false,
-        error: 'Set the keg size (litres per keg) in Settings before logging a pre-kegged intake'
+        error: 'Set the depot keg standard (litres per keg) in Settings → Keg Configuration, or this product\'s own capacity, before logging a pre-kegged intake'
       };
     }
 
@@ -3072,7 +3073,25 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // 11b. Update Product (name, supply_model, varieties, pack_config, …).
   // `pack_config` has no database column — local-only, never sent.
   const updateProduct = (productId: string, updates: Partial<Product>) => {
-    setProducts(prev => prev.map(p => (p.id === productId ? { ...p, ...updates } : p)));
+    // `products_bulk_needs_lpt` requires a density on every bulk_truck product,
+    // so clearing one used to be rejected by the database and then reverted on
+    // the next refresh — the owner blanked the field, saw the old number come
+    // back, and had no way to tell why. Keep the existing figure instead and say
+    // so: the depot standard takes precedence anyway, so the retained row is
+    // dormant rather than wrong, and nothing is invented or silently lost.
+    const isBulkTruckProduct = products.some(p => p.id === productId && p.supply_model === 'bulk_truck');
+    const blocksBulkDensityClear =
+      isBulkTruckProduct && updates.litres_per_ton !== undefined && !configuredNumber(updates.litres_per_ton);
+    const applied: Partial<Product> = blocksBulkDensityClear
+      ? { ...updates, litres_per_ton: products.find(p => p.id === productId)?.litres_per_ton ?? null }
+      : updates;
+    if (blocksBulkDensityClear) {
+      showToast(
+        'info',
+        'A bulk-truck product keeps a density of its own, so that clearance was not applied. Set the depot density in Settings → Keg Configuration: while that is set it governs every bulk intake anyway.'
+      );
+    }
+    setProducts(prev => prev.map(p => (p.id === productId ? { ...p, ...applied } : p)));
     if (updates.varieties) {
       // A variety that no longer exists can't keep priced rows in the
       // Inventory price matrix — prune them so they don't linger orphaned.
@@ -3083,7 +3102,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const productPatch: Record<string, unknown> = {};
       if (updates.name !== undefined) productPatch.name = updates.name;
       if (updates.supply_model !== undefined) productPatch.supply_model = updates.supply_model;
-      if (updates.litres_per_ton !== undefined) productPatch.litres_per_ton = updates.litres_per_ton;
+      if (applied.litres_per_ton !== undefined && !blocksBulkDensityClear) productPatch.litres_per_ton = applied.litres_per_ton;
       if (updates.litres_per_keg !== undefined) productPatch.litres_per_keg = updates.litres_per_keg;
       if (updates.keg_sell_price !== undefined) productPatch.keg_sell_price = updates.keg_sell_price;
       if (updates.color_light !== undefined) productPatch.color_light = updates.color_light;

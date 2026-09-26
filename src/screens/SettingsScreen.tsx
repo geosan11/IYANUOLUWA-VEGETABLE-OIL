@@ -4,7 +4,7 @@ import { useToast } from '../services/toast';
 import { usePermissions } from '../services/permissions';
 import { Modal } from '../components/common/Modal';
 import { uploadDepotLogo, isSupabaseConfigured } from '../services/supabase';
-import { formatNaira } from '../services/businessLogic';
+import { formatNaira, formatWithCommas, numberOrBlank } from '../services/businessLogic';
 import {
   Gear as Settings,
   Upload,
@@ -35,14 +35,12 @@ import { UserRole, SupplyModel, ProductVariety, Hub, Pump } from '../types';
 
 type SettingsSectionId = 'company' | 'kegs' | 'pricing' | 'infrastructure' | 'thresholds' | 'system' | 'hubs';
 
-// `parseFloat(x) || fallback` treats an explicitly-typed "0" the same as an
-// empty/unparseable field, silently substituting the fallback — this admin
-// only ever wants the fallback when the field truly has nothing usable in it.
-const numOr = (raw: string, fallback: number): number => {
-  if (raw.trim() === '') return fallback;
-  const n = parseFloat(raw);
-  return Number.isNaN(n) ? fallback : n;
-};
+// Owner-typed figures in this screen are read with `numberOrBlank` from
+// businessLogic: blank means "not configured" and yields the fallback, while
+// anything else has its thousands separators stripped, so the grouped "1,125"
+// the input itself displays reads back as 1125. The local helper this replaces
+// used a bare `parseFloat`, which stopped dead at the comma and saved `1` —
+// which then looked like a density of 1 L/ton.
 
 // Single source of truth for every configuration section's icon + color, so
 // the desktop nav, mobile nav, and each tab's content-pane header can never
@@ -190,9 +188,24 @@ export const SettingsScreen: React.FC = () => {
   // desktop sidebar) — built from whatever products actually exist instead
   // of hardcoded 'veg'/'red' lookups, so it stays correct as products are
   // added, renamed, or removed.
-  const kegFleetSummaryText = products.length > 0
-    ? products.map(p => `${p.name}: ${productLitresPerKeg[p.id] ? `${productLitresPerKeg[p.id]}L` : 'not set'}`).join(' · ')
-    : 'No products configured';
+  // What the depot standards currently say — read live from the draft fields, so
+  // the per-product rows below can tell the owner, as they type, whether their
+  // own figures are still doing anything. Both resolvers give the depot figure
+  // precedence, so a set depot standard makes every product figure dormant
+  // (kept in the database, simply not used) rather than wrong.
+  const depotKegStandard = numberOrBlank(litresPerKeg, 0);
+  const depotDensityStandard = numberOrBlank(defaultLitresPerTon, 0);
+
+  // Drives the Keg Fleet & Container Standards summary line (mobile row +
+  // desktop sidebar) — built from whatever products actually exist instead
+  // of hardcoded 'veg'/'red' lookups, so it stays correct as products are
+  // added, renamed, or removed. While a depot keg standard is set it names
+  // that, instead of listing per-product figures that aren't being used.
+  const kegFleetSummaryText = depotKegStandard > 0
+    ? `${depotKegStandard.toLocaleString()}L depot keg standard applies to every product`
+    : products.length > 0
+      ? products.map(p => `${p.name}: ${productLitresPerKeg[p.id] ? `${productLitresPerKeg[p.id]}L` : 'not set'}`).join(' · ')
+      : 'No products configured';
 
 
   // Add / Edit Product Modal State
@@ -315,31 +328,35 @@ export const SettingsScreen: React.FC = () => {
     if (denyIfNoSettingsAccess()) return;
     // No invented fallbacks: a blank field means "not configured" and is saved
     // as 0, which the rest of the app reads as "ask the owner" instead of a
-    // silently substituted 30L keg / 1,075 L-per-ton / 500 keg fleet.
-    const globalDefault = Math.max(0, numOr(litresPerKeg, 0));
+    // silently substituted 30L keg / 1,075 L-per-ton / 500 keg fleet. Read with
+    // `numberOrBlank`, so a field showing "1,125" saves 1125 and not 1.
+    const globalDefault = Math.max(0, numberOrBlank(litresPerKeg, 0));
     updateSettings({
       litres_per_keg: globalDefault,
-      default_litres_per_ton: Math.max(0, numOr(defaultLitresPerTon, 0)),
-      total_company_kegs: Math.max(0, numOr(totalCompanyKegs, 0)),
-      kegs_at_depot_low_threshold: Math.max(0, numOr(kegsAtDepotLowThreshold, 0))
+      default_litres_per_ton: Math.max(0, numberOrBlank(defaultLitresPerTon, 0)),
+      total_company_kegs: Math.max(0, numberOrBlank(totalCompanyKegs, 0)),
+      kegs_at_depot_low_threshold: Math.max(0, numberOrBlank(kegsAtDepotLowThreshold, 0))
     });
 
-    // Save each product's own keg size and density. A cleared field writes 0
-    // (or null for a pre-kegged product, which has no tons at all) so the
-    // product falls back to the depot default instead of a stale figure.
+    // Save each product's own keg size and density. A cleared keg size writes 0
+    // (the product then inherits the depot standard); a cleared density is sent
+    // as null so the depot standard governs — `updateProduct` keeps the previous
+    // number for a bulk-truck product, because the database requires one to
+    // exist (`products_bulk_needs_lpt`). Parsed with `numberOrBlank` so a
+    // grouped figure can't be truncated at the comma.
     products.forEach(p => {
       const kegRaw = productLitresPerKeg[p.id];
       if (kegRaw !== undefined) {
-        const kegVal = parseFloat(kegRaw);
+        const kegVal = numberOrBlank(kegRaw, 0);
         if (kegRaw.trim() === '') updateProduct(p.id, { litres_per_keg: 0 });
-        else if (!isNaN(kegVal) && kegVal > 0) updateProduct(p.id, { litres_per_keg: kegVal });
+        else if (kegVal > 0) updateProduct(p.id, { litres_per_keg: kegVal });
       }
 
       const tonRaw = productLitresPerTon[p.id];
       if (tonRaw !== undefined) {
-        const tonVal = parseFloat(tonRaw);
+        const tonVal = numberOrBlank(tonRaw, 0);
         if (tonRaw.trim() === '') updateProduct(p.id, { litres_per_ton: null });
-        else if (!isNaN(tonVal) && tonVal > 0) updateProduct(p.id, { litres_per_ton: tonVal });
+        else if (tonVal > 0) updateProduct(p.id, { litres_per_ton: tonVal });
       }
     });
 
@@ -357,9 +374,9 @@ export const SettingsScreen: React.FC = () => {
     // Blank fields save as 0 / null ("not configured") rather than the old
     // 3,500 / 30L / 1,075 fallbacks, which were written into the record as if
     // the owner had chosen them.
-    const kegSell = Math.max(0, numOr(newProductKegSellPrice, 0));
-    const lPerKeg = Math.max(0, numOr(newProductLitresPerKeg, 0));
-    const lPerTon = newProductModel === 'bulk_truck' ? Math.max(0, numOr(newProductLitresPerTon, 0)) : null;
+    const kegSell = Math.max(0, numberOrBlank(newProductKegSellPrice, 0));
+    const lPerKeg = Math.max(0, numberOrBlank(newProductLitresPerKeg, 0));
+    const lPerTon = newProductModel === 'bulk_truck' ? Math.max(0, numberOrBlank(newProductLitresPerTon, 0)) : null;
 
     let varieties: ProductVariety[] = newProductVarieties
       .filter(v => v.name.trim())
@@ -430,7 +447,7 @@ export const SettingsScreen: React.FC = () => {
     addPhysicalTank({
       label: newTankLabel.trim(),
       product_id: newTankProductId,
-      capacity_litres: Math.max(0, numOr(newTankCapacity, 0)),
+      capacity_litres: Math.max(0, numberOrBlank(newTankCapacity, 0)),
       hub_id: newTankHubId || undefined
     });
     setNewTankLabel('');
@@ -452,7 +469,7 @@ export const SettingsScreen: React.FC = () => {
     updatePhysicalTank(editingTankId, {
       label: editTankLabel.trim(),
       product_id: editTankProductId,
-      capacity_litres: numOr(editTankCapacity, 0),
+      capacity_litres: numberOrBlank(editTankCapacity, 0),
       hub_id: editTankHubId || undefined
     });
     showNotification(`Tank "${editTankLabel.trim()}" updated successfully.`);
@@ -478,9 +495,9 @@ export const SettingsScreen: React.FC = () => {
     e.preventDefault();
     if (denyIfNoSettingsAccess()) return;
     updateSettings({
-      low_stock_litres_threshold: Math.max(0, numOr(lowStockThreshold, 0)),
-      truck_shortfall_threshold: Math.max(0, numOr(truckShortfallThreshold, 0)),
-      pump_variance_threshold: Math.max(0, numOr(pumpVarianceThreshold, 0))
+      low_stock_litres_threshold: Math.max(0, numberOrBlank(lowStockThreshold, 0)),
+      truck_shortfall_threshold: Math.max(0, numberOrBlank(truckShortfallThreshold, 0)),
+      pump_variance_threshold: Math.max(0, numberOrBlank(pumpVarianceThreshold, 0))
     });
     showNotification('Operational alert thresholds updated!');
     setActiveMobileSheet(null);
@@ -790,7 +807,7 @@ export const SettingsScreen: React.FC = () => {
                   <span>2. Keg Configuration & Fleet Standards</span>
                 </h3>
                 <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-                  Single source of truth for container volume conversions per product, physical fleet size, and depot safety reserve.
+                  Single source of truth for container volume conversions, physical fleet size, and depot safety reserve. The depot standards in the fleet controls below take precedence over each product's own figures — every product row states plainly whether it is in use.
                 </p>
               </div>
 
@@ -866,6 +883,11 @@ export const SettingsScreen: React.FC = () => {
                               ? 'Factory-supplied sealed jerrycan capacity. Cashiers sell in kegs or in litres; automatically converts based on this value without needing a dispensing pump.'
                               : 'Standard depot yellow jerrycan capacity filled at depot bulk dispensing pumps.'}
                           </p>
+                          <p className={`text-[11px] font-sans font-semibold leading-snug ${depotKegStandard > 0 ? 'text-slate-500 dark:text-slate-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                            {depotKegStandard > 0
+                              ? `Not used right now — the ${depotKegStandard.toLocaleString()}L depot keg standard above applies to every product.`
+                              : 'In use — no depot keg standard is set, so this is the keg size the depot calculates with.'}
+                          </p>
                         </div>
 
                         {/* Density — bulk tanker products only. Pre-kegged oil
@@ -897,8 +919,14 @@ export const SettingsScreen: React.FC = () => {
                             </div>
                             <p className="text-[11px] font-sans text-slate-500 leading-snug">
                               Litres in one ton of this oil — this is what turns a waybill tonnage into litres on
-                              Truck Intake. Leave it blank to use the depot fallback in the fleet controls below;
-                              while neither is set, a bulk intake can't be recorded.
+                              Truck Intake. The depot density in the fleet controls below takes precedence while it
+                              is set; this figure applies when that one is blank, and while neither is set a bulk
+                              intake can't be recorded.
+                            </p>
+                            <p className={`text-[11px] font-sans font-semibold leading-snug ${depotDensityStandard > 0 ? 'text-slate-500 dark:text-slate-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                              {depotDensityStandard > 0
+                                ? `Not used right now — the ${depotDensityStandard.toLocaleString()} L/ton depot density above governs every bulk intake.`
+                                : 'In use — no depot density is set, so this is the figure Truck Intake converts tons with.'}
                             </p>
                           </div>
                         )}
@@ -918,42 +946,40 @@ export const SettingsScreen: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
                     <label htmlFor="default-fallback-litres-per-keg" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                      Default Fallback L/Keg
+                      Depot Keg Standard (L / Keg)
                     </label>
                     <div className="relative">
                       <input
                         id="default-fallback-litres-per-keg"
-                        type="number"
-                        step="1"
-                        min="0"
+                        type="text"
+                        inputMode="numeric"
                         value={litresPerKeg}
                         placeholder="e.g. 25"
-                        onChange={e => setLitresPerKeg(e.target.value)}
+                        onChange={e => setLitresPerKeg(formatWithCommas(e.target.value))}
                         className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">L/keg</span>
                     </div>
-                    <p className="text-[11px] font-sans text-slate-500">Depot-wide fallback when a product has no keg size of its own. Blank or 0 means not configured — keg-equivalent figures are then hidden instead of guessed.</p>
+                    <p className="text-[11px] font-sans text-slate-500">The depot's declared keg standard: while this is set it applies to every product and takes precedence over the per-product capacities above. Blank or 0 means no depot standard — each product's own figure is then used, and when neither is set keg-equivalent figures are hidden instead of guessed.</p>
                   </div>
 
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
                     <label htmlFor="default-fallback-litres-per-ton" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                      Default Fallback L/Ton
+                      Depot Density (L / Ton)
                     </label>
                     <div className="relative">
                       <input
                         id="default-fallback-litres-per-ton"
-                        type="number"
-                        step="1"
-                        min="0"
+                        type="text"
+                        inputMode="numeric"
                         value={defaultLitresPerTon}
                         placeholder="e.g. 1075"
-                        onChange={e => setDefaultLitresPerTon(e.target.value)}
+                        onChange={e => setDefaultLitresPerTon(formatWithCommas(e.target.value))}
                         className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">L/ton</span>
                     </div>
-                    <p className="text-[11px] font-sans text-slate-500">Depot-wide fallback used on Truck Intake when a product has no density of its own. Blank or 0 means not configured — the intake screen will ask for it rather than compute with a guess.</p>
+                    <p className="text-[11px] font-sans text-slate-500">The depot's declared density: while this is set it governs every bulk intake on Truck Intake and takes precedence over the per-product densities above. Blank or 0 means no depot density — each product's own figure is then used, and when neither is set the intake screen asks for one rather than computing with a guess.</p>
                   </div>
 
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
@@ -963,11 +989,10 @@ export const SettingsScreen: React.FC = () => {
                     <div className="relative">
                       <input
                         id="total-company-kegs"
-                        type="number"
-                        step="1"
-                        min="0"
+                        type="text"
+                        inputMode="numeric"
                         value={totalCompanyKegs}
-                        onChange={e => setTotalCompanyKegs(e.target.value)}
+                        onChange={e => setTotalCompanyKegs(formatWithCommas(e.target.value))}
                         className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
                         required
                       />
@@ -983,11 +1008,10 @@ export const SettingsScreen: React.FC = () => {
                     <div className="relative">
                       <input
                         id="kegs-depot-low-threshold"
-                        type="number"
-                        step="1"
-                        min="0"
+                        type="text"
+                        inputMode="numeric"
                         value={kegsAtDepotLowThreshold}
-                        onChange={e => setKegsAtDepotLowThreshold(e.target.value)}
+                        onChange={e => setKegsAtDepotLowThreshold(formatWithCommas(e.target.value))}
                         className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
                         required
                       />

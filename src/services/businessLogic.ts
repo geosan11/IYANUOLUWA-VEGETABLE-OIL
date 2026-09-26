@@ -48,26 +48,26 @@ export function calculateLitres(
  * 1b. DENSITY / KEG-SIZE RESOLUTION
  * The single place that decides which figure the depot is actually using:
  *
- *   the product's own value  →  the depot-wide setting  →  0 (not configured)
+ *   the depot-wide setting  →  the product's own value  →  0 (not configured)
  *
- * A product with a null/0 density (a pre-kegged product has no tons at all)
- * therefore inherits the Settings default instead of a hardcoded number, and
- * the Settings screen shows that same default as the fallback. 0 means "the
- * owner hasn't told us yet" — callers must check for it and ask for it, never
- * compute with an invented value.
+ * The depot figure in Settings is the depot's declared standard, so it wins
+ * whenever the owner has actually set one; a product's own figure applies only
+ * while that depot field is blank. A blank/0 everywhere still means "the owner
+ * hasn't told us yet" — callers must check for it and ask for it, never compute
+ * with an invented value.
  */
 export function resolveLitresPerTon(
   product: Pick<Product, 'litres_per_ton'> | null | undefined,
   settings?: Pick<AppSettings, 'default_litres_per_ton'> | null
 ): number {
-  return configuredNumber(product?.litres_per_ton) || configuredNumber(settings?.default_litres_per_ton);
+  return configuredNumber(settings?.default_litres_per_ton) || configuredNumber(product?.litres_per_ton);
 }
 
 export function resolveLitresPerKeg(
   product: Pick<Product, 'litres_per_keg'> | null | undefined,
   settings?: Pick<AppSettings, 'litres_per_keg'> | null
 ): number {
-  return configuredNumber(product?.litres_per_keg) || configuredNumber(settings?.litres_per_keg);
+  return configuredNumber(settings?.litres_per_keg) || configuredNumber(product?.litres_per_keg);
 }
 
 /**
@@ -82,7 +82,7 @@ export function configuredNumber(value: number | null | undefined): number {
 
 /**
  * 2. TRUCK INTAKE METRICS (bulk_truck only)
- * expected_litres = tons * litresPerTon      (product density, else Settings)
+ * expected_litres = tons * litresPerTon      (depot density, else the product's own)
  * expected_kegs   = expected_litres / litresPerKeg
  * recovered       = (actual_kegs_filled * litresPerKeg) + leftover_litres_recovered
  * shortfall       = expected_litres - recovered
@@ -802,6 +802,26 @@ export function parseFromCommas(value: string | number | null | undefined): numb
   const cleaned = String(value).replace(/,/g, '').trim();
   const num = Number(cleaned);
   return Number.isFinite(num) ? num : 0;
+}
+
+/**
+ * Read an owner-typed figure out of a Settings text field.
+ *
+ * Blank means "not configured" and yields the fallback. Everything else is
+ * parsed with thousands separators stripped, so the grouped figure the field
+ * itself displays — "1,125" — reads as 1125. A bare `parseFloat` used to stop
+ * at the comma and save `1`, which then looked like a density of 1 L/ton.
+ * Shares `parseFromCommas` with the cashier-facing amount fields, so the app
+ * keeps one comma-aware reader instead of two that can drift apart.
+ */
+export function numberOrBlank(raw: string | number | null | undefined, fallback: number): number {
+  if (raw === null || raw === undefined) return fallback;
+  const trimmed = String(raw).trim();
+  if (trimmed === '') return fallback;
+  // A field with no digit in it at all holds nothing usable → the fallback,
+  // never an invented 0 that later reads as a configured figure.
+  if (!/[0-9]/.test(trimmed)) return fallback;
+  return parseFromCommas(trimmed);
 }
 
 /**

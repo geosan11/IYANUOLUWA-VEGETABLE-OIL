@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Product, Tank } from '../../types';
-import { formatDepotDate } from '../../services/businessLogic';
+import { formatDepotDate, resolveLitresPerTon } from '../../services/businessLogic';
 import { hexToRgba } from '../../services/color';
+import { useStore } from '../../services/store';
 
 interface TruckTankIllustrationProps {
   tank: Tank;
@@ -16,6 +17,9 @@ export const TruckTankIllustration: React.FC<TruckTankIllustrationProps> = ({
   connectedPumpLabel,
   animateOnMount = false
 }) => {
+  // The same density resolution the intake screens use, so the placard can
+  // never advertise a figure the intake maths isn't using.
+  const { settings } = useStore();
   const isVeg = tank.product_id === 'veg';
   // The product's own colors are the single source of truth for this tank's
   // visuals; fall back to a sane isVeg-based default for the rare caller
@@ -55,12 +59,12 @@ export const TruckTankIllustration: React.FC<TruckTankIllustrationProps> = ({
 
   const driverName = parseDriverName(tank.truck_label);
 
-  // Placard styling — the density comes from the product itself. This used to
-  // be a hardcoded 'VEG-1090' / 'PALM-1085' stamped on every tanker regardless
-  // of what the depot had actually configured.
-  const densityPerTon = product?.litres_per_ton && product.litres_per_ton > 0
-    ? Math.round(product.litres_per_ton)
-    : null;
+  // Placard styling — the density shown is the one the depot is actually
+  // computing with: the depot figure in Settings while it is set, else the
+  // product's own. This used to be a hardcoded 'VEG-1090' / 'PALM-1085' stamped
+  // on every tanker regardless of what the depot had configured.
+  const resolvedDensityPerTon = resolveLitresPerTon(product, settings);
+  const densityPerTon = resolvedDensityPerTon > 0 ? Math.round(resolvedDensityPerTon) : null;
   const placardText = densityPerTon ? `${densityPerTon} L/TON` : 'DENSITY N/A';
   const placardTitle = (product?.name || (isVeg ? 'VEGETABLE OIL' : 'PALM OIL')).toUpperCase();
 

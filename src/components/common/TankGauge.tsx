@@ -40,7 +40,9 @@ export const TankGauge: React.FC<TankGaugeProps> = ({
 }) => {
   const { products, settings } = useStore();
   const product = products.find(p => p.id === productId);
-  // This product's own keg size, else the depot default, else 0 (unset).
+  // An explicitly passed keg size (this tank's own figure) wins, else the
+  // resolved standard — the depot figure while it is set, else the product's
+  // own — else 0 (unset).
   const kegSize = configuredNumber(kegSizeLitres) || resolveLitresPerKeg(product, settings);
   // Same contract for capacity: only a capacity the depot actually configured
   // can produce a fill %, so an unset one shows no percentage at all rather

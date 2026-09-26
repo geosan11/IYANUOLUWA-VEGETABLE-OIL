@@ -41,7 +41,7 @@ These files define the Postgres target the app has migrated onto.
 | `supabase/migrations/0013_remove_remaining_placeholder_seed_rows.sql` | One-time live-data cleanup: discovered while applying 0011/0012 that the *old* (pre-cleanup) `seed.sql` had already been run against the live database directly — deletes its fake suppliers/physical_tanks/pumps/customers/orders/keg_returns/transfers/shifts/expenses/tank_dipstick_readings/order_tank_allocations rows, by id. `products` and `app_settings` were checked and left alone — those rows are the real catalog/company defaults. |
 | `supabase/migrations/0014_depot_assets_bucket.sql` | Creates the `depot_assets` Storage bucket + object policies. The Settings logo UI claimed "Directly synced with Supabase Storage bucket" but no migration ever created it, and `storage.objects` has RLS on by default with no policy — so every real upload failed. |
 | `supabase/migrations/0015_depot_assets_bucket_rls.sql` | SELECT on `storage.buckets` for `depot_assets`. 0014 only policied `storage.objects`, so resolving the bucket itself saw zero rows and 404'd with "Bucket not found" even though it exists and is `public = true`. |
-| `supabase/migrations/0016_default_litres_per_ton.sql` | `app_settings.default_litres_per_ton` — global fallback tons→litres ratio for products without their own density. |
+| `supabase/migrations/0016_default_litres_per_ton.sql` | `app_settings.default_litres_per_ton` — the depot's tons→litres ratio. Semantics were tightened later (0023 plus `resolveLitresPerTon`): while this is set it is the **depot standard** and takes precedence over each product's own density, and a blank/0 falls back to the product's figure. It is no longer "a fallback used only when the product has nothing". |
 | `supabase/migrations/0017_remove_opening_cash_float.sql` | Drops the "opening cash float" feature app-wide (the depot starts the day with no cash in the box); the two NOT NULL columns remain and are sent as a fixed 0. |
 | `supabase/migrations/0018_public_company_branding.sql` | `public_company_branding()` — a `SECURITY DEFINER` RPC granted to `anon`, returning only `company_name` + `company_logo_url`, so the signed-out login screen can show real branding. Every 0002 policy is `to authenticated` with no `anon` policy anywhere, so the direct `app_settings` read this replaced always came back empty. |
 | `supabase/migrations/0019_sales_header_and_line_alignment.sql` | The `sales` header table 0008 explicitly deferred, plus the `orders.sale_id` → `sales` and `sale_payments.sale_id` → `sales` FKs it was blocking. Adds the `container_mode` enum and the pack-priced `orders` columns the app actually writes (`pack_size_id`, `unit_price`, `original_unit_price`, `price_adjusted` + reason, `oil_amount`, `returnable`, container prices, `credit_term_days`, and the void audit fields). Relaxes `orders.unit` to nullable — a pack-priced line has no litre/keg/ton unit, it has a pack size. |
@@ -110,7 +110,7 @@ stored · **null** = nullable column.
 | id | id | text PK | `'veg'`, `'red'`, `'prod-<ts>'` |
 | name | name | text | |
 | supply_model | supply_model | enum `supply_model` | default `bulk_truck` |
-| litres_per_ton | litres_per_ton | numeric(10,2) **null** | NULL for `pre_kegged`; CHECK: `bulk_truck` requires a value |
+| litres_per_ton | litres_per_ton | numeric(10,2) **null** | NULL for `pre_kegged`; CHECK: `bulk_truck` requires a value — so the app never sends a null/0 here for a bulk product (`updateProduct` keeps the previous figure and tells the owner), and the figure is only consulted while `app_settings.default_litres_per_ton` is blank |
 | litres_per_keg | litres_per_keg | numeric(10,2) | per-product |
 | keg_sell_price | keg_sell_price | numeric(12,2) **null** | NULL = container not sold outright |
 | varieties[] | → `product_varieties` | — | child table, not a column |
@@ -340,9 +340,10 @@ lines — a different grain from `sale_payments`' tender legs (see 0022's header
 
 ### `AppSettings` → `app_settings` (single row, `id = 1`)
 Every field maps 1:1 to a NOT NULL typed column: `company_name`, `company_phone`,
-`company_address`, `company_logo_url` (**null**), `litres_per_keg`,
-`default_litres_per_ton` (fallback tons→litres ratio when a product has no
-density of its own, `0016`), `total_company_kegs`, `kegs_at_depot_low_threshold`,
+`company_address`, `company_logo_url` (**null**), `litres_per_keg` and
+`default_litres_per_ton` (the depot's keg standard and density — while either is
+set it takes precedence over every product's own figure, and a blank/0 falls back
+to the product's; `0016`, `0023`), `total_company_kegs`, `kegs_at_depot_low_threshold`,
 `low_stock_litres_threshold`, `truck_shortfall_threshold`, `pump_variance_threshold`.
 `dipstick_variance_threshold`, `default_daily_float`, `daily_float` are NOT NULL
 columns left over from removed features (tank dipsticks, the opening-cash-float
