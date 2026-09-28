@@ -242,8 +242,7 @@ assert(
   'Enqueue: pricing a cell again replaces its pending delete'
 );
 
-// A refusal history must survive an edit, or a row the database keeps rejecting
-// would be retried forever.
+// A refusal history is reset on an edit, because the edit might fix the validation error.
 enqueueMasterRows([{ table: 'pumps', identity: { id: 'p-9' }, row: { id: 'p-9', label: 'Pump 9' } }]);
 const withAttempts = readMasterOutbox().map(entry =>
   entry.table === 'pumps' ? { ...entry, attempts: 3 } : entry
@@ -251,8 +250,8 @@ const withAttempts = readMasterOutbox().map(entry =>
 memoryStorage.setItem('iyanu_master_data_outbox_v1', JSON.stringify(withAttempts));
 enqueueMasterRows([{ table: 'pumps', identity: { id: 'p-9' }, row: { id: 'p-9', label: 'Pump 9B' } }]);
 assert(
-  readMasterOutbox().find(entry => entry.table === 'pumps')?.attempts === 3,
-  'Enqueue: an edit does not reset a row\u2019s failure history'
+  readMasterOutbox().find(entry => entry.table === 'pumps')?.attempts === 0,
+  'Enqueue: an edit resets a row\u2019s failure history'
 );
 assert(masterOutboxCount() === 2, 'Enqueue: different tables queue independently');
 

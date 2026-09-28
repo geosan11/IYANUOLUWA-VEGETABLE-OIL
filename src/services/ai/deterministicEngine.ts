@@ -46,6 +46,36 @@ function stockBucketName(snapshot: SystemSnapshot, bulkTruck: boolean): string {
 }
 
 /**
+ * `calculatePumpMeterVariance` emits one row per pump PER DAY, so the same pump
+ * can appear several times inside one audit window. The corrective action is per
+ * physical pump, so fold every flagged day down to that pump's worst day by
+ * absolute litres. That keeps decision ids unique (`dec-pump-<pumpId>`), charges
+ * a repeat-flagged pump to the health score once, and lists it once in the key
+ * findings, the loss prevention list and the copilot answer.
+ */
+function worstVariancePerPump<T extends { pumpId: string; varianceLitres: number }>(rows: T[]): T[] {
+  const worst = new Map<string, T>();
+  for (const row of rows) {
+    const current = worst.get(row.pumpId);
+    if (!current || Math.abs(row.varianceLitres) > Math.abs(current.varianceLitres)) {
+      worst.set(row.pumpId, row);
+    }
+  }
+  return [...worst.values()];
+}
+
+/**
+ * Describes the pump variance tolerance the owner configured in Settings. The
+ * engine quotes that configured figure, or names it as a Settings value, and
+ * never substitutes a built-in litre tolerance the depot never chose.
+ */
+function describePumpTolerance(thresholdLitres: number): string {
+  return thresholdLitres > 0
+    ? `the depot's configured ±${thresholdLitres}L tolerance`
+    : 'the depot tolerance configured in Settings';
+}
+
+/**
  * Reorder advice derived from the depot's own litre threshold.
  *
  * The owner's `low_stock_litres_threshold` is the trigger — the same level the
@@ -160,7 +190,12 @@ export function runDeterministicOperationsAudit(
   }
 
   // 2. Evaluate Pump Dispensing Variances (Forensic Leakage / Theft)
-  const flaggedPumps = lossPreventionAudit.pumpVariances.filter(p => p.alert || Math.abs(p.varianceLitres) > 20);
+  // `p.alert` is already computed against the depot's own pump_variance_threshold
+  // inside calculatePumpMeterVariance, so a wider tolerance the owner configured
+  // is honoured here instead of being overridden by a built-in 20L figure. The
+  // variance rows arrive one per pump PER DAY, so collapse them to one row per
+  // physical pump before any decision, finding or score is derived from them.
+  const flaggedPumps = worstVariancePerPump(lossPreventionAudit.pumpVariances.filter(p => p.alert));
   if (flaggedPumps.length > 0) {
     healthScore -= Math.min(flaggedPumps.length * 15, 30);
     flaggedPumps.forEach(pump => {
@@ -206,7 +241,10 @@ export function runDeterministicOperationsAudit(
   } else {
     keyFindings.push({
       title: 'Dispensing Pumps Aligned',
-      detail: 'Pump mechanical meters match cashier ticket volumes within standard depot tolerance (±20L).',
+      detail:
+        lossPreventionAudit.pumpVariances.length === 0
+          ? 'No pump meter readings are on record for this period, so no variance could be assessed.'
+          : `Pump mechanical meters match cashier ticket volumes within ${describePumpTolerance(lossPreventionAudit.pumpVarianceThresholdLitres)}.`,
       severity: 'positive'
     });
   }
@@ -504,9 +542,14 @@ export function answerCopilotQuestionDeterministic(
   // 4. Pumps, Meters & Variance Audit
   if (q.includes('pump') || q.includes('leak') || q.includes('theft') || q.includes('meter')) {
     const variances = snapshot.lossPreventionAudit.pumpVariances;
-    const flagged = variances.filter(p => p.alert || Math.abs(p.varianceLitres) > 20);
+    // Rows arrive one per pump PER DAY, so each pump is answered once, sized on
+    // its worst day, and only when it breaks the tolerance set in Settings.
+    const flagged = worstVariancePerPump(variances.filter(p => p.alert));
     if (flagged.length === 0) {
-      return 'All 3 dispensing pumps are operating within the standard ±20L variance threshold. No irregular leakage or unmetered dispensing detected today.';
+      if (variances.length === 0) {
+        return 'No pump meter readings are on record for this period, so no pump variance can be assessed yet.';
+      }
+      return `All dispensing pumps are operating within ${describePumpTolerance(snapshot.lossPreventionAudit.pumpVarianceThresholdLitres)}. No irregular leakage or unmetered dispensing detected today.`;
     }
     return `**Pump Forensic Audit Alert:**\n\n` +
       flagged.map(p => `• **${p.pumpName}:** Meter delta was ${p.actualMeterLitres}L vs cashier tickets of ${p.expectedLitres}L (Variance: **${p.varianceLitres > 0 ? '+' : ''}${p.varianceLitres}L**)`).join('\n') +

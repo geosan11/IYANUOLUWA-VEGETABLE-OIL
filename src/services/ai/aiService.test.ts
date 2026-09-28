@@ -5,7 +5,7 @@
 
 import { extractSystemSnapshot } from './dataExtractor';
 import { runDeterministicOperationsAudit, answerCopilotQuestionDeterministic } from './deterministicEngine';
-import { AVAILABLE_MODELS } from './types';
+import { AVAILABLE_MODELS, SystemSnapshot } from './types';
 import { DEFAULT_SETTINGS, DEFAULT_SUPPLIERS } from '../../constants/config';
 import {
   Tank,
@@ -486,6 +486,54 @@ assert(
   unconfiguredMarketAnswer.includes('No products configured yet') && !unconfiguredMarketAnswer.includes('₦'),
   'Copilot admits there is no configured pricing and no live market feed instead of quoting a rate'
 );
+
+// ---------------------------------------------------------------------------
+// TEST 6: A pump flagged on several days is ONE decision, never one per day
+// ---------------------------------------------------------------------------
+// calculatePumpMeterVariance emits one row per pump PER DAY, so a single
+// snapshot can carry the same pumpId more than once. The UI keys its decision
+// list on decision.id, so a repeat-flagged pump used to emit duplicate
+// `dec-pump-pump-2` keys (React "two children with the same key") and was
+// charged to the health score once per flagged day. Every day-row is folded
+// down to that pump's worst day.
+const twoDayPumpSnapshot: SystemSnapshot = {
+  ...snapshot,
+  lossPreventionAudit: {
+    ...snapshot.lossPreventionAudit,
+    pumpVariances: [
+      { ...snapshot.lossPreventionAudit.pumpVariances[0], varianceLitres: 80, actualMeterLitres: 530 },
+      { ...snapshot.lossPreventionAudit.pumpVariances[0], varianceLitres: 50, actualMeterLitres: 500 }
+    ]
+  }
+};
+
+const repeatedAudit = runDeterministicOperationsAudit(twoDayPumpSnapshot, 'claude');
+const repeatedIds = repeatedAudit.actionableDecisions.map(d => d.id);
+assert(
+  new Set(repeatedIds).size === repeatedIds.length,
+  'Every actionable decision id is unique, so React list keys can never collide'
+);
+
+const repeatedPumpDecisions = repeatedAudit.actionableDecisions.filter(d => d.category === 'loss_prevention');
+assert(
+  repeatedPumpDecisions.length === 1 && repeatedPumpDecisions[0].id === 'dec-pump-pump-2',
+  'A pump flagged on two days yields ONE inspection decision (dec-pump-pump-2), not one per day'
+);
+assert(
+  repeatedPumpDecisions[0].expectedFinancialImpactNaira === 496000,
+  'The collapsed decision is sized on the worst day only (80L × ₦6,200/L = ₦496,000)'
+);
+assert(
+  repeatedAudit.depotHealthScore === auditReport.depotHealthScore,
+  'A repeat-flagged pump is charged to the health score once, not once per flagged day'
+);
+
+const repeatedPumpAnswer = answerCopilotQuestionDeterministic('Is Pump 2 leaking or unmetered?', twoDayPumpSnapshot);
+assert(
+  (repeatedPumpAnswer.match(/Pump 2/g) || []).length === 1,
+  'The copilot names a pump flagged on several days exactly once'
+);
+
 
 console.log('====================================================');
 console.log('AI TEST SUITE RESULTS: ALL TESTS PASSED (100%)');

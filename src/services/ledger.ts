@@ -210,8 +210,8 @@ export function enqueueLedgerRows(drafts: LedgerDraft[]): number {
     byKey.set(key, {
       ...draft,
       enqueued_at: existing?.enqueued_at ?? now,
-      // Keep the attempt count: an edit doesn't reset a row's failure history.
-      attempts: existing?.attempts ?? 0
+      // Reset attempts to 0 because the edit might fix a validation error.
+      attempts: 0
     });
   }
   const next = [...byKey.values()];
@@ -263,20 +263,32 @@ export async function flushLedgerOutbox(): Promise<LedgerFlushResult> {
       );
 
     if (upsertError) {
-      error = upsertError.message;
-      failedTables.push(table);
-      console.error(`[ledger] Failed to sync ${table} to the database:`, upsertError.message);
-      // Bump the attempt count so a permanently-rejected row stops retrying.
-      writeLedgerOutbox(
-        entries.map(e =>
-          e.table === table ? { ...e, attempts: e.attempts + 1 } : e
-        )
-      );
-      break;
-    }
+      console.warn(`[ledger] Bulk upsert for ${table} failed, falling back to individual inserts:`, upsertError.message);
+      let tableFailed = false;
+      for (const r of retryable) {
+        const { error: singleError } = await supabase
+          .from(table)
+          .upsert([r.row], { onConflict: 'id' });
 
-    pushed += retryable.length;
-    retryable.forEach(r => settled.add(outboxKey(r.table, r.id)));
+        if (singleError) {
+          error = singleError.message;
+          tableFailed = true;
+          console.error(`[ledger] Failed to sync row ${r.id} to ${table}:`, singleError.message);
+          const entry = entries.find(e => e.table === r.table && e.id === r.id);
+          if (entry) entry.attempts += 1;
+        } else {
+          pushed++;
+          settled.add(outboxKey(r.table, r.id));
+        }
+      }
+      if (tableFailed) {
+        failedTables.push(table);
+        break;
+      }
+    } else {
+      pushed += retryable.length;
+      retryable.forEach(r => settled.add(outboxKey(r.table, r.id)));
+    }
   }
 
   writeLedgerOutbox(entries.filter(e => !settled.has(outboxKey(e.table, e.id))));

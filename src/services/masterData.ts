@@ -247,8 +247,8 @@ export function enqueueMasterRows(drafts: MasterDraft[]): number {
     byKey.set(key, {
       ...draft,
       enqueued_at: existing?.enqueued_at ?? now,
-      // Keep the attempt count: an edit doesn't reset a row's failure history.
-      attempts: existing?.attempts ?? 0
+      // Reset attempts to 0 because the edit might fix a validation error.
+      attempts: 0
     });
   }
   const next = [...byKey.values()];
@@ -353,14 +353,32 @@ export async function flushMasterOutbox(): Promise<MasterFlushResult> {
           { onConflict: MASTER_CONFLICT[table] }
         );
       if (upsertError) {
-        error = upsertError.message;
-        failedTables.push(table);
-        console.error(`[masterData] Failed to sync ${table} to the database:`, upsertError.message);
-        writeMasterOutbox(entries.map(e => (e.table === table ? { ...e, attempts: e.attempts + 1 } : e)));
-        break;
+        console.warn(`[masterData] Bulk upsert for ${table} failed, falling back to individual inserts:`, upsertError.message);
+        let tableFailed = false;
+        for (const r of upserts) {
+          const { error: singleError } = await supabase
+            .from(table)
+            .upsert([r.row as Record<string, unknown>], { onConflict: MASTER_CONFLICT[table] });
+            
+          if (singleError) {
+            error = singleError.message;
+            tableFailed = true;
+            console.error(`[masterData] Failed to sync row to ${table}:`, singleError.message);
+            const entry = entries.find(e => e.table === r.table && masterKey(e.table, e.identity) === masterKey(r.table, r.identity));
+            if (entry) entry.attempts += 1;
+          } else {
+            pushed++;
+            settled.add(masterKey(r.table, r.identity));
+          }
+        }
+        if (tableFailed) {
+          failedTables.push(table);
+          break;
+        }
+      } else {
+        pushed += upserts.length;
+        upserts.forEach(r => settled.add(masterKey(r.table, r.identity)));
       }
-      pushed += upserts.length;
-      upserts.forEach(r => settled.add(masterKey(r.table, r.identity)));
     }
 
     // Deletes go one row at a time: a composite key needs its own filter chain.

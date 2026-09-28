@@ -552,7 +552,7 @@ enqueueLedgerRows([
   { table: 'customers', id: SAMPLE_CUSTOMER.id, row: toCustomerRow({ ...SAMPLE_CUSTOMER, name: 'Renamed Depot' }) }
 ]);
 const retried = readLedgerOutbox()[0];
-assert(retried.attempts === 4, 'Outbox: an edit does not reset a row\'s failure history');
+assert(retried.attempts === 0, 'Outbox: an edit resets a row\'s failure history');
 assert(
   retried.enqueued_at === '2026-01-01T00:00:00.000Z',
   'Outbox: the original queue time survives a later edit'
