@@ -39,8 +39,7 @@ import {
   BeerBottle,
   Jar,
   Cube,
-  Drop,
-  MagicWand
+  Drop
 } from '@phosphor-icons/react';
 import { MiniNumberPad } from '../components/common/MiniNumberPad';
 
@@ -1899,37 +1898,27 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                   const inCart = cartQtyForPack(v.id, s.id);
                                   return (
                                     <div key={s.id} className="relative h-full">
-                                      {/* Quick add — one tap drops this pack straight into the
-                                          sale (merging into an identical line). Tapping the card
-                                          itself still just selects it for the qty/builder flow. */}
-                                      {!isKegOnlyMode && (
-                                        <button
-                                          type="button"
-                                          onClick={() => quickAddPack(v.id, s.id)}
-                                          className={`absolute bottom-0.5 right-0.5 z-20 w-4 h-4 rounded-full border flex items-center justify-center shadow-sm transition-colors cursor-pointer ${inCart > 0
-                                            ? 'bg-emerald-500 border-emerald-400 text-white'
-                                            : 'bg-slate-700/80 border-slate-500 text-slate-100 hover:bg-brand-500 hover:border-brand-400'
-                                            }`}
-                                          title={inCart > 0
-                                            ? `${inCart} × ${s.short} already in this sale — add one more`
-                                            : `Quick add one ${s.short} to the sale`}
-                                          aria-label={`Quick add one ${s.short}`}
-                                        >
-                                          {inCart > 0 ? (
-                                            <span className="text-[8px] font-mono font-bold leading-none">{inCart}</span>
-                                          ) : (
-                                            <MagicWand className="w-2 h-2" weight="bold" />
-                                          )}
-                                        </button>
-                                      )}
+                                      {/* The whole tile adds one pack to the sale. Repeated taps
+                                          increment that same line rather than appending a duplicate
+                                          (quickAddPack merges, and still sets the variety + pack
+                                          size, so the tile keeps reading as selected). */}
                                       <button
                                         type="button"
-                                        onClick={() => { setVarietyId(v.id); setPackSizeId(s.id); }}
+                                        onClick={() => quickAddPack(v.id, s.id)}
+                                        title={inCart > 0
+                                          ? `${inCart} × ${s.short} in this sale — tap to add one more`
+                                          : `Add one ${s.short} to the sale`}
+                                        aria-label={`Add one ${s.short} to the sale`}
                                         className={`w-full relative rounded-xl border-2 text-center transition-all duration-150 flex flex-col h-full overflow-hidden cursor-pointer hover:scale-[1.03] hover:-translate-y-0.5 hover:z-10 hover:shadow-md ${selected
                                         ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/50 shadow-glow-brand ring-2 ring-brand-500/20'
                                         : 'border-slate-200 dark:border-slate-700/70 bg-white dark:bg-slate-900 hover:border-brand-300 dark:hover:border-brand-600/60'
                                         }`}
                                     >
+                                      {!isKegOnlyMode && inCart > 0 && (
+                                        <span className="absolute top-0.5 left-0.5 z-10 min-w-[14px] h-3.5 px-1 rounded-full bg-emerald-500 text-white text-[8px] font-mono font-bold leading-none flex items-center justify-center shadow-xs">
+                                          {inCart}
+                                        </span>
+                                      )}
                                       {selected && (
                                         <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-xs z-10">
                                           <Check className="w-2 h-2" weight="bold" />

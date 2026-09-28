@@ -119,11 +119,11 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
             {/* Header */}
             <div className="text-center border-b-2 border-dashed border-black pb-2 mb-2">
               {settings.company_logo_url ? (
-                <img src={settings.company_logo_url} alt="Company Logo" className="h-10 mx-auto mb-1.5 object-contain grayscale" />
+                <img src={settings.company_logo_url} alt="Company Logo" className="w-20 h-20 mx-auto mb-2 object-contain grayscale" />
               ) : (
                 <svg
                   viewBox="0 0 48 48"
-                  className="w-9 h-9 mx-auto mb-1.5"
+                  className="w-16 h-16 mx-auto mb-2"
                   aria-hidden="true"
                 >
                   <circle cx="24" cy="24" r="24" fill="#000000" />
