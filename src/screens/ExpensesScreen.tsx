@@ -17,7 +17,7 @@ import {
   Plus,
   TrendDown as TrendingDown,
   CheckCircle as CheckCircle2,
-  CurrencyDollar as DollarSign,
+  CurrencyNgn as NairaSign,
   ClockCounterClockwise,
   UserCheck,
   Users
@@ -386,7 +386,7 @@ export const ExpensesScreen: React.FC = () => {
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
             <div>
               <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-slate-700 dark:text-slate-300" />
+                <NairaSign className="w-5 h-5 text-slate-700 dark:text-slate-300" />
                 <span>Today's Itemized Expense Ledger</span>
               </h3>
               <p className="text-[12px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">

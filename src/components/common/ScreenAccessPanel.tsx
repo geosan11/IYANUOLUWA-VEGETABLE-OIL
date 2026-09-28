@@ -152,8 +152,12 @@ export const ScreenAccessPanel: React.FC = () => {
           : row
       )
     );
-    setRowMessage(prev => ({ ...prev, [p.id]: 'Saved. Takes effect next time they load the app.' }));
-    showToast('success', `${d.fullName.trim() || p.full_name || 'Account'} updated. Takes effect next time they load the app.`);
+    // The store re-reads the signed-in user's profile when the app comes back
+    // to the foreground and once a minute while it stays there (see
+    // ProfileSync in App.tsx), so a change here reaches them without a
+    // re-login — but not on this owner's device, hence "their app".
+    setRowMessage(prev => ({ ...prev, [p.id]: 'Saved. Their app picks this up automatically — within a minute, or as soon as they switch back to it.' }));
+    showToast('success', `${d.fullName.trim() || p.full_name || 'Account'} updated. Their app picks the new access up automatically.`);
   };
 
   const remove = async (p: AuthProfile) => {
@@ -395,7 +399,14 @@ export const ScreenAccessPanel: React.FC = () => {
               ) : (
                 <div className="pl-[46px] space-y-2">
                   <div className="flex flex-wrap gap-1.5">
-                    {NAV_ITEMS.map(item => {
+                    {/* Staff Management is `ownerOnly` in NAV_ITEMS: never
+                        grantable (handing out accounts/roles is a
+                        privilege-escalation surface), so `getVisibleNavItems`
+                        drops it for every non-owner even if its id is stored.
+                        Offering the chip here only produced a save that could
+                        never take effect — the row looked granted, the person
+                        stayed blocked. */}
+                    {NAV_ITEMS.filter(item => !item.ownerOnly).map(item => {
                       const effective = draft.allowedScreens ?? getVisibleNavItems(draft.role, null).map(i => i.id);
                       const checked = effective.includes(item.id);
                       return (

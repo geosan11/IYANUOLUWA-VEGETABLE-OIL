@@ -30,3 +30,13 @@ dist-ssr
 
 # Supabase CLI temp
 supabase/.temp/
+
+# Local recovery / diagnosis scratch files — kept on this machine only, never
+# part of the app. (diag.*, recover*.py, find_survivors.py were used to inspect
+# and restore a localStorage backlog; head_de.ts is a code excerpt.)
+diag.py
+diag.txt
+find_survivors.py
+head_de.ts
+recover.py
+recover2.py

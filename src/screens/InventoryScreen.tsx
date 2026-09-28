@@ -3,6 +3,7 @@ import { useStore } from '../services/store';
 import { useToast } from '../services/toast';
 import { usePermissions } from '../services/permissions';
 import { lookupPackPrice } from '../services/pricing';
+import type { PackPriceGrid } from '../services/masterData';
 import { formatWithCommas, parseFromCommas } from '../services/businessLogic';
 import { PACK_SIZES, packLitres } from '../constants/config';
 import { CustomerType, PackPrice, ProductPackConfig, Product, SupplyModel } from '../types';
@@ -409,8 +410,8 @@ export const InventoryScreen: React.FC = () => {
           packPrices={packPrices}
           edits={priceEdits}
           setEdits={setPriceEdits}
-          onSave={rows => {
-            bulkSetPackPrices(rows);
+          onSave={(rows, grid) => {
+            bulkSetPackPrices(rows, grid);
             setPriceEdits({});
             flashSaved('Prices saved.');
           }}
@@ -578,7 +579,7 @@ const PriceMatrix: React.FC<{
   packPrices: PackPrice[];
   edits: Record<string, string>;
   setEdits: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  onSave: (rows: PackPrice[]) => void;
+  onSave: (rows: PackPrice[], grid: PackPriceGrid) => void;
   onDeletePack: (sizeId: string, label: string) => void;
   onAddPack: (sizeId: string) => void;
   onDeleteVariety: (varietyId: string, name: string) => void;
@@ -637,7 +638,14 @@ const PriceMatrix: React.FC<{
         }
       }
     }
-    onSave(rows);
+    // Only priced cells are sent, so the grid goes with them: it is what tells
+    // the store which cells were CLEARED (a blanked cell is "no price", and the
+    // row is deleted rather than saved as ₦0).
+    onSave(rows, {
+      product_id: product.id,
+      variety_ids: product.varieties.map(v => v.id),
+      pack_size_ids: sizes.map(s => s.id)
+    });
   };
 
   if (sizes.length === 0) {

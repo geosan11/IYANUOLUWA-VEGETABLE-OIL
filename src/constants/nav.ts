@@ -60,3 +60,29 @@ export function getVisibleNavItems(role: UserRole, allowedScreens?: string[] | n
   }
   return base.filter(item => !item.adminOnly);
 }
+
+/**
+ * Can this user *operate* `screenId` — reach it and use its ordinary actions?
+ *
+ * Same rule the nav itself follows (`getVisibleNavItems`), with one hard
+ * exclusion: a screen marked `ownerOnly` (Staff Management) stays unreachable
+ * for a non-owner even when its id is sitting in their `allowed_screens`.
+ * Handing out accounts and roles is a privilege-escalation surface, so a
+ * stale or hand-edited grant must never widen it.
+ *
+ * The explicit-grant check is also run on its own rather than only through
+ * `getVisibleNavItems`, so an owner's grant always counts for a grantable
+ * screen even if the nav's own filtering changes; the role default still
+ * applies when there is no list at all (`null`/`undefined`).
+ *
+ * Pure and exported so it can be verified directly (see nav.test.ts); the
+ * store-reading wrapper every screen uses is `canOperate` in
+ * src/services/permissions.ts.
+ */
+export function canOperateScreen(screenId: string, role: UserRole, allowedScreens?: string[] | null): boolean {
+  if (role === 'owner') return true;
+  if (NAV_ITEMS.find(item => item.id === screenId)?.ownerOnly) return false;
+  if ((allowedScreens ?? []).includes(screenId)) return true;
+  return getVisibleNavItems(role, allowedScreens).some(item => item.id === screenId);
+}
+

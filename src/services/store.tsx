@@ -80,6 +80,11 @@ import {
   depotDateKey
 } from './businessLogic';
 import { priceSaleLine } from './pricing';
+import {
+  validateTankCapacity,
+  validateTankProduct,
+  validateProductDensity
+} from './masterDataValidation';
 import { scanAndTriggerAutonomousAlerts, getAlertSettings, requestPushNotificationPermission } from './alertService';
 import {
   diffLedgerRows,
@@ -98,6 +103,18 @@ import {
   LEDGER_PULL_COLUMNS
 } from './ledger';
 import type { LedgerDraft, LedgerSnapshot, LedgerTable } from './ledger';
+import {
+  diffPackPriceGrid,
+  enqueueMasterRows,
+  flushMasterOutbox,
+  isPackPricesReady,
+  masterKey,
+  masterOutboxCount,
+  packPriceDeletion,
+  packPriceDraft,
+  packPriceIdentity
+} from './masterData';
+import type { MasterDraft, MasterTable, PackPriceGrid } from './masterData';
 
 interface StoreContextType {
   products: Product[];
@@ -321,7 +338,7 @@ interface StoreContextType {
     tier: CustomerType,
     price: number
   ) => void;
-  bulkSetPackPrices: (rows: PackPrice[]) => void;
+  bulkSetPackPrices: (rows: PackPrice[], grid: PackPriceGrid) => void;
   updateProductPackConfig: (productId: string, config: ProductPackConfig[]) => void;
   updateSettings: (newSettings: Partial<AppSettings>) => void;
   addCustomer: (customerData: Omit<Customer, 'id'>) => Customer;
@@ -443,6 +460,21 @@ function toAppSettingsRow(s: AppSettings) {
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { showToast } = useToast();
+
+  /**
+   * Master-data writes that Postgres refused, reported once per session per
+   * table. The load-time push loops (hubs, suppliers, tanks, pumps, products)
+   * only ever logged to the console, so a device whose rows the database keeps
+   * rejecting looked perfectly healthy while every other device saw nothing.
+   * Once is deliberate: the loop runs on every reload, and a toast per reload
+   * teaches the depot to ignore the toast.
+   */
+  const reportedSyncFailuresRef = useRef(new Set<string>());
+  const reportSyncFailure = (key: string, message: string) => {
+    if (reportedSyncFailuresRef.current.has(key)) return;
+    reportedSyncFailuresRef.current.add(key);
+    showToast('error', message);
+  };
 
   // Theme state: defaults to 'light'
   const [theme, setThemeState] = useState<'light' | 'dark'>(() => {
@@ -571,6 +603,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [allShifts, setShifts] = useState<Shift[]>(() => loadPersisted(STORAGE_KEYS.SHIFTS, SEED_SHIFTS));
 
   const [userRole, setUserRole] = useState<UserRole>(() => {
+    // With Supabase configured the signed-in profile is the only source of
+    // truth: ProfileSync calls setCurrentUser(), which sets the role from
+    // `profiles.role` the moment that row lands. A role still sitting in
+    // localStorage from whoever used this device last must not out-rank it, or
+    // a staff member signing in on the shared counter tablet could boot as the
+    // previous user's role until the profile arrives.
+    if (isSupabaseConfigured) return currentUser.role || 'owner';
+    // Local/offline demo mode has no profile to trust, so the Settings role
+    // simulator's pick is honoured across reloads as before.
     const saved = localStorage.getItem(STORAGE_KEYS.USER_ROLE);
     return (saved as UserRole) || currentUser.role || 'owner';
   });
@@ -613,9 +654,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setHubs(prevLocal => {
         const localOnly = prevLocal.filter(h => !remoteIds.has(h.id));
         if (localOnly.length > 0) {
-          supabase!
-            .from('hubs')
-            .insert(localOnly.map(h => ({
+          // Through the queue, not a bare insert: a hub this browser created
+          // before it ever synced is retried until the database accepts it.
+          queueMasterWrites(localOnly.map(h => ({
+            table: 'hubs' as const,
+            identity: { id: h.id },
+            row: {
               id: h.id,
               name: h.name,
               code: h.code,
@@ -625,10 +669,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               manager_name: h.manager_name || null,
               is_active: h.is_active,
               created_at: h.created_at || new Date().toISOString()
-            })))
-            .then(({ error: insertError }) => {
-              if (insertError) console.error('[store] Failed to sync local hubs to database:', insertError.message);
-            });
+            }
+          })));
         }
         return [...remoteHubs, ...localOnly];
       });
@@ -674,6 +716,78 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       payments: allPayments
     };
   }, [customers, allTanks, allSales, allOrders, allPayments]);
+
+  // ==========================================================================
+  // MASTER-DATA OUTBOX — the same durability, for the tables the Settings and
+  // Inventory screens own (hubs, settings, suppliers, tanks, pumps, products,
+  // varieties, and the pack-price matrix).
+  //
+  // src/services/masterData.ts carries the design notes. These writes used to
+  // be fire-and-forget: a change made with no signal was simply lost, and a
+  // refused row only ever produced a console line. They are queued now, and a
+  // queue that fails is reported once per outage rather than once per attempt.
+  // ==========================================================================
+  const masterFlushingRef = useRef(false);
+  const masterErrorNotifiedRef = useRef(false);
+
+  /**
+   * Drain the master-data outbox. Never throws: a failed write leaves the rows
+   * queued, so this only ever reports — once per outage, like the ledger.
+   */
+  const runMasterFlush = async () => {
+    if (masterFlushingRef.current) return;
+    masterFlushingRef.current = true;
+    try {
+      const result = await flushMasterOutbox();
+      if (result.pushed > 0 || result.deleted > 0) {
+        console.info(
+          `[masterData] Synced ${result.pushed} row(s) and ${result.deleted} deletion(s) to the database.`
+        );
+      }
+      if (result.error) {
+        if (!masterErrorNotifiedRef.current) {
+          masterErrorNotifiedRef.current = true;
+          showToast(
+            'error',
+            `${result.remaining} settings/inventory change(s) are safe on this device but haven't reached the database yet (${result.error}). They will retry automatically.`
+          );
+        }
+      } else {
+        masterErrorNotifiedRef.current = false;
+      }
+    } finally {
+      masterFlushingRef.current = false;
+    }
+  };
+
+  /**
+   * Queue one master-data write (or a delete, with `row: null`) and try to send
+   * it straight away. This is the single door every Settings/Inventory write
+   * goes through, so nothing is lost when the connection is down.
+   */
+  const queueMasterWrites = (drafts: MasterDraft[]) => {
+    if (!isSupabaseConfigured || !supabase) return;
+    if (enqueueMasterRows(drafts) === 0) return;
+    void runMasterFlush();
+  };
+
+  const queueMasterWrite = (
+    table: MasterTable,
+    identity: Record<string, string>,
+    row: Record<string, unknown> | null
+  ) => queueMasterWrites([{ table, identity, row }]);
+
+  /**
+   * Queue price-matrix writes. Gated on the 0020 probe so a project without
+   * `pack_prices` keeps behaving exactly as it did — prices on this device
+   * only, nothing queued forever — instead of filling the outbox with writes
+   * that can never succeed.
+   */
+  const queuePriceWrites = async (drafts: MasterDraft[]) => {
+    if (!isSupabaseConfigured || !supabase) return;
+    if (!(await isPackPricesReady())) return;
+    queueMasterWrites(drafts);
+  };
 
   /**
    * Drain the outbox. Never throws: a failed write leaves the rows queued, so
@@ -832,6 +946,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       void isLedgerSchemaReady().then(ready => {
         if (ready && ledgerOutboxCount() > 0) void runLedgerFlush();
       });
+      if (masterOutboxCount() > 0) void runMasterFlush();
     };
     window.addEventListener('online', retry);
     window.addEventListener('visibilitychange', retry);
@@ -913,12 +1028,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setSettings(prev => ({ ...prev, ...(data as Partial<AppSettings>) }));
       } else {
         setSettings(current => {
-          supabase!
-            .from('app_settings')
-            .insert(toAppSettingsRow(current))
-            .then(({ error: insertError }) => {
-              if (insertError) console.error('[store] Failed to seed settings in database:', insertError.message);
-            });
+          queueMasterWrite('app_settings', { id: '1' }, toAppSettingsRow(current));
           return current;
         });
       }
@@ -946,12 +1056,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setSuppliers(prevLocal => {
         const localOnly = prevLocal.filter(s => !remoteIds.has(s.id));
         if (localOnly.length > 0) {
-          supabase!
-            .from('suppliers')
-            .insert(localOnly.map(s => ({ id: s.id, name: s.name, phone: s.phone || null })))
-            .then(({ error: insertError }) => {
-              if (insertError) console.error('[store] Failed to sync local suppliers to database:', insertError.message);
-            });
+          queueMasterWrites(localOnly.map(s => ({
+            table: 'suppliers' as const,
+            identity: { id: s.id },
+            row: { id: s.id, name: s.name, phone: s.phone || null }
+          })));
         }
         return [...remote, ...localOnly];
       });
@@ -983,19 +1092,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setPhysicalTanks(prevLocal => {
         const localOnly = prevLocal.filter(t => !remoteIds.has(t.id));
         if (localOnly.length > 0) {
-          supabase!
-            .from('physical_tanks')
-            .insert(localOnly.map(t => ({
+          queueMasterWrites(localOnly.map(t => ({
+            table: 'physical_tanks' as const,
+            identity: { id: t.id },
+            row: {
               id: t.id,
               label: t.label,
               product_id: t.product_id,
               capacity_litres: t.capacity_litres,
               notes: t.notes || null,
               hub_id: t.hub_id || null
-            })))
-            .then(({ error: insertError }) => {
-              if (insertError) console.error('[store] Failed to sync local physical tanks to database:', insertError.message);
-            });
+            }
+          })));
         }
         return [...remote, ...localOnly];
       });
@@ -1026,18 +1134,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setPumps(prevLocal => {
         const localOnly = prevLocal.filter(p => !remoteIds.has(p.id));
         if (localOnly.length > 0) {
-          supabase!
-            .from('pumps')
-            .insert(localOnly.map(p => ({
+          queueMasterWrites(localOnly.map(p => ({
+            table: 'pumps' as const,
+            identity: { id: p.id },
+            row: {
               id: p.id,
               label: p.label,
               product_id: p.product_id || null,
               last_meter_reading: p.last_meter_reading,
               hub_id: p.hub_id || null
-            })))
-            .then(({ error: insertError }) => {
-              if (insertError) console.error('[store] Failed to sync local pumps to database:', insertError.message);
-            });
+            }
+          })));
         }
         return [...remote, ...localOnly];
       });
@@ -1093,35 +1200,31 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
         const localOnly = prevLocal.filter(p => !remoteIds.has(p.id));
         if (localOnly.length > 0) {
-          supabase!
-            .from('products')
-            .insert(localOnly.map(p => ({
-              id: p.id,
-              name: p.name,
-              supply_model: p.supply_model,
-              litres_per_ton: p.litres_per_ton,
-              litres_per_keg: p.litres_per_keg,
-              keg_sell_price: p.keg_sell_price,
-              color_light: p.color_light,
-              color_dark: p.color_dark
-            })))
-            .then(({ error: insertError }) => {
-              if (insertError) {
-                console.error('[store] Failed to sync local products to database:', insertError.message);
-                return;
+          // Products first, then their varieties: the flush sends them in FK
+          // order, so a child can never arrive before its parent.
+          queueMasterWrites([
+            ...localOnly.map(p => ({
+              table: 'products' as const,
+              identity: { id: p.id },
+              row: {
+                id: p.id,
+                name: p.name,
+                supply_model: p.supply_model,
+                litres_per_ton: p.litres_per_ton,
+                litres_per_keg: p.litres_per_keg,
+                keg_sell_price: p.keg_sell_price,
+                color_light: p.color_light,
+                color_dark: p.color_dark
               }
-              const varietyRows = localOnly.flatMap(p =>
-                p.varieties.map((v, i) => ({ id: v.id, product_id: p.id, name: v.name, sort_order: i }))
-              );
-              if (varietyRows.length > 0) {
-                supabase!
-                  .from('product_varieties')
-                  .insert(varietyRows)
-                  .then(({ error: varietyError }) => {
-                    if (varietyError) console.error('[store] Failed to sync local product varieties to database:', varietyError.message);
-                  });
-              }
-            });
+            })),
+            ...localOnly.flatMap(p =>
+              p.varieties.map((v, i) => ({
+                table: 'product_varieties' as const,
+                identity: { id: v.id },
+                row: { id: v.id, product_id: p.id, name: v.name, sort_order: i }
+              }))
+            )
+          ]);
         }
         return [...merged, ...localOnly];
       });
@@ -1130,6 +1233,57 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       cancelled = true;
     };
   }, []);
+  // pack_prices — the Inventory price matrix: the table the counter actually
+  // charges from. It had NO reader and NO writer before this: `bulkSetPackPrices`
+  // wrote localStorage, so two devices showed the same products at different
+  // prices, and a reinstall lost every price the depot had set.
+  //
+  // Same rule as hubs and products — the database wins, and a row this device
+  // holds that the database has never seen is pushed up (through the outbox
+  // now, so it survives a flaky connection) rather than dropped.
+  const packPricesSyncedRef = useRef(false);
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || packPricesSyncedRef.current) return;
+    packPricesSyncedRef.current = true;
+    let cancelled = false;
+    (async () => {
+      // Inert on a project where 0020 hasn't been applied: prices stay local,
+      // exactly as they behave today.
+      if (!(await isPackPricesReady())) return;
+
+      const { data, error } = await supabase!
+        .from('pack_prices')
+        .select('product_id, variety_id, pack_size_id, tier, price');
+      if (cancelled) return;
+      if (error) {
+        console.error('[store] Failed to load pack prices from database:', error.message);
+        reportSyncFailure(
+          'pack_prices:load',
+          `Prices could not be read from the database (${error.message}), so this device is pricing from its own copy.`
+        );
+        return;
+      }
+
+      const remote = (data as PackPrice[]) ?? [];
+      const remoteKeys = new Set(remote.map(row => masterKey('pack_prices', packPriceIdentity(row))));
+      setPackPrices(prevLocal => {
+        const localOnly = prevLocal.filter(
+          row => !remoteKeys.has(masterKey('pack_prices', packPriceIdentity(row)))
+        );
+        if (localOnly.length > 0) {
+          console.info(
+            `[store] ${localOnly.length} price(s) exist on this device only — queueing them for the database.`
+          );
+          void queuePriceWrites(localOnly.map(packPriceDraft));
+        }
+        return [...remote, ...localOnly];
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(currentUser));
@@ -1250,52 +1404,32 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       created_at: new Date().toISOString()
     };
     setHubs(prev => [...prev, newHub]);
-    if (isSupabaseConfigured && supabase) {
-      supabase
-        .from('hubs')
-        .insert({
-          id: newHub.id,
-          name: newHub.name,
-          code: newHub.code,
-          state: newHub.state,
-          address: newHub.address,
-          phone: newHub.phone || null,
-          manager_name: newHub.manager_name || null,
-          is_active: newHub.is_active,
-          created_at: newHub.created_at
-        })
-        .then(({ error }) => {
-          if (error) {
-            console.error('[store] Failed to save hub to database:', error.message);
-            showToast('error', `"${newHub.name}" was saved on this device only — it didn't sync to the database (${error.message}).`);
-          }
-        });
-    }
+    queueMasterWrite('hubs', { id: newHub.id }, {
+      id: newHub.id,
+      name: newHub.name,
+      code: newHub.code,
+      state: newHub.state,
+      address: newHub.address,
+      phone: newHub.phone || null,
+      manager_name: newHub.manager_name || null,
+      is_active: newHub.is_active,
+      created_at: newHub.created_at
+    });
     return newHub;
   };
 
   const updateHub = (id: string, updates: Partial<Hub>) => {
     setHubs(prev => prev.map(h => (h.id === id ? { ...h, ...updates } : h)));
-    if (isSupabaseConfigured && supabase) {
-      supabase
-        .from('hubs')
-        .update({
-          ...(updates.name !== undefined && { name: updates.name }),
-          ...(updates.code !== undefined && { code: updates.code }),
-          ...(updates.state !== undefined && { state: updates.state }),
-          ...(updates.address !== undefined && { address: updates.address }),
-          ...(updates.phone !== undefined && { phone: updates.phone || null }),
-          ...(updates.manager_name !== undefined && { manager_name: updates.manager_name || null }),
-          ...(updates.is_active !== undefined && { is_active: updates.is_active })
-        })
-        .eq('id', id)
-        .then(({ error }) => {
-          if (error) {
-            console.error('[store] Failed to update hub in database:', error.message);
-            showToast('error', `Hub changes were saved on this device only — they didn't sync to the database (${error.message}).`);
-          }
-        });
-    }
+    queueMasterWrite('hubs', { id }, {
+      id,
+      ...(updates.name !== undefined && { name: updates.name }),
+      ...(updates.code !== undefined && { code: updates.code }),
+      ...(updates.state !== undefined && { state: updates.state }),
+      ...(updates.address !== undefined && { address: updates.address }),
+      ...(updates.phone !== undefined && { phone: updates.phone || null }),
+      ...(updates.manager_name !== undefined && { manager_name: updates.manager_name || null }),
+      ...(updates.is_active !== undefined && { is_active: updates.is_active })
+    });
   };
 
   const deleteHub = async (id: string): Promise<{ success: boolean; error?: string }> => {
@@ -1318,18 +1452,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     setHubs(prev => prev.filter(h => h.id !== id));
     if (activeHubId === id) setActiveHubIdState('all');
-    if (isSupabaseConfigured && supabase) {
-      supabase
-        .from('hubs')
-        .delete()
-        .eq('id', id)
-        .then(({ error }) => {
-          if (error) {
-            console.error('[store] Failed to delete hub from database:', error.message);
-            showToast('error', `Removed here, but the database delete failed (${error.message}) — it may reappear on other devices.`);
-          }
-        });
-    }
+    queueMasterWrite('hubs', { id }, null);
     return { success: true };
   };
 
@@ -2854,23 +2977,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       hub_id: data.hubId || getTargetHubId()
     };
     setPumps(prev => [...prev, newPump]);
-    if (isSupabaseConfigured && supabase) {
-      supabase
-        .from('pumps')
-        .insert({
-          id: newPump.id,
-          label: newPump.label,
-          product_id: newPump.product_id || null,
-          last_meter_reading: newPump.last_meter_reading,
-          hub_id: newPump.hub_id || null
-        })
-        .then(({ error }) => {
-          if (error) {
-            console.error('[store] Failed to save pump to database:', error.message);
-            showToast('error', `"${newPump.label}" was saved on this device only — it didn't sync to the database (${error.message}).`);
-          }
-        });
-    }
+    queueMasterWrite('pumps', { id: newPump.id }, {
+      id: newPump.id,
+      label: newPump.label,
+      product_id: newPump.product_id || null,
+      last_meter_reading: newPump.last_meter_reading,
+      hub_id: newPump.hub_id || null
+    });
     return newPump;
   };
 
@@ -2888,22 +3001,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           : p
       )
     );
-    if (isSupabaseConfigured && supabase) {
-      supabase
-        .from('pumps')
-        .update({
-          ...(updates.label !== undefined && { label: updates.label.trim() || undefined }),
-          ...(updates.product_id !== undefined && { product_id: updates.product_id || null }),
-          ...(updates.hub_id !== undefined && { hub_id: updates.hub_id || null })
-        })
-        .eq('id', pumpId)
-        .then(({ error }) => {
-          if (error) {
-            console.error('[store] Failed to update pump in database:', error.message);
-            showToast('error', `Pump changes were saved on this device only — they didn't sync to the database (${error.message}).`);
-          }
-        });
-    }
+    queueMasterWrite('pumps', { id: pumpId }, {
+      id: pumpId,
+      ...(updates.label !== undefined && { label: updates.label.trim() || undefined }),
+      ...(updates.product_id !== undefined && { product_id: updates.product_id || null }),
+      ...(updates.hub_id !== undefined && { hub_id: updates.hub_id || null })
+    });
   };
 
   const deletePump = (pumpId: string) => {
@@ -2912,18 +3015,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return { success: false, error: 'Cannot remove a pump with logged readings — its history would be lost.' };
     }
     setPumps(prev => prev.filter(p => p.id !== pumpId));
-    if (isSupabaseConfigured && supabase) {
-      supabase
-        .from('pumps')
-        .delete()
-        .eq('id', pumpId)
-        .then(({ error }) => {
-          if (error) {
-            console.error('[store] Failed to delete pump from database:', error.message);
-            showToast('error', `Removed here, but the database delete failed (${error.message}) — it may reappear on other devices.`);
-          }
-        });
-    }
+    queueMasterWrite('pumps', { id: pumpId }, null);
     return { success: true };
   };
 
@@ -3041,31 +3133,41 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
     setProducts(prev => [...prev, newProduct]);
     if (isSupabaseConfigured && supabase) {
-      supabase
-        .from('products')
-        .insert({
-          id: newProduct.id,
-          name: newProduct.name,
-          supply_model: newProduct.supply_model,
-          litres_per_ton: newProduct.litres_per_ton,
-          litres_per_keg: newProduct.litres_per_keg,
-          keg_sell_price: newProduct.keg_sell_price,
-          color_light: newProduct.color_light,
-          color_dark: newProduct.color_dark
-        })
-        .then(({ error }) => {
-          if (error) {
-            console.error('[store] Failed to save product to database:', error.message);
-            showToast('error', `"${newProduct.name}" was saved on this device only — it didn't sync to the database (${error.message}).`);
-            return;
+      // `products_bulk_needs_lpt` refuses a bulk_truck product with no density
+      // and `products_litres_per_ton_positive` refuses a 0. The Settings modal
+      // checks first; this is the same last line of defence as the tank rules.
+      const density = validateProductDensity(newProduct.supply_model, newProduct.litres_per_ton);
+      if (!density.ok) {
+        console.warn('[store] Not sending a product the database would reject:', density.error);
+        reportSyncFailure(
+          'products:write',
+          `${density.error} "${newProduct.name}" was kept on this device rather than sent.`
+        );
+        return newProduct;
+      }
+      // Parent and children go in one enqueue so the flush sends the product
+      // before the varieties that reference it (FK order, see masterData.ts).
+      queueMasterWrites([
+        {
+          table: 'products',
+          identity: { id: newProduct.id },
+          row: {
+            id: newProduct.id,
+            name: newProduct.name,
+            supply_model: newProduct.supply_model,
+            litres_per_ton: newProduct.litres_per_ton,
+            litres_per_keg: newProduct.litres_per_keg,
+            keg_sell_price: newProduct.keg_sell_price,
+            color_light: newProduct.color_light,
+            color_dark: newProduct.color_dark
           }
-          supabase!
-            .from('product_varieties')
-            .insert(varieties.map((v, i) => ({ id: v.id, product_id: newProduct.id, name: v.name, sort_order: i })))
-            .then(({ error: varietyError }) => {
-              if (varietyError) console.error('[store] Failed to save product varieties to database:', varietyError.message);
-            });
-        });
+        },
+        ...varieties.map((v, i) => ({
+          table: 'product_varieties' as const,
+          identity: { id: v.id },
+          row: { id: v.id, product_id: newProduct.id, name: v.name, sort_order: i }
+        }))
+      ]);
     }
     return newProduct;
   };
@@ -3099,52 +3201,48 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setPackPrices(prev => prev.filter(pp => pp.product_id !== productId || keptVarietyIds.has(pp.variety_id)));
     }
     if (isSupabaseConfigured && supabase) {
-      const productPatch: Record<string, unknown> = {};
-      if (updates.name !== undefined) productPatch.name = updates.name;
-      if (updates.supply_model !== undefined) productPatch.supply_model = updates.supply_model;
-      if (applied.litres_per_ton !== undefined && !blocksBulkDensityClear) productPatch.litres_per_ton = applied.litres_per_ton;
-      if (updates.litres_per_keg !== undefined) productPatch.litres_per_keg = updates.litres_per_keg;
-      if (updates.keg_sell_price !== undefined) productPatch.keg_sell_price = updates.keg_sell_price;
-      if (updates.color_light !== undefined) productPatch.color_light = updates.color_light;
-      if (updates.color_dark !== undefined) productPatch.color_dark = updates.color_dark;
-
-      const applyVarieties = () => {
-        if (!updates.varieties) return;
-        const varieties = updates.varieties;
-        supabase!
-          .from('product_varieties')
-          .delete()
-          .eq('product_id', productId)
-          .then(({ error: deleteError }) => {
-            if (deleteError) {
-              console.error('[store] Failed to replace product varieties in database:', deleteError.message);
-              return;
-            }
-            supabase!
-              .from('product_varieties')
-              .insert(varieties.map((v, i) => ({ id: v.id, product_id: productId, name: v.name, sort_order: i })))
-              .then(({ error: insertError }) => {
-                if (insertError) console.error('[store] Failed to save product varieties to database:', insertError.message);
-              });
-          });
-      };
-
-      if (Object.keys(productPatch).length > 0) {
-        supabase
-          .from('products')
-          .update(productPatch)
-          .eq('id', productId)
-          .then(({ error }) => {
-            if (error) {
-              console.error('[store] Failed to update product in database:', error.message);
-              showToast('error', `Product changes were saved on this device only — they didn't sync to the database (${error.message}).`);
-              return;
-            }
-            applyVarieties();
-          });
-      } else {
-        applyVarieties();
+      const drafts: MasterDraft[] = [];
+      // The WHOLE row, not just the changed columns: the queue writes with an
+      // upsert (one code path for inserts and updates), and a partial row would
+      // fail on every NOT NULL column of a product the database has never seen.
+      const current = products.find(p => p.id === productId);
+      if (current) {
+        const full = { ...current, ...applied };
+        drafts.push({
+          table: 'products',
+          identity: { id: productId },
+          row: {
+            id: productId,
+            name: full.name,
+            supply_model: full.supply_model,
+            litres_per_ton: full.litres_per_ton,
+            litres_per_keg: full.litres_per_keg,
+            keg_sell_price: full.keg_sell_price,
+            color_light: full.color_light,
+            color_dark: full.color_dark
+          }
+        });
       }
+
+      // Varieties are replaced, so a variety the owner removed is deleted and
+      // the kept ones are re-written. `orders.variety_id` and
+      // `pack_prices.variety_id` still reference these rows, which is why the
+      // deletion follows the pruning of pack prices above.
+      if (updates.varieties) {
+        const kept = new Set(updates.varieties.map(v => v.id));
+        for (const gone of (current?.varieties ?? []).filter(v => !kept.has(v.id))) {
+          drafts.push({ table: 'product_varieties', identity: { id: gone.id }, row: null });
+        }
+        updates.varieties.forEach((v, i) => {
+          drafts.push({
+            table: 'product_varieties',
+            identity: { id: v.id },
+            row: { id: v.id, product_id: productId, name: v.name, sort_order: i }
+          });
+        });
+      }
+
+      queueMasterWrites(drafts);
     }
   };
 
@@ -3156,22 +3254,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     setProducts(prev => prev.filter(p => p.id !== productId));
     setPackPrices(prev => prev.filter(pp => pp.product_id !== productId));
-    if (isSupabaseConfigured && supabase) {
-      supabase
-        .from('products')
-        .delete()
-        .eq('id', productId)
-        .then(({ error }) => {
-          if (error) {
-            console.error('[store] Failed to delete product from database:', error.message);
-            showToast('error', `Removed here, but the database delete failed (${error.message}) — it may reappear on other devices.`);
-          }
-        });
-    }
+    // One delete is enough: `product_varieties.product_id` and
+    // `pack_prices.product_id`/`variety_id` all cascade (0001/0020), so the
+    // database removes the children with the product.
+    queueMasterWrite('products', { id: productId }, null);
     return { success: true };
   };
 
   // 12. Price matrix — upsert one cell keyed by (product, variety, pack size, tier).
+  //
+  // A price of 0 is not a price: `lookupPackPrice` returns the stored number,
+  // so a row of 0 would be charged to a customer as a free pack. Clearing a
+  // cell therefore removes it — locally and in the database (`pack_prices.price`
+  // allows 0, which is exactly why this has to be decided here).
   const setPackPrice = (
     productId: string,
     varietyId: string,
@@ -3179,37 +3274,44 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     tier: CustomerType,
     price: number
   ) => {
+    const row: PackPrice = { product_id: productId, variety_id: varietyId, pack_size_id: packSizeId, tier, price: Number(price) };
+    const cellKey = masterKey('pack_prices', packPriceIdentity(row));
+    const clearing = !(Number(price) > 0);
+
     setPackPrices(prev => {
-      const idx = prev.findIndex(
-        p =>
-          p.product_id === productId &&
-          p.variety_id === varietyId &&
-          p.pack_size_id === packSizeId &&
-          p.tier === tier
-      );
-      const row: PackPrice = { product_id: productId, variety_id: varietyId, pack_size_id: packSizeId, tier, price: Number(price) };
-      if (idx === -1) return [...prev, row];
-      const next = prev.slice();
-      next[idx] = row;
-      return next;
+      const kept = prev.filter(p => masterKey('pack_prices', packPriceIdentity(p)) !== cellKey);
+      return clearing ? kept : [...kept, row];
     });
+    void queuePriceWrites([clearing ? packPriceDeletion(row) : packPriceDraft(row)]);
   };
 
   // 12b. Price matrix — bulk upsert (the Inventory "Save prices" action).
-  const bulkSetPackPrices = (rows: PackPrice[]) => {
+  //
+  // `grid` is the variety × pack-size grid the screen just saved, and it is what
+  // makes a CLEARED cell detectable: the screen sends only the cells that carry
+  // a price, so a cell that used to be priced and isn't any more is simply
+  // absent from `rows`. Without the grid, clearing every price for a variety
+  // looked saved and then came straight back, because nothing ever removed the
+  // old rows.
+  const bulkSetPackPrices = (rows: PackPrice[], grid: PackPriceGrid) => {
+    const diff = diffPackPriceGrid(packPrices, rows, grid);
+
     setPackPrices(prev => {
-      const map = new Map<string, PackPrice>();
-      for (const p of prev) {
-        map.set(`${p.product_id}|${p.variety_id}|${p.pack_size_id}|${p.tier}`, p);
+      const byKey = new Map<string, PackPrice>();
+      for (const p of prev) byKey.set(masterKey('pack_prices', packPriceIdentity(p)), p);
+      for (const gone of diff.deletions) {
+        byKey.delete(masterKey('pack_prices', packPriceIdentity(gone)));
       }
-      for (const r of rows) {
-        map.set(`${r.product_id}|${r.variety_id}|${r.pack_size_id}|${r.tier}`, {
-          ...r,
-          price: Number(r.price)
-        });
+      for (const r of diff.upserts) {
+        byKey.set(masterKey('pack_prices', packPriceIdentity(r)), { ...r, price: Number(r.price) });
       }
-      return Array.from(map.values());
+      return Array.from(byKey.values());
     });
+
+    void queuePriceWrites([
+      ...diff.upserts.map(packPriceDraft),
+      ...diff.deletions.map(packPriceDeletion)
+    ]);
   };
 
   // 12c. Per-product pack-size list + returnable / container-price config.
@@ -3219,21 +3321,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // 13. Update Settings
   const updateSettings = (newSettings: Partial<AppSettings>) => {
-    setSettings(prev => {
-      const next = { ...prev, ...newSettings };
-      if (isSupabaseConfigured && supabase) {
-        supabase
-          .from('app_settings')
-          .upsert(toAppSettingsRow(next))
-          .then(({ error }) => {
-            if (error) {
-              console.error('[store] Failed to save settings to database:', error.message);
-              showToast('error', `Settings were saved on this device only — they didn't sync to the database (${error.message}).`);
-            }
-          });
-      }
-      return next;
-    });
+    setSettings(prev => ({ ...prev, ...newSettings }));
+    // app_settings is a single row (id = 1), and `toAppSettingsRow` already
+    // builds the complete row, so it goes straight into the queue. Queued
+    // outside the state updater on purpose: an updater must stay pure.
+    queueMasterWrite('app_settings', { id: '1' }, toAppSettingsRow({ ...settings, ...newSettings }));
   };
 
   // 14. Add Customer
@@ -3259,56 +3351,49 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       id: `sup-${Date.now()}`
     };
     setSuppliers(prev => [...prev, newSup]);
-    if (isSupabaseConfigured && supabase) {
-      supabase
-        .from('suppliers')
-        .insert({ id: newSup.id, name: newSup.name, phone: newSup.phone || null })
-        .then(({ error }) => {
-          if (error) {
-            console.error('[store] Failed to save supplier to database:', error.message);
-            showToast('error', `"${newSup.name}" was saved on this device only — it didn't sync to the database (${error.message}).`);
-          }
-        });
-    }
+    queueMasterWrite('suppliers', { id: newSup.id }, {
+      id: newSup.id,
+      name: newSup.name,
+      phone: newSup.phone || null
+    });
     return newSup;
   };
 
   const updateSupplier = (id: string, updates: Partial<Supplier>) => {
     setSuppliers(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
-    if (isSupabaseConfigured && supabase) {
-      supabase
-        .from('suppliers')
-        .update({
-          ...(updates.name !== undefined && { name: updates.name }),
-          ...(updates.phone !== undefined && { phone: updates.phone || null })
-        })
-        .eq('id', id)
-        .then(({ error }) => {
-          if (error) {
-            console.error('[store] Failed to update supplier in database:', error.message);
-            showToast('error', `Supplier changes were saved on this device only — they didn't sync to the database (${error.message}).`);
-          }
-        });
-    }
+    // The whole row: the queue writes with an upsert, so a supplier the
+    // database has never seen is created rather than silently skipped.
+    const full = { ...suppliers.find(s => s.id === id), ...updates };
+    queueMasterWrite('suppliers', { id }, {
+      id,
+      name: full.name,
+      phone: full.phone || null
+    });
   };
 
   const deleteSupplier = (id: string) => {
     setSuppliers(prev => prev.filter(s => s.id !== id));
-    if (isSupabaseConfigured && supabase) {
-      supabase
-        .from('suppliers')
-        .delete()
-        .eq('id', id)
-        .then(({ error }) => {
-          if (error) {
-            console.error('[store] Failed to delete supplier from database:', error.message);
-            showToast('error', `Removed here, but the database delete failed (${error.message}) — it may reappear on other devices.`);
-          }
-        });
-    }
+    // `tanks.supplier_id` is ON DELETE SET NULL (0001), so an intake recorded
+    // against this supplier survives with the supplier blank.
+    queueMasterWrite('suppliers', { id }, null);
   };
 
   // 17. Physical Tanks CRUD
+  /**
+   * The database's two tank rules (0001_init.sql), asked before any write:
+   * `capacity_litres > 0` and a `product_id` that references a real product.
+   * The Settings screen validates first and says so in words; this is the last
+   * line of defence for every other caller, because a row Postgres refuses
+   * comes back as a 400 the counter never sees — the tank simply exists on one
+   * device and nowhere else. Returns the reason, or null when the row is safe.
+   */
+  const tankWriteRefusal = (tank: Pick<PhysicalTank, 'capacity_litres' | 'product_id'>): string | null => {
+    const capacity = validateTankCapacity(tank.capacity_litres);
+    if (!capacity.ok) return capacity.error;
+    const product = validateTankProduct(tank.product_id);
+    return product.ok ? null : product.error;
+  };
+
   const addPhysicalTank = (tankData: Omit<PhysicalTank, 'id'>) => {
     const newPT: PhysicalTank = {
       ...tankData,
@@ -3316,46 +3401,48 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       hub_id: tankData.hub_id || getTargetHubId()
     };
     setPhysicalTanks(prev => [...prev, newPT]);
-    if (isSupabaseConfigured && supabase) {
-      supabase
-        .from('physical_tanks')
-        .insert({
-          id: newPT.id,
-          label: newPT.label,
-          product_id: newPT.product_id,
-          capacity_litres: newPT.capacity_litres,
-          notes: newPT.notes || null,
-          hub_id: newPT.hub_id || null
-        })
-        .then(({ error }) => {
-          if (error) {
-            console.error('[store] Failed to save physical tank to database:', error.message);
-            showToast('error', `"${newPT.label}" was saved on this device only — it didn't sync to the database (${error.message}).`);
-          }
-        });
+    const refusal = tankWriteRefusal(newPT);
+    if (refusal) {
+      console.warn('[store] Not sending a physical tank the database would reject:', refusal);
+      reportSyncFailure(
+        'physical_tanks:write',
+        `${refusal} "${newPT.label}" was kept on this device rather than sent, and will sync once that is fixed.`
+      );
+    } else {
+      queueMasterWrite('physical_tanks', { id: newPT.id }, {
+        id: newPT.id,
+        label: newPT.label,
+        product_id: newPT.product_id,
+        capacity_litres: newPT.capacity_litres,
+        notes: newPT.notes || null,
+        hub_id: newPT.hub_id || null
+      });
     }
     return newPT;
   };
 
   const updatePhysicalTank = (id: string, updates: Partial<PhysicalTank>) => {
     setPhysicalTanks(prev => prev.map(pt => pt.id === id ? { ...pt, ...updates } : pt));
-    if (isSupabaseConfigured && supabase) {
-      supabase
-        .from('physical_tanks')
-        .update({
-          ...(updates.label !== undefined && { label: updates.label }),
-          ...(updates.product_id !== undefined && { product_id: updates.product_id }),
-          ...(updates.capacity_litres !== undefined && { capacity_litres: updates.capacity_litres }),
-          ...(updates.notes !== undefined && { notes: updates.notes || null }),
-          ...(updates.hub_id !== undefined && { hub_id: updates.hub_id || null })
-        })
-        .eq('id', id)
-        .then(({ error }) => {
-          if (error) {
-            console.error('[store] Failed to update physical tank in database:', error.message);
-            showToast('error', `Tank changes were saved on this device only — they didn't sync to the database (${error.message}).`);
-          }
-        });
+    // Validate the row as it will be *after* the patch — that is the row
+    // Postgres checks. A cleared Capacity box sent 0 and was refused, so the
+    // edit looked saved until the next refresh brought the old number back.
+    const existing = allPhysicalTanks.find(pt => pt.id === id);
+    const merged = existing ? { ...existing, ...updates } : undefined;
+    const refusal = merged ? tankWriteRefusal(merged) : null;
+    if (refusal) {
+      console.warn('[store] Not sending a physical tank edit the database would reject:', refusal);
+      reportSyncFailure('physical_tanks:write', `${refusal} The earlier figures were left in the database.`);
+    } else if (merged) {
+      // The whole row, so the queue's upsert can also create a tank this
+      // database has never seen rather than failing on its NOT NULL columns.
+      queueMasterWrite('physical_tanks', { id }, {
+        id,
+        label: merged.label,
+        product_id: merged.product_id,
+        capacity_litres: merged.capacity_litres,
+        notes: merged.notes || null,
+        hub_id: merged.hub_id || null
+      });
     }
   };
 
@@ -3366,18 +3453,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return { success: false, error: 'Cannot delete a physical tank with pumps or stock records still assigned to it.' };
     }
     setPhysicalTanks(prev => prev.filter(pt => pt.id !== id));
-    if (isSupabaseConfigured && supabase) {
-      supabase
-        .from('physical_tanks')
-        .delete()
-        .eq('id', id)
-        .then(({ error }) => {
-          if (error) {
-            console.error('[store] Failed to delete physical tank from database:', error.message);
-            showToast('error', `Removed here, but the database delete failed (${error.message}) — it may reappear on other devices.`);
-          }
-        });
-    }
+    queueMasterWrite('physical_tanks', { id }, null);
     return { success: true };
   };
 

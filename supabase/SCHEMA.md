@@ -9,6 +9,17 @@ The transactional layer is wired too, in `src/services/ledger.ts`: it pulls
 and `payments` down, uploads whatever exists only on this device, and mirrors
 every later change through a durable outbox.
 
+Master data is mirrored the same way in `src/services/masterData.ts`, which is
+the only writer for every one of those tables now: each change is queued in
+localStorage and removed only once the database confirms it, so a setting or a
+price edited with no signal is retried instead of lost. `pack_prices` lives
+there because it is the one table with no `id` — its key is the whole
+(product, variety, pack size, tier) tuple (0020) — and it is the one that also
+has to DELETE: a blank price cell means "not priced yet" (`lookupPackPrice`
+returns `null`), so saving an empty cell deletes the row rather than storing a
+`0` that the counter would charge as a free pack. `audit_log` remains the only
+table in the app's set with no writer at all.
+
 **Every migration through 0022 is now applied to the live project** (pushed on
 25 Sep 2026; `supabase migration list --linked` shows no pending row), so the
 gate that kept this layer inert is open: it probes for `sales`, finds it, and
@@ -49,6 +60,7 @@ These files define the Postgres target the app has migrated onto.
 | `supabase/migrations/0021_walkin_customer_and_per_hub_open_shift.sql` | Seeds the `cust-walkin` customer row — the app writes every walk-in sale against that synthetic id and `orders.customer_id` is `on delete restrict`, so without the row every walk-in sale fails its FK — adds `customers.hub_id` (informational; customers stay depot-wide), and replaces the global `uniq_one_open_shift` with a per-hub one so a second hub can open a shift. |
 | `supabase/migrations/0022_payments.sql` | `payments` — the customer-receipt table the app's `Payment` type has needed since it was introduced (a live REST probe returned 404 for both `payments` and `payment_allocations`: neither has ever existed). Deliberately a different grain from 0007's `sale_payments`: one receipt, allocated across many sale lines via an `applied_to` jsonb column (not normalised into `payment_allocations` yet), with `overpayment_to_credit` covering the change pushed to store credit. RLS: read-all + staff insert/update + hub isolation, and no DELETE — a voided receipt stays visible as the correction trail. |
 | `supabase/migrations/0023_default_litres_per_ton_not_invented.sql` | Changes `app_settings.default_litres_per_ton`'s database default from `1075` to `0`. 0016 stamped one palm-oil-typical ratio onto every depot, so a new settings row (or any insert omitting the column) converted tons with a figure the owner never chose — 1,075 L/ton is not a universal conversion. `0` matches the app's own "not configured" semantics (`resolveLitresPerTon` falls through on 0). Stored values are left alone: a seeded 1075 and a typed 1075 are indistinguishable, so clearing it stays an owner decision in Settings → Density & Conversions. |
+| `supabase/migrations/0024_inventory_grant_products.sql` | Widens only `products`/`product_varieties`' write policies from `app_can_operate('settings')` (0011) to `app_can_operate('inventory') or app_can_operate('settings')`. Both tables are edited from the Inventory screen, whose client gate is `isOwner \|\| canOperate('inventory')`, while 0020 gave `pack_prices` — the other half of that same screen — an `'inventory'` check: a member granted Inventory but not Settings could open the screen and save a price, then have the product/variety save it belongs to rejected by RLS. Nothing else moves — suppliers/tanks/pumps/`app_settings` stay settings-granted, accounts/hubs/reset stay owner-only. |
 | *(no `seed.sql`)* | `supabase/seed.sql` has been **deleted**. It seeded a two-product catalogue (`veg` / `red`, with 1,075 L/ton and 25 L kegs), rate cards, expense categories and the singleton `app_settings` row — invented commercial figures that then had to be unwound from the live database by `0012`/`0013`. A new install now starts genuinely empty: the owner adds products, keg sizes, densities and prices in Settings/Inventory, and `app_settings` starts at 0/blank, which the app reads as "not configured" rather than a real magnitude. Migrations alone are enough — `supabase db reset` / `migration up` need no seed step. |
 | `supabase/functions/create-staff-account/` | Edge Function (in active use): owner sets a username + password directly for a new team member, no email required — maps the username to a synthetic address under the hood. Deploy: `supabase functions deploy create-staff-account`. |
 | `supabase/functions/invite-user/` | Edge Function (built, not currently wired into the UI): sends a real Supabase auth invite email to a new team member and sets their role/hub/screen access. Deploy: `supabase functions deploy invite-user` — see `supabase/functions/README.md`. |
@@ -566,6 +578,34 @@ Last run: **no drift** across all six mirrored tables — `customers` 9/9,
 `tanks` 15 pulled of 17, `sales` 18/18, `orders` 33 pulled of 47,
 `sale_payments` 10 of 11, `payments` 16/16, and every column written by a mapper
 exists.
+
+### The live-project check
+
+`check_ledger_schema.py` compares the app against the *SQL*; nothing in it can
+tell whether those migrations were actually applied to the project the tablet
+talks to. `supabase/tools/check_sync.mjs` closes that half. It signs in as the
+owner and asks PostgREST for one row of **every** table the app names — the six
+ledger tables, the eight master-data tables, and `pack_prices` — then reports the
+server's own answer per table:
+
+```bash
+$env:SUPABASE_EMAIL    = 'owner@example.com'
+$env:SUPABASE_PASSWORD = '…'
+npm run check:sync          # read-only: counts rows, writes nothing
+```
+
+It distinguishes the three failures that all look like "it didn't sync" from
+inside the browser — `MISSING` (PGRST205/404: no migration created the table
+here), `DENIED` (403/42501: the table exists but this role has no grant) and
+`UNAUTH` (401: the login itself was rejected) — and prints a row count next to
+each table that answered. That is also the fastest way to answer "which app
+tables actually reach Postgres": the writer for each table is printed above it.
+
+Run 28 Sep 2026 with the anon key (`SUPABASE_ACCESS_TOKEN`, so RLS hid every row
+and each count read 0): **all 15 tables answered `OK`, none `MISSING`** — so
+0019–0024 are applied to the live project and no table the app names is absent.
+Re-run it with the owner login for real row counts, which is what shows whether
+a given device's rows actually landed.
 
 The columns listed as *not pulled* are reported for information only, and split
 in two. `orders.unit`, `orders.rate` and `orders.discount_reason` are written by

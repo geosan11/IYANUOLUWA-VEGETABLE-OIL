@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from './supabase';
@@ -170,6 +170,15 @@ interface AuthContextValue {
   profile: AuthProfile | null;
   /** True only while profiles is being (re)fetched for an existing session. */
   profileLoading: boolean;
+  /**
+   * Re-reads the signed-in user's own `profiles` row on demand (role, hub,
+   * allowed_screens). An owner's change to someone's screen access lands in
+   * *that* person's row on the server, so a session that's already open has no
+   * other way to hear about it — without this, the grant only took effect on a
+   * full reload, which is indistinguishable from the grant not working. See
+   * ProfileSync in App.tsx for when it is called.
+   */
+  refetchProfile: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<AuthResult>;
   signOut: () => Promise<void>;
   /**
@@ -191,32 +200,94 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/**
+ * True only when the database *answered* and the answer was "this user has no
+ * `profiles` row" — the one profile-read failure that is about the user's
+ * access rather than the network.
+ *
+ * PostgREST reports it two ways, depending on whether the client asked with
+ * `.single()` (code PGRST116) or the reply was simply reshaped, so both the
+ * code and the wording are checked. Everything else — a DNS blip, a timeout,
+ * `Failed to fetch`, an expired token, a 5xx — is deliberately NOT this: it
+ * says nothing about the profile, and treating it as "no profile" is what
+ * dropped a working session back to the account-setup gate whenever the
+ * connection hiccuped.
+ *
+ * The trade-off, stated plainly: while a read keeps failing, this session keeps
+ * the role and screens it last loaded. What that cannot do is grant access —
+ * every write is still checked by RLS against the live token server-side, and
+ * the next successful read (focus, `online`, the 60s interval) applies any real
+ * change. Locking a cashier out of a working counter because the signal
+ * dropped is the worse failure, and this is the same offline-first choice the
+ * rest of the app already makes.
+ */
+export function isMissingProfileRow(
+  error: { message?: string; code?: string } | null | undefined
+): boolean {
+  if (!error) return false;
+  if (error.code === 'PGRST116') return true;
+  return /0 rows|no rows|json object requested|multiple \(or no\) rows/i.test(error.message ?? '');
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [ready, setReady] = useState(!isSupabaseConfigured);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<AuthProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [passwordRecovery, setPasswordRecovery] = useState(false);
+  /** The profile read currently in flight, so a burst of events shares one. */
+  const profileFetchRef = useRef<{ userId: string; promise: Promise<void> } | null>(null);
 
-  const fetchProfile = useCallback(async (userId: string) => {
-    if (!supabase) return;
-    setProfileLoading(true);
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, role, full_name, hub_id, theme, allowed_screens')
-      .eq('id', userId)
-      .single();
-    setProfileLoading(false);
-    if (error) {
-      // Most likely: the new-user trigger hasn't inserted the row yet, or RLS
-      // is blocking it. Either way, leave profile null — AuthGate shows a
-      // "setting up your account" state rather than silently granting access.
+  const fetchProfile = useCallback((userId: string) => {
+    if (!supabase) return Promise.resolve();
+    // A burst of focus/visibility/interval events asks for the same row several
+    // times over; they share one request instead of racing each other.
+    const inFlight = profileFetchRef.current;
+    if (inFlight && inFlight.userId === userId) return inFlight.promise;
+
+    const promise = (async () => {
+      setProfileLoading(true);
+      const { data, error } = await supabase!
+        .from('profiles')
+        .select('id, role, full_name, hub_id, theme, allowed_screens')
+        .eq('id', userId)
+        .single();
+      setProfileLoading(false);
+
+      if (!error) {
+        setProfile(data as AuthProfile);
+        return;
+      }
+
+      // Two very different events used to look identical here, which is why an
+      // offline tablet logged "Failed to load profile" and then dropped to the
+      // "setting up your account" gate mid-shift:
+      //
+      //   * the database ANSWERED — no such row (PGRST116, e.g. the new-user
+      //     trigger hasn't run yet, or RLS hides it). That is about this user's
+      //     access, so the profile is cleared and AuthGate keeps them out.
+      //   * the request never got an answer — a DNS blip, a dropped
+      //     connection, a sleeping tablet, a momentarily expired token. That
+      //     says nothing about the profile, so the one already loaded is kept
+      //     and the next sync picks up any real change.
+      if (!isMissingProfileRow(error)) {
+        console.warn(
+          `Could not reach the database to read this profile (${error.message}) — keeping the access this session already has.`
+        );
+        return;
+      }
       console.warn('Failed to load profile:', error.message);
       setProfile(null);
-      return;
-    }
-    setProfile(data as AuthProfile);
+    })();
+
+    profileFetchRef.current = { userId, promise };
+    return promise;
   }, []);
+
+  const refetchProfile = useCallback(async () => {
+    if (!supabase || !session?.user) return;
+    await fetchProfile(session.user.id);
+  }, [session, fetchProfile]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -301,7 +372,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = useCallback(async () => {
     if (!supabase) return;
-    await supabase.auth.signOut();
+    // A session whose access token has already expired makes the server answer
+    // 403 `session_not_found`, and on that answer the SDK keeps the local
+    // session — so the user taps Sign out, sees a 403 in the console, and is
+    // still signed in. Try the revoking sign-out first (it invalidates the
+    // refresh token server-side), then fall back to clearing this device only:
+    // leaving a counter tablet signed in is the worse outcome.
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.warn(`Server sign-out failed (${error.message}) — clearing this device instead.`);
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch (localError) {
+        console.warn('Local sign-out also failed; clearing in-memory session anyway.', localError);
+      }
+    }
     setSession(null);
     setProfile(null);
   }, []);
@@ -314,6 +399,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user: session?.user ?? null,
         profile,
         profileLoading,
+        refetchProfile,
         signIn,
         signOut,
         requestPasswordReset,

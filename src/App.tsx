@@ -176,7 +176,7 @@ const MainLayout: React.FC = () => {
  * every write rejected by RLS.
  */
 const ProfileSync: React.FC = () => {
-  const { session, profile } = useAuth();
+  const { session, profile, refetchProfile } = useAuth();
   const { setCurrentUser } = useStore();
 
   useEffect(() => {
@@ -192,6 +192,39 @@ const ProfileSync: React.FC = () => {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, session]);
+
+  /**
+   * An owner's change to someone's role/hub/screen access is written to the
+   * *server's* `profiles` row, so an app that is already open — a counter
+   * tablet left running all day, or just a tab in the background — had no way
+   * to hear about it. It stayed on the access it signed in with until a full
+   * reload, which reads exactly like "the owner granted me the screen but I'm
+   * still blocked". Re-read the row when the app comes back to the foreground,
+   * and once a minute while it stays there (the tablet case), so a grant lands
+   * on its own. One small indexed lookup, and the store's own mirrors don't
+   * re-run unless the row actually changed.
+   */
+  useEffect(() => {
+    if (!session?.user) return;
+    // `navigator.onLine` is not proof of a working connection, but when the
+    // browser says there is none, asking for the row is a guaranteed DNS
+    // failure and a console full of warnings — so skip, and take the `online`
+    // event as the signal that it is worth asking again.
+    const syncNow = () => {
+      if (!navigator.onLine) return;
+      if (document.visibilityState === 'visible') void refetchProfile();
+    };
+    const interval = window.setInterval(syncNow, 60_000);
+    window.addEventListener('focus', syncNow);
+    window.addEventListener('online', syncNow);
+    document.addEventListener('visibilitychange', syncNow);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', syncNow);
+      window.removeEventListener('online', syncNow);
+      document.removeEventListener('visibilitychange', syncNow);
+    };
+  }, [session, refetchProfile]);
 
   return null;
 };

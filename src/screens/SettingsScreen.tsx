@@ -6,6 +6,11 @@ import { Modal } from '../components/common/Modal';
 import { uploadDepotLogo, isSupabaseConfigured } from '../services/supabase';
 import { formatNaira, formatWithCommas, numberOrBlank } from '../services/businessLogic';
 import {
+  validateTankCapacity,
+  validateTankProduct,
+  validateProductDensity
+} from '../services/masterDataValidation';
+import {
   Gear as Settings,
   Upload,
   Trash as Trash2,
@@ -16,7 +21,7 @@ import {
   Image as ImageIcon,
   Package,
   Sliders,
-  CurrencyDollar as DollarSign,
+  CurrencyNgn as NairaSign,
   Warning as AlertTriangle,
   FloppyDisk as Save,
   CaretRight as ChevronRight,
@@ -51,7 +56,7 @@ type SettingsSectionId = 'company' | 'kegs' | 'pricing' | 'infrastructure' | 'th
 const SECTION_THEME: Record<SettingsSectionId, { icon: React.ComponentType<any>; textCls: string; bgCls: string; borderCls: string }> = {
   company: { icon: Building, textCls: 'text-emerald-600 dark:text-emerald-400', bgCls: 'bg-emerald-50 dark:bg-emerald-500/15', borderCls: 'border-emerald-200 dark:border-emerald-500/30' },
   kegs: { icon: Package, textCls: 'text-amber-600 dark:text-amber-400', bgCls: 'bg-amber-50 dark:bg-amber-500/15', borderCls: 'border-amber-200 dark:border-amber-500/30' },
-  pricing: { icon: DollarSign, textCls: 'text-violet-600 dark:text-violet-400', bgCls: 'bg-violet-50 dark:bg-violet-500/15', borderCls: 'border-violet-200 dark:border-violet-500/30' },
+  pricing: { icon: NairaSign, textCls: 'text-violet-600 dark:text-violet-400', bgCls: 'bg-violet-50 dark:bg-violet-500/15', borderCls: 'border-violet-200 dark:border-violet-500/30' },
   infrastructure: { icon: GasPump, textCls: 'text-sky-600 dark:text-sky-400', bgCls: 'bg-sky-50 dark:bg-sky-500/15', borderCls: 'border-sky-200 dark:border-sky-500/30' },
   thresholds: { icon: AlertTriangle, textCls: 'text-rose-600 dark:text-rose-400', bgCls: 'bg-rose-50 dark:bg-rose-500/15', borderCls: 'border-rose-200 dark:border-rose-500/30' },
   system: { icon: Clock, textCls: 'text-orange-600 dark:text-orange-400', bgCls: 'bg-orange-50 dark:bg-orange-500/15', borderCls: 'border-orange-200 dark:border-orange-500/30' },
@@ -376,7 +381,16 @@ export const SettingsScreen: React.FC = () => {
     // the owner had chosen them.
     const kegSell = Math.max(0, numberOrBlank(newProductKegSellPrice, 0));
     const lPerKeg = Math.max(0, numberOrBlank(newProductLitresPerKeg, 0));
-    const lPerTon = newProductModel === 'bulk_truck' ? Math.max(0, numberOrBlank(newProductLitresPerTon, 0)) : null;
+    // `products_bulk_needs_lpt` (0001_init.sql) refuses a bulk_truck product
+    // with no density, and `products_litres_per_ton_positive` refuses a 0 — a
+    // blank density used to be sent as 0, so the product looked added and the
+    // insert had come back 400.
+    const density = validateProductDensity(newProductModel, newProductLitresPerTon);
+    if (!density.ok) {
+      showNotification(density.error, 'error');
+      return;
+    }
+    const lPerTon = density.value;
 
     let varieties: ProductVariety[] = newProductVarieties
       .filter(v => v.name.trim())
@@ -443,14 +457,31 @@ export const SettingsScreen: React.FC = () => {
   const handleAddPhysicalTank = (e: React.FormEvent) => {
     e.preventDefault();
     if (denyIfNoSettingsAccess()) return;
-    if (!newTankLabel.trim()) return;
+    if (!newTankLabel.trim()) {
+      showNotification('A tank needs a label before it can be registered.', 'error');
+      return;
+    }
+    // Checked here as well as in the store: `capacity_litres > 0` and a real
+    // `product_id` are both database rules (0001_init.sql), and a rejected row
+    // is one only this device ever sees.
+    const capacity = validateTankCapacity(newTankCapacity);
+    if (!capacity.ok) {
+      showNotification(capacity.error, 'error');
+      return;
+    }
+    const product = validateTankProduct(newTankProductId);
+    if (!product.ok) {
+      showNotification(product.error, 'error');
+      return;
+    }
     addPhysicalTank({
       label: newTankLabel.trim(),
-      product_id: newTankProductId,
-      capacity_litres: Math.max(0, numberOrBlank(newTankCapacity, 0)),
+      product_id: product.value,
+      capacity_litres: capacity.value,
       hub_id: newTankHubId || undefined
     });
     setNewTankLabel('');
+    setNewTankCapacity('');
     showNotification('Physical yard tank registered successfully.');
   };
 
@@ -466,10 +497,22 @@ export const SettingsScreen: React.FC = () => {
     e.preventDefault();
     if (denyIfNoSettingsAccess()) return;
     if (!editingTankId || !editTankLabel.trim()) return;
+    // Same two rules as Add: clearing the Capacity box used to send 0, which
+    // the database refuses, so the edit looked saved and then reverted.
+    const capacity = validateTankCapacity(editTankCapacity);
+    if (!capacity.ok) {
+      showNotification(capacity.error, 'error');
+      return;
+    }
+    const product = validateTankProduct(editTankProductId);
+    if (!product.ok) {
+      showNotification(product.error, 'error');
+      return;
+    }
     updatePhysicalTank(editingTankId, {
       label: editTankLabel.trim(),
-      product_id: editTankProductId,
-      capacity_litres: numberOrBlank(editTankCapacity, 0),
+      product_id: product.value,
+      capacity_litres: capacity.value,
       hub_id: editTankHubId || undefined
     });
     showNotification(`Tank "${editTankLabel.trim()}" updated successfully.`);
@@ -1040,7 +1083,7 @@ export const SettingsScreen: React.FC = () => {
               <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                    <DollarSign className={`w-5 h-5 ${SECTION_THEME.pricing.textCls}`} weight="bold" />
+                    <NairaSign className={`w-5 h-5 ${SECTION_THEME.pricing.textCls}`} weight="bold" />
                     <span>3. Products & prices</span>
                   </h3>
                   <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
@@ -1390,7 +1433,7 @@ export const SettingsScreen: React.FC = () => {
                       <input
                         type="number"
                         step="1"
-                        min="0"
+                        min="1"
                         required
                         placeholder="Capacity (L)"
                         value={newTankCapacity}
@@ -2077,7 +2120,7 @@ export const SettingsScreen: React.FC = () => {
             className="w-full p-4 flex items-center gap-3.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100"
           >
             <div className={`w-10 h-10 rounded-xl ${SECTION_THEME.pricing.bgCls} border ${SECTION_THEME.pricing.borderCls} flex items-center justify-center flex-shrink-0`}>
-              <DollarSign className={`w-5 h-5 ${SECTION_THEME.pricing.textCls}`} weight="bold" />
+              <NairaSign className={`w-5 h-5 ${SECTION_THEME.pricing.textCls}`} weight="bold" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-heading font-bold text-slate-900 dark:text-white text-[14px] truncate">
@@ -2351,7 +2394,7 @@ export const SettingsScreen: React.FC = () => {
                       id="new-product-litres-per-ton"
                       type="number"
                       step="1"
-                      min="0"
+                      min="1"
                       required
                       placeholder="e.g. 1075"
                       value={newProductLitresPerTon}
@@ -2771,7 +2814,7 @@ export const SettingsScreen: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  min="0"
+                  min="1"
                   step="1"
                   required
                   value={editTankCapacity}

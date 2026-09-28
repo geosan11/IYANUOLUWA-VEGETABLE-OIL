@@ -14,7 +14,7 @@ import { useIsDesktopSplit } from '../hooks/useBreakpoint';
 import { formatNaira, formatDepotDate, formatDepotTime, computeShiftCash, getDepotToday, depotDateKey, formatWithCommas, parseFromCommas, resolveLitresPerKeg, DEPOT_TZ } from '../services/businessLogic';
 import { getPaymentModeTheme } from '../constants/config';
 import {
-  CurrencyDollar as DollarSign,
+  CurrencyNgn as NairaSign,
   CreditCard,
   Package,
   Truck,
@@ -601,7 +601,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
               Cash, Card &amp; Transfer
             </span>
             <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/60 dark:border-emerald-800/50 flex items-center justify-center shrink-0">
-              <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
+              <NairaSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
             </div>
           </div>
           <div

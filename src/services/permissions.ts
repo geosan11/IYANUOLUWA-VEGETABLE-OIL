@@ -1,6 +1,6 @@
 import { UserRole } from '../types';
 import { useStore } from './store';
-import { getVisibleNavItems } from '../constants/nav';
+import { canOperateScreen, getVisibleNavItems } from '../constants/nav';
 
 /**
  * Role-gated capabilities.
@@ -71,9 +71,17 @@ export function usePermissions() {
      * granted it on purpose) — a short, explicit list of actions stay
      * hard owner-only regardless (user accounts, hub create/delete,
      * factory reset), checked separately from this.
+     *
+     * The rule itself lives in `canOperateScreen` (constants/nav.ts), the same
+     * module the nav renders from, so a screen's gate and its nav entry can
+     * never drift apart — and so it can be verified directly (nav.test.ts)
+     * without a React tree. One consequence worth naming: an explicit grant is
+     * now honoured on its own, so a granted screen is operable even if the
+     * nav's own filtering changes, while an `ownerOnly` screen (Staff
+     * Management) can never be operated by a non-owner no matter what their
+     * grant list happens to contain.
      */
-    canOperate: (screenId: string) =>
-      isOwner || getVisibleNavItems(userRole, currentUser.allowed_screens).some(item => item.id === screenId)
+    canOperate: (screenId: string) => canOperateScreen(screenId, userRole, currentUser.allowed_screens)
   };
 }
 

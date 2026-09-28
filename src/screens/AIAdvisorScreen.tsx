@@ -3,6 +3,7 @@ import { useStore } from '../services/store';
 import { useToast } from '../services/toast';
 import { usePermissions } from '../services/permissions';
 import { extractSystemSnapshot } from '../services/ai/dataExtractor';
+import { isSupabaseConfigured } from '../services/supabase';
 import {
   requestOperationsAudit,
   askOperationsQuestion,
@@ -184,13 +185,20 @@ export const AIAdvisorScreen: React.FC = () => {
               The AI Operations Advisor contains confidential company profit figures, customer credit debts, and forensic pump variance audits.
             </p>
           </div>
-          <button
-            onClick={() => setUserRole('owner')}
-            className="w-full py-3 px-4 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
-          >
-            <ShieldCheck className="w-4 h-4" />
-            Switch to Owner / Admin Mode
-          </button>
+          {/* Local/offline demo only. This button calls setUserRole('owner') —
+              a real privilege switch, not a UI preview. In a deployed build it
+              let anyone who reached this screen (or was granted it) promote
+              themselves to owner with one tap. Same `!isSupabaseConfigured`
+              guard the Settings role simulator uses. */}
+          {!isSupabaseConfigured && (
+            <button
+              onClick={() => setUserRole('owner')}
+              className="w-full py-3 px-4 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              Switch to Owner / Admin Mode
+            </button>
+          )}
         </div>
       </div>
     );
