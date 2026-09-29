@@ -63,6 +63,13 @@ export interface PaymentModeTheme {
   textCls: string;
   bgSubtleCls: string;
   borderCls: string;
+  /** Accent + tint for a *permanently dark* surface: the ledger's
+   *  `.kpi-mirror-card` is #000000 in both themes, where the light-side
+   *  600-level accents (sky-600 3.5:1, purple-600 3.9:1 on black) and the
+   *  50-level tints are unreadable. These are the 400-level accents dark mode
+   *  already uses on that card. */
+  onDarkTextCls: string;
+  onDarkBgCls: string;
 }
 
 export const PAYMENT_MODE_THEME: Record<PaymentMethod, PaymentModeTheme> = {
@@ -74,7 +81,9 @@ export const PAYMENT_MODE_THEME: Record<PaymentMethod, PaymentModeTheme> = {
     buttonActiveCls: 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-500/25 ring-2 ring-emerald-500/30',
     textCls: 'text-emerald-600 dark:text-emerald-400',
     bgSubtleCls: 'bg-emerald-50/70 dark:bg-emerald-950/30',
-    borderCls: 'border-emerald-200 dark:border-emerald-800/60'
+    borderCls: 'border-emerald-200 dark:border-emerald-800/60',
+    onDarkTextCls: 'text-emerald-400',
+    onDarkBgCls: 'bg-emerald-950/60'
   },
   transfer: {
     label: 'Bank Transfer',
@@ -84,7 +93,9 @@ export const PAYMENT_MODE_THEME: Record<PaymentMethod, PaymentModeTheme> = {
     buttonActiveCls: 'bg-sky-600 text-white border-sky-600 shadow-md shadow-sky-500/25 ring-2 ring-sky-500/30',
     textCls: 'text-sky-600 dark:text-sky-400',
     bgSubtleCls: 'bg-sky-50/70 dark:bg-sky-950/30',
-    borderCls: 'border-sky-200 dark:border-sky-800/60'
+    borderCls: 'border-sky-200 dark:border-sky-800/60',
+    onDarkTextCls: 'text-sky-400',
+    onDarkBgCls: 'bg-sky-950/60'
   },
   pos: {
     label: 'Card / POS',
@@ -94,7 +105,9 @@ export const PAYMENT_MODE_THEME: Record<PaymentMethod, PaymentModeTheme> = {
     buttonActiveCls: 'bg-purple-600 text-white border-purple-600 shadow-md shadow-purple-500/25 ring-2 ring-purple-500/30',
     textCls: 'text-purple-600 dark:text-purple-400',
     bgSubtleCls: 'bg-purple-50/70 dark:bg-purple-950/30',
-    borderCls: 'border-purple-200 dark:border-purple-800/60'
+    borderCls: 'border-purple-200 dark:border-purple-800/60',
+    onDarkTextCls: 'text-purple-400',
+    onDarkBgCls: 'bg-purple-950/60'
   },
   credit: {
     label: 'Debt',
@@ -104,7 +117,9 @@ export const PAYMENT_MODE_THEME: Record<PaymentMethod, PaymentModeTheme> = {
     buttonActiveCls: 'bg-amber-600 text-white border-amber-600 shadow-md shadow-amber-500/25 ring-2 ring-amber-500/30',
     textCls: 'text-amber-600 dark:text-amber-400',
     bgSubtleCls: 'bg-amber-50/70 dark:bg-amber-950/30',
-    borderCls: 'border-amber-200 dark:border-amber-800/60'
+    borderCls: 'border-amber-200 dark:border-amber-800/60',
+    onDarkTextCls: 'text-amber-400',
+    onDarkBgCls: 'bg-amber-950/60'
   },
   split: {
     label: 'Split / Double',
@@ -114,7 +129,9 @@ export const PAYMENT_MODE_THEME: Record<PaymentMethod, PaymentModeTheme> = {
     buttonActiveCls: 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/25 ring-2 ring-indigo-500/30',
     textCls: 'text-indigo-600 dark:text-indigo-400',
     bgSubtleCls: 'bg-indigo-50/70 dark:bg-indigo-950/30',
-    borderCls: 'border-indigo-200 dark:border-indigo-800/60'
+    borderCls: 'border-indigo-200 dark:border-indigo-800/60',
+    onDarkTextCls: 'text-indigo-400',
+    onDarkBgCls: 'bg-indigo-950/60'
   }
 };
 
@@ -129,7 +146,9 @@ export const getPaymentModeTheme = (method: string): PaymentModeTheme => {
       buttonActiveCls: 'bg-slate-800 text-white border-slate-800',
       textCls: 'text-slate-600 dark:text-slate-400',
       bgSubtleCls: 'bg-slate-50 dark:bg-slate-900',
-      borderCls: 'border-slate-200 dark:border-slate-800'
+      borderCls: 'border-slate-200 dark:border-slate-800',
+      onDarkTextCls: 'text-slate-300',
+      onDarkBgCls: 'bg-slate-800/70'
     }
   );
 };

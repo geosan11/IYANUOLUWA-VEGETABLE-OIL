@@ -476,7 +476,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         {/* Gross Sales card — shows cash/transfer/pos sub-lines from sales */}
         <div className="kpi-mirror-card p-3 rounded-xl space-y-2">
           <div className="flex items-baseline justify-between gap-2">
-            <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-400 shrink-0">Gross Sales</div>
+            <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-300 dark:text-slate-400 shrink-0">Gross Sales</div>
             <div className="text-xl font-mono font-black tabular-nums text-white truncate text-right">{formatNaira(kpi.gross)}</div>
           </div>
           {/* Per-method breakdown for sales */}
@@ -493,11 +493,11 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                   type="button"
                   onClick={() => setPaymentModeFilter(isActive ? 'all' : m)}
                   className={`w-full flex justify-between items-center px-1.5 py-0.5 rounded transition-all cursor-pointer ${
-                    isActive ? `${theme.bgSubtleCls} ring-1 ${theme.borderCls} font-black` : 'hover:bg-white/5'
+                    isActive ? `${theme.onDarkBgCls} ring-1 ${theme.borderCls} font-black` : 'hover:bg-white/5'
                   }`}
                 >
-                  <span className={`font-sans font-bold text-[11px] uppercase tracking-wider ${theme.textCls}`}>{lbl}:</span>
-                  <span className={`font-mono text-sm font-black tabular-nums ${theme.textCls}`}>{formatNaira(val)}</span>
+                  <span className={`font-sans font-bold text-[11px] uppercase tracking-wider ${theme.onDarkTextCls}`}>{lbl}:</span>
+                  <span className={`font-mono text-sm font-black tabular-nums ${theme.onDarkTextCls}`}>{formatNaira(val)}</span>
                 </button>
               );
             })}
@@ -507,12 +507,12 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         {/* Debt Recovered card — shows payments from debtors settling credit */}
         <div className="kpi-mirror-card p-3 rounded-xl space-y-2">
           <div className="flex items-baseline justify-between gap-2">
-            <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-400 shrink-0">Debt Recovered</div>
+            <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-300 dark:text-slate-400 shrink-0">Debt Recovered</div>
             <div className="text-xl font-mono font-black tabular-nums text-sky-400 truncate text-right">{formatNaira(kpi.received)}</div>
           </div>
           <div className="pt-0.5">
             {kpi.received === 0 ? (
-              <div className="py-1 text-[11px] font-sans text-slate-400 italic">
+              <div className="py-1 text-[11px] font-sans text-slate-300 dark:text-slate-400 italic">
                 No debt collections in this period
               </div>
             ) : (
@@ -524,8 +524,8 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                   const lbl = m === 'pos' ? 'Card' : m.charAt(0).toUpperCase() + m.slice(1);
                   return (
                     <div key={m} className="flex justify-between items-center px-1.5 py-0.5">
-                      <span className={`font-sans font-bold text-[11px] uppercase tracking-wider ${theme.textCls}`}>{lbl}:</span>
-                      <span className={`font-mono text-sm font-black tabular-nums ${theme.textCls}`}>{formatNaira(val)}</span>
+                      <span className={`font-sans font-bold text-[11px] uppercase tracking-wider ${theme.onDarkTextCls}`}>{lbl}:</span>
+                      <span className={`font-mono text-sm font-black tabular-nums ${theme.onDarkTextCls}`}>{formatNaira(val)}</span>
                     </div>
                   );
                 })}
@@ -537,10 +537,10 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         {/* Expenses card */}
         <div className="kpi-mirror-card p-3 rounded-xl space-y-1.5">
           <div className="flex items-baseline justify-between gap-2">
-            <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-400 shrink-0">Expenses</div>
+            <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-300 dark:text-slate-400 shrink-0">Expenses</div>
             <div className="text-xl font-mono font-black tabular-nums text-rose-400 truncate text-right">{formatNaira(kpi.spent)}</div>
           </div>
-          <div className="pt-0.5 text-[11px] font-sans text-slate-400">
+          <div className="pt-0.5 text-[11px] font-sans text-slate-300 dark:text-slate-400">
             Operating payouts &amp; depot costs
           </div>
         </div>
@@ -548,10 +548,10 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         {/* Debt Owed card */}
         <div className="kpi-mirror-card p-3 rounded-xl space-y-1.5">
           <div className="flex items-baseline justify-between gap-2">
-            <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-400 shrink-0">Debt Owed</div>
+            <div className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-300 dark:text-slate-400 shrink-0">Debt Owed</div>
             <div className="text-xl font-mono font-black tabular-nums text-amber-400 truncate text-right">{formatNaira(kpi.creditOwed)}</div>
           </div>
-          <div className="pt-0.5 text-[11px] font-sans text-slate-400">
+          <div className="pt-0.5 text-[11px] font-sans text-slate-300 dark:text-slate-400">
             Current balance across customer accounts
           </div>
         </div>

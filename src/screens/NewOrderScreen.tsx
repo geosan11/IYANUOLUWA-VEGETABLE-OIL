@@ -2146,7 +2146,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     </div>
                   )}
                   <div className="flex items-baseline justify-between gap-1.5 rounded-xl bg-slate-900 dark:bg-slate-800 ring-1 ring-black/5 dark:ring-white/10 px-3 py-2 shadow-sm">
-                    <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-400">Total</span>
+                    <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-300 dark:text-slate-400">Total</span>
                     <span className="text-lg leading-none font-mono font-black text-white tabular-nums">
                       {formatNaira(cartTotal)}
                     </span>
