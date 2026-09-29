@@ -995,7 +995,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
             <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800">
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  <label htmlFor="cashier-on-duty" className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                     Cashier / Staff on Duty *
                   </label>
                   <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
@@ -1006,6 +1006,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                 <div className="relative">
                   <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
+                    id="cashier-on-duty"
                     type="text"
                     readOnly
                     disabled
