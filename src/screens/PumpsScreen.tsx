@@ -262,13 +262,13 @@ export const PumpsScreen: React.FC = () => {
                 </div>
                 {canManagePumps && (
                   <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                    <button onClick={() => openReset(pump)} title="Reset meter (new/replaced meter)" className="p-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400">
+                    <button onClick={() => openReset(pump)} aria-label={`Reset meter for ${pump.label}`} title="Reset meter (new/replaced meter)" className="p-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400">
                       <ArrowsClockwise className="w-3.5 h-3.5" />
                     </button>
-                    <button onClick={() => openEdit(pump)} className="p-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400">
+                    <button onClick={() => openEdit(pump)} aria-label={`Edit ${pump.label}`} title="Edit pump" className="p-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400">
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
-                    <button onClick={() => removePump(pump)} className="p-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400">
+                    <button onClick={() => removePump(pump)} aria-label={`Delete ${pump.label}`} title="Delete pump" className="p-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
