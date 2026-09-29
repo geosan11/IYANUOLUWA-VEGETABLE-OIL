@@ -33,6 +33,12 @@ export const ScreenTransition: React.FC<ScreenTransitionProps> = ({ screenKey, d
   // overwritten below).
   const lastForKeyRef = useRef<{ key: string; node: React.ReactNode }>({ key: screenKey, node: children });
   const rafRef = useRef<number | null>(null);
+  // The outgoing screen is a frozen visual snapshot, but for the ~1s it exists it
+  // still contains real buttons and links inside an aria-hidden subtree. `inert`
+  // (set imperatively — React 18 has no prop for it) removes that whole subtree
+  // from the tab order and the accessibility tree, which is precisely what axe's
+  // aria-hidden-focus rule asks for; pointer-events-none covers the pointer path.
+  const outgoingRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (lastForKeyRef.current.key === screenKey) {
@@ -64,12 +70,20 @@ export const ScreenTransition: React.FC<ScreenTransitionProps> = ({ screenKey, d
     };
   }, [screenKey, direction, children]);
 
+  // Runs after the outgoing snapshot is committed to the DOM (the ref is only
+  // non-null on exactly those renders), so it cannot leave a focusable node
+  // behind for even one frame.
+  useEffect(() => {
+    outgoingRef.current?.setAttribute('inert', '');
+  }, [outgoing]);
+
   return (
     <div className="relative w-full">
       {outgoing && (
         <div
+          ref={outgoingRef}
           aria-hidden="true"
-          className="absolute inset-x-0 top-0 w-full"
+          className="absolute inset-x-0 top-0 w-full pointer-events-none"
           style={{
             transform: settled ? `translateX(${-outgoing.dir * 100}%)` : 'translateX(0)',
             transition: settled ? `transform ${DURATION_MS}ms ${EASING}` : 'none',
