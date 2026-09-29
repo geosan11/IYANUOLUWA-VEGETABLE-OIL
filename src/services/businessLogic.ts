@@ -254,7 +254,7 @@ export function calculateCustomerStats(
 
   let status: 'overdue' | 'due_soon' | 'current' = 'current';
   let label = 'Current';
-  let colorClass = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
+  let colorClass = 'bg-emerald-500/15 text-emerald-900 dark:text-emerald-400 border-emerald-500/30';
   let days = 0;
 
   if (openOrders.length > 0 && worstOverdueDays !== -Infinity) {
@@ -263,17 +263,17 @@ export function calculateCustomerStats(
       status = 'overdue';
       days = worstOverdueDays;
       label = `Overdue ${days}d`;
-      colorClass = 'bg-rose-500/20 text-rose-400 border-rose-500/40 animate-pulse-glow';
+      colorClass = 'bg-rose-500/20 text-rose-900 dark:text-rose-400 border-rose-500/40 animate-pulse-glow';
     } else if (worstOverdueDays >= -3 && worstOverdueDays <= 0) {
       // Due in 0 to 3 days
       status = 'due_soon';
       days = Math.abs(worstOverdueDays);
       label = days === 0 ? 'Due Today' : `Due in ${days}d`;
-      colorClass = 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+      colorClass = 'bg-amber-500/20 text-amber-900 dark:text-amber-400 border-amber-500/40';
     } else {
       status = 'current';
       label = 'Current';
-      colorClass = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
+      colorClass = 'bg-emerald-500/15 text-emerald-900 dark:text-emerald-400 border-emerald-500/30';
     }
   }
 

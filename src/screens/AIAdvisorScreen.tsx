@@ -503,7 +503,7 @@ export const AIAdvisorScreen: React.FC = () => {
               Ask AI Operations Copilot
             </h3>
           </div>
-          <span className="text-[10px] font-mono text-slate-400 uppercase">
+          <span className="text-[10px] font-mono text-slate-300 dark:text-slate-400 uppercase">
             {provider} intelligence
           </span>
         </div>
@@ -550,7 +550,7 @@ export const AIAdvisorScreen: React.FC = () => {
               >
                 {msg.text}
               </div>
-              <span className="text-[10px] text-slate-500 mt-0.5 px-1 font-mono">
+              <span className="text-[10px] text-slate-300 dark:text-slate-400 mt-0.5 px-1 font-mono">
                 {msg.timestamp}
               </span>
             </div>

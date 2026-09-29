@@ -11,6 +11,19 @@
     --border-highlight: #D8CEBC;
     --text-main: #0B0F19;
     --text-muted: #645F56;
+
+    /* Theme-aware Tailwind shades (resolved in tailwind.config.js). The light
+       values are darkened so muted text and solid-fill accents clear 4.5:1 on
+       the cream canvas (#FAF6ED) and white cards; `.dark` below restores the
+       original hexes, so dark surfaces render exactly as before. */
+    --slate-400: 91 102 115;   /* #5B6673  — Tailwind: #94A3B8 */
+    --slate-500: 79 90 105;    /* #4F5A69  — Tailwind: #64748B */
+    --brand-600: 4 120 87;     /* #047857  — was #059669 */
+    --brand-700: 3 110 77;     /* #036E4D  — was #047857 */
+    --emerald-600: 4 120 87;   /* #047857  — Tailwind: #059669 */
+    --amber-600: 180 83 9;     /* #B45309  — Tailwind: #D97706 */
+    --sky-600: 3 105 161;      /* #0369A1  — Tailwind: #0284C7 */
+    --cyan-600: 14 116 144;    /* #0E7490  — Tailwind: #0891B2 */
   }
 
   .dark {
@@ -21,6 +34,16 @@
     --border-highlight: #334155;
     --text-main: #f1f5f9;
     --text-muted: #94a3b8;
+
+    /* Unchanged Tailwind/config hexes — dark surfaces keep their contrast. */
+    --slate-400: 148 163 184;  /* #94A3B8 */
+    --slate-500: 100 116 139;  /* #64748B */
+    --brand-600: 5 150 105;    /* #059669 */
+    --brand-700: 4 120 87;     /* #047857 */
+    --emerald-600: 5 150 105;  /* #059669 */
+    --amber-600: 217 119 6;    /* #D97706 */
+    --sky-600: 2 132 199;      /* #0284C7 */
+    --cyan-600: 8 145 178;     /* #0891B2 */
   }
 
   body {

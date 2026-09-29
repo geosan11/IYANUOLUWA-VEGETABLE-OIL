@@ -638,7 +638,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           >
             {formatNaira(todayStats.creditOutstanding)}
           </div>
-          <div className="flex items-center justify-between text-xs text-rose-600/80 dark:text-rose-400/80 mt-2 pt-2 border-t border-rose-100 dark:border-rose-950/60 font-sans">
+          <div className="flex items-center justify-between text-xs text-rose-700 dark:text-rose-400/80 mt-2 pt-2 border-t border-rose-100 dark:border-rose-950/60 font-sans">
             <span className="truncate font-medium">Total open balance</span>
             <span className="inline-flex items-center gap-0.5 text-rose-700 dark:text-rose-300 font-bold shrink-0">
               <ChevronRight className="w-3.5 h-3.5" />
@@ -666,7 +666,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           >
             {formatNaira(todayStats.expensesToday)}
           </div>
-          <div className="flex items-center justify-between text-xs text-rose-600/80 dark:text-rose-400/80 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/60 font-sans">
+          <div className="flex items-center justify-between text-xs text-rose-700 dark:text-rose-400/80 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/60 font-sans">
             <span className="truncate font-medium">Logged today</span>
             <span className="inline-flex items-center gap-0.5 text-rose-700 dark:text-rose-300 font-bold shrink-0">
               <ChevronRight className="w-3.5 h-3.5" />

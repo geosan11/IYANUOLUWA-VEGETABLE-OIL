@@ -161,7 +161,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
                     in use matters: tsconfig sets `noUnusedLocals`, and
                     `npm run build` runs `tsc`, so literal text here would fail
                     the build unless the const and `activeHub` were also removed. */}
-                <div className="text-[10px] text-stone-500 truncate">
+                <div className="text-[10px] text-stone-400 truncate">
                   {hubDisplay}
                 </div>
               </div>

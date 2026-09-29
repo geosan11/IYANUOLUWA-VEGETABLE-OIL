@@ -2283,7 +2283,7 @@ export const SettingsScreen: React.FC = () => {
                   <div className="font-heading font-semibold text-[13px] truncate">
                     {item.title}
                   </div>
-                  <div className="text-[11px] font-sans opacity-70 truncate">
+                  <div className="text-[11px] font-sans text-slate-500 dark:text-slate-400 truncate">
                     {item.subtitle}
                   </div>
                 </div>

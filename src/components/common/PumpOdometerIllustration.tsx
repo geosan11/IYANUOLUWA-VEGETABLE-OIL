@@ -79,9 +79,9 @@ export const PumpOdometerIllustration: React.FC<PumpOdometerIllustrationProps> =
           stretching full-width, so the dark box doesn't pull focus away
           from the digits themselves */}
       <div className="w-fit max-w-full mx-auto bg-slate-900 dark:bg-slate-950 rounded-xl py-4 px-5 border border-slate-800 shadow-inner flex flex-col items-center justify-center gap-3">
-        <div className="text-[10px] uppercase font-mono tracking-widest text-slate-400 flex items-center gap-2">
+        <div className="text-[10px] uppercase font-mono tracking-widest text-slate-300 dark:text-slate-400 flex items-center gap-2">
           <span>Continuous Mechanical Counter</span>
-          <span className="text-slate-600">•</span>
+          <span className="text-slate-300 dark:text-slate-400">•</span>
           <span>Never Resets to Zero</span>
         </div>
 
@@ -120,7 +120,7 @@ export const PumpOdometerIllustration: React.FC<PumpOdometerIllustrationProps> =
               </span>
             </div>
 
-            <div className="ml-1 text-xs font-mono font-bold text-slate-400 select-none">
+            <div className="ml-1 text-xs font-mono font-bold text-slate-300 dark:text-slate-400 select-none">
               L
             </div>
           </div>
@@ -143,7 +143,7 @@ export const PumpOdometerIllustration: React.FC<PumpOdometerIllustrationProps> =
         </div>
 
         {/* Small subtitle indicator */}
-        <p className="text-[11px] text-slate-400 font-sans text-center">
+        <p className="text-[11px] text-slate-300 dark:text-slate-400 font-sans text-center">
           Reading shown reflects current nozzle meter count.
         </p>
       </div>

@@ -11,8 +11,14 @@ export default {
         'split': '900px',
       },
       colors: {
+        /* slate-400/500 are theme-aware. Dark mode resolves to Tailwind's
+           original hexes, so dark surfaces are untouched; light mode uses a
+           darker ramp (see src/index.css) so muted text clears 4.5:1 on the
+           cream (#FAF6ED) and white canvases. */
         slate: {
           50: '#FAF6ED',
+          400: 'rgb(var(--slate-400) / <alpha-value>)',
+          500: 'rgb(var(--slate-500) / <alpha-value>)',
         },
         cream: {
           50: '#FDFCF7',
@@ -28,11 +34,26 @@ export default {
           300: '#6ee7b7',
           400: '#34d399',
           500: '#00B749',
-          600: '#059669',
-          700: '#047857',
+          600: 'rgb(var(--brand-600) / <alpha-value>)',
+          700: 'rgb(var(--brand-700) / <alpha-value>)',
           800: '#065f46',
           900: '#064e3b',
           DEFAULT: '#00B749',
+        },
+        /* Solid-fill accents whose default shade fails white-text contrast
+           (emerald/sky 3.8-4.1:1, amber 3.2:1). Theme-aware for the same
+           reason as slate above: dark mode keeps Tailwind's hexes. */
+        emerald: {
+          600: 'rgb(var(--emerald-600) / <alpha-value>)',
+        },
+        amber: {
+          600: 'rgb(var(--amber-600) / <alpha-value>)',
+        },
+        sky: {
+          600: 'rgb(var(--sky-600) / <alpha-value>)',
+        },
+        cyan: {
+          600: 'rgb(var(--cyan-600) / <alpha-value>)',
         },
         vegoil: {
           50: '#fffbeb',

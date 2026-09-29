@@ -91,7 +91,7 @@ export const CustomerStatementModal: React.FC<Props> = ({
               <h2 className="text-white font-heading font-bold text-sm sm:text-base">
                 Customer Statement & Balance Sheet
               </h2>
-              <p className="text-xs text-slate-400 font-sans">
+              <p className="text-xs text-slate-300 dark:text-slate-400 font-sans">
                 Official statement of account for {customer.name}
               </p>
             </div>
@@ -106,7 +106,7 @@ export const CustomerStatementModal: React.FC<Props> = ({
                 className={`px-3 py-1 rounded-lg font-sans font-semibold transition-all ${
                   viewMode === 'a4'
                     ? 'bg-brand-500 text-slate-950 shadow-sm'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-slate-300 dark:text-slate-400 hover:text-white'
                 }`}
               >
                 A4 Balance Sheet
@@ -117,7 +117,7 @@ export const CustomerStatementModal: React.FC<Props> = ({
                 className={`px-3 py-1 rounded-lg font-sans font-semibold transition-all ${
                   viewMode === 'thermal'
                     ? 'bg-brand-500 text-slate-950 shadow-sm'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-slate-300 dark:text-slate-400 hover:text-white'
                 }`}
               >
                 80mm POS Slip
@@ -127,7 +127,7 @@ export const CustomerStatementModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-xl text-slate-300 dark:text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
               title="Close modal"
             >
               <X className="w-5 h-5" />
@@ -435,7 +435,7 @@ export const CustomerStatementModal: React.FC<Props> = ({
 
         {/* Action Controls Bar (Screen Only) */}
         <div className="no-print px-6 py-4 bg-slate-950/80 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-xs text-slate-400 font-sans hidden sm:block">
+          <div className="text-xs text-slate-300 dark:text-slate-400 font-sans hidden sm:block">
             Tip: Click <b>Print / Save PDF</b> and select <i>Save as PDF</i> in your print destination.
           </div>
 

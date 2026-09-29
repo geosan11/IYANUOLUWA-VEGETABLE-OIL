@@ -65,7 +65,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+              className="p-1.5 rounded-lg text-slate-300 dark:text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
               title="Close modal"
             >
               <X className="w-5 h-5" />
@@ -74,7 +74,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
 
           {/* 2 Format Options Selector */}
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-[11px] font-sans font-medium text-slate-400 px-0.5">
+            <div className="flex items-center justify-between text-[11px] font-sans font-medium text-slate-300 dark:text-slate-400 px-0.5">
               <span>Select Print & Display Format:</span>
               <span className="text-brand-400 font-semibold">2 Options Available</span>
             </div>
@@ -85,7 +85,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                 className={`flex items-center justify-center gap-2 py-2 px-2.5 rounded-lg text-xs font-semibold transition-all ${
                   receiptFormat === 'commercial'
                     ? 'bg-brand-500 text-slate-950 shadow-md font-bold'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                    : 'text-slate-300 dark:text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
                 }`}
               >
                 <Receipt className="w-3.5 h-3.5 shrink-0" weight={receiptFormat === 'commercial' ? 'bold' : 'thin'} />
@@ -98,7 +98,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                 className={`flex items-center justify-center gap-2 py-2 px-2.5 rounded-lg text-xs font-semibold transition-all ${
                   receiptFormat === 'dispatch'
                     ? 'bg-brand-500 text-slate-950 shadow-md font-bold'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                    : 'text-slate-300 dark:text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
                 }`}
               >
                 <SealCheck className="w-3.5 h-3.5 shrink-0" weight={receiptFormat === 'dispatch' ? 'bold' : 'thin'} />
@@ -533,7 +533,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
 
         {/* Modal Action Buttons (Screen only) — pinned */}
         <div className="no-print flex-shrink-0 p-4 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-3">
-          <div className="text-xs font-sans text-slate-400 hidden sm:block">
+          <div className="text-xs font-sans text-slate-300 dark:text-slate-400 hidden sm:block">
             Format:{' '}
             <span className="font-semibold text-brand-400">
               {receiptFormat === 'commercial' ? 'Full Commercial Receipt' : 'Waybill (No Prices)'}

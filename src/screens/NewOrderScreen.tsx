@@ -1485,7 +1485,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       }`}
                   >
                     <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors shrink-0 ${isOneTime
-                      ? 'bg-emerald-500 text-white shadow-xs'
+                      ? 'bg-emerald-600 text-white shadow-xs'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-500 group-hover:bg-emerald-100 group-hover:text-emerald-600'
                       }`}>
                       <ShoppingCart className="w-3.5 h-3.5" weight="bold" />
@@ -1497,7 +1497,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           One-time Customer
                         </span>
                         {isOneTime && (
-                          <span className="px-1.5 py-0.5 rounded-full bg-emerald-500 text-white font-sans font-bold text-[9px] uppercase tracking-wider shadow-xs shrink-0">
+                          <span className="px-1.5 py-0.5 rounded-full bg-emerald-600 text-white font-sans font-bold text-[9px] uppercase tracking-wider shadow-xs shrink-0">
                             Active ✓
                           </span>
                         )}
@@ -1916,7 +1916,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                         }`}
                                     >
                                       {!isKegOnlyMode && inCart > 0 && (
-                                        <span className="absolute top-0.5 left-0.5 z-10 min-w-[14px] h-3.5 px-1 rounded-full bg-emerald-500 text-white text-[8px] font-mono font-bold leading-none flex items-center justify-center shadow-xs">
+                                        <span className="absolute top-0.5 left-0.5 z-10 min-w-[14px] h-3.5 px-1 rounded-full bg-emerald-600 text-white text-[8px] font-mono font-bold leading-none flex items-center justify-center shadow-xs">
                                           {inCart}
                                         </span>
                                       )}

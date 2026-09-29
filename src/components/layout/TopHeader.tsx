@@ -245,11 +245,11 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               <div className="flex items-center gap-1.5 text-xs font-bold text-white dark:text-slate-900">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 dark:bg-emerald-500 animate-pulse flex-shrink-0" />
                 <span>Live Shift</span>
-                <span className="hidden xl:inline font-normal text-slate-400 dark:text-slate-500 truncate max-w-[100px]">
+                <span className="hidden xl:inline font-normal text-slate-300 dark:text-slate-500 truncate max-w-[100px]">
                   · {activeShift.cashier_name || 'Staff'}
                 </span>
               </div>
-              <div className="hidden xl:flex items-center gap-1.5 text-[10px] font-mono text-slate-400 dark:text-slate-500 mt-0.5">
+              <div className="hidden xl:flex items-center gap-1.5 text-[10px] font-mono text-slate-300 dark:text-slate-500 mt-0.5">
                 <span>Started at {formatDepotTime(activeShift.start_time)}</span>
                 <span>·</span>
                 <Clock className="w-3 h-3 flex-shrink-0" weight="bold" />
