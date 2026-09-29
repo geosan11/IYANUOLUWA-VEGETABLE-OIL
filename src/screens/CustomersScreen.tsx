@@ -325,36 +325,38 @@ export const CustomersScreen: React.FC = () => {
               );
               const whatsappUrl = `https://wa.me/${cleanPhone}?text=${whatsappText}`;
 
+              // One selection handler, shared by the overlay button below.
+              const openCustomer = () => {
+                if (isDesktop) {
+                  setSelectedCustomerId(customer.id);
+                } else {
+                  setSelectedCustomerForSheet(customer);
+                }
+              };
+
               return (
                 <div
                   key={customer.id}
-                  role="button"
-                  tabIndex={0}
-                  aria-pressed={isSelected}
-                  aria-label={`${customer.name}, ${customer.type}, balance ${formatNaira(currentBal)}`}
-                  className={`depot-card transition-all overflow-hidden cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 ${
+                  className={`relative depot-card transition-all overflow-hidden ${
                     isSelected
                       ? 'border-2 border-brand-500 bg-brand-50/40 dark:bg-brand-950/30 ring-1 ring-brand-500/30'
                       : 'hover:border-slate-300 dark:hover:border-slate-700'
                   }`}
-                  onClick={() => {
-                    if (isDesktop) {
-                      setSelectedCustomerId(customer.id);
-                    } else {
-                      setSelectedCustomerForSheet(customer);
-                    }
-                  }}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      if (isDesktop) {
-                        setSelectedCustomerId(customer.id);
-                      } else {
-                        setSelectedCustomerForSheet(customer);
-                      }
-                    }
-                  }}
                 >
+                  {/* Whole-card selection target (the "stretched link" pattern).
+                      A real <button> instead of role="button" on the card itself,
+                      because the mobile row below also carries phone / WhatsApp
+                      <a>s and an interactive control may not be nested inside
+                      another one. It covers the card but sits under the link group
+                      (z-10), which keeps those links clickable. */}
+                  <button
+                    type="button"
+                    aria-pressed={isSelected}
+                    aria-label={`${customer.name}, ${customer.type}, balance ${formatNaira(currentBal)} — open account`}
+                    onClick={openCustomer}
+                    className="absolute inset-0 z-0 w-full rounded-2xl cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
+                  />
+
                   {/* Mobile Row (<900px) */}
                   <div className="split:hidden p-4 space-y-3">
                     <div className="flex items-start justify-between gap-3">
@@ -380,7 +382,7 @@ export const CustomersScreen: React.FC = () => {
                       </div>
 
                       {/* Direct Phone / WhatsApp Call */}
-                      <div className="flex items-center gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                      <div className="relative z-10 flex items-center gap-1.5 flex-shrink-0">
                         <a
                           href={`tel:${customer.phone}`}
                           className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
