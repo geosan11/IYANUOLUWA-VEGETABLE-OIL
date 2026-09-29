@@ -688,6 +688,7 @@ export const CustomersScreen: React.FC = () => {
                         <input
                           type="text"
                           inputMode="numeric"
+                          aria-label="Payment amount"
                           value={inlineAmount}
                           onChange={e => setInlineAmount(formatWithCommas(e.target.value))}
                           placeholder="Amount in ₦ (e.g. 50,000)"
@@ -696,6 +697,7 @@ export const CustomersScreen: React.FC = () => {
                       </div>
                       <div className="col-span-5">
                         <select
+                          aria-label="Payment method"
                           value={inlineMethod}
                           onChange={e => setInlineMethod(e.target.value as PaymentMethod)}
                           className="w-full px-2.5 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-xs font-sans font-semibold focus:outline-none focus:border-brand-500"

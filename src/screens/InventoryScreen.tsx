@@ -656,6 +656,7 @@ const PriceMatrix: React.FC<{
           <div className="flex items-center gap-2">
             <span className="font-semibold text-xs">Add a pack size:</span>
             <select
+              aria-label="Choose a pack size to add"
               value=""
               onChange={e => {
                 if (e.target.value) onAddPack(e.target.value);
@@ -721,6 +722,7 @@ const PriceMatrix: React.FC<{
         {availableSizesToAdd.length > 0 && (
           <div className="relative">
             <select
+              aria-label="Add a pack size"
               value=""
               onChange={e => {
                 if (e.target.value) {
