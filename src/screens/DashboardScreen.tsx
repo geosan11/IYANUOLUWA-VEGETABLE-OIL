@@ -11,7 +11,7 @@ import { BottomSheet } from '../components/common/BottomSheet';
 import { SlideOverDrawer } from '../components/common/SlideOverDrawer';
 import { Modal } from '../components/common/Modal';
 import { useIsDesktopSplit } from '../hooks/useBreakpoint';
-import { formatNaira, formatDepotDate, formatDepotTime, computeShiftCash, getDepotToday, depotDateKey, formatWithCommas, parseFromCommas, resolveLitresPerKeg, DEPOT_TZ } from '../services/businessLogic';
+import { formatNaira, formatDepotDate, formatDepotTime, computeShiftCash, getDepotToday, depotDateKey, formatWithCommas, parseFromCommas, resolveLitresPerKeg, yardLabel, DEPOT_TZ } from '../services/businessLogic';
 import { getPaymentModeTheme } from '../constants/config';
 import {
   CurrencyNgn as NairaSign,
@@ -486,11 +486,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           {/* Left: Shift Info */}
           <div className="flex items-start sm:items-center gap-3.5">
             <div
-              className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border ${
-                activeShift
-                  ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'
-              }`}
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border ${activeShift
+                ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'
+                }`}
             >
               <ShieldCheck className="w-6 h-6" />
             </div>
@@ -682,21 +681,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             <button
               type="button"
               onClick={() => setActiveStatSheet('profit')}
-              className={`w-full text-left p-4 sm:p-5 rounded-2xl depot-card border transition-all shadow-card-light dark:shadow-card-dark cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between ${
-                isPositive
-                  ? 'border-slate-200 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-800/80'
-                  : 'border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-700'
-              }`}
+              className={`w-full text-left p-4 sm:p-5 rounded-2xl depot-card border transition-all shadow-card-light dark:shadow-card-dark cursor-pointer active:scale-98 group min-w-0 flex flex-col justify-between ${isPositive
+                ? 'border-slate-200 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-800/80'
+                : 'border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-700'
+                }`}
             >
               <div className="flex items-center justify-between gap-1.5 mb-3">
                 <span className={`text-xs font-sans font-bold uppercase tracking-wider truncate ${isPositive ? 'text-slate-500 dark:text-slate-400' : 'text-rose-700 dark:text-rose-400'}`}>
                   Net Profit Today
                 </span>
-                <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${
-                  isPositive
-                    ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200/60 dark:border-emerald-800/50'
-                    : 'bg-rose-100/70 dark:bg-rose-900/40 border-rose-200/80 dark:border-rose-800/50'
-                }`}>
+                <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${isPositive
+                  ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200/60 dark:border-emerald-800/50'
+                  : 'bg-rose-100/70 dark:bg-rose-900/40 border-rose-200/80 dark:border-rose-800/50'
+                  }`}>
                   <ChartLineUp className={`w-4 h-4 group-hover:scale-110 transition-transform ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`} />
                 </div>
               </div>
@@ -847,11 +844,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             return (
               <div
                 key={pump.id}
-                className={`p-4 rounded-xl border transition-all ${
-                  hasAlert
-                    ? 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-400 dark:border-rose-800'
-                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800/80'
-                }`}
+                className={`p-4 rounded-xl border transition-all ${hasAlert
+                  ? 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-400 dark:border-rose-800'
+                  : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800/80'
+                  }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-heading font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
@@ -861,11 +857,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                     />
                     <span>{pump.label}</span>
                   </span>
-                  <span className={`px-2 py-0.5 rounded text-xs font-mono tabular-nums font-bold ${
-                    hasAlert
-                      ? 'badge-rose'
-                      : 'badge-emerald'
-                  }`}>
+                  <span className={`px-2 py-0.5 rounded text-xs font-mono tabular-nums font-bold ${hasAlert
+                    ? 'badge-rose'
+                    : 'badge-emerald'
+                    }`}>
                     {hasAlert ? `Variance Alert (${latestAudit.variance > 0 ? '+' : ''}${latestAudit.variance}L)` : 'Meter Normal'}
                   </span>
                 </div>
@@ -917,17 +912,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   type="button"
                   key={alert.id}
                   onClick={() => setSelectedAlert(alert)}
-                  className={`w-full text-left p-3.5 rounded-xl border flex items-center justify-between gap-3 active:scale-98 transition-all cursor-pointer ${
-                    alert.severity === 'red'
-                      ? 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60'
-                      : 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60'
-                  }`}
+                  className={`w-full text-left p-3.5 rounded-xl border flex items-center justify-between gap-3 active:scale-98 transition-all cursor-pointer ${alert.severity === 'red'
+                    ? 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60'
+                    : 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60'
+                    }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <span
-                      className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                        alert.severity === 'red' ? 'bg-rose-600 animate-pulse' : 'bg-amber-500'
-                      }`}
+                      className={`w-2.5 h-2.5 rounded-full shrink-0 ${alert.severity === 'red' ? 'bg-rose-600 animate-pulse' : 'bg-amber-500'
+                        }`}
                     />
                     <div className="min-w-0">
                       <div className="text-xs font-sans font-bold text-slate-900 dark:text-white truncate">
@@ -1283,8 +1276,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                     <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
                       {summary.isKegModel
                         ? (kegsKnown
-                            ? `Pre-Kegged ${summary.litresPerKeg}L Containers · Available in Warehouse`
-                            : 'Pre-Kegged Containers · Available in Warehouse')
+                          ? `Pre-Kegged ${summary.litresPerKeg}L Containers · Available in Warehouse`
+                          : 'Pre-Kegged Containers · Available in Warehouse')
                         : 'First-In, First-Out: Oldest oil delivered is dispensed first.'}
                     </p>
                   </div>
@@ -1417,97 +1410,99 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           }
           subtitle="Open daily ledger cash reconciliation"
         >
-            <form onSubmit={handleStartShiftSubmit} className="space-y-4">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label htmlFor="shift-cashier-name" className="block text-xs font-sans font-semibold text-slate-700 dark:text-slate-300">
-                    Cashier Name / On-Duty Staff *
-                  </label>
-                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
-                    Account Login
-                  </span>
-                </div>
-                <input
-                  id="shift-cashier-name"
-                  type="text"
-                  readOnly
-                  disabled
-                  value={activeCashier}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-sans text-sm cursor-not-allowed select-none"
-                />
-                <p className="text-[11px] text-slate-400 mt-1">Verified account login (non-editable for accountability).</p>
-              </div>
-
-              <div>
-                <label htmlFor="shift-start-notes" className="block text-xs font-sans font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Shift Notes / Handover Details (Optional)
+          <form onSubmit={handleStartShiftSubmit} className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label htmlFor="shift-cashier-name" className="block text-xs font-sans font-semibold text-slate-700 dark:text-slate-300">
+                  Cashier Name / On-Duty Staff *
                 </label>
-                <input
-                  id="shift-start-notes"
-                  type="text"
-                  value={startNotesInput}
-                  onChange={e => setStartNotesInput(e.target.value)}
-                  placeholder="e.g. Morning shift, clean till, 50k denominations verified"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-sans text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
+                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                  Account Login
+                </span>
               </div>
+              <input
+                id="shift-cashier-name"
+                type="text"
+                readOnly
+                disabled
+                value={activeCashier}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-sans text-sm cursor-not-allowed select-none"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">Verified account login (non-editable for accountability).</p>
+            </div>
 
-              {/* Mandatory Opening Pump Meter Readings */}
-              <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                    Opening Pump Meter Readings ({pumps.length}) *
-                  </div>
-                  <span className="text-xs font-mono text-slate-400">
-                    Check physical counter
-                  </span>
+            <div>
+              <label htmlFor="shift-start-notes" className="block text-xs font-sans font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Shift Notes / Handover Details (Optional)
+              </label>
+              <input
+                id="shift-start-notes"
+                type="text"
+                value={startNotesInput}
+                onChange={e => setStartNotesInput(e.target.value)}
+                placeholder="e.g. Morning shift, clean till, 50k denominations verified"
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-sans text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            {/* Mandatory Opening Pump Meter Readings */}
+            <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                  Opening tank meter readings ({pumps.length}) *
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {pumps.map(p => {
-                    return (
-                      <div key={p.id} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-bold text-slate-800 dark:text-slate-200">{p.label}</span>
-                          <span className="text-slate-400 font-mono text-[11px]">Inspect physical meter</span>
-                        </div>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          required
-                          value={pumpOpeningInputs[p.id] ?? ''}
-                          onChange={e => setPumpOpeningInputs(prev => ({ ...prev, [p.id]: formatWithCommas(e.target.value) }))}
-                          placeholder="Enter meter reading..."
-                          className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
-                        />
+                <span className="text-xs font-mono text-slate-400">
+                  Check physical counter
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {pumps.map((p, idx) => {
+                  const linkedTank = physicalTanks.find(t => t.id === p.physical_tank_id);
+                  const tankName = yardLabel(linkedTank?.label || p.label, idx);
+                  return (
+                    <div key={p.id} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-800 dark:text-slate-200">{tankName}</span>
+                        <span className="text-slate-400 font-mono text-[11px]">Inspect physical meter</span>
                       </div>
-                    );
-                  })}
-                </div>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        required
+                        value={pumpOpeningInputs[p.id] ?? ''}
+                        onChange={e => setPumpOpeningInputs(prev => ({ ...prev, [p.id]: formatWithCommas(e.target.value) }))}
+                        placeholder="Enter meter reading..."
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                      />
+                    </div>
+                  );
+                })}
               </div>
+            </div>
 
-              {shiftError && (
-                <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-600 dark:text-rose-400">
-                  {shiftError}
-                </div>
-              )}
-
-              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setIsStartShiftModalOpen(false)}
-                  className="px-4 py-2 text-xs font-sans font-medium rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-xs font-sans font-semibold rounded-xl bg-brand-600 hover:bg-brand-700 text-white shadow-sm flex items-center gap-1.5 transition-colors"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  Open Shift
-                </button>
+            {shiftError && (
+              <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-600 dark:text-rose-400">
+                {shiftError}
               </div>
-            </form>
+            )}
+
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setIsStartShiftModalOpen(false)}
+                className="px-4 py-2 text-xs font-sans font-medium rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 text-xs font-sans font-semibold rounded-xl bg-brand-600 hover:bg-brand-700 text-white shadow-sm flex items-center gap-1.5 transition-colors"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Open Shift
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
 
@@ -1527,168 +1522,168 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           }
           subtitle={`Cashier: ${activeShift.cashier_name || 'Counter Staff'} · Started at ${formatDepotTime(activeShift.start_time)}`}
         >
-            <form onSubmit={handleCloseShiftSubmit} className="space-y-4">
-              {/* Dispensing Pumps Closing Readings */}
-              {pumps.length > 0 && (
-                <div className="space-y-2">
-                  <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    Closing Meter Readings (3 Pumps)
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    {pumps.map(p => {
-                      return (
-                        <div key={p.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
-                          <div className="flex justify-between text-xs font-bold text-slate-900 dark:text-white">
-                            <span className="truncate">{p.label}</span>
-                          </div>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={pumpClosingInputs[p.id] ?? ''}
-                            onChange={e => setPumpClosingInputs(prev => ({ ...prev, [p.id]: formatWithCommas(e.target.value) }))}
-                            placeholder="Enter closing meter..."
-                            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono font-bold text-slate-900 dark:text-white tabular-nums"
-                          />
+          <form onSubmit={handleCloseShiftSubmit} className="space-y-4">
+            {/* Dispensing Pumps Closing Readings */}
+            {pumps.length > 0 && (
+              <div className="space-y-2">
+                <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Closing tank meter readings
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {pumps.map((p, idx) => {
+                    const linkedTank = physicalTanks.find(t => t.id === p.physical_tank_id);
+                    const tankName = yardLabel(linkedTank?.label || p.label, idx);
+                    return (
+                      <div key={p.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
+                        <div className="flex justify-between text-xs font-bold text-slate-900 dark:text-white">
+                          <span className="truncate">{tankName}</span>
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Shift Cash Reconciliation Breakdown */}
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2 text-xs font-mono tabular-nums">
-                <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
-                  <span className="font-sans">(+) Cash Sales (Counter):</span>
-                  <span className="font-semibold">
-                    +{formatNaira(shiftMetrics.cashSales)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-rose-600 dark:text-rose-400">
-                  <span className="font-sans">(-) Cash Expenses Paid:</span>
-                  <span className="font-semibold">
-                    -{formatNaira(shiftMetrics.cashExpenses)}
-                  </span>
-                </div>
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between font-bold text-sm">
-                  <span className="font-sans text-slate-900 dark:text-white">(=) Expected Cash in Drawer:</span>
-                  <span className="text-brand-600 dark:text-brand-400">
-                    {formatNaira(shiftMetrics.expectedCash)}
-                  </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={pumpClosingInputs[p.id] ?? ''}
+                          onChange={e => setPumpClosingInputs(prev => ({ ...prev, [p.id]: formatWithCommas(e.target.value) }))}
+                          placeholder="Enter closing meter..."
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono font-bold text-slate-900 dark:text-white tabular-nums"
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
+            )}
 
-              <div>
-                <label htmlFor="shift-cash-counted" className="block text-xs font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Physical Cash Counted in Drawer (NGN) *
-                </label>
-                <div className="relative">
-                  <input
-                    id="shift-cash-counted"
-                    type="text"
-                    inputMode="numeric"
-                    required
-                    value={cashCountedInput}
-                    onChange={e => setCashCountedInput(formatWithCommas(e.target.value))}
-                    placeholder="e.g. 524,000"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tabular-nums text-base font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  />
-                  <span className="absolute right-3 top-2.5 text-xs font-mono text-slate-400">
-                    NGN
-                  </span>
-                </div>
-                <p className="text-xs font-sans text-slate-500 dark:text-slate-400 mt-1">
-                  Count all banknotes in the till before handing over the drawer keys.
-                </p>
+            {/* Shift Cash Reconciliation Breakdown */}
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2 text-xs font-mono tabular-nums">
+              <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+                <span className="font-sans">(+) Cash Sales (Counter):</span>
+                <span className="font-semibold">
+                  +{formatNaira(shiftMetrics.cashSales)}
+                </span>
               </div>
+              <div className="flex justify-between text-rose-600 dark:text-rose-400">
+                <span className="font-sans">(-) Cash Expenses Paid:</span>
+                <span className="font-semibold">
+                  -{formatNaira(shiftMetrics.cashExpenses)}
+                </span>
+              </div>
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between font-bold text-sm">
+                <span className="font-sans text-slate-900 dark:text-white">(=) Expected Cash in Drawer:</span>
+                <span className="text-brand-600 dark:text-brand-400">
+                  {formatNaira(shiftMetrics.expectedCash)}
+                </span>
+              </div>
+            </div>
 
-              {/* Live Reconciliation Feedback */}
-              {liveCloseVariance !== null && (
-                <div
-                  className={`p-3.5 rounded-xl border transition-all ${
-                    Math.abs(liveCloseVariance) < 0.01
-                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-900/60'
-                      : liveCloseVariance < 0
-                      ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900/60'
-                      : 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-900/60'
-                  }`}
-                >
-                  <div className="flex items-center justify-between text-xs font-sans">
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">
-                      Drawer Variance (Counted - Expected):
-                    </span>
-                    <span
-                      className={`font-mono tabular-nums font-bold text-sm ${
-                        Math.abs(liveCloseVariance) < 0.01
-                          ? 'text-emerald-700 dark:text-emerald-400'
-                          : liveCloseVariance < 0
-                          ? 'text-rose-700 dark:text-rose-400'
-                          : 'text-amber-700 dark:text-amber-400'
-                      }`}
-                    >
-                      {liveCloseVariance > 0
-                        ? `+${formatNaira(liveCloseVariance)}`
-                        : formatNaira(liveCloseVariance)}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs font-sans flex items-center gap-1.5">
-                    {Math.abs(liveCloseVariance) < 0.01 ? (
-                      <>
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        <span className="text-emerald-700 dark:text-emerald-300">
-                          Cash drawer balances perfectly with zero discrepancy.
-                        </span>
-                      </>
-                    ) : liveCloseVariance < 0 ? (
-                      <>
-                        <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                        <span className="text-rose-700 dark:text-rose-300 font-semibold">
-                          Cash shortage of {formatNaira(Math.abs(liveCloseVariance))}. This discrepancy will be recorded in the shift audit log.
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <span className="text-amber-700 dark:text-amber-300">
-                          Cash surplus of {formatNaira(liveCloseVariance)}. Verify all customer receipts.
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label htmlFor="shift-close-notes" className="block text-xs font-sans font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Handover Notes / Supervisor Sign-off (Optional)
-                </label>
+            <div>
+              <label htmlFor="shift-cash-counted" className="block text-xs font-sans font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Physical Cash Counted in Drawer (NGN) *
+              </label>
+              <div className="relative">
                 <input
-                  id="shift-close-notes"
+                  id="shift-cash-counted"
                   type="text"
-                  value={closeNotesInput}
-                  onChange={e => setCloseNotesInput(e.target.value)}
-                  placeholder="e.g. Handed over to evening cashier Sunday, small change verified"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-sans text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  inputMode="numeric"
+                  required
+                  value={cashCountedInput}
+                  onChange={e => setCashCountedInput(formatWithCommas(e.target.value))}
+                  placeholder="e.g. 524,000"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tabular-nums text-base font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
+                <span className="absolute right-3 top-2.5 text-xs font-mono text-slate-400">
+                  NGN
+                </span>
               </div>
+              <p className="text-xs font-sans text-slate-500 dark:text-slate-400 mt-1">
+                Count all banknotes in the till before handing over the drawer keys.
+              </p>
+            </div>
 
-              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setIsCloseShiftModalOpen(false)}
-                  className="px-4 py-2 text-xs font-sans font-medium rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-xs font-sans font-semibold rounded-xl bg-brand-600 hover:bg-brand-700 text-white shadow-sm flex items-center gap-1.5 transition-colors"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  Confirm & Close Shift
-                </button>
+            {/* Live Reconciliation Feedback */}
+            {liveCloseVariance !== null && (
+              <div
+                className={`p-3.5 rounded-xl border transition-all ${Math.abs(liveCloseVariance) < 0.01
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-900/60'
+                  : liveCloseVariance < 0
+                    ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900/60'
+                    : 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-900/60'
+                  }`}
+              >
+                <div className="flex items-center justify-between text-xs font-sans">
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">
+                    Drawer Variance (Counted - Expected):
+                  </span>
+                  <span
+                    className={`font-mono tabular-nums font-bold text-sm ${Math.abs(liveCloseVariance) < 0.01
+                      ? 'text-emerald-700 dark:text-emerald-400'
+                      : liveCloseVariance < 0
+                        ? 'text-rose-700 dark:text-rose-400'
+                        : 'text-amber-700 dark:text-amber-400'
+                      }`}
+                  >
+                    {liveCloseVariance > 0
+                      ? `+${formatNaira(liveCloseVariance)}`
+                      : formatNaira(liveCloseVariance)}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs font-sans flex items-center gap-1.5">
+                  {Math.abs(liveCloseVariance) < 0.01 ? (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span className="text-emerald-700 dark:text-emerald-300">
+                        Cash drawer balances perfectly with zero discrepancy.
+                      </span>
+                    </>
+                  ) : liveCloseVariance < 0 ? (
+                    <>
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                      <span className="text-rose-700 dark:text-rose-300 font-semibold">
+                        Cash shortage of {formatNaira(Math.abs(liveCloseVariance))}. This discrepancy will be recorded in the shift audit log.
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span className="text-amber-700 dark:text-amber-300">
+                        Cash surplus of {formatNaira(liveCloseVariance)}. Verify all customer receipts.
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
-            </form>
+            )}
+
+            <div>
+              <label htmlFor="shift-close-notes" className="block text-xs font-sans font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Handover Notes / Supervisor Sign-off (Optional)
+              </label>
+              <input
+                id="shift-close-notes"
+                type="text"
+                value={closeNotesInput}
+                onChange={e => setCloseNotesInput(e.target.value)}
+                placeholder="e.g. Handed over to evening cashier Sunday, small change verified"
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-sans text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setIsCloseShiftModalOpen(false)}
+                className="px-4 py-2 text-xs font-sans font-medium rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 text-xs font-sans font-semibold rounded-xl bg-brand-600 hover:bg-brand-700 text-white shadow-sm flex items-center gap-1.5 transition-colors"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Confirm & Close Shift
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
       {/* STAT BREAKDOWN PROGRESSIVE DISCLOSURE (Side Drawer on Desktop ≥900px, Bottom Sheet on Mobile) */}
@@ -1699,35 +1694,35 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           activeStatSheet === 'cash'
             ? 'Cash, Card & Transfer Sales Today'
             : activeStatSheet === 'credit'
-            ? 'Debt Ledger Outstanding'
-            : activeStatSheet === 'kegs_out'
-            ? 'Company Keg Custody'
-            : activeStatSheet === 'depot_kegs'
-            ? 'Kegs Available In Store'
-            : activeStatSheet === 'customer_kegs'
-            ? 'Customer Kegs Filled'
-            : activeStatSheet === 'expenses'
-            ? "Today's Expenses"
-            : activeStatSheet === 'profit'
-            ? 'Net Profit Today'
-            : ''
+              ? 'Debt Ledger Outstanding'
+              : activeStatSheet === 'kegs_out'
+                ? 'Company Keg Custody'
+                : activeStatSheet === 'depot_kegs'
+                  ? 'Kegs Available In Store'
+                  : activeStatSheet === 'customer_kegs'
+                    ? 'Customer Kegs Filled'
+                    : activeStatSheet === 'expenses'
+                      ? "Today's Expenses"
+                      : activeStatSheet === 'profit'
+                        ? 'Net Profit Today'
+                        : ''
         }
         subtitle={
           activeStatSheet === 'cash'
             ? `${formatNaira(todayStats.cashTransferSales)} collected today`
             : activeStatSheet === 'credit'
-            ? `${formatNaira(todayStats.creditOutstanding)} total open balance`
-            : activeStatSheet === 'kegs_out'
-            ? `${todayStats.companyKegsOut} kegs with customers`
-            : activeStatSheet === 'depot_kegs'
-            ? `${todayStats.kegsAtDepot} kegs ready in store`
-            : activeStatSheet === 'customer_kegs'
-            ? `${todayStats.customerKegsFilledToday} containers filled today`
-            : activeStatSheet === 'expenses'
-            ? `${formatNaira(todayStats.expensesToday)} total spent today`
-            : activeStatSheet === 'profit'
-            ? `${formatNaira(todayStats.grossSalesToday - todayStats.expensesToday)} gross minus expenses`
-            : ''
+              ? `${formatNaira(todayStats.creditOutstanding)} total open balance`
+              : activeStatSheet === 'kegs_out'
+                ? `${todayStats.companyKegsOut} kegs with customers`
+                : activeStatSheet === 'depot_kegs'
+                  ? `${todayStats.kegsAtDepot} kegs ready in store`
+                  : activeStatSheet === 'customer_kegs'
+                    ? `${todayStats.customerKegsFilledToday} containers filled today`
+                    : activeStatSheet === 'expenses'
+                      ? `${formatNaira(todayStats.expensesToday)} total spent today`
+                      : activeStatSheet === 'profit'
+                        ? `${formatNaira(todayStats.grossSalesToday - todayStats.expensesToday)} gross minus expenses`
+                        : ''
         }
       >
         <div className="space-y-4">
@@ -1939,11 +1934,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           {activeStatSheet === 'depot_kegs' && (
             <div className="space-y-4">
               <div
-                className={`p-4 rounded-xl border space-y-2 ${
-                  kegInventory.isDepotStockCritical
-                    ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800'
-                    : 'bg-slate-50 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700'
-                }`}
+                className={`p-4 rounded-xl border space-y-2 ${kegInventory.isDepotStockCritical
+                  ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800'
+                  : 'bg-slate-50 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700'
+                  }`}
               >
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-sans font-medium text-slate-600 dark:text-slate-300">
@@ -2110,11 +2104,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             const isPositive = netProfitToday >= 0;
             return (
               <div className="space-y-4">
-                <div className={`p-3.5 rounded-xl border flex items-center justify-between ${
-                  isPositive
-                    ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50'
-                    : 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/50'
-                }`}>
+                <div className={`p-3.5 rounded-xl border flex items-center justify-between ${isPositive
+                  ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50'
+                  : 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/50'
+                  }`}>
                   <span className={`text-xs font-sans font-semibold ${isPositive ? 'text-emerald-800 dark:text-emerald-300' : 'text-rose-800 dark:text-rose-300'}`}>
                     Net Profit Today
                   </span>
@@ -2165,16 +2158,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         {selectedAlert && (
           <div className="space-y-4">
             <div
-              className={`p-4 rounded-xl border flex items-start gap-3 ${
-                selectedAlert.severity === 'red'
-                  ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900/60 text-rose-900 dark:text-rose-200'
-                  : 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-900/60 text-amber-900 dark:text-amber-200'
-              }`}
+              className={`p-4 rounded-xl border flex items-start gap-3 ${selectedAlert.severity === 'red'
+                ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900/60 text-rose-900 dark:text-rose-200'
+                : 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-900/60 text-amber-900 dark:text-amber-200'
+                }`}
             >
               <AlertTriangle
-                className={`w-5 h-5 shrink-0 mt-0.5 ${
-                  selectedAlert.severity === 'red' ? 'text-rose-600' : 'text-amber-600'
-                }`}
+                className={`w-5 h-5 shrink-0 mt-0.5 ${selectedAlert.severity === 'red' ? 'text-rose-600' : 'text-amber-600'
+                  }`}
               />
               <div className="space-y-1">
                 <div className="text-sm font-sans font-bold">{selectedAlert.title}</div>
@@ -2222,17 +2213,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                 setIsAllAlertsOpen(false);
                 setSelectedAlert(alert);
               }}
-              className={`w-full text-left p-3.5 rounded-xl border flex items-center justify-between gap-3 active:scale-98 transition-all cursor-pointer ${
-                alert.severity === 'red'
-                  ? 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60'
-                  : 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60'
-              }`}
+              className={`w-full text-left p-3.5 rounded-xl border flex items-center justify-between gap-3 active:scale-98 transition-all cursor-pointer ${alert.severity === 'red'
+                ? 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60'
+                : 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60'
+                }`}
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 <span
-                  className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                    alert.severity === 'red' ? 'bg-rose-600 animate-pulse' : 'bg-amber-500'
-                  }`}
+                  className={`w-2.5 h-2.5 rounded-full shrink-0 ${alert.severity === 'red' ? 'bg-rose-600 animate-pulse' : 'bg-amber-500'
+                    }`}
                 />
                 <div className="min-w-0">
                   <div className="text-xs font-sans font-bold text-slate-900 dark:text-white truncate">

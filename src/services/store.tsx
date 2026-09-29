@@ -67,6 +67,7 @@ import {
   applyFifoPayment,
   calculateIntakeMetrics,
   calculatePreKeggedIntakeMetrics,
+  applyBulkIntakeStockFromTons,
   resolveLitresPerTon,
   resolveLitresPerKeg,
   configuredNumber,
@@ -200,7 +201,7 @@ interface StoreContextType {
     spaceNote?: string;
     date?: string;
   }) => { success: boolean; tank?: Tank; error?: string };
-  
+
   createSale: (data: {
     customerId: string;
     paymentMethod: PaymentMethod;
@@ -1313,6 +1314,25 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem(STORAGE_KEYS.PHYSICAL_TANKS, JSON.stringify(allPhysicalTanks));
   }, [allPhysicalTanks]);
 
+  // Bulk truck deliveries used to store kegs-counted as stock (2 × 25 L = 50 L)
+  // instead of the waybill tons. Lift any such lot to tons × density, keeping
+  // litres already sold off that batch.
+  useEffect(() => {
+    setTanks(prev => {
+      let changed = false;
+      const next = prev.map(t => {
+        const product = products.find(p => p.id === t.product_id);
+        const lifted = applyBulkIntakeStockFromTons(t, resolveLitresPerTon(product, settings));
+        if (lifted.received_litres !== t.received_litres || lifted.remaining_litres !== t.remaining_litres) {
+          changed = true;
+          return lifted;
+        }
+        return t;
+      });
+      return changed ? next : prev;
+    });
+  }, [products, settings, allTanks]);
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.TANKS, JSON.stringify(allTanks));
   }, [allTanks]);
@@ -1569,7 +1589,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const pTanks = tanks
         .filter(t => t.product_id === p.id && t.remaining_litres > 0)
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      
+
       const totalLitres = pTanks.reduce((sum, t) => sum + t.remaining_litres, 0);
       result[p.id] = { totalLitres, tanks: pTanks };
     });
@@ -1828,8 +1848,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       product_id: data.productId,
       truck_label: data.truckLabel.trim() || `TRK-${Date.now().toString().slice(-4)}`,
       tons: Number(data.tons),
-      received_litres: metrics.recoveredLitres,
-      remaining_litres: metrics.recoveredLitres,
+      received_litres: metrics.stockLitres,
+      remaining_litres: metrics.stockLitres,
       date: data.date || new Date().toISOString(),
       shortfall: metrics.shortfall,
       supplier_id: data.supplierId,
@@ -2086,14 +2106,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       data.paymentMethod === 'cash' && data.amountTendered != null
         ? Number(data.amountTendered)
         : cashLeg && cashLeg.amount_tendered != null
-        ? Number(cashLeg.amount_tendered)
-        : null;
+          ? Number(cashLeg.amount_tendered)
+          : null;
     const changeDue =
       data.paymentMethod === 'cash' && tendered != null
         ? Number(Math.max(0, tendered - total).toFixed(2))
         : cashLeg && cashLeg.change_due != null
-        ? Number(cashLeg.change_due)
-        : null;
+          ? Number(cashLeg.change_due)
+          : null;
 
     const sale: Sale = {
       id: saleId,
@@ -2489,26 +2509,26 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       prev.map(o =>
         o.id === lineId
           ? {
-              ...o,
-              qty: nextQty,
-              litres: priced.litres,
-              unit_price: priced.unitPrice,
-              price_adjusted: priced.priceAdjusted,
-              oil_amount: priced.oilAmount,
-              container_mode: nextMode,
-              returnable: priced.returnable,
-              container_unit_price: nextMode === 'bought' ? priced.containerUnitPrice : null,
-              container_amount: nextMode === 'bought' ? priced.containerAmount : null,
-              line_amount: priced.lineAmount,
-              amount: priced.lineAmount,
-              paid_amount:
-                o.payment_method === 'credit' || o.payment_method === 'split'
-                  ? Math.min(o.paid_amount || 0, priced.lineAmount)
-                  : priced.lineAmount,
-              tank_allocations: nextAllocations,
-              source_tank_id: nextAllocations[0]?.tank_id ?? o.source_tank_id,
-              date: patch.date || o.date
-            }
+            ...o,
+            qty: nextQty,
+            litres: priced.litres,
+            unit_price: priced.unitPrice,
+            price_adjusted: priced.priceAdjusted,
+            oil_amount: priced.oilAmount,
+            container_mode: nextMode,
+            returnable: priced.returnable,
+            container_unit_price: nextMode === 'bought' ? priced.containerUnitPrice : null,
+            container_amount: nextMode === 'bought' ? priced.containerAmount : null,
+            line_amount: priced.lineAmount,
+            amount: priced.lineAmount,
+            paid_amount:
+              o.payment_method === 'credit' || o.payment_method === 'split'
+                ? Math.min(o.paid_amount || 0, priced.lineAmount)
+                : priced.lineAmount,
+            tank_allocations: nextAllocations,
+            source_tank_id: nextAllocations[0]?.tank_id ?? o.source_tank_id,
+            date: patch.date || o.date
+          }
           : o
       )
     );
@@ -2536,12 +2556,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       prev.map(e =>
         e.id === expenseId
           ? {
-              ...e,
-              category: patch.category?.trim() || e.category,
-              amount: patch.amount != null && patch.amount > 0 ? Number(patch.amount) : e.amount,
-              note: patch.note != null ? patch.note.trim() || undefined : e.note,
-              date: patch.date || e.date
-            }
+            ...e,
+            category: patch.category?.trim() || e.category,
+            amount: patch.amount != null && patch.amount > 0 ? Number(patch.amount) : e.amount,
+            note: patch.note != null ? patch.note.trim() || undefined : e.note,
+            date: patch.date || e.date
+          }
           : e
       )
     );
@@ -2591,12 +2611,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       prev.map(t =>
         t.id === tankId
           ? {
-              ...t,
-              date: patch.date || t.date,
-              truck_label: patch.truck_label?.trim() || t.truck_label,
-              supplier_id: patch.supplier_id !== undefined ? patch.supplier_id : t.supplier_id,
-              space_note: patch.space_note !== undefined ? patch.space_note : t.space_note
-            }
+            ...t,
+            date: patch.date || t.date,
+            truck_label: patch.truck_label?.trim() || t.truck_label,
+            supplier_id: patch.supplier_id !== undefined ? patch.supplier_id : t.supplier_id,
+            space_note: patch.space_note !== undefined ? patch.space_note : t.space_note
+          }
           : t
       )
     );
@@ -2992,12 +3012,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       prev.map(p =>
         p.id === pumpId
           ? {
-              ...p,
-              label: updates.label !== undefined ? updates.label.trim() || p.label : p.label,
-              product_id: updates.product_id !== undefined ? updates.product_id || undefined : p.product_id,
-              physical_tank_id: updates.physical_tank_id !== undefined ? updates.physical_tank_id || null : p.physical_tank_id,
-              hub_id: updates.hub_id !== undefined ? updates.hub_id : p.hub_id
-            }
+            ...p,
+            label: updates.label !== undefined ? updates.label.trim() || p.label : p.label,
+            product_id: updates.product_id !== undefined ? updates.product_id || undefined : p.product_id,
+            physical_tank_id: updates.physical_tank_id !== undefined ? updates.physical_tank_id || null : p.physical_tank_id,
+            hub_id: updates.hub_id !== undefined ? updates.hub_id : p.hub_id
+          }
           : p
       )
     );

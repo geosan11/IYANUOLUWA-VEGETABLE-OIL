@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../services/store';
 import { usePermissions } from '../services/permissions';
 import { useToast } from '../services/toast';
-import { calculatePumpMeterVariance, formatDepotDate, formatDepotTime, depotDateKey, getDepotToday, keepDigitsAndDecimal } from '../services/businessLogic';
+import { calculatePumpMeterVariance, formatDepotDate, formatDepotTime, depotDateKey, getDepotToday, keepDigitsAndDecimal, yardLabel } from '../services/businessLogic';
 import { Modal } from '../components/common/Modal';
 import { PumpOdometerIllustration } from '../components/common/PumpOdometerIllustration';
 import { Pump, PumpVarianceAudit } from '../types';
@@ -50,7 +50,6 @@ export const PumpsScreen: React.FC = () => {
   const [resetReason, setResetReason] = useState('');
   const [resetErr, setResetErr] = useState<string | null>(null);
 
-  const productName = (id?: string) => products.find(p => p.id === id)?.name || 'Unassigned';
   const tankLabel = (id?: string | null) => physicalTanks.find(t => t.id === id)?.label;
 
   // Hub switches (and pump deletion) re-scope `pumps` without remounting this
@@ -214,7 +213,10 @@ export const PumpsScreen: React.FC = () => {
       {/* Visual Odometer Illustration */}
       {selectedPumpForIllustration && (
         <PumpOdometerIllustration
-          pumpName={selectedPumpForIllustration.label}
+          pumpName={yardLabel(
+            tankLabel(selectedPumpForIllustration.physical_tank_id) || selectedPumpForIllustration.label,
+            Math.max(0, pumps.findIndex(p => p.id === selectedPumpForIllustration.id))
+          )}
           openingReading={latestSelectedAudit ? latestSelectedAudit.startReading : selectedPumpForIllustration.last_meter_reading}
           currentReading={latestSelectedAudit ? latestSelectedAudit.endReading : selectedPumpForIllustration.last_meter_reading}
           recordedSalesLitres={latestSelectedAudit ? latestSelectedAudit.expectedLitres : 0}
@@ -230,20 +232,19 @@ export const PumpsScreen: React.FC = () => {
             No pumps registered yet. Click &ldquo;Add Pump&rdquo; to configure your depot dispensers.
           </div>
         )}
-        {pumps.map(pump => {
+        {pumps.map((pump, idx) => {
           const dayAudits = auditsByPump[pump.id] || [];
           const latest = dayAudits[0];
           const alert = latest && latest.day === today && latest.isOverThreshold;
           const isVeg = pump.product_id === 'veg';
+          const displayName = yardLabel(tankLabel(pump.physical_tank_id) || pump.label, idx);
 
           return (
             <div
               key={pump.id}
-              className={`p-4 rounded-2xl depot-card border space-y-2.5 transition-all cursor-pointer ${
-                pump.id === loggerPumpId ? 'ring-2 ring-amber-500/40' : ''
-              } ${
-                alert ? 'border-rose-300 dark:border-rose-800 shadow-glow-rose' : 'border-slate-200 dark:border-slate-800'
-              }`}
+              className={`p-4 rounded-2xl depot-card border space-y-2.5 transition-all cursor-pointer ${pump.id === loggerPumpId ? 'ring-2 ring-amber-500/40' : ''
+                } ${alert ? 'border-rose-300 dark:border-rose-800 shadow-glow-rose' : 'border-slate-200 dark:border-slate-800'
+                }`}
               onClick={() => setLoggerPumpId(pump.id)}
             >
               <div className="flex items-start justify-between gap-2">
@@ -253,11 +254,10 @@ export const PumpsScreen: React.FC = () => {
                       className="w-2.5 h-2.5 rounded-full"
                       style={{ backgroundColor: isVeg ? '#F59E0B' : '#EF4444' }}
                     />
-                    <span>{pump.label}</span>
+                    <span>{displayName}</span>
                   </div>
-                  <div className="text-xs text-slate-500 font-sans">{productName(pump.product_id)}</div>
                   <div className="text-xs text-slate-400 font-sans">
-                    Source: {tankLabel(pump.physical_tank_id) || 'Yard Tank'}
+                    Meter on {displayName}
                   </div>
                 </div>
                 {canManagePumps && (
@@ -279,11 +279,10 @@ export const PumpsScreen: React.FC = () => {
                 <span className="font-bold text-slate-900 dark:text-white text-sm">{pump.last_meter_reading.toLocaleString()} L</span>
               </div>
               <div
-                className={`flex items-center gap-1.5 text-xs font-sans font-bold px-2 py-1 rounded-lg ${
-                  alert
-                    ? 'badge-rose'
-                    : 'badge-emerald'
-                }`}
+                className={`flex items-center gap-1.5 text-xs font-sans font-bold px-2 py-1 rounded-lg ${alert
+                  ? 'badge-rose'
+                  : 'badge-emerald'
+                  }`}
               >
                 {alert ? <AlertTriangle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                 {latest
@@ -308,15 +307,15 @@ export const PumpsScreen: React.FC = () => {
         ) : (
           <form onSubmit={submitReading} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
             <label className="text-xs font-sans font-semibold text-slate-600 dark:text-slate-400 sm:col-span-1">
-              Select Pump
+              Select tank
               <select
                 value={loggerPumpId}
                 onChange={e => setLoggerPumpId(e.target.value)}
                 className="depot-input mt-1 w-full px-3 py-2.5 rounded-xl text-sm font-sans font-semibold"
               >
-                {pumps.map(p => (
+                {pumps.map((p, idx) => (
                   <option key={p.id} value={p.id}>
-                    {p.label} (Current: {p.last_meter_reading.toLocaleString()} L)
+                    {yardLabel(tankLabel(p.physical_tank_id) || p.label, idx)} (Current: {p.last_meter_reading.toLocaleString()} L)
                   </option>
                 ))}
               </select>
@@ -415,9 +414,8 @@ export const PumpsScreen: React.FC = () => {
                             <td className="px-3 py-2 text-right font-mono tabular-nums">{a.meterDelta.toLocaleString()} L</td>
                             <td className="px-3 py-2 text-right font-mono tabular-nums">{a.expectedLitres.toLocaleString()} L</td>
                             <td
-                              className={`px-3 py-2 text-right font-mono tabular-nums font-bold ${
-                                a.isOverThreshold ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
-                              }`}
+                              className={`px-3 py-2 text-right font-mono tabular-nums font-bold ${a.isOverThreshold ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+                                }`}
                             >
                               {a.variance > 0 ? '+' : ''}
                               {a.variance} L

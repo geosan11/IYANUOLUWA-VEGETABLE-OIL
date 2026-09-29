@@ -18,7 +18,8 @@ import {
   Product,
   Shift,
   Sale,
-  AppSettings
+  AppSettings,
+  SupplyModel
 } from '../types';
 import { packLitres } from '../constants/config';
 
@@ -82,20 +83,68 @@ export function configuredNumber(value: number | null | undefined): number {
 
 /**
  * 2. TRUCK INTAKE METRICS (bulk_truck only)
- * expected_litres = tons * litresPerTon      (depot density, else the product's own)
+ * expected_litres / stock_litres = tons * litresPerTon
+ *   — the waybill weight is what goes into the yard tank.
  * expected_kegs   = expected_litres / litresPerKeg
- * recovered       = (actual_kegs_filled * litresPerKeg) + leftover_litres_recovered
+ * recovered       = kegs counted at discharge + pipe residual, when those
+ *                   were actually entered; otherwise recovered = expected
+ *                   (the tanker was dumped into the tank, not kegged out).
  * shortfall       = expected_litres - recovered
  * isShortfallHigh = shortfall > thresholdLitres, and only once a tolerance has
  *                   actually been configured (0 = no tolerance → never flag)
  */
 export interface IntakeMetrics {
   expectedLitres: number;
+  /** Litres that enter the selected yard tank — always the waybill tons. */
+  stockLitres: number;
   expectedKegs: number;
   recoveredLitres: number;
   shortfall: number;
   isShortfallHigh: boolean; // shortfall > thresholdLitres
   exceedsDepotKegCapacity: boolean;
+}
+
+export function bulkIntakeStockLitres(tons: number, litresPerTon: number): number {
+  return Number(((Number(tons) || 0) * configuredNumber(litresPerTon)).toFixed(2));
+}
+
+/**
+ * Operator-facing name for a yard tank, or the pump that draws from it.
+ * Uses the label the depot registered (any count, any wording). The index is
+ * only used when that label is blank, so a one-tank hub and a twelve-tank
+ * hub both work without a hardcoded roster.
+ */
+export function yardLabel(label: string | undefined | null, index: number): string {
+  const raw = (label || '').trim();
+  if (raw) return raw;
+  return `Tank ${index + 1}`;
+}
+
+/**
+ * Lift a bulk intake whose stored litres were the keg count (e.g. 2 × 25 L
+ * = 50 L) up to the waybill tons. Sales already drawn from that batch are
+ * preserved. Pre-kegged lots and intakes with no tonnage are left alone.
+ */
+export function applyBulkIntakeStockFromTons<T extends {
+  tons: number;
+  received_litres: number;
+  remaining_litres: number;
+  supply_model?: SupplyModel;
+}>(tank: T, litresPerTon: number): T {
+  if (tank.supply_model === 'pre_kegged') return tank;
+  const stock = bulkIntakeStockLitres(tank.tons, litresPerTon);
+  if (stock <= 0) return tank;
+  if (tank.received_litres + 0.009 >= stock) return tank;
+  // Only rewrite lots whose stored litres are clearly the keg count (e.g.
+  // 2 × 25 L = 50 L against a 30-ton waybill), not a tanker that was mostly
+  // kegged under the old model.
+  if (tank.received_litres > stock * 0.25) return tank;
+  const drawn = Math.max(0, tank.received_litres - tank.remaining_litres);
+  return {
+    ...tank,
+    received_litres: stock,
+    remaining_litres: Number(Math.max(0, stock - drawn).toFixed(2))
+  };
 }
 
 export function calculateIntakeMetrics(
@@ -114,15 +163,22 @@ export function calculateIntakeMetrics(
   const perKeg = configuredNumber(litresPerKeg);
 
   const expectedLitres = numTons * perTon;
+  const stockLitres = Number(expectedLitres.toFixed(2));
   // Guarded: an unconfigured keg size must never divide (that yielded
   // Infinity before the seeds were removed).
   const expectedKegs = expectedLitres > 0 && perKeg > 0 ? expectedLitres / perKeg : 0;
-  const recoveredLitres = (numActualKegs * perKeg) + numLeftovers;
+  // No kegs / pipe residual entered → the tanker went into the tank, so
+  // recovered matches the waybill and there is no shortfall to flag.
+  const countedAtDischarge = numActualKegs > 0 || numLeftovers > 0;
+  const recoveredLitres = countedAtDischarge
+    ? (numActualKegs * perKeg) + numLeftovers
+    : expectedLitres;
   const shortfall = expectedLitres - recoveredLitres;
   const threshold = configuredNumber(thresholdLitres);
 
   return {
-    expectedLitres: Number(expectedLitres.toFixed(2)),
+    expectedLitres: stockLitres,
+    stockLitres,
     expectedKegs: Number(expectedKegs.toFixed(1)),
     recoveredLitres: Number(recoveredLitres.toFixed(2)),
     shortfall: Number(shortfall.toFixed(2)),
@@ -195,7 +251,7 @@ export function calculateCustomerStats(
       .reduce((sum, c) => sum + Number(c.amount || 0), 0)
   );
 
-  
+
   // Open credit orders where amount > paid_amount and payment_method is credit or split with unpaid balance
   const openOrders = customerOrders.filter(
     o => (o.payment_method === 'credit' || o.payment_method === 'split') && (o.amount - (o.paid_amount || 0)) > 0.01
@@ -536,7 +592,7 @@ export function applyFifoPayment(
 ): PaymentApplicationResult {
   let remainingPayment = Number(paymentAmount) || 0;
   const appliedOrders: PaymentApplicationResult['appliedOrders'] = [];
-  
+
   // Clone orders
   const updatedOrders = allOrders.map(o => ({ ...o }));
 

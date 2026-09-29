@@ -719,1316 +719,1310 @@ export const SettingsScreen: React.FC = () => {
   // tab's real form/content, never a placeholder.
   const renderSettingsTabContent = (tab: SettingsTab) => (
     <>
-          {tab === 'company' && (
-            /* 1. COMPANY PROFILE */
-            <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm">
-              <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
-                <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Building className={`w-5 h-5 ${SECTION_THEME.company.textCls}`} weight="bold" />
-                  <span>1. Company Profile & Official Branding</span>
-                </h3>
-                <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-                  Official logo and contact details appearing on app navigation and printed Official Receipts.
-                </p>
-              </div>
+      {tab === 'company' && (
+        /* 1. COMPANY PROFILE */
+        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm">
+          <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
+            <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <Building className={`w-5 h-5 ${SECTION_THEME.company.textCls}`} weight="bold" />
+              <span>1. Company Profile & Official Branding</span>
+            </h3>
+            <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+              Official logo and contact details appearing on app navigation and printed Official Receipts.
+            </p>
+          </div>
 
-              {/* Logo Upload Box */}
-              <div className="flex flex-col sm:flex-row items-center gap-6 p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
-                <div className="w-28 h-28 rounded-2xl bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center p-2 overflow-hidden flex-shrink-0 shadow-sm">
-                  {settings.company_logo_url ? (
-                    <img
-                      src={settings.company_logo_url}
-                      alt="Depot Logo"
-                      className="w-full h-full object-contain"
-                    />
-                  ) : (
-                    <div className="text-center text-slate-400">
-                      <ImageIcon className="w-7 h-7 mx-auto mb-1 opacity-50" />
-                      <span className="text-[11px] font-sans block">No logo</span>
-                    </div>
-                  )}
+          {/* Logo Upload Box */}
+          <div className="flex flex-col sm:flex-row items-center gap-6 p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+            <div className="w-28 h-28 rounded-2xl bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center p-2 overflow-hidden flex-shrink-0 shadow-sm">
+              {settings.company_logo_url ? (
+                <img
+                  src={settings.company_logo_url}
+                  alt="Depot Logo"
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="text-center text-slate-400">
+                  <ImageIcon className="w-7 h-7 mx-auto mb-1 opacity-50" />
+                  <span className="text-[11px] font-sans block">No logo</span>
                 </div>
-
-                <div className="space-y-2.5 w-full">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] flex items-center gap-2 transition-all shadow-sm active:scale-95">
-                      <Upload className="w-4 h-4" />
-                      <span>{isUploading ? 'Uploading to Storage...' : 'Upload Official Logo'}</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleLogoUpload}
-                        disabled={isUploading}
-                        className="hidden"
-                      />
-                    </label>
-
-                    {settings.company_logo_url && (
-                      <button
-                        onClick={handleRemoveLogo}
-                        className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-rose-100 dark:hover:bg-rose-950/60 hover:text-rose-700 dark:hover:text-rose-300 text-slate-700 dark:text-slate-300 text-[13px] font-sans font-semibold border border-slate-200 dark:border-slate-700 flex items-center gap-2 transition-all active:scale-95"
-                      >
-                        <Trash2 className="w-4 h-4 text-rose-500 dark:text-rose-400" />
-                        <span>Remove Logo</span>
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-[11px] font-sans text-slate-500 dark:text-slate-400">
-                    Directly synced with Supabase Storage bucket (<code className="font-mono text-brand-600 dark:text-brand-400">depot_assets</code>). Supports PNG, JPG, SVG.
-                  </p>
-                </div>
-              </div>
-
-              {/* Contact Fields */}
-              <form onSubmit={handleSaveCompanyInfo} className="space-y-4">
-                <div className="space-y-1">
-                  <label htmlFor="company-name" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                    Registered Business Name
-                  </label>
-                  <input
-                    id="company-name"
-                    type="text"
-                    value={companyName}
-                    onChange={e => setCompanyName(e.target.value)}
-                    className="w-full px-4 py-3 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-sans font-medium text-[15px] focus:outline-none focus:border-brand-500"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label htmlFor="company-phone" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                      Depot Telephone
-                    </label>
-                    <input
-                      id="company-phone"
-                      type="text"
-                      value={companyPhone}
-                      onChange={e => setCompanyPhone(e.target.value)}
-                      className="w-full px-4 py-3 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums text-[15px] focus:outline-none focus:border-brand-500"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label htmlFor="company-address" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                      Physical Depot Address
-                    </label>
-                    <input
-                      id="company-address"
-                      type="text"
-                      value={companyAddress}
-                      onChange={e => setCompanyAddress(e.target.value)}
-                      className="w-full px-4 py-3 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[15px] font-sans font-medium focus:outline-none focus:border-brand-500"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-1">
-                  <button
-                    type="submit"
-                    className="px-5 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
-                  >
-                    <Save className="w-[18px] h-[18px]" weight="bold" />
-                    <span>Save Company Profile</span>
-                  </button>
-                </div>
-              </form>
+              )}
             </div>
-          )}
 
-          {tab === 'kegs' && (
-            /* 2. KEG CONFIGURATION */
-            <form
-              onSubmit={handleSaveKegConfig}
-              className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm"
-            >
-              <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
-                <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Package className={`w-5 h-5 ${SECTION_THEME.kegs.textCls}`} weight="bold" />
-                  <span>2. Keg Configuration & Fleet Standards</span>
-                </h3>
-                <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-                  Single source of truth for container volume conversions, physical fleet size, and depot safety reserve. The depot standards in the fleet controls below take precedence over each product's own figures — every product row states plainly whether it is in use.
-                </p>
+            <div className="space-y-2.5 w-full">
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] flex items-center gap-2 transition-all shadow-sm active:scale-95">
+                  <Upload className="w-4 h-4" />
+                  <span>{isUploading ? 'Uploading to Storage...' : 'Upload Official Logo'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
+                    disabled={isUploading}
+                    className="hidden"
+                  />
+                </label>
+
+                {settings.company_logo_url && (
+                  <button
+                    onClick={handleRemoveLogo}
+                    className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-rose-100 dark:hover:bg-rose-950/60 hover:text-rose-700 dark:hover:text-rose-300 text-slate-700 dark:text-slate-300 text-[13px] font-sans font-semibold border border-slate-200 dark:border-slate-700 flex items-center gap-2 transition-all active:scale-95"
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-500 dark:text-rose-400" />
+                    <span>Remove Logo</span>
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] font-sans text-slate-500 dark:text-slate-400">
+                Directly synced with Supabase Storage bucket (<code className="font-mono text-brand-600 dark:text-brand-400">depot_assets</code>). Supports PNG, JPG, SVG.
+              </p>
+            </div>
+          </div>
+
+          {/* Contact Fields */}
+          <form onSubmit={handleSaveCompanyInfo} className="space-y-4">
+            <div className="space-y-1">
+              <label htmlFor="company-name" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                Registered Business Name
+              </label>
+              <input
+                id="company-name"
+                type="text"
+                value={companyName}
+                onChange={e => setCompanyName(e.target.value)}
+                className="w-full px-4 py-3 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-sans font-medium text-[15px] focus:outline-none focus:border-brand-500"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label htmlFor="company-phone" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                  Depot Telephone
+                </label>
+                <input
+                  id="company-phone"
+                  type="text"
+                  value={companyPhone}
+                  onChange={e => setCompanyPhone(e.target.value)}
+                  className="w-full px-4 py-3 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums text-[15px] focus:outline-none focus:border-brand-500"
+                  required
+                />
               </div>
 
-              {/* SECTION A: PER-PRODUCT PHYSICAL KEG VOLUMES (ADMIN CUSTOMIZABLE) */}
-              <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                  <h4 className="text-[14px] font-sans font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Package className="w-4 h-4 text-brand-600 dark:text-brand-400" />
-                    <span>Physical Keg Volumes by Product (Customizable by Admin)</span>
-                  </h4>
-                  <span className="text-[11px] font-sans text-slate-500">
-                    Controls litre and price calculation when selling in kegs or litres
-                  </span>
-                </div>
+              <div className="space-y-1">
+                <label htmlFor="company-address" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                  Physical Depot Address
+                </label>
+                <input
+                  id="company-address"
+                  type="text"
+                  value={companyAddress}
+                  onChange={e => setCompanyAddress(e.target.value)}
+                  className="w-full px-4 py-3 min-h-[48px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-[15px] font-sans font-medium focus:outline-none focus:border-brand-500"
+                  required
+                />
+              </div>
+            </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {products.map(p => {
-                    const isPalm = p.supply_model === 'pre_kegged';
-                    const currentL = productLitresPerKeg[p.id] ?? configuredField(p.litres_per_keg);
-                    return (
-                      <div
-                        key={p.id}
-                        className={`p-4 rounded-xl border space-y-3 transition-all ${
-                          isPalm
-                            ? 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/50'
-                            : 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/50'
-                        }`}
+            <div className="flex justify-end pt-1">
+              <button
+                type="submit"
+                className="px-5 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
+              >
+                <Save className="w-[18px] h-[18px]" weight="bold" />
+                <span>Save Company Profile</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {tab === 'kegs' && (
+        /* 2. KEG CONFIGURATION */
+        <form
+          onSubmit={handleSaveKegConfig}
+          className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm"
+        >
+          <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
+            <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <Package className={`w-5 h-5 ${SECTION_THEME.kegs.textCls}`} weight="bold" />
+              <span>2. Keg Configuration & Fleet Standards</span>
+            </h3>
+            <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+              Single source of truth for container volume conversions, physical fleet size, and depot safety reserve. The depot standards in the fleet controls below take precedence over each product's own figures — every product row states plainly whether it is in use.
+            </p>
+          </div>
+
+          {/* SECTION A: PER-PRODUCT PHYSICAL KEG VOLUMES (ADMIN CUSTOMIZABLE) */}
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <h4 className="text-[14px] font-sans font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Package className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                <span>Physical Keg Volumes by Product (Customizable by Admin)</span>
+              </h4>
+              <span className="text-[11px] font-sans text-slate-500">
+                Controls litre and price calculation when selling in kegs or litres
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {products.map(p => {
+                const isPalm = p.supply_model === 'pre_kegged';
+                const currentL = productLitresPerKeg[p.id] ?? configuredField(p.litres_per_keg);
+                return (
+                  <div
+                    key={p.id}
+                    className={`p-4 rounded-xl border space-y-3 transition-all ${isPalm
+                      ? 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/50'
+                      : 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/50'
+                      }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-3 h-3 rounded-full ${isPalm ? 'bg-palmoil-500' : 'bg-vegoil-500'}`} />
+                        <span className="font-heading font-bold text-[14px] text-slate-900 dark:text-white">
+                          {p.name}
+                        </span>
+                      </div>
+                      <span
+                        className={`text-[10px] font-sans font-bold px-2.5 py-0.5 rounded-full uppercase ${isPalm
+                          ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300'
+                          : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                          }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className={`w-3 h-3 rounded-full ${isPalm ? 'bg-palmoil-500' : 'bg-vegoil-500'}`} />
-                            <span className="font-heading font-bold text-[14px] text-slate-900 dark:text-white">
-                              {p.name}
-                            </span>
-                          </div>
-                          <span
-                            className={`text-[10px] font-sans font-bold px-2.5 py-0.5 rounded-full uppercase ${
-                              isPalm
-                                ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300'
-                                : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
-                            }`}
-                          >
-                            {isPalm ? '📦 Pre-Kegged (No Pumps)' : '🚛 Bulk Truck (Pumps)'}
+                        {isPalm ? '📦 Pre-Kegged (No Pumps)' : '🚛 Bulk Truck (Pumps)'}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label htmlFor={`product-litres-per-keg-${p.id}`} className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
+                        Capacity: Litres per Keg (L / keg)
+                      </label>
+                      <div className="relative">
+                        <input
+                          id={`product-litres-per-keg-${p.id}`}
+                          type="number"
+                          step="1"
+                          min="0"
+                          value={currentL}
+                          placeholder="e.g. 25"
+                          onChange={e =>
+                            setProductLitresPerKeg(prev => ({
+                              ...prev,
+                              [p.id]: e.target.value.replace(/[^0-9]/g, '')
+                            }))
+                          }
+                          className="w-full px-3.5 py-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">
+                          L / keg
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-sans text-slate-500 leading-snug">
+                        {isPalm
+                          ? 'Factory-supplied sealed jerrycan capacity. Cashiers sell in kegs or in litres; automatically converts based on this value without needing a dispensing pump.'
+                          : 'Standard depot yellow jerrycan capacity filled at depot bulk dispensing pumps.'}
+                      </p>
+                      <p className={`text-[11px] font-sans font-semibold leading-snug ${depotKegStandard > 0 ? 'text-slate-500 dark:text-slate-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                        {depotKegStandard > 0
+                          ? `Not used right now — the ${depotKegStandard.toLocaleString()}L depot keg standard above applies to every product.`
+                          : 'In use — no depot keg standard is set, so this is the keg size the depot calculates with.'}
+                      </p>
+                    </div>
+
+                    {/* Density — bulk tanker products only. Pre-kegged oil
+                            never arrives by weight, so it has no litres-per-ton. */}
+                    {!isPalm && (
+                      <div className="space-y-1.5">
+                        <label htmlFor={`product-litres-per-ton-${p.id}`} className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
+                          Density: Litres per Ton (L / ton)
+                        </label>
+                        <div className="relative">
+                          <input
+                            id={`product-litres-per-ton-${p.id}`}
+                            type="number"
+                            step="1"
+                            min="0"
+                            value={productLitresPerTon[p.id] ?? ''}
+                            placeholder="e.g. 1075"
+                            onChange={e =>
+                              setProductLitresPerTon(prev => ({
+                                ...prev,
+                                [p.id]: e.target.value.replace(/[^0-9]/g, '')
+                              }))
+                            }
+                            className="w-full px-3.5 py-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">
+                            L / ton
                           </span>
                         </div>
-
-                        <div className="space-y-1.5">
-                          <label htmlFor={`product-litres-per-keg-${p.id}`} className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
-                            Capacity: Litres per Keg (L / keg)
-                          </label>
-                          <div className="relative">
-                            <input
-                              id={`product-litres-per-keg-${p.id}`}
-                              type="number"
-                              step="1"
-                              min="0"
-                              value={currentL}
-                              placeholder="e.g. 25"
-                              onChange={e =>
-                                setProductLitresPerKeg(prev => ({
-                                  ...prev,
-                                  [p.id]: e.target.value.replace(/[^0-9]/g, '')
-                                }))
-                              }
-                              className="w-full px-3.5 py-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">
-                              L / keg
-                            </span>
-                          </div>
-                          <p className="text-[11px] font-sans text-slate-500 leading-snug">
-                            {isPalm
-                              ? 'Factory-supplied sealed jerrycan capacity. Cashiers sell in kegs or in litres; automatically converts based on this value without needing a dispensing pump.'
-                              : 'Standard depot yellow jerrycan capacity filled at depot bulk dispensing pumps.'}
-                          </p>
-                          <p className={`text-[11px] font-sans font-semibold leading-snug ${depotKegStandard > 0 ? 'text-slate-500 dark:text-slate-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
-                            {depotKegStandard > 0
-                              ? `Not used right now — the ${depotKegStandard.toLocaleString()}L depot keg standard above applies to every product.`
-                              : 'In use — no depot keg standard is set, so this is the keg size the depot calculates with.'}
-                          </p>
-                        </div>
-
-                        {/* Density — bulk tanker products only. Pre-kegged oil
-                            never arrives by weight, so it has no litres-per-ton. */}
-                        {!isPalm && (
-                          <div className="space-y-1.5">
-                            <label htmlFor={`product-litres-per-ton-${p.id}`} className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
-                              Density: Litres per Ton (L / ton)
-                            </label>
-                            <div className="relative">
-                              <input
-                                id={`product-litres-per-ton-${p.id}`}
-                                type="number"
-                                step="1"
-                                min="0"
-                                value={productLitresPerTon[p.id] ?? ''}
-                                placeholder="e.g. 1075"
-                                onChange={e =>
-                                  setProductLitresPerTon(prev => ({
-                                    ...prev,
-                                    [p.id]: e.target.value.replace(/[^0-9]/g, '')
-                                  }))
-                                }
-                                className="w-full px-3.5 py-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
-                              />
-                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">
-                                L / ton
-                              </span>
-                            </div>
-                            <p className="text-[11px] font-sans text-slate-500 leading-snug">
-                              Litres in one ton of this oil — this is what turns a waybill tonnage into litres on
-                              Truck Intake. The depot density in the fleet controls below takes precedence while it
-                              is set; this figure applies when that one is blank, and while neither is set a bulk
-                              intake can't be recorded.
-                            </p>
-                            <p className={`text-[11px] font-sans font-semibold leading-snug ${depotDensityStandard > 0 ? 'text-slate-500 dark:text-slate-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
-                              {depotDensityStandard > 0
-                                ? `Not used right now — the ${depotDensityStandard.toLocaleString()} L/ton depot density above governs every bulk intake.`
-                                : 'In use — no depot density is set, so this is the figure Truck Intake converts tons with.'}
-                            </p>
-                          </div>
-                        )}
+                        <p className="text-[11px] font-sans text-slate-500 leading-snug">
+                          Litres in one ton of this oil — this is what turns a waybill tonnage into litres on
+                          Truck Intake. The depot density in the fleet controls below takes precedence while it
+                          is set; this figure applies when that one is blank, and while neither is set a bulk
+                          intake can't be recorded.
+                        </p>
+                        <p className={`text-[11px] font-sans font-semibold leading-snug ${depotDensityStandard > 0 ? 'text-slate-500 dark:text-slate-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                          {depotDensityStandard > 0
+                            ? `Not used right now — the ${depotDensityStandard.toLocaleString()} L/ton depot density above governs every bulk intake.`
+                            : 'In use — no depot density is set, so this is the figure Truck Intake converts tons with.'}
+                        </p>
                       </div>
-                    );
-                  })}
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* SECTION B: GLOBAL DEPOT FLEET ASSET CONTROLS */}
+          <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+            <h4 className="text-[14px] font-sans font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Sliders className="w-4 h-4 text-slate-500" />
+              <span>Depot Fleet Asset &amp; Safety Controls</span>
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                <label htmlFor="default-fallback-litres-per-keg" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                  Depot Keg Standard (L / Keg)
+                </label>
+                <div className="relative">
+                  <input
+                    id="default-fallback-litres-per-keg"
+                    type="text"
+                    inputMode="numeric"
+                    value={litresPerKeg}
+                    placeholder="e.g. 25"
+                    onChange={e => setLitresPerKeg(formatWithCommas(e.target.value))}
+                    className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">L/keg</span>
                 </div>
+                <p className="text-[11px] font-sans text-slate-500">The depot's declared keg standard: while this is set it applies to every product and takes precedence over the per-product capacities above. Blank or 0 means no depot standard — each product's own figure is then used, and when neither is set keg-equivalent figures are hidden instead of guessed.</p>
               </div>
 
-              {/* SECTION B: GLOBAL DEPOT FLEET ASSET CONTROLS */}
-              <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
-                <h4 className="text-[14px] font-sans font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Sliders className="w-4 h-4 text-slate-500" />
-                  <span>Depot Fleet Asset &amp; Safety Controls</span>
-                </h4>
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
-                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                    <label htmlFor="default-fallback-litres-per-keg" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                      Depot Keg Standard (L / Keg)
-                    </label>
-                    <div className="relative">
-                      <input
-                        id="default-fallback-litres-per-keg"
-                        type="text"
-                        inputMode="numeric"
-                        value={litresPerKeg}
-                        placeholder="e.g. 25"
-                        onChange={e => setLitresPerKeg(formatWithCommas(e.target.value))}
-                        className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">L/keg</span>
-                    </div>
-                    <p className="text-[11px] font-sans text-slate-500">The depot's declared keg standard: while this is set it applies to every product and takes precedence over the per-product capacities above. Blank or 0 means no depot standard — each product's own figure is then used, and when neither is set keg-equivalent figures are hidden instead of guessed.</p>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                    <label htmlFor="default-fallback-litres-per-ton" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                      Depot Density (L / Ton)
-                    </label>
-                    <div className="relative">
-                      <input
-                        id="default-fallback-litres-per-ton"
-                        type="text"
-                        inputMode="numeric"
-                        value={defaultLitresPerTon}
-                        placeholder="e.g. 1075"
-                        onChange={e => setDefaultLitresPerTon(formatWithCommas(e.target.value))}
-                        className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">L/ton</span>
-                    </div>
-                    <p className="text-[11px] font-sans text-slate-500">The depot's declared density: while this is set it governs every bulk intake on Truck Intake and takes precedence over the per-product densities above. Blank or 0 means no depot density — each product's own figure is then used, and when neither is set the intake screen asks for one rather than computing with a guess.</p>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                    <label htmlFor="total-company-kegs" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                      Total Company Fleet Owned
-                    </label>
-                    <div className="relative">
-                      <input
-                        id="total-company-kegs"
-                        type="text"
-                        inputMode="numeric"
-                        value={totalCompanyKegs}
-                        onChange={e => setTotalCompanyKegs(formatWithCommas(e.target.value))}
-                        className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
-                        required
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Kegs</span>
-                    </div>
-                    <p className="text-[11px] font-sans text-slate-500">Total physical fleet asset cap (read-only on Kegs screen).</p>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                    <label htmlFor="kegs-depot-low-threshold" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                      Depot Low Stock Alert Threshold
-                    </label>
-                    <div className="relative">
-                      <input
-                        id="kegs-depot-low-threshold"
-                        type="text"
-                        inputMode="numeric"
-                        value={kegsAtDepotLowThreshold}
-                        onChange={e => setKegsAtDepotLowThreshold(formatWithCommas(e.target.value))}
-                        className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
-                        required
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Kegs</span>
-                    </div>
-                    <p className="text-[11px] font-sans text-slate-500">Flags critical warning when depot yard stock drops below this.</p>
-                  </div>
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                <label htmlFor="default-fallback-litres-per-ton" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                  Depot Density (L / Ton)
+                </label>
+                <div className="relative">
+                  <input
+                    id="default-fallback-litres-per-ton"
+                    type="text"
+                    inputMode="numeric"
+                    value={defaultLitresPerTon}
+                    placeholder="e.g. 1075"
+                    onChange={e => setDefaultLitresPerTon(formatWithCommas(e.target.value))}
+                    className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">L/ton</span>
                 </div>
+                <p className="text-[11px] font-sans text-slate-500">The depot's declared density: while this is set it governs every bulk intake on Truck Intake and takes precedence over the per-product densities above. Blank or 0 means no depot density — each product's own figure is then used, and when neither is set the intake screen asks for one rather than computing with a guess.</p>
               </div>
 
-              <div className="flex justify-end pt-1">
-                <button
-                  type="submit"
-                  className="px-5 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
-                >
-                  <Save className="w-[18px] h-[18px]" weight="bold" />
-                  <span>Save Keg Parameters</span>
-                </button>
-              </div>
-            </form>
-          )}
-
-          {tab === 'pricing' && (
-            /* 3. PRODUCTS & MANAGED CATALOG WITH RATE CARD GRID */
-            <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
-              <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                    <NairaSign className={`w-5 h-5 ${SECTION_THEME.pricing.textCls}`} weight="bold" />
-                    <span>3. Products & prices</span>
-                  </h3>
-                  <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-                    Configure supply models (Bulk Truck vs Pre-Kegged), container sizes, outright keg purchase prices, and pricing tiers.
-                  </p>
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                <label htmlFor="total-company-kegs" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                  Total Company Fleet Owned
+                </label>
+                <div className="relative">
+                  <input
+                    id="total-company-kegs"
+                    type="text"
+                    inputMode="numeric"
+                    value={totalCompanyKegs}
+                    onChange={e => setTotalCompanyKegs(formatWithCommas(e.target.value))}
+                    className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
+                    required
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Kegs</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleOpenAddProduct}
-                  disabled={!canUseSettings}
-                  title={canUseSettings ? undefined : 'Only the owner can add products'}
-                  className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-sm flex items-center gap-1.5 transition-all self-start sm:self-auto active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-brand-500 disabled:active:scale-100"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add New Product</span>
-                </button>
+                <p className="text-[11px] font-sans text-slate-500">Total physical fleet asset cap (read-only on Kegs screen).</p>
               </div>
 
-              {/* Managed Product Catalog Cards */}
-              <div className="space-y-3">
-                <div className="text-[15px] font-sans font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <Tag className="w-4 h-4 text-slate-400" />
-                  <span>Active Products Catalog ({products.length})</span>
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                <label htmlFor="kegs-depot-low-threshold" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                  Depot Low Stock Alert Threshold
+                </label>
+                <div className="relative">
+                  <input
+                    id="kegs-depot-low-threshold"
+                    type="text"
+                    inputMode="numeric"
+                    value={kegsAtDepotLowThreshold}
+                    onChange={e => setKegsAtDepotLowThreshold(formatWithCommas(e.target.value))}
+                    className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
+                    required
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Kegs</span>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {products.map(p => {
-                    return (
-                      <div
-                        key={p.id}
-                        className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: p.color_light }} />
-                            <span className="font-heading font-bold text-[15px] text-slate-900 dark:text-white">
-                              {p.name}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditProduct(p.id)}
-                              disabled={!canUseSettings}
-                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                              title={canUseSettings ? 'Edit Product' : 'Only the owner can edit products'}
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            {products.length > 2 && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (window.confirm(`Delete product "${p.name}"?`)) {
-                                    deleteProduct(p.id);
-                                    showNotification(`Product "${p.name}" deleted.`);
-                                  }
-                                }}
-                                disabled={!canUseSettings}
-                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                                title={canUseSettings ? 'Delete Product' : 'Only the owner can delete products'}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 text-[12px] font-mono tabular-nums">
-                          <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                            <span className="text-[10px] font-sans uppercase text-slate-500 block">Supply Model</span>
-                            <span className="font-bold text-slate-900 dark:text-white">
-                              {p.supply_model === 'bulk_truck' ? 'By tanker truck' : 'Already in kegs'}
-                            </span>
-                          </div>
-                          <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                            <span className="text-[10px] font-sans uppercase text-slate-500 block">Keg Container Size</span>
-                            <span className="font-bold text-slate-900 dark:text-white">
-                              {p.litres_per_keg > 0 ? `${p.litres_per_keg} Litres` : 'Not set'}
-                            </span>
-                          </div>
-                          <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                            <span className="text-[10px] font-sans uppercase text-slate-500 block">Density Multiplier</span>
-                            <span className="font-bold text-slate-900 dark:text-white">
-                              {p.supply_model === 'pre_kegged'
-                                ? 'N/A (Pre-Kegged)'
-                                : p.litres_per_ton && p.litres_per_ton > 0
-                                  ? `${p.litres_per_ton} L/Ton`
-                                  : 'Not set'}
-                            </span>
-                          </div>
-                          <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                            <span className="text-[10px] font-sans uppercase text-slate-500 block">Fallback Container Price</span>
-                            <span className="font-bold text-amber-600 dark:text-amber-400">
-                              {p.keg_sell_price && p.keg_sell_price > 0 ? formatNaira(p.keg_sell_price) : 'Not set'}
-                            </span>
-                          </div>
-                        </div>
-
-                        {p.varieties && p.varieties.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mt-2">
-                            {p.varieties.map(v => (
-                              <span key={v.id} className="text-[10px] font-sans px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                                {v.name}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Pricing moved to the Inventory tab */}
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
-                <div className="p-4 rounded-xl bg-brand-50 dark:bg-brand-950/40 border border-brand-200 dark:border-brand-800 flex items-start gap-3">
-                  <Sliders className="w-4 h-4 text-brand-600 dark:text-brand-400 mt-0.5 shrink-0" />
-                  <div className="text-[13px] text-slate-700 dark:text-slate-300 leading-relaxed">
-                    <span className="font-sans font-semibold text-slate-900 dark:text-white">
-                      Prices are managed in the Inventory tab.
-                    </span>{' '}
-                    Set the price for every pack size, variety and customer tier there, plus which
-                    sizes each product sells and its returnable-container rules.
-                  </div>
-                </div>
+                <p className="text-[11px] font-sans text-slate-500">Flags critical warning when depot yard stock drops below this.</p>
               </div>
             </div>
-          )}
+          </div>
 
-          {tab === 'infrastructure' && (
-            /* 4. PHYSICAL YARD TANKS, DISPENSING PUMPS & SUPPLIERS */
-            <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
-              <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
-                <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                  <GasPump className={`w-5 h-5 ${SECTION_THEME.infrastructure.textCls}`} weight="bold" />
-                  <span>4. Yard Storage Tanks, Dispensing Pumps & Verified Suppliers</span>
-                </h3>
-                <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-                  Permanent storage vessels, scalable counter flow meters for bulk oil, and approved road tanker supplier directory.
-                </p>
-              </div>
+          <div className="flex justify-end pt-1">
+            <button
+              type="submit"
+              className="px-5 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
+            >
+              <Save className="w-[18px] h-[18px]" weight="bold" />
+              <span>Save Keg Parameters</span>
+            </button>
+          </div>
+        </form>
+      )}
 
-              {/* Dispensing Pumps Section (Scalable counter infrastructure) */}
-              <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <h4 className="text-[15px] font-sans font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <GasPump className={`w-4 h-4 ${SECTION_THEME.infrastructure.textCls}`} weight="bold" />
-                      <span>Dispensing Pumps & Counter Flow Meters ({pumps.length} Active, Scalable)</span>
-                    </h4>
-                    <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-                      Mechanical and digital counter totalizers that track bulk oil pumped into customer containers.
-                    </p>
-                  </div>
+      {tab === 'pricing' && (
+        /* 3. PRODUCTS & MANAGED CATALOG WITH RATE CARD GRID */
+        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
+          <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <NairaSign className={`w-5 h-5 ${SECTION_THEME.pricing.textCls}`} weight="bold" />
+                <span>3. Products & prices</span>
+              </h3>
+              <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+                Configure supply models (Bulk Truck vs Pre-Kegged), container sizes, outright keg purchase prices, and pricing tiers.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleOpenAddProduct}
+              disabled={!canUseSettings}
+              title={canUseSettings ? undefined : 'Only the owner can add products'}
+              className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-sm flex items-center gap-1.5 transition-all self-start sm:self-auto active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-brand-500 disabled:active:scale-100"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add New Product</span>
+            </button>
+          </div>
 
-                  <button
-                    type="button"
-                    onClick={handleOpenAddPumpModal}
-                    className="self-start sm:self-auto px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-sans font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+          {/* Managed Product Catalog Cards */}
+          <div className="space-y-3">
+            <div className="text-[15px] font-sans font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+              <Tag className="w-4 h-4 text-slate-400" />
+              <span>Active Products Catalog ({products.length})</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {products.map(p => {
+                return (
+                  <div
+                    key={p.id}
+                    className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3"
                   >
-                    <Plus className="w-3.5 h-3.5" weight="bold" />
-                    <span>+ Add Dispensing Pump</span>
-                  </button>
-                </div>
-
-                {/* Comprehensible Info Banner */}
-                <div className="p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 text-xs text-emerald-900 dark:text-emerald-200 space-y-1">
-                  <div className="font-bold flex items-center gap-1.5">
-                    <Info className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    <span>Why Pump Totalizers Matter for Daily Depot Operations</span>
-                  </div>
-                  <p className="leading-relaxed opacity-90">
-                    Pumps only count upwards. Each morning before sales begin, staff must log opening meter readings. At the end of the day, the change in meter readings is audited against recorded sales to instantly detect any stolen or unmetered oil. You can add more pumps as you expand counter lanes.
-                  </p>
-                </div>
-
-                {/* Pumps Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {pumps.map(pump => {
-                    const sourceTank = physicalTanks.find(t => t.id === pump.physical_tank_id);
-                    const prod = products.find(p => p.id === pump.product_id);
-                    const pumpHub = hubs.find(h => h.id === pump.hub_id);
-
-                    return (
-                      <div
-                        key={pump.id}
-                        className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-col justify-between text-xs space-y-3 shadow-2xs"
-                      >
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="font-heading font-bold text-slate-900 dark:text-white text-[13px] flex items-center gap-1.5">
-                              <GasPump className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>{pump.label}</span>
-                            </span>
-                            <span className="badge-emerald inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] uppercase">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                              Operational
-                            </span>
-                          </div>
-
-                          <div className="text-[11px] text-slate-600 dark:text-slate-300 space-y-0.5">
-                            <div>
-                              <span className="text-slate-400">Product:</span>{' '}
-                              <span className="font-semibold text-slate-800 dark:text-slate-200">{prod?.name || 'Bulk Oil'}</span>
-                            </div>
-                            <div>
-                              <span className="text-slate-400">Source:</span>{' '}
-                              <span>{sourceTank ? sourceTank.label : 'Direct / Unassigned'}</span>
-                            </div>
-                            {pumpHub && (
-                              <div>
-                                <span className="text-slate-400">Hub:</span>{' '}
-                                <span className="font-mono text-indigo-600 dark:text-indigo-400 font-semibold">{pumpHub.name}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                          <div>
-                            <div className="text-[10px] uppercase font-bold text-slate-400">Current Meter</div>
-                            <div className="font-mono font-bold text-[13px] text-slate-900 dark:text-white">
-                              {pump.last_meter_reading.toLocaleString()} L
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditPumpModal(pump)}
-                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors"
-                              title="Edit Pump Details"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeletePumpAction(pump)}
-                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                              title="Delete Pump"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: p.color_light }} />
+                        <span className="font-heading font-bold text-[15px] text-slate-900 dark:text-white">
+                          {p.name}
+                        </span>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Physical Tanks Section */}
-              <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-[15px] font-sans font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <Warehouse className="w-4 h-4 text-slate-400" />
-                    <span>Permanent Yard Tanks ({physicalTanks.length})</span>
-                  </h4>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {physicalTanks.map(t => {
-                    const prod = products.find(p => p.id === t.product_id);
-                    return (
-                      <div
-                        key={t.id}
-                        className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs"
-                      >
-                        <div>
-                          <div className="font-sans font-bold text-slate-900 dark:text-white text-[13px]">
-                            {t.label}
-                          </div>
-                          <div className="text-slate-500 font-mono mt-0.5">
-                            Product: {prod?.name || 'Any'} · Capacity: {t.capacity_litres.toLocaleString()}L
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditProduct(p.id)}
+                          disabled={!canUseSettings}
+                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                          title={canUseSettings ? 'Edit Product' : 'Only the owner can edit products'}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        {products.length > 2 && (
                           <button
                             type="button"
-                            disabled={!canUseSettings}
-                            onClick={() => handleOpenEditTank(t)}
-                            className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors disabled:opacity-40 disabled:pointer-events-none"
-                            title="Edit Tank"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            disabled={!canUseSettings}
                             onClick={() => {
-                              if (denyIfNoSettingsAccess()) return;
-                              if (window.confirm(`Remove physical tank "${t.label}"?`)) {
-                                const res = deletePhysicalTank(t.id);
-                                if (!res.success) {
-                                  showNotification(`Cannot delete tank: ${res.error}`, 'error');
-                                } else {
-                                  showNotification(`Tank "${t.label}" removed.`);
-                                }
+                              if (window.confirm(`Delete product "${p.name}"?`)) {
+                                deleteProduct(p.id);
+                                showNotification(`Product "${p.name}" deleted.`);
                               }
                             }}
-                            className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors disabled:opacity-40 disabled:pointer-events-none"
-                            title="Delete Tank"
+                            disabled={!canUseSettings}
+                            className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                            title={canUseSettings ? 'Delete Product' : 'Only the owner can delete products'}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
-                        </div>
+                        )}
                       </div>
-                    );
-                  })}
-                </div>
-
-                {/* Add Physical Tank Form */}
-                <form onSubmit={handleAddPhysicalTank} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-3">
-                  <div className="text-[13px] font-sans font-bold text-slate-800 dark:text-slate-200">
-                    Register Permanent Yard Tank
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Tank 4 (Bulk Storage)"
-                      value={newTankLabel}
-                      onChange={e => setNewTankLabel(e.target.value)}
-                      className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-white"
-                    />
-                    <select
-                      value={newTankProductId}
-                      onChange={e => setNewTankProductId(e.target.value)}
-                      className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
-                    >
-                      {products.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={newTankHubId}
-                      onChange={e => setNewTankHubId(e.target.value)}
-                      title="Assigned Depot Hub"
-                      className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
-                    >
-                      {hubs.map(h => (
-                        <option key={h.id} value={h.id}>[{h.code}] {h.name}</option>
-                      ))}
-                    </select>
-                    <div className="flex gap-2">
-                      <input
-                        type="number"
-                        step="1"
-                        min="1"
-                        required
-                        placeholder="Capacity (L)"
-                        value={newTankCapacity}
-                        onChange={e => setNewTankCapacity(e.target.value.replace(/[^0-9]/g, ''))}
-                        className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white"
-                      />
-                      <button
-                        type="submit"
-                        className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-sans font-bold text-xs shrink-0"
-                      >
-                        Add Tank
-                      </button>
                     </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[12px] font-mono tabular-nums">
+                      <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                        <span className="text-[10px] font-sans uppercase text-slate-500 block">Supply Model</span>
+                        <span className="font-bold text-slate-900 dark:text-white">
+                          {p.supply_model === 'bulk_truck' ? 'By tanker truck' : 'Already in kegs'}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                        <span className="text-[10px] font-sans uppercase text-slate-500 block">Keg Container Size</span>
+                        <span className="font-bold text-slate-900 dark:text-white">
+                          {p.litres_per_keg > 0 ? `${p.litres_per_keg} Litres` : 'Not set'}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                        <span className="text-[10px] font-sans uppercase text-slate-500 block">Density Multiplier</span>
+                        <span className="font-bold text-slate-900 dark:text-white">
+                          {p.supply_model === 'pre_kegged'
+                            ? 'N/A (Pre-Kegged)'
+                            : p.litres_per_ton && p.litres_per_ton > 0
+                              ? `${p.litres_per_ton} L/Ton`
+                              : 'Not set'}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                        <span className="text-[10px] font-sans uppercase text-slate-500 block">Fallback Container Price</span>
+                        <span className="font-bold text-amber-600 dark:text-amber-400">
+                          {p.keg_sell_price && p.keg_sell_price > 0 ? formatNaira(p.keg_sell_price) : 'Not set'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {p.varieties && p.varieties.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {p.varieties.map(v => (
+                          <span key={v.id} className="text-[10px] font-sans px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            {v.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </form>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Pricing moved to the Inventory tab */}
+          <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+            <div className="p-4 rounded-xl bg-brand-50 dark:bg-brand-950/40 border border-brand-200 dark:border-brand-800 flex items-start gap-3">
+              <Sliders className="w-4 h-4 text-brand-600 dark:text-brand-400 mt-0.5 shrink-0" />
+              <div className="text-[13px] text-slate-700 dark:text-slate-300 leading-relaxed">
+                <span className="font-sans font-semibold text-slate-900 dark:text-white">
+                  Prices are managed in the Inventory tab.
+                </span>{' '}
+                Set the price for every pack size, variety and customer tier there, plus which
+                sizes each product sells and its returnable-container rules.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === 'infrastructure' && (
+        /* 4. PHYSICAL YARD TANKS, DISPENSING PUMPS & SUPPLIERS */
+        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
+          <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
+            <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <GasPump className={`w-5 h-5 ${SECTION_THEME.infrastructure.textCls}`} weight="bold" />
+              <span>4. Yard Storage Tanks, Dispensing Pumps & Verified Suppliers</span>
+            </h3>
+            <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+              Permanent storage vessels, scalable counter flow meters for bulk oil, and approved road tanker supplier directory.
+            </p>
+          </div>
+
+          {/* Dispensing Pumps Section (Scalable counter infrastructure) */}
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h4 className="text-[15px] font-sans font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <GasPump className={`w-4 h-4 ${SECTION_THEME.infrastructure.textCls}`} weight="bold" />
+                  <span>Dispensing Pumps & Counter Flow Meters ({pumps.length} Active, Scalable)</span>
+                </h4>
+                <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+                  Mechanical and digital counter totalizers that track bulk oil pumped into customer containers.
+                </p>
               </div>
 
-              {/* Suppliers Section */}
-              <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-[15px] font-sans font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <Building2 className="w-4 h-4 text-slate-400" />
-                    <span>Approved Suppliers Roster ({suppliers.length})</span>
-                  </h4>
-                </div>
+              <button
+                type="button"
+                onClick={handleOpenAddPumpModal}
+                className="self-start sm:self-auto px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-sans font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+              >
+                <Plus className="w-3.5 h-3.5" weight="bold" />
+                <span>+ Add Dispensing Pump</span>
+              </button>
+            </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {suppliers.map(s => (
-                    <div
-                      key={s.id}
-                      className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs"
-                    >
-                      <div>
-                        <div className="font-sans font-bold text-slate-900 dark:text-white text-[13px]">
-                          {s.name}
+            {/* Comprehensible Info Banner */}
+            <div className="p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 text-xs text-emerald-900 dark:text-emerald-200 space-y-1">
+              <div className="font-bold flex items-center gap-1.5">
+                <Info className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Why Pump Totalizers Matter for Daily Depot Operations</span>
+              </div>
+              <p className="leading-relaxed opacity-90">
+                Pumps only count upwards. Each morning before sales begin, staff must log opening meter readings. At the end of the day, the change in meter readings is audited against recorded sales to instantly detect any stolen or unmetered oil. You can add more pumps as you expand counter lanes.
+              </p>
+            </div>
+
+            {/* Pumps Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {pumps.map(pump => {
+                const sourceTank = physicalTanks.find(t => t.id === pump.physical_tank_id);
+                const prod = products.find(p => p.id === pump.product_id);
+                const pumpHub = hubs.find(h => h.id === pump.hub_id);
+
+                return (
+                  <div
+                    key={pump.id}
+                    className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-col justify-between text-xs space-y-3 shadow-2xs"
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-heading font-bold text-slate-900 dark:text-white text-[13px] flex items-center gap-1.5">
+                          <GasPump className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>{pump.label}</span>
+                        </span>
+                        <span className="badge-emerald inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] uppercase">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          Operational
+                        </span>
+                      </div>
+
+                      <div className="text-[11px] text-slate-600 dark:text-slate-300 space-y-0.5">
+                        <div>
+                          <span className="text-slate-400">Product:</span>{' '}
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{prod?.name || 'Bulk Oil'}</span>
                         </div>
-                        <div className="text-slate-500 font-mono mt-0.5">
-                          Phone: {s.phone}
+                        <div>
+                          <span className="text-slate-400">Source:</span>{' '}
+                          <span>{sourceTank ? sourceTank.label : 'Direct / Unassigned'}</span>
+                        </div>
+                        {pumpHub && (
+                          <div>
+                            <span className="text-slate-400">Hub:</span>{' '}
+                            <span className="font-mono text-indigo-600 dark:text-indigo-400 font-semibold">{pumpHub.name}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                      <div>
+                        <div className="text-[10px] uppercase font-bold text-slate-400">Current Meter</div>
+                        <div className="font-mono font-bold text-[13px] text-slate-900 dark:text-white">
+                          {pump.last_meter_reading.toLocaleString()} L
                         </div>
                       </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditPumpModal(pump)}
+                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors"
+                          title="Edit Pump Details"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePumpAction(pump)}
+                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                          title="Delete Pump"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Physical Tanks Section */}
+          <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <h4 className="text-[15px] font-sans font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <Warehouse className="w-4 h-4 text-slate-400" />
+                <span>Permanent Yard Tanks ({physicalTanks.length})</span>
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {physicalTanks.map(t => {
+                const prod = products.find(p => p.id === t.product_id);
+                return (
+                  <div
+                    key={t.id}
+                    className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs"
+                  >
+                    <div>
+                      <div className="font-sans font-bold text-slate-900 dark:text-white text-[13px]">
+                        {t.label}
+                      </div>
+                      <div className="text-slate-500 font-mono mt-0.5">
+                        Product: {prod?.name || 'Any'} · Capacity: {t.capacity_litres.toLocaleString()}L
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        disabled={!canUseSettings}
+                        onClick={() => handleOpenEditTank(t)}
+                        className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                        title="Edit Tank"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
                       <button
                         type="button"
                         disabled={!canUseSettings}
                         onClick={() => {
                           if (denyIfNoSettingsAccess()) return;
-                          if (suppliers.length <= 1) {
-                            alert('At least one supplier must remain in the depot system.');
-                            return;
-                          }
-                          if (window.confirm(`Delete supplier "${s.name}"?`)) {
-                            deleteSupplier(s.id);
-                            showNotification(`Supplier "${s.name}" removed.`);
+                          if (window.confirm(`Remove physical tank "${t.label}"?`)) {
+                            const res = deletePhysicalTank(t.id);
+                            if (!res.success) {
+                              showNotification(`Cannot delete tank: ${res.error}`, 'error');
+                            } else {
+                              showNotification(`Tank "${t.label}" removed.`);
+                            }
                           }
                         }}
                         className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                        title="Delete Tank"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
-                  ))}
-                </div>
-
-                {/* Add Supplier Form */}
-                <form onSubmit={handleAddSupplier} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-3">
-                  <div className="text-[13px] font-sans font-bold text-slate-800 dark:text-slate-200">
-                    Register New Supplier
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <input
-                      type="text"
-                      required
-                      placeholder="Supplier Name (e.g. Presco Plc)"
-                      value={newSupplierName}
-                      onChange={e => setNewSupplierName(e.target.value)}
-                      className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-white"
-                    />
-                    <input
-                      type="text"
-                      required
-                      placeholder="Telephone / WhatsApp"
-                      value={newSupplierPhone}
-                      onChange={e => setNewSupplierPhone(e.target.value)}
-                      className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono text-slate-900 dark:text-white"
-                    />
-                    <button
-                      type="submit"
-                      className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-xs"
-                    >
-                      Add Supplier
-                    </button>
-                  </div>
-                </form>
-              </div>
+                );
+              })}
             </div>
-          )}
 
-          {tab === 'thresholds' && (
-            /* 5. ALERT THRESHOLDS */
-            <form
-              onSubmit={handleSaveAlertThresholds}
-              className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm"
-            >
-              <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
-                <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                  <AlertTriangle className={`w-5 h-5 ${SECTION_THEME.thresholds.textCls}`} weight="bold" />
-                  <span>5. Operational Alert & Variance Thresholds</span>
-                </h3>
-                <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-                  Set real-time triggers for depot oil shrinkage, truck offload shortages, and pump meter audit alerts.
-                </p>
+            {/* Add Physical Tank Form */}
+            <form onSubmit={handleAddPhysicalTank} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="text-[13px] font-sans font-bold text-slate-800 dark:text-slate-200">
+                Register Permanent Yard Tank
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                  <label htmlFor="low-stock-threshold" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                    Low Depot Tank Stock Alert
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="low-stock-threshold"
-                      type="number"
-                      step="1"
-                      min="0"
-                      value={lowStockThreshold}
-                      onChange={e => setLowStockThreshold(e.target.value.replace(/[^0-9]/g, ''))}
-                      className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
-                      required
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Litres</span>
-                  </div>
-                  <p className="text-[11px] font-sans text-slate-500">Flags low storage warning when remaining tank stock drops below this.</p>
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                  <label htmlFor="truck-shortfall-threshold" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                    Truck Intake Shortfall Flag
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="truck-shortfall-threshold"
-                      type="number"
-                      step="1"
-                      min="0"
-                      value={truckShortfallThreshold}
-                      onChange={e => setTruckShortfallThreshold(e.target.value.replace(/[^0-9]/g, ''))}
-                      className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
-                      required
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Litres</span>
-                  </div>
-                  <p className="text-[11px] font-sans text-slate-500">Flags red warning if delivery offload shortfall exceeds this limit.</p>
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                  <label htmlFor="pump-variance-threshold" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                    Pump Meter Variance Flag
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="pump-variance-threshold"
-                      type="number"
-                      step="1"
-                      min="0"
-                      value={pumpVarianceThreshold}
-                      onChange={e => setPumpVarianceThreshold(e.target.value.replace(/[^0-9]/g, ''))}
-                      className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
-                      required
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Litres</span>
-                  </div>
-                  <p className="text-[11px] font-sans text-slate-500">Flags Dashboard alert if unlogged pump sales discrepancy exceeds this.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <input
+                  type="text"
+                  required
+                  placeholder={`Tank ${physicalTanks.length + 1}`}
+                  value={newTankLabel}
+                  onChange={e => setNewTankLabel(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-white"
+                />
+                <select
+                  value={newTankProductId}
+                  onChange={e => setNewTankProductId(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                >
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <select
+                  value={newTankHubId}
+                  onChange={e => setNewTankHubId(e.target.value)}
+                  title="Assigned Depot Hub"
+                  className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                >
+                  {hubs.map(h => (
+                    <option key={h.id} value={h.id}>[{h.code}] {h.name}</option>
+                  ))}
+                </select>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    required
+                    placeholder="Capacity (L)"
+                    value={newTankCapacity}
+                    onChange={e => setNewTankCapacity(e.target.value.replace(/[^0-9]/g, ''))}
+                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white"
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-sans font-bold text-xs shrink-0"
+                  >
+                    Add Tank
+                  </button>
                 </div>
               </div>
+            </form>
+          </div>
 
-              <div className="flex justify-end pt-1">
+          {/* Suppliers Section */}
+          <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <h4 className="text-[15px] font-sans font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-slate-400" />
+                <span>Approved Suppliers Roster ({suppliers.length})</span>
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {suppliers.map(s => (
+                <div
+                  key={s.id}
+                  className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs"
+                >
+                  <div>
+                    <div className="font-sans font-bold text-slate-900 dark:text-white text-[13px]">
+                      {s.name}
+                    </div>
+                    <div className="text-slate-500 font-mono mt-0.5">
+                      Phone: {s.phone}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!canUseSettings}
+                    onClick={() => {
+                      if (denyIfNoSettingsAccess()) return;
+                      if (suppliers.length <= 1) {
+                        alert('At least one supplier must remain in the depot system.');
+                        return;
+                      }
+                      if (window.confirm(`Delete supplier "${s.name}"?`)) {
+                        deleteSupplier(s.id);
+                        showNotification(`Supplier "${s.name}" removed.`);
+                      }
+                    }}
+                    className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Add Supplier Form */}
+            <form onSubmit={handleAddSupplier} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="text-[13px] font-sans font-bold text-slate-800 dark:text-slate-200">
+                Register New Supplier
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <input
+                  type="text"
+                  required
+                  placeholder="Supplier Name (e.g. Presco Plc)"
+                  value={newSupplierName}
+                  onChange={e => setNewSupplierName(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-white"
+                />
+                <input
+                  type="text"
+                  required
+                  placeholder="Telephone / WhatsApp"
+                  value={newSupplierPhone}
+                  onChange={e => setNewSupplierPhone(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono text-slate-900 dark:text-white"
+                />
                 <button
                   type="submit"
-                  className="px-5 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
+                  className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-xs"
                 >
-                  <Save className="w-[18px] h-[18px]" weight="bold" />
-                  <span>Save Alert Thresholds</span>
+                  Add Supplier
                 </button>
               </div>
             </form>
-          )}
+          </div>
+        </div>
+      )}
 
-          {tab === 'system' && (
-            /* 6. SHIFT SCHEDULE, DAILY OPERATIONS FLOAT & SYSTEM CONTROLS */
-            <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
-              <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
-                <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Clock className={`w-5 h-5 ${SECTION_THEME.system.textCls}`} weight="bold" />
-                  <span>6. Shift Schedule & System Tools</span>
-                </h3>
-                <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-                  Configure when shifts are scheduled to begin and end, meter reading policies, and role simulation.
-                </p>
+      {tab === 'thresholds' && (
+        /* 5. ALERT THRESHOLDS */
+        <form
+          onSubmit={handleSaveAlertThresholds}
+          className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm"
+        >
+          <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
+            <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <AlertTriangle className={`w-5 h-5 ${SECTION_THEME.thresholds.textCls}`} weight="bold" />
+              <span>5. Operational Alert & Variance Thresholds</span>
+            </h3>
+            <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+              Set real-time triggers for depot oil shrinkage, truck offload shortages, and pump meter audit alerts.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+              <label htmlFor="low-stock-threshold" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                Low Depot Tank Stock Alert
+              </label>
+              <div className="relative">
+                <input
+                  id="low-stock-threshold"
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={lowStockThreshold}
+                  onChange={e => setLowStockThreshold(e.target.value.replace(/[^0-9]/g, ''))}
+                  className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
+                  required
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Litres</span>
+              </div>
+              <p className="text-[11px] font-sans text-slate-500">Flags low storage warning when remaining tank stock drops below this.</p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+              <label htmlFor="truck-shortfall-threshold" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                Truck Intake Shortfall Flag
+              </label>
+              <div className="relative">
+                <input
+                  id="truck-shortfall-threshold"
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={truckShortfallThreshold}
+                  onChange={e => setTruckShortfallThreshold(e.target.value.replace(/[^0-9]/g, ''))}
+                  className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
+                  required
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Litres</span>
+              </div>
+              <p className="text-[11px] font-sans text-slate-500">Flags red warning if delivery offload shortfall exceeds this limit.</p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+              <label htmlFor="pump-variance-threshold" className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                Pump Meter Variance Flag
+              </label>
+              <div className="relative">
+                <input
+                  id="pump-variance-threshold"
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={pumpVarianceThreshold}
+                  onChange={e => setPumpVarianceThreshold(e.target.value.replace(/[^0-9]/g, ''))}
+                  className="w-full px-3.5 py-3 min-h-[48px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono tabular-nums font-bold text-[15px] focus:outline-none focus:border-brand-500"
+                  required
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono tabular-nums text-[11px]">Litres</span>
+              </div>
+              <p className="text-[11px] font-sans text-slate-500">Flags Dashboard alert if unlogged pump sales discrepancy exceeds this.</p>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-1">
+            <button
+              type="submit"
+              className="px-5 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-md transition-all flex items-center gap-2 active:scale-95"
+            >
+              <Save className="w-[18px] h-[18px]" weight="bold" />
+              <span>Save Alert Thresholds</span>
+            </button>
+          </div>
+        </form>
+      )}
+
+      {tab === 'system' && (
+        /* 6. SHIFT SCHEDULE, DAILY OPERATIONS FLOAT & SYSTEM CONTROLS */
+        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
+          <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
+            <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <Clock className={`w-5 h-5 ${SECTION_THEME.system.textCls}`} weight="bold" />
+              <span>6. Shift Schedule & System Tools</span>
+            </h3>
+            <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+              Configure when shifts are scheduled to begin and end, meter reading policies, and role simulation.
+            </p>
+          </div>
+
+          {/* Shift Schedule & Operational Policies Form */}
+          <form onSubmit={handleSaveShiftSchedule} className="space-y-5">
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/70 dark:border-slate-800/70 pb-3">
+                <div>
+                  <h4 className="text-[13px] font-heading font-bold uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                    <span>Depot Shift Operating Hours</span>
+                  </h4>
+                  <p className="text-[11px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+                    Define scheduled counter opening and closing times for dispensing and customer transactions.
+                  </p>
+                </div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-700 dark:text-brand-400 text-xs font-mono font-semibold">
+                  <span>Window:</span>
+                  <span className="font-bold">{shiftStartTime} – {shiftEndTime}</span>
+                </div>
               </div>
 
-              {/* Shift Schedule & Operational Policies Form */}
-              <form onSubmit={handleSaveShiftSchedule} className="space-y-5">
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/70 dark:border-slate-800/70 pb-3">
-                    <div>
-                      <h4 className="text-[13px] font-heading font-bold uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-brand-600 dark:text-brand-400" />
-                        <span>Depot Shift Operating Hours</span>
-                      </h4>
-                      <p className="text-[11px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-                        Define scheduled counter opening and closing times for dispensing and customer transactions.
-                      </p>
-                    </div>
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-700 dark:text-brand-400 text-xs font-mono font-semibold">
-                      <span>Window:</span>
-                      <span className="font-bold">{shiftStartTime} – {shiftEndTime}</span>
-                    </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="shift-start-time" className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 block mb-1.5">
+                    Shift Begin Time *
+                  </label>
+                  <div className="relative">
+                    <Clock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      id="shift-start-time"
+                      type="time"
+                      value={shiftStartTime}
+                      onChange={e => setShiftStartTime(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold text-[14px] focus:outline-none focus:border-brand-500"
+                      required
+                    />
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="shift-start-time" className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 block mb-1.5">
-                        Shift Begin Time *
-                      </label>
-                      <div className="relative">
-                        <Clock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          id="shift-start-time"
-                          type="time"
-                          value={shiftStartTime}
-                          onChange={e => setShiftStartTime(e.target.value)}
-                          className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold text-[14px] focus:outline-none focus:border-brand-500"
-                          required
-                        />
-                      </div>
-                      <p className="text-[11px] font-sans text-slate-500 mt-1">
-                        Expected time cashier opens counter and takes opening 3-pump readings.
-                      </p>
-                    </div>
-
-                    <div>
-                      <label htmlFor="shift-end-time" className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 block mb-1.5">
-                        Shift End Time *
-                      </label>
-                      <div className="relative">
-                        <Clock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          id="shift-end-time"
-                          type="time"
-                          value={shiftEndTime}
-                          onChange={e => setShiftEndTime(e.target.value)}
-                          className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold text-[14px] focus:outline-none focus:border-brand-500"
-                          required
-                        />
-                      </div>
-                      <p className="text-[11px] font-sans text-slate-500 mt-1">
-                        Expected time counter closes, taking closing readings and reconciling cash.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Operational Policy Toggles */}
-                  <div className="pt-3 border-t border-slate-200/70 dark:border-slate-800/70 space-y-2.5">
-                    <label className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
-                      Enforcement Policies
-                    </label>
-                    <label className="flex items-start gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-50/70 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={requireStartPumpReadings}
-                        onChange={e => setRequireStartPumpReadings(e.target.checked)}
-                        className="mt-0.5 rounded text-brand-600 focus:ring-brand-500 w-4 h-4"
-                      />
-                      <div className="text-xs">
-                        <span className="font-bold text-slate-900 dark:text-white block">
-                          Mandatory 3-Pump Opening Meter Readings (Lock Sales Screen)
-                        </span>
-                        <span className="text-slate-500 dark:text-slate-400">
-                          Cashiers cannot enter new sales until meter readings for Pump 1, Pump 2, and Pump 3 are entered and verified.
-                        </span>
-                      </div>
-                    </label>
-
-                    <label className="flex items-start gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-50/70 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={requireClosePumpReadings}
-                        onChange={e => setRequireClosePumpReadings(e.target.checked)}
-                        className="mt-0.5 rounded text-brand-600 focus:ring-brand-500 w-4 h-4"
-                      />
-                      <div className="text-xs">
-                        <span className="font-bold text-slate-900 dark:text-white block">
-                          Mandatory 3-Pump Closing Meter Readings (Volume Reconciliation)
-                        </span>
-                        <span className="text-slate-500 dark:text-slate-400">
-                          Cashiers must log closing pump readings to compute litres dispensed before the shift can be closed.
-                        </span>
-                      </div>
-                    </label>
-                  </div>
+                  <p className="text-[11px] font-sans text-slate-500 mt-1">
+                    Expected time cashier opens counter and takes opening 3-pump readings.
+                  </p>
                 </div>
 
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-sm transition-all active:scale-95 flex items-center gap-2"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Save Shift Schedule & Float</span>
-                </button>
-              </form>
+                <div>
+                  <label htmlFor="shift-end-time" className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 block mb-1.5">
+                    Shift End Time *
+                  </label>
+                  <div className="relative">
+                    <Clock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      id="shift-end-time"
+                      type="time"
+                      value={shiftEndTime}
+                      onChange={e => setShiftEndTime(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold text-[14px] focus:outline-none focus:border-brand-500"
+                      required
+                    />
+                  </div>
+                  <p className="text-[11px] font-sans text-slate-500 mt-1">
+                    Expected time counter closes, taking closing readings and reconciling cash.
+                  </p>
+                </div>
+              </div>
 
-              {/* Operational Role Simulation — offline/no-Supabase dev mode only.
+              {/* Operational Policy Toggles */}
+              <div className="pt-3 border-t border-slate-200/70 dark:border-slate-800/70 space-y-2.5">
+                <label className="text-[12px] font-sans font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
+                  Enforcement Policies
+                </label>
+                <label className="flex items-start gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-50/70 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={requireStartPumpReadings}
+                    onChange={e => setRequireStartPumpReadings(e.target.checked)}
+                    className="mt-0.5 rounded text-brand-600 focus:ring-brand-500 w-4 h-4"
+                  />
+                  <div className="text-xs">
+                    <span className="font-bold text-slate-900 dark:text-white block">
+                      Mandatory 3-Pump Opening Meter Readings (Lock Sales Screen)
+                    </span>
+                    <span className="text-slate-500 dark:text-slate-400">
+                      Cashiers cannot enter new sales until meter readings for Pump 1, Pump 2, and Pump 3 are entered and verified.
+                    </span>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-50/70 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={requireClosePumpReadings}
+                    onChange={e => setRequireClosePumpReadings(e.target.checked)}
+                    className="mt-0.5 rounded text-brand-600 focus:ring-brand-500 w-4 h-4"
+                  />
+                  <div className="text-xs">
+                    <span className="font-bold text-slate-900 dark:text-white block">
+                      Mandatory 3-Pump Closing Meter Readings (Volume Reconciliation)
+                    </span>
+                    <span className="text-slate-500 dark:text-slate-400">
+                      Cashiers must log closing pump readings to compute litres dispensed before the shift can be closed.
+                    </span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-sm transition-all active:scale-95 flex items-center gap-2"
+            >
+              <Save className="w-4 h-4" />
+              <span>Save Shift Schedule & Float</span>
+            </button>
+          </form>
+
+          {/* Operational Role Simulation — offline/no-Supabase dev mode only.
                   Once real Supabase auth is configured, role comes from the
                   signed-in profile; letting anyone self-assign 'owner' here
                   would bypass every isOwner gate app-wide. */}
-              {!isSupabaseConfigured && isOwner && (
-              <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
-                <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                  Simulate Operational Access Role
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {[
-                    { id: 'owner', label: 'Owner (Full Access)', desc: 'Managing Director, price overrides, credit authorizations.' },
-                    { id: 'hub_manager', label: 'Hub Manager', desc: 'Depot Branch Manager, yard authority, credit approvals.' },
-                    { id: 'staff', label: 'Counter Staff', desc: 'Day-to-day dispensing, receiving payments, customer lookup.' },
-                    { id: 'driver', label: 'Driver / Logistics', desc: 'Intake logging and transport delivery audits.' }
-                  ].map(r => (
-                    <button
-                      key={r.id}
-                      type="button"
-                      onClick={() => {
-                        setUserRole(r.id as UserRole);
-                        showNotification(`Active role switched to ${r.label}`);
-                      }}
-                      className={`p-3.5 rounded-xl border text-left transition-all ${
-                        userRole === r.id
-                          ? 'bg-brand-50 dark:bg-brand-500/15 border-brand-500 text-brand-900 dark:text-brand-300 shadow-sm'
-                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+          {!isSupabaseConfigured && isOwner && (
+            <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+              <label className="text-[12px] font-sans font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                Simulate Operational Access Role
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  { id: 'owner', label: 'Owner (Full Access)', desc: 'Managing Director, price overrides, credit authorizations.' },
+                  { id: 'hub_manager', label: 'Hub Manager', desc: 'Depot Branch Manager, yard authority, credit approvals.' },
+                  { id: 'staff', label: 'Counter Staff', desc: 'Day-to-day dispensing, receiving payments, customer lookup.' },
+                  { id: 'driver', label: 'Driver / Logistics', desc: 'Intake logging and transport delivery audits.' }
+                ].map(r => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => {
+                      setUserRole(r.id as UserRole);
+                      showNotification(`Active role switched to ${r.label}`);
+                    }}
+                    className={`p-3.5 rounded-xl border text-left transition-all ${userRole === r.id
+                      ? 'bg-brand-50 dark:bg-brand-500/15 border-brand-500 text-brand-900 dark:text-brand-300 shadow-sm'
+                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
                       }`}
-                    >
-                      <div className="font-heading font-semibold text-[14px] text-slate-900 dark:text-white capitalize">{r.label}</div>
-                      <div className="text-[11px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">{r.desc}</div>
-                    </button>
-                  ))}
-                </div>
+                  >
+                    <div className="font-heading font-semibold text-[14px] text-slate-900 dark:text-white capitalize">{r.label}</div>
+                    <div className="text-[11px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">{r.desc}</div>
+                  </button>
+                ))}
               </div>
-              )}
+            </div>
+          )}
 
-              {/* Offline/dev-mode-only reset — clears this browser's local
+          {/* Offline/dev-mode-only reset — clears this browser's local
                   data back to defaults. Hidden once Supabase is configured:
                   a live depot's data lives in the database, not this device,
                   and this control has never reset anything there. */}
-              {!isSupabaseConfigured && (
-              <div className="p-4 rounded-xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/60 space-y-3">
-                <div>
-                  <h4 className="text-[13px] font-sans font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <RotateCcw className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-                    <span>Reset Local Data (Offline Mode)</span>
-                  </h4>
-                  <p className="text-[11px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-                    Clears this browser's local data and restores default products, settings, and thresholds. Only affects this device.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleResetData}
-                  disabled={!isOwner}
-                  title={isOwner ? undefined : 'Only the owner can reset local data'}
-                  className="px-4 py-2.5 rounded-xl bg-rose-100 dark:bg-rose-950/40 hover:bg-rose-200 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800/80 text-[13px] font-sans font-bold transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
-                >
-                  Reset Local Data
-                </button>
+          {!isSupabaseConfigured && (
+            <div className="p-4 rounded-xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/60 space-y-3">
+              <div>
+                <h4 className="text-[13px] font-sans font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <RotateCcw className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                  <span>Reset Local Data (Offline Mode)</span>
+                </h4>
+                <p className="text-[11px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+                  Clears this browser's local data and restores default products, settings, and thresholds. Only affects this device.
+                </p>
               </div>
-              )}
+
+              <button
+                type="button"
+                onClick={handleResetData}
+                disabled={!isOwner}
+                title={isOwner ? undefined : 'Only the owner can reset local data'}
+                className="px-4 py-2.5 rounded-xl bg-rose-100 dark:bg-rose-950/40 hover:bg-rose-200 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800/80 text-[13px] font-sans font-bold transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+              >
+                Reset Local Data
+              </button>
             </div>
           )}
+        </div>
+      )}
 
-          {tab === 'hubs' && (
-            /* 7. HUBS & MULTI-DEPOT OPERATIONS */
-            <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
-                <div>
-                  <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Building2 className={`w-5 h-5 ${SECTION_THEME.hubs.textCls}`} weight="bold" />
-                    <span>7. Hubs & Multi-Depot Operations</span>
-                  </h3>
-                  <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
-                    Configure regional depots and distribution hubs. Hubs in the same state (e.g. Lagos Alaba & Ikeja) operate with strict independent tanks, pumps, shifts, and cash boxes.
-                  </p>
+      {tab === 'hubs' && (
+        /* 7. HUBS & MULTI-DEPOT OPERATIONS */
+        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+            <div>
+              <h3 className="text-[18px] font-heading font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <Building2 className={`w-5 h-5 ${SECTION_THEME.hubs.textCls}`} weight="bold" />
+                <span>7. Hubs & Multi-Depot Operations</span>
+              </h3>
+              <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-0.5">
+                Configure regional depots and distribution hubs. Hubs in the same state (e.g. Lagos Alaba & Ikeja) operate with strict independent tanks, pumps, shifts, and cash boxes.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleOpenAddHub}
+              className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-sans font-bold text-[13px] shadow-sm flex items-center gap-2 transition-all active:scale-95 shrink-0 self-start sm:self-auto"
+            >
+              <Plus className="w-4 h-4" weight="bold" />
+              <span>Register New Hub</span>
+            </button>
+          </div>
+
+          {/* Active Hub Scope Indicator */}
+          <div className="p-4 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                <MapPin className="w-5 h-5" weight="bold" />
+              </div>
+              <div>
+                <div className="text-xs text-indigo-700 dark:text-indigo-300 font-sans font-semibold uppercase tracking-wider">
+                  Current Operational Scope
                 </div>
-                <button
-                  type="button"
-                  onClick={handleOpenAddHub}
-                  className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-sans font-bold text-[13px] shadow-sm flex items-center gap-2 transition-all active:scale-95 shrink-0 self-start sm:self-auto"
+                <div className="text-sm font-heading font-bold text-slate-900 dark:text-white">
+                  {activeHubId === 'all'
+                    ? '🌐 All Hubs Consolidated (Global Overview)'
+                    : `📍 ${hubs.find(h => h.id === activeHubId)?.name || 'Selected Hub'} (${hubs.find(h => h.id === activeHubId)?.code})`}
+                </div>
+              </div>
+            </div>
+
+            {isOwner && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-sans text-slate-500">Quick Scope:</span>
+                <select
+                  value={activeHubId}
+                  onChange={e => {
+                    setActiveHubId(e.target.value);
+                    showNotification(`Operational scope switched to ${e.target.value === 'all' ? 'All Hubs' : hubs.find(h => h.id === e.target.value)?.name}`);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200"
                 >
-                  <Plus className="w-4 h-4" weight="bold" />
-                  <span>Register New Hub</span>
-                </button>
+                  <option value="all">🌐 All Hubs Consolidated</option>
+                  {hubs.map(h => (
+                    <option key={h.id} value={h.id}>
+                      {h.name} ({h.state})
+                    </option>
+                  ))}
+                </select>
               </div>
+            )}
+          </div>
 
-              {/* Active Hub Scope Indicator */}
-              <div className="p-4 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                    <MapPin className="w-5 h-5" weight="bold" />
+          {/* Hubs Grouped by State */}
+          <div className="space-y-6">
+            {Array.from(new Set(hubs.map(h => h.state))).map(stateName => {
+              const stateHubs = hubs.filter(h => h.state === stateName);
+              return (
+                <div key={stateName} className="space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    <MapPin className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>{stateName} State</span>
+                    <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-400 font-mono">
+                      {stateHubs.length} {stateHubs.length === 1 ? 'Depot' : 'Depots'}
+                    </span>
                   </div>
-                  <div>
-                    <div className="text-xs text-indigo-700 dark:text-indigo-300 font-sans font-semibold uppercase tracking-wider">
-                      Current Operational Scope
-                    </div>
-                    <div className="text-sm font-heading font-bold text-slate-900 dark:text-white">
-                      {activeHubId === 'all'
-                        ? '🌐 All Hubs Consolidated (Global Overview)'
-                        : `📍 ${hubs.find(h => h.id === activeHubId)?.name || 'Selected Hub'} (${hubs.find(h => h.id === activeHubId)?.code})`}
-                    </div>
-                  </div>
-                </div>
 
-                {isOwner && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-sans text-slate-500">Quick Scope:</span>
-                    <select
-                      value={activeHubId}
-                      onChange={e => {
-                        setActiveHubId(e.target.value);
-                        showNotification(`Operational scope switched to ${e.target.value === 'all' ? 'All Hubs' : hubs.find(h => h.id === e.target.value)?.name}`);
-                      }}
-                      className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200"
-                    >
-                      <option value="all">🌐 All Hubs Consolidated</option>
-                      {hubs.map(h => (
-                        <option key={h.id} value={h.id}>
-                          {h.name} ({h.state})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {stateHubs.map(hub => {
+                      const tankCount = allTanks.filter(t => t.hub_id === hub.id).length;
+                      const pumpCount = allPumps.filter(p => p.hub_id === hub.id).length;
+                      const isHubSelected = activeHubId === hub.id;
 
-              {/* Hubs Grouped by State */}
-              <div className="space-y-6">
-                {Array.from(new Set(hubs.map(h => h.state))).map(stateName => {
-                  const stateHubs = hubs.filter(h => h.state === stateName);
-                  return (
-                    <div key={stateName} className="space-y-3">
-                      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                        <MapPin className="w-3.5 h-3.5 text-indigo-500" />
-                        <span>{stateName} State</span>
-                        <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-400 font-mono">
-                          {stateHubs.length} {stateHubs.length === 1 ? 'Depot' : 'Depots'}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {stateHubs.map(hub => {
-                          const tankCount = allTanks.filter(t => t.hub_id === hub.id).length;
-                          const pumpCount = allPumps.filter(p => p.hub_id === hub.id).length;
-                          const isHubSelected = activeHubId === hub.id;
-
-                          return (
-                            <div
-                              key={hub.id}
-                              className={`p-5 rounded-2xl border transition-all flex flex-col justify-between ${
-                                isHubSelected
-                                  ? 'bg-indigo-50/40 dark:bg-indigo-950/20 border-indigo-400 dark:border-indigo-600 ring-1 ring-indigo-400 shadow-sm'
-                                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs'
-                              }`}
-                            >
-                              <div className="space-y-3">
-                                <div className="flex items-start justify-between gap-2">
-                                  <div>
-                                    <div className="flex items-center gap-2">
-                                      <h4 className="font-heading font-bold text-slate-900 dark:text-white text-[15px]">
-                                        {hub.name}
-                                      </h4>
-                                      <span className="badge-indigo px-2 py-0.5 rounded-md font-mono text-[11px]">
-                                        {hub.code}
-                                      </span>
-                                    </div>
-                                    <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-1 flex items-start gap-1">
-                                      <MapPin className="w-3.5 h-3.5 mt-0.5 text-slate-400 shrink-0" />
-                                      <span>{hub.address}</span>
-                                    </p>
-                                  </div>
-
-                                  <span
-                                    className={`px-2 py-0.5 rounded-full text-[10px] uppercase ${
-                                      hub.is_active
-                                        ? 'badge-emerald'
-                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 font-semibold'
-                                    }`}
-                                  >
-                                    {hub.is_active ? 'Active' : 'Inactive'}
+                      return (
+                        <div
+                          key={hub.id}
+                          className={`p-5 rounded-2xl border transition-all flex flex-col justify-between ${isHubSelected
+                            ? 'bg-indigo-50/40 dark:bg-indigo-950/20 border-indigo-400 dark:border-indigo-600 ring-1 ring-indigo-400 shadow-sm'
+                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs'
+                            }`}
+                        >
+                          <div className="space-y-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-heading font-bold text-slate-900 dark:text-white text-[15px]">
+                                    {hub.name}
+                                  </h4>
+                                  <span className="badge-indigo px-2 py-0.5 rounded-md font-mono text-[11px]">
+                                    {hub.code}
                                   </span>
                                 </div>
-
-                                <div className="text-[12px] font-sans text-slate-600 dark:text-slate-300 space-y-1">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-slate-400">Branch Manager:</span>
-                                    <span className="font-semibold text-slate-900 dark:text-white">
-                                      {hub.manager_name || 'Not assigned'}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-slate-400">Contact Phone:</span>
-                                    <span className="font-mono">{hub.phone}</span>
-                                  </div>
-                                </div>
-
-                                {/* Operational Counters — clickable: jump straight to that
-                                    hub's tanks/pumps, scoped to this hub, instead of a
-                                    dead-end number you'd have to go hunt down elsewhere. */}
-                                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveHubId(hub.id);
-                                      setActiveDesktopTab('infrastructure');
-                                      showNotification(`Viewing tanks for ${hub.name}`);
-                                    }}
-                                    title={`Edit ${hub.name}'s tanks`}
-                                    className="p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/30 transition-colors cursor-pointer"
-                                  >
-                                    <div className="text-base font-bold font-mono text-slate-900 dark:text-white">
-                                      {tankCount}
-                                    </div>
-                                    <div className="text-[10px] uppercase font-sans text-slate-500">Tanks</div>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveHubId(hub.id);
-                                      setActiveDesktopTab('infrastructure');
-                                      showNotification(`Viewing pumps for ${hub.name}`);
-                                    }}
-                                    title={`Edit ${hub.name}'s pumps`}
-                                    className="p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/30 transition-colors cursor-pointer"
-                                  >
-                                    <div className="text-base font-bold font-mono text-slate-900 dark:text-white">
-                                      {pumpCount}
-                                    </div>
-                                    <div className="text-[10px] uppercase font-sans text-slate-500">Pumps</div>
-                                  </button>
-                                </div>
+                                <p className="text-[12px] font-sans text-slate-500 dark:text-slate-400 mt-1 flex items-start gap-1">
+                                  <MapPin className="w-3.5 h-3.5 mt-0.5 text-slate-400 shrink-0" />
+                                  <span>{hub.address}</span>
+                                </p>
                               </div>
 
-                              {/* Actions */}
-                              <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveHubId(hub.id);
-                                    showNotification(`Switched operational view to ${hub.name}`);
-                                  }}
-                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                    isHubSelected
-                                      ? 'bg-indigo-600 text-white shadow-xs'
-                                      : 'bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 dark:text-slate-300'
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] uppercase ${hub.is_active
+                                  ? 'badge-emerald'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 font-semibold'
                                   }`}
-                                >
-                                  {isHubSelected ? '✓ Active View' : 'Switch to Hub'}
-                                </button>
+                              >
+                                {hub.is_active ? 'Active' : 'Inactive'}
+                              </span>
+                            </div>
 
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenEditHub(hub)}
-                                    className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors"
-                                    title="Edit Hub Details"
-                                  >
-                                    <Edit2 className="w-4 h-4" />
-                                  </button>
-                                  {hubs.length > 1 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteHubAction(hub)}
-                                      className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"
-                                      title="Delete Hub"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                </div>
+                            <div className="text-[12px] font-sans text-slate-600 dark:text-slate-300 space-y-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-slate-400">Branch Manager:</span>
+                                <span className="font-semibold text-slate-900 dark:text-white">
+                                  {hub.manager_name || 'Not assigned'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-slate-400">Contact Phone:</span>
+                                <span className="font-mono">{hub.phone}</span>
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+
+                            {/* Operational Counters — clickable: jump straight to that
+                                    hub's tanks/pumps, scoped to this hub, instead of a
+                                    dead-end number you'd have to go hunt down elsewhere. */}
+                            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveHubId(hub.id);
+                                  setActiveDesktopTab('infrastructure');
+                                  showNotification(`Viewing tanks for ${hub.name}`);
+                                }}
+                                title={`Edit ${hub.name}'s tanks`}
+                                className="p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/30 transition-colors cursor-pointer"
+                              >
+                                <div className="text-base font-bold font-mono text-slate-900 dark:text-white">
+                                  {tankCount}
+                                </div>
+                                <div className="text-[10px] uppercase font-sans text-slate-500">Tanks</div>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveHubId(hub.id);
+                                  setActiveDesktopTab('infrastructure');
+                                  showNotification(`Viewing pumps for ${hub.name}`);
+                                }}
+                                title={`Edit ${hub.name}'s pumps`}
+                                className="p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/30 transition-colors cursor-pointer"
+                              >
+                                <div className="text-base font-bold font-mono text-slate-900 dark:text-white">
+                                  {pumpCount}
+                                </div>
+                                <div className="text-[10px] uppercase font-sans text-slate-500">Pumps</div>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Actions */}
+                          <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveHubId(hub.id);
+                                showNotification(`Switched operational view to ${hub.name}`);
+                              }}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isHubSelected
+                                ? 'bg-indigo-600 text-white shadow-xs'
+                                : 'bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 dark:text-slate-300'
+                                }`}
+                            >
+                              {isHubSelected ? '✓ Active View' : 'Switch to Hub'}
+                            </button>
+
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditHub(hub)}
+                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/15 transition-colors"
+                                title="Edit Hub Details"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              {hubs.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteHubAction(hub)}
+                                  className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"
+                                  title="Delete Hub"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </>
   );
 
@@ -2270,11 +2264,10 @@ export const SettingsScreen: React.FC = () => {
                 key={item.id}
                 type="button"
                 onClick={() => setActiveDesktopTab(item.id)}
-                className={`w-full p-3 rounded-xl flex items-center gap-3 text-left transition-all border ${
-                  isActive
-                    ? 'bg-brand-50/80 dark:bg-brand-950/40 border-brand-500 text-slate-900 dark:text-white shadow-sm font-semibold'
-                    : 'border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
-                }`}
+                className={`w-full p-3 rounded-xl flex items-center gap-3 text-left transition-all border ${isActive
+                  ? 'bg-brand-50/80 dark:bg-brand-950/40 border-brand-500 text-slate-900 dark:text-white shadow-sm font-semibold'
+                  : 'border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
+                  }`}
               >
                 <div className={`w-9 h-9 rounded-lg ${theme.bgCls} border ${theme.borderCls} flex items-center justify-center flex-shrink-0`}>
                   <Icon className={`w-4 h-4 ${theme.textCls}`} weight="bold" />
@@ -2288,9 +2281,8 @@ export const SettingsScreen: React.FC = () => {
                   </div>
                 </div>
                 <ChevronRight
-                  className={`w-4 h-4 transition-transform ${
-                    isActive ? 'text-brand-600 dark:text-brand-400 translate-x-0.5' : 'text-slate-400 opacity-50'
-                  }`}
+                  className={`w-4 h-4 transition-transform ${isActive ? 'text-brand-600 dark:text-brand-400 translate-x-0.5' : 'text-slate-400 opacity-50'
+                    }`}
                 />
               </button>
             );
@@ -2315,200 +2307,198 @@ export const SettingsScreen: React.FC = () => {
             </span>
           }
         >
-            <form onSubmit={handleSaveProductModal} className="space-y-4">
+          <form onSubmit={handleSaveProductModal} className="space-y-4">
+            <div>
+              <label htmlFor="product-name" className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                Product Name *
+              </label>
+              <input
+                id="product-name"
+                type="text"
+                required
+                placeholder="e.g. Refined Soya Oil"
+                value={newProductName}
+                onChange={e => setNewProductName(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                Supply Model *
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setNewProductModel('bulk_truck')}
+                  className={`p-3 rounded-xl border text-left transition-all ${newProductModel === 'bulk_truck'
+                    ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500 text-amber-900 dark:text-amber-200 font-bold'
+                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                    }`}
+                >
+                  <div className="text-[13px] font-bold">By tanker truck</div>
+                  <div className="text-[11px] opacity-80 mt-0.5">Arrives in tons, offloaded to kegs</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setNewProductModel('pre_kegged')}
+                  className={`p-3 rounded-xl border text-left transition-all ${newProductModel === 'pre_kegged'
+                    ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-900 dark:text-rose-200 font-bold'
+                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                    }`}
+                >
+                  <div className="text-[13px] font-bold">Already in kegs</div>
+                  <div className="text-[11px] opacity-80 mt-0.5">Arrives in sealed physical kegs</div>
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label htmlFor="product-name" className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                  Product Name *
+                <label htmlFor="new-product-litres-per-keg" className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Litres per Keg (L/keg) *
                 </label>
                 <input
-                  id="product-name"
-                  type="text"
+                  id="new-product-litres-per-keg"
+                  type="number"
+                  step="1"
+                  min="0"
                   required
-                  placeholder="e.g. Refined Soya Oil"
-                  value={newProductName}
-                  onChange={e => setNewProductName(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                  placeholder="e.g. 25 or 30"
+                  value={newProductLitresPerKeg}
+                  onChange={e => setNewProductLitresPerKeg(e.target.value.replace(/[^0-9]/g, ''))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-mono font-bold"
                 />
-              </div>
-
-              <div>
-                <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                  Supply Model *
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setNewProductModel('bulk_truck')}
-                    className={`p-3 rounded-xl border text-left transition-all ${
-                      newProductModel === 'bulk_truck'
-                        ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500 text-amber-900 dark:text-amber-200 font-bold'
-                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
-                    }`}
-                  >
-                    <div className="text-[13px] font-bold">By tanker truck</div>
-                    <div className="text-[11px] opacity-80 mt-0.5">Arrives in tons, offloaded to kegs</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setNewProductModel('pre_kegged')}
-                    className={`p-3 rounded-xl border text-left transition-all ${
-                      newProductModel === 'pre_kegged'
-                        ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-900 dark:text-rose-200 font-bold'
-                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
-                    }`}
-                  >
-                    <div className="text-[13px] font-bold">Already in kegs</div>
-                    <div className="text-[11px] opacity-80 mt-0.5">Arrives in sealed physical kegs</div>
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="new-product-litres-per-keg" className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                    Litres per Keg (L/keg) *
-                  </label>
-                  <input
-                    id="new-product-litres-per-keg"
-                    type="number"
-                    step="1"
-                    min="0"
-                    required
-                    placeholder="e.g. 25 or 30"
-                    value={newProductLitresPerKeg}
-                    onChange={e => setNewProductLitresPerKeg(e.target.value.replace(/[^0-9]/g, ''))}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-mono font-bold"
-                  />
-                  <span className="text-[10px] text-slate-500 font-sans block mt-0.5">
-                    Per-product physical container size
-                  </span>
-                </div>
-
-                {newProductModel === 'bulk_truck' ? (
-                  <div>
-                    <label htmlFor="new-product-litres-per-ton" className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                      Litres per Metric Ton *
-                    </label>
-                    <input
-                      id="new-product-litres-per-ton"
-                      type="number"
-                      step="1"
-                      min="1"
-                      required
-                      placeholder="e.g. 1075"
-                      value={newProductLitresPerTon}
-                      onChange={e => setNewProductLitresPerTon(e.target.value.replace(/[^0-9]/g, ''))}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-mono font-bold"
-                    />
-                    <span className="text-[10px] text-slate-500 font-sans block mt-0.5">
-                      Density conversion multiplier
-                    </span>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="text-[12px] font-sans font-bold uppercase text-slate-400 block mb-1">
-                      Litres per Metric Ton
-                    </label>
-                    <div className="px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-[12px] text-slate-500 italic">
-                      N/A (Pre-kegged exact litres)
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="new-product-keg-sell-price" className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                  Outright Keg Container Sell Price (₦)
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₦</span>
-                  <input
-                    id="new-product-keg-sell-price"
-                    type="number"
-                    step="1"
-                    min="0"
-                    placeholder="Price per container"
-                    value={newProductKegSellPrice}
-                    onChange={e => setNewProductKegSellPrice(e.target.value.replace(/[^0-9]/g, ''))}
-                    className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-mono font-bold"
-                  />
-                </div>
                 <span className="text-[10px] text-slate-500 font-sans block mt-0.5">
-                  Distinct price charged to customers purchasing the physical empty keg outright
+                  Per-product physical container size
                 </span>
               </div>
 
-              {/* Oil specs / varieties */}
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
-                    <Tag className="w-3.5 h-3.5" /> Oil Specs / Varieties
+              {newProductModel === 'bulk_truck' ? (
+                <div>
+                  <label htmlFor="new-product-litres-per-ton" className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                    Litres per Metric Ton *
                   </label>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setNewProductVarieties(vs => [
-                        ...vs,
-                        { id: `var-${Date.now()}`, name: '' }
-                      ])
-                    }
-                    className="text-[11px] font-bold text-brand-600 dark:text-brand-400 flex items-center gap-1"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Add spec
-                  </button>
+                  <input
+                    id="new-product-litres-per-ton"
+                    type="number"
+                    step="1"
+                    min="1"
+                    required
+                    placeholder="e.g. 1075"
+                    value={newProductLitresPerTon}
+                    onChange={e => setNewProductLitresPerTon(e.target.value.replace(/[^0-9]/g, ''))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-mono font-bold"
+                  />
+                  <span className="text-[10px] text-slate-500 font-sans block mt-0.5">
+                    Density conversion multiplier
+                  </span>
                 </div>
-
-                {newProductVarieties.length === 0 ? (
-                  <p className="text-[11px] text-slate-500 italic">
-                    No specs yet — a "Standard" spec is created automatically on save.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {newProductVarieties.map((v, i) => (
-                      <div key={v.id} className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={v.name}
-                          onChange={e =>
-                            setNewProductVarieties(vs => vs.map((x, xi) => (xi === i ? { ...x, name: e.target.value } : x)))
-                          }
-                          placeholder="e.g. Groundnut Blend"
-                          className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setNewProductVarieties(vs => vs.filter((_, xi) => xi !== i))}
-                          className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-950/40 shrink-0"
-                          aria-label="Remove spec"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                    <p className="text-[10px] text-slate-500">
-                      Each spec is a full SKU — set its per-pack prices in the Inventory tab. First spec is the counter default.
-                    </p>
+              ) : (
+                <div>
+                  <label className="text-[12px] font-sans font-bold uppercase text-slate-400 block mb-1">
+                    Litres per Metric Ton
+                  </label>
+                  <div className="px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-[12px] text-slate-500 italic">
+                    N/A (Pre-kegged exact litres)
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+            </div>
 
-              <div className="pt-3 pb-1 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+            <div>
+              <label htmlFor="new-product-keg-sell-price" className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                Outright Keg Container Sell Price (₦)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₦</span>
+                <input
+                  id="new-product-keg-sell-price"
+                  type="number"
+                  step="1"
+                  min="0"
+                  placeholder="Price per container"
+                  value={newProductKegSellPrice}
+                  onChange={e => setNewProductKegSellPrice(e.target.value.replace(/[^0-9]/g, ''))}
+                  className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[14px] font-mono font-bold"
+                />
+              </div>
+              <span className="text-[10px] text-slate-500 font-sans block mt-0.5">
+                Distinct price charged to customers purchasing the physical empty keg outright
+              </span>
+            </div>
+
+            {/* Oil specs / varieties */}
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[12px] font-sans font-bold uppercase text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5" /> Oil Specs / Varieties
+                </label>
                 <button
                   type="button"
-                  onClick={() => setIsProductModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-sans font-medium text-xs"
+                  onClick={() =>
+                    setNewProductVarieties(vs => [
+                      ...vs,
+                      { id: `var-${Date.now()}`, name: '' }
+                    ])
+                  }
+                  className="text-[11px] font-bold text-brand-600 dark:text-brand-400 flex items-center gap-1"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-xs"
-                >
-                  Save Product
+                  <Plus className="w-3.5 h-3.5" /> Add spec
                 </button>
               </div>
-            </form>
+
+              {newProductVarieties.length === 0 ? (
+                <p className="text-[11px] text-slate-500 italic">
+                  No specs yet — a "Standard" spec is created automatically on save.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {newProductVarieties.map((v, i) => (
+                    <div key={v.id} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={v.name}
+                        onChange={e =>
+                          setNewProductVarieties(vs => vs.map((x, xi) => (xi === i ? { ...x, name: e.target.value } : x)))
+                        }
+                        placeholder="e.g. Groundnut Blend"
+                        className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[13px]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setNewProductVarieties(vs => vs.filter((_, xi) => xi !== i))}
+                        className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-950/40 shrink-0"
+                        aria-label="Remove spec"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <p className="text-[10px] text-slate-500">
+                    Each spec is a full SKU — set its per-pack prices in the Inventory tab. First spec is the counter default.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 pb-1 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsProductModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-sans font-medium text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-xs"
+              >
+                Save Product
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
 

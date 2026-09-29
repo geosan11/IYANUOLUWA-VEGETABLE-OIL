@@ -1,6 +1,9 @@
 import {
   calculateLitres,
   calculateIntakeMetrics,
+  bulkIntakeStockLitres,
+  applyBulkIntakeStockFromTons,
+  yardLabel,
   resolveLitresPerTon,
   resolveLitresPerKeg,
   configuredNumber,
@@ -92,10 +95,50 @@ assert(calculateLitres('litre', 150, 30) === 150, 'Unit conversion: 150L = 150L'
 // 2. TRUCK INTAKE & SHORTFALL
 const intake1 = calculateIntakeMetrics(10, 1090, 360, 20, 100, 30, 50);
 assert(intake1.expectedLitres === 10900, 'Intake: expectedLitres is 10,900L');
+assert(intake1.stockLitres === 10900, 'Intake: stockLitres follows the waybill tons, not the keg count');
 assert(intake1.recoveredLitres === 10820, 'Intake: recoveredLitres is 10,820L');
 assert(intake1.shortfall === 80, 'Intake: shortfall is 80L');
 assert(intake1.isShortfallHigh === true, 'Intake: 80L shortfall > a configured 50L tolerance flagged true');
 assert(intake1.exceedsDepotKegCapacity === true, 'Intake: 363.3 expected kegs > 100 depot kegs warning');
+
+// The depot dumps the tanker into a yard tank. Recording 30 tons + 2 kegs
+// used to store only 50 L (the kegs). Stock is the tons.
+const tonsIntoTank = calculateIntakeMetrics(30, 1090, 2, 0, 100, 25, 50);
+assert(tonsIntoTank.expectedLitres === 32700, 'Intake: 30 tons at 1,090 L/ton = 32,700 L');
+assert(tonsIntoTank.stockLitres === 32700, 'Intake: 30 tons enter the tank as 32,700 L, not the 50 L keg count');
+assert(tonsIntoTank.recoveredLitres === 50, 'Intake: 2 kegs at 25 L still count as 50 L recovered at discharge');
+
+const tonsOnly = calculateIntakeMetrics(30, 1090, 0, 0, 100, 25, 50);
+assert(tonsOnly.stockLitres === 32700, 'Intake: tons-only delivery stocks 32,700 L');
+assert(tonsOnly.recoveredLitres === 32700, 'Intake: with no kegs counted, recovered matches the waybill');
+assert(tonsOnly.shortfall === 0, 'Intake: tons-only delivery is not a shortfall');
+assert(tonsOnly.isShortfallHigh === false, 'Intake: tons-only delivery is not flagged');
+
+assert(bulkIntakeStockLitres(30, 1090) === 32700, 'Intake: bulkIntakeStockLitres is tons × density');
+assert(yardLabel('Tank 2', 4) === 'Tank 2', 'Yard label: the registered name is kept, index is ignored');
+assert(yardLabel('North yard bulk', 0) === 'North yard bulk', 'Yard label: a custom name is kept as registered');
+assert(yardLabel('Pump 2 SOYA', 1) === 'Pump 2 SOYA', 'Yard label: a pump name is not rewritten to Tank N');
+assert(yardLabel('', 2) === 'Tank 3', 'Yard label: a blank label uses the 1-based index');
+assert(yardLabel('   ', 0) === 'Tank 1', 'Yard label: whitespace counts as unnamed');
+
+const staleKegStock: Tank = {
+  id: 'tank-stale',
+  product_id: 'veg',
+  truck_label: 'TRK-30T',
+  tons: 30,
+  received_litres: 50,
+  remaining_litres: 50,
+  date: '2026-09-28T00:00:00Z',
+  shortfall: 32650,
+  supply_model: 'bulk_truck'
+};
+const lifted = applyBulkIntakeStockFromTons(staleKegStock, 1090);
+assert(lifted.received_litres === 32700, 'Intake repair: 30-ton lot stored as 50 L is lifted to 32,700 L');
+assert(lifted.remaining_litres === 32700, 'Intake repair: remaining follows the lift when nothing has been sold');
+const partlySold = applyBulkIntakeStockFromTons({ ...staleKegStock, remaining_litres: 20 }, 1090);
+assert(partlySold.remaining_litres === 32670, 'Intake repair: 30 L already sold stays deducted after the lift');
+const mostlyKegged = applyBulkIntakeStockFromTons({ ...staleKegStock, received_litres: 10820, remaining_litres: 10820, tons: 10 }, 1090);
+assert(mostlyKegged.received_litres === 10820, 'Intake repair: a lot already stored near waybill volume is left alone');
 
 const intakeHiThresh = calculateIntakeMetrics(10, 1090, 360, 20, 100, 30, 100);
 assert(intakeHiThresh.shortfall === 80, 'Intake: shortfall still 80L with a custom threshold');
@@ -630,6 +673,7 @@ const previewMetrics = calculateIntakeMetrics(10, resolvedTon, 358, 0, 100, reso
 const receiptMetrics = calculateIntakeMetrics(10, resolvedTon, 358, 0, 100, resolvedKeg, 50);
 assert(
   previewMetrics.expectedLitres === receiptMetrics.expectedLitres &&
+  previewMetrics.stockLitres === receiptMetrics.stockLitres &&
   previewMetrics.expectedKegs === receiptMetrics.expectedKegs &&
   previewMetrics.shortfall === receiptMetrics.shortfall,
   'Parity: the preview and the recorded receipt compute identical intake maths'

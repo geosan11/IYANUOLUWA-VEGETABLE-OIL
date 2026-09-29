@@ -10,7 +10,8 @@ import {
   fromDatetimeLocalValue,
   computeShiftCash,
   formatWithCommas,
-  parseFromCommas
+  parseFromCommas,
+  yardLabel
 } from '../services/businessLogic';
 import { priceSaleLine } from '../services/pricing';
 import { PACK_SIZES, packShort, getPaymentModeTheme, ONE_TIME_CUSTOMER_ID } from '../constants/config';
@@ -133,7 +134,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     addCustomer,
     endShiftRequested,
     clearEndShiftRequest,
-    tankStockByProduct
+    tankStockByProduct,
+    physicalTanks
   } = useStore();
   const { can } = usePermissions();
   const { showToast } = useToast();
@@ -258,7 +260,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
     return new Date(baseTime + Math.max(1, creditTermDays) * 86400000);
   }, [showBackdate, saleDateInput, creditTermDays]);
 
-  // ---- Target 3 dispensing bulk pumps ----
+  // Every bulk-dispensing pump on this hub — one row per registered pump.
   const targetPumps = useMemo(() => {
     const bulk = pumps.filter(p => {
       const prod = products.find(pr => pr.id === p.product_id);
@@ -1023,7 +1025,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
             <div className="flex items-center justify-between">
               <div className="text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
                 <GasPump className="w-4 h-4 text-brand-500" weight="bold" />
-                <span>Pumps Meter Readings ({targetPumps.length} Active Pumps)</span>
+                <span>Tank meter readings ({targetPumps.length} active tanks)</span>
               </div>
               <span className="text-[11px] font-mono text-slate-500">
                 Check physical pump counter
@@ -1032,7 +1034,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
 
             <div className="space-y-1.5">
               {targetPumps.map((p, idx) => {
-                const prod = products.find(pr => pr.id === p.product_id);
+                const linkedTank = physicalTanks.find(t => t.id === p.physical_tank_id);
+                const tankName = yardLabel(linkedTank?.label || p.label, idx);
                 return (
                   <div
                     key={p.id}
@@ -1040,14 +1043,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-9 h-9 rounded-xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-brand-700 dark:text-brand-400 font-heading font-black text-sm shrink-0">
-                        P{idx + 1}
+                        T{idx + 1}
                       </div>
                       <div className="min-w-0">
                         <div className="font-heading font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 min-w-0">
-                          <span className="truncate">{p.label}</span>
-                          <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold shrink-0">
-                            {prod?.name || 'Bulk Oil'}
-                          </span>
+                          <span className="truncate">{tankName}</span>
                         </div>
                         <div className="text-xs font-mono text-slate-500 flex items-center gap-1.5 mt-0.5">
                           <span>Inspect physical pump meter</span>
@@ -1128,7 +1128,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
               </span>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 font-sans font-semibold text-xs">
                 <GasPump className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                <span>{targetPumps.length} Active {targetPumps.length === 1 ? 'Pump' : 'Pumps'}</span>
+                <span>{targetPumps.length} Active {targetPumps.length === 1 ? 'Tank' : 'Tanks'}</span>
               </span>
             </div>
           }
@@ -1158,7 +1158,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
               <div className="space-y-2.5">
                 {targetPumps.map((p, idx) => {
                   const currentInput = closeShiftPumpInputs[p.id] ?? '';
-                  const prod = products.find(pr => pr.id === p.product_id);
+                  const linkedTank = physicalTanks.find(t => t.id === p.physical_tank_id);
+                  const tankName = yardLabel(linkedTank?.label || p.label, idx);
 
                   return (
                     <div
@@ -1168,14 +1169,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                       {/* Left: Pump identity */}
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/80 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-heading font-black text-xs flex items-center justify-center shrink-0">
-                          P{idx + 1}
+                          T{idx + 1}
                         </span>
                         <div className="min-w-0">
                           <div className="font-heading font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
-                            <span>{p.label}</span>
-                            <span className="text-[10px] font-sans uppercase px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold">
-                              {prod?.name || 'Bulk Oil'}
-                            </span>
+                            <span>{tankName}</span>
                           </div>
                           <div className="text-[11px] text-slate-400 font-sans mt-0.5">
                             Enter current mechanical / digital counter value
@@ -1911,45 +1909,45 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                           : `Add one ${s.short} to the sale`}
                                         aria-label={`Add one ${s.short} to the sale`}
                                         className={`w-full relative rounded-xl border-2 text-center transition-all duration-150 flex flex-col h-full overflow-hidden cursor-pointer hover:scale-[1.03] hover:-translate-y-0.5 hover:z-10 hover:shadow-md ${selected
-                                        ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/50 shadow-glow-brand ring-2 ring-brand-500/20'
-                                        : 'border-slate-200 dark:border-slate-700/70 bg-white dark:bg-slate-900 hover:border-brand-300 dark:hover:border-brand-600/60'
-                                        }`}
-                                    >
-                                      {!isKegOnlyMode && inCart > 0 && (
-                                        <span className="absolute top-0.5 left-0.5 z-10 min-w-[14px] h-3.5 px-1 rounded-full bg-emerald-600 text-white text-[8px] font-mono font-bold leading-none flex items-center justify-center shadow-xs">
-                                          {inCart}
-                                        </span>
-                                      )}
-                                      {selected && (
-                                        <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-xs z-10">
-                                          <Check className="w-2 h-2" weight="bold" />
-                                        </span>
-                                      )}
-                                      <div className="flex flex-col items-center justify-center gap-1 p-1 pb-0.5 min-h-[48px]">
-                                        <span className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors shrink-0 ${selected
-                                          ? 'bg-brand-500 text-white shadow-xs'
-                                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
-                                          }`}>
-                                          <Icon className="w-3 h-3" weight={selected ? 'fill' : 'duotone'} />
-                                        </span>
-                                        <span className="text-[11px] font-sans font-extrabold text-slate-900 dark:text-white leading-tight truncate max-w-full">{s.short}</span>
-                                      </div>
+                                          ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/50 shadow-glow-brand ring-2 ring-brand-500/20'
+                                          : 'border-slate-200 dark:border-slate-700/70 bg-white dark:bg-slate-900 hover:border-brand-300 dark:hover:border-brand-600/60'
+                                          }`}
+                                      >
+                                        {!isKegOnlyMode && inCart > 0 && (
+                                          <span className="absolute top-0.5 left-0.5 z-10 min-w-[14px] h-3.5 px-1 rounded-full bg-emerald-600 text-white text-[8px] font-mono font-bold leading-none flex items-center justify-center shadow-xs">
+                                            {inCart}
+                                          </span>
+                                        )}
+                                        {selected && (
+                                          <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-xs z-10">
+                                            <Check className="w-2 h-2" weight="bold" />
+                                          </span>
+                                        )}
+                                        <div className="flex flex-col items-center justify-center gap-1 p-1 pb-0.5 min-h-[48px]">
+                                          <span className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors shrink-0 ${selected
+                                            ? 'bg-brand-500 text-white shadow-xs'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                                            }`}>
+                                            <Icon className="w-3 h-3" weight={selected ? 'fill' : 'duotone'} />
+                                          </span>
+                                          <span className="text-[11px] font-sans font-extrabold text-slate-900 dark:text-white leading-tight truncate max-w-full">{s.short}</span>
+                                        </div>
 
-                                      <div className={`mt-auto px-0.5 py-0.5 border-t text-center ${selected
-                                        ? 'bg-brand-600 border-brand-700/60'
-                                        : 'bg-slate-900 dark:bg-black/40 border-slate-800/60'
-                                        }`}>
-                                        <span className="text-[10px] font-mono font-bold tracking-tight">
-                                          {linePrice.unpriced ? (
-                                            <span className="text-amber-400">no price</span>
-                                          ) : (
-                                            <span className="text-emerald-300">
-                                              {formatNaira(linePrice.unitPrice)}
-                                            </span>
-                                          )}
-                                        </span>
-                                      </div>
-                                    </button>
+                                        <div className={`mt-auto px-0.5 py-0.5 border-t text-center ${selected
+                                          ? 'bg-brand-600 border-brand-700/60'
+                                          : 'bg-slate-900 dark:bg-black/40 border-slate-800/60'
+                                          }`}>
+                                          <span className="text-[10px] font-mono font-bold tracking-tight">
+                                            {linePrice.unpriced ? (
+                                              <span className="text-amber-400">no price</span>
+                                            ) : (
+                                              <span className="text-emerald-300">
+                                                {formatNaira(linePrice.unitPrice)}
+                                              </span>
+                                            )}
+                                          </span>
+                                        </div>
+                                      </button>
                                     </div>
                                   );
                                 })}
@@ -2003,99 +2001,99 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                 ) : (
                   <div className="space-y-1.5 max-h-56 overflow-y-auto overscroll-contain pr-1">
                     {lines.map(l => (
-                        <div key={l.key} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 p-2 space-y-1.5">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-sans font-bold text-slate-900 dark:text-white truncate">
-                                  {l.varietyName || l.productName}
+                      <div key={l.key} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 p-2 space-y-1.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-sans font-bold text-slate-900 dark:text-white truncate">
+                                {l.varietyName || l.productName}
+                              </span>
+                              {l.priceAdjusted && (
+                                <span className="px-1.5 py-px rounded bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-[9px] font-sans font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 shrink-0">
+                                  Adjusted
                                 </span>
-                                {l.priceAdjusted && (
-                                  <span className="px-1.5 py-px rounded bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-[9px] font-sans font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 shrink-0">
-                                    Adjusted
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                                {packShort(l.packSizeId)} · {l.kegOnly ? `${l.productName} keg · outright sale, no oil` : l.productName}
-                                {l.containerMode === 'taken' && ' · keg taken'}
-                                {l.containerMode === 'bought' && ' · keg bought'}
-                              </div>
+                              )}
                             </div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                              {packShort(l.packSizeId)} · {l.kegOnly ? `${l.productName} keg · outright sale, no oil` : l.productName}
+                              {l.containerMode === 'taken' && ' · keg taken'}
+                              {l.containerMode === 'bought' && ' · keg bought'}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeLine(l.key)}
+                            className="w-7 h-7 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-500 hover:border-rose-300 dark:hover:border-rose-800 flex items-center justify-center shrink-0 transition-colors cursor-pointer"
+                            aria-label="Remove line"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Inline line editing — quantity, counter rate and the audit
+                              reason are corrected on the line itself rather than
+                              round-tripping back through the item builder. */}
+                        <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-0.5 shrink-0">
                             <button
                               type="button"
-                              onClick={() => removeLine(l.key)}
-                              className="w-7 h-7 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-500 hover:border-rose-300 dark:hover:border-rose-800 flex items-center justify-center shrink-0 transition-colors cursor-pointer"
-                              aria-label="Remove line"
+                              onClick={() => updateLineQty(l.key, l.qty - 1)}
+                              className="w-6 h-6 rounded-md text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              aria-label="Decrease quantity"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Minus className="w-3 h-3" weight="bold" />
+                            </button>
+                            <span className="w-7 text-center text-xs font-mono font-bold text-slate-900 dark:text-white tabular-nums">
+                              {l.qty}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => updateLineQty(l.key, l.qty + 1)}
+                              className="w-6 h-6 rounded-md text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              aria-label="Increase quantity"
+                            >
+                              <Plus className="w-3 h-3" weight="bold" />
                             </button>
                           </div>
 
-                          {/* Inline line editing — quantity, counter rate and the audit
-                              reason are corrected on the line itself rather than
-                              round-tripping back through the item builder. */}
-                          <div className="flex items-center gap-1.5">
-                            <div className="flex items-center gap-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-0.5 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => updateLineQty(l.key, l.qty - 1)}
-                                className="w-6 h-6 rounded-md text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                                aria-label="Decrease quantity"
-                              >
-                                <Minus className="w-3 h-3" weight="bold" />
-                              </button>
-                              <span className="w-7 text-center text-xs font-mono font-bold text-slate-900 dark:text-white tabular-nums">
-                                {l.qty}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => updateLineQty(l.key, l.qty + 1)}
-                                className="w-6 h-6 rounded-md text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                                aria-label="Increase quantity"
-                              >
-                                <Plus className="w-3 h-3" weight="bold" />
-                              </button>
-                            </div>
-
-                            <div className="relative shrink-0">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold">₦</span>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={formatWithCommas(l.unitPrice)}
-                                onChange={e => updateLinePrice(l.key, e.target.value)}
-                                aria-label={`Unit price for ${l.productName}`}
-                                className="w-24 pl-5 pr-2 py-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono font-bold text-xs text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
-                              />
-                            </div>
-
-                            <span className="ml-auto text-xs font-mono font-black text-slate-900 dark:text-white tabular-nums shrink-0">
-                              {formatNaira(l.lineAmount)}
-                            </span>
+                          <div className="relative shrink-0">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold">₦</span>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={formatWithCommas(l.unitPrice)}
+                              onChange={e => updateLinePrice(l.key, e.target.value)}
+                              aria-label={`Unit price for ${l.productName}`}
+                              className="w-24 pl-5 pr-2 py-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono font-bold text-xs text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                            />
                           </div>
 
-                          {l.priceAdjusted && (
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <input
-                                type="text"
-                                value={l.priceAdjustReason ?? ''}
-                                onChange={e => updateLineReason(l.key, e.target.value)}
-                                placeholder="Rate reason*"
-                                className="flex-1 min-w-[110px] px-2 py-1 rounded-md bg-amber-50/70 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-[11px] font-sans text-amber-900 dark:text-amber-200 focus:outline-none focus:border-amber-500"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => resetLinePrice(l.key)}
-                                className="text-[10px] font-sans font-bold text-brand-600 dark:text-brand-400 hover:underline shrink-0 cursor-pointer"
-                                title="Reset back to the standard tier rate"
-                              >
-                                ↺ Standard
-                              </button>
-                            </div>
-                          )}
+                          <span className="ml-auto text-xs font-mono font-black text-slate-900 dark:text-white tabular-nums shrink-0">
+                            {formatNaira(l.lineAmount)}
+                          </span>
                         </div>
-                      ))}
+
+                        {l.priceAdjusted && (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <input
+                              type="text"
+                              value={l.priceAdjustReason ?? ''}
+                              onChange={e => updateLineReason(l.key, e.target.value)}
+                              placeholder="Rate reason*"
+                              className="flex-1 min-w-[110px] px-2 py-1 rounded-md bg-amber-50/70 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-[11px] font-sans text-amber-900 dark:text-amber-200 focus:outline-none focus:border-amber-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => resetLinePrice(l.key)}
+                              className="text-[10px] font-sans font-bold text-brand-600 dark:text-brand-400 hover:underline shrink-0 cursor-pointer"
+                              title="Reset back to the standard tier rate"
+                            >
+                              ↺ Standard
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </section>
@@ -2184,234 +2182,234 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     })}
                   </div>
 
-                    {isSplitPay && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-500">
-                            Allocating Across {payMethods.length} Methods
-                          </span>
-                          {payMethods.length === 2 && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const half = Math.round(cartTotal / 2);
-                                setPayAmounts({
-                                  [payMethods[0]]: formatWithCommas(half),
-                                  [payMethods[1]]: formatWithCommas(cartTotal - half)
-                                });
-                                // Pin the first half only. The newest method
-                                // stays on auto-pilot, where "the rest" is that
-                                // same half — and stays right if the sale changes.
-                                markPayManual(payMethods[0], true);
-                                markPayManual(payMethods[1], false);
-                              }}
-                              className="text-[11px] font-sans font-bold text-brand-600 dark:text-brand-400 hover:underline cursor-pointer"
-                            >
-                              ⚡ 50 / 50 Split
-                            </button>
-                          )}
-                        </div>
-
-                        {payMethods.map(m => {
-                          const theme = getPaymentModeTheme(m);
-                          return (
-                            <div key={m} className={`p-2.5 rounded-xl border space-y-1.5 ${theme.bgSubtleCls} ${theme.borderCls}`}>
-                              <div className="flex items-center justify-between gap-2">
-                                <span className={`text-[11px] font-sans font-black uppercase tracking-wider flex items-center gap-1.5 ${theme.textCls}`}>
-                                  <span className={`w-2 h-2 rounded-full ${theme.dotCls}`} />
-                                  {theme.label}
-                                  {m === autoPayMethod && (
-                                    <span className="px-1.5 py-px rounded-full bg-brand-500/15 text-brand-700 dark:text-brand-300 text-[9px] font-sans font-bold normal-case tracking-normal">
-                                      auto
-                                    </span>
-                                  )}
-                                </span>
-                                <div className="flex items-center gap-1">
-                                  {[0.25, 0.5, 0.75].map(pct => (
-                                    <button
-                                      key={pct}
-                                      type="button"
-                                      onClick={() => {
-                                        if (cartTotal > 0) {
-                                          setPayAmounts(prev => ({ ...prev, [m]: formatWithCommas(Math.round(cartTotal * pct)) }));
-                                          markPayManual(m, true);
-                                        }
-                                      }}
-                                      className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-brand-500 hover:text-brand-600 cursor-pointer"
-                                    >
-                                      {pct * 100}%
-                                    </button>
-                                  ))}
-                                  <button
-                                    type="button"
-                                    onClick={() => autoBalanceMethod(m)}
-                                    className="px-2 py-0.5 rounded-md text-[10px] font-sans font-bold bg-white dark:bg-slate-950 text-brand-600 dark:text-brand-400 border border-slate-200 dark:border-slate-800 hover:border-brand-500 cursor-pointer"
-                                    title={m === newestPayMethod
-                                      ? 'Let this method balance itself again — it carries whatever the others leave over'
-                                      : 'Fill in whatever is left once the other methods are counted'}
-                                  >
-                                    Balance
-                                  </button>
-                                </div>
-                              </div>
-
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₦</span>
-                                <input
-                                  type="text"
-                                  inputMode="numeric"
-                                  value={effectivePayAmounts[m] || ''}
-                                  onChange={e => {
-                                    setPayAmounts(prev => ({ ...prev, [m]: formatWithCommas(e.target.value) }));
-                                    markPayManual(m, true);
-                                  }}
-                                  placeholder={m === 'credit' ? 'Amount on debt' : 'Amount taken now'}
-                                  className="w-full pl-8 pr-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-sm text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
+                  {isSplitPay && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-slate-500">
+                          Allocating Across {payMethods.length} Methods
+                        </span>
+                        {payMethods.length === 2 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const half = Math.round(cartTotal / 2);
+                              setPayAmounts({
+                                [payMethods[0]]: formatWithCommas(half),
+                                [payMethods[1]]: formatWithCommas(cartTotal - half)
+                              });
+                              // Pin the first half only. The newest method
+                              // stays on auto-pilot, where "the rest" is that
+                              // same half — and stays right if the sale changes.
+                              markPayManual(payMethods[0], true);
+                              markPayManual(payMethods[1], false);
+                            }}
+                            className="text-[11px] font-sans font-bold text-brand-600 dark:text-brand-400 hover:underline cursor-pointer"
+                          >
+                            ⚡ 50 / 50 Split
+                          </button>
+                        )}
                       </div>
-                    )}
 
-                    {payMethods.includes('credit') && (
-                      isOneTime ? (
-                        <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 space-y-2">
-                          <div className="flex items-start gap-2.5">
-                            <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                            <div>
-                              <div className="text-xs font-sans font-bold text-amber-900 dark:text-amber-200">
-                                Walk-in Retail Customer Selected
+                      {payMethods.map(m => {
+                        const theme = getPaymentModeTheme(m);
+                        return (
+                          <div key={m} className={`p-2.5 rounded-xl border space-y-1.5 ${theme.bgSubtleCls} ${theme.borderCls}`}>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`text-[11px] font-sans font-black uppercase tracking-wider flex items-center gap-1.5 ${theme.textCls}`}>
+                                <span className={`w-2 h-2 rounded-full ${theme.dotCls}`} />
+                                {theme.label}
+                                {m === autoPayMethod && (
+                                  <span className="px-1.5 py-px rounded-full bg-brand-500/15 text-brand-700 dark:text-brand-300 text-[9px] font-sans font-bold normal-case tracking-normal">
+                                    auto
+                                  </span>
+                                )}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                {[0.25, 0.5, 0.75].map(pct => (
+                                  <button
+                                    key={pct}
+                                    type="button"
+                                    onClick={() => {
+                                      if (cartTotal > 0) {
+                                        setPayAmounts(prev => ({ ...prev, [m]: formatWithCommas(Math.round(cartTotal * pct)) }));
+                                        markPayManual(m, true);
+                                      }
+                                    }}
+                                    className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-brand-500 hover:text-brand-600 cursor-pointer"
+                                  >
+                                    {pct * 100}%
+                                  </button>
+                                ))}
+                                <button
+                                  type="button"
+                                  onClick={() => autoBalanceMethod(m)}
+                                  className="px-2 py-0.5 rounded-md text-[10px] font-sans font-bold bg-white dark:bg-slate-950 text-brand-600 dark:text-brand-400 border border-slate-200 dark:border-slate-800 hover:border-brand-500 cursor-pointer"
+                                  title={m === newestPayMethod
+                                    ? 'Let this method balance itself again — it carries whatever the others leave over'
+                                    : 'Fill in whatever is left once the other methods are counted'}
+                                >
+                                  Balance
+                                </button>
                               </div>
-                              <p className="text-[11px] font-sans text-amber-700 dark:text-amber-300 mt-0.5">
-                                Walk-in retail sales cannot buy on debt. Please register this customer or select an existing customer account to log this debt.
-                              </p>
+                            </div>
+
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₦</span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={effectivePayAmounts[m] || ''}
+                                onChange={e => {
+                                  setPayAmounts(prev => ({ ...prev, [m]: formatWithCommas(e.target.value) }));
+                                  markPayManual(m, true);
+                                }}
+                                placeholder={m === 'credit' ? 'Amount on debt' : 'Amount taken now'}
+                                className="w-full pl-8 pr-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono font-bold text-sm text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                              />
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 pt-1">
-                            <button
-                              type="button"
-                              onClick={() => setIsAddCustomerOpen(true)}
-                              className="flex-1 py-2 px-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
-                            >
-                              <Plus className="w-3.5 h-3.5" weight="bold" />
-                              <span>Add New Customer</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setCustomerOpen(true)}
-                              className="flex-1 py-2 px-3 rounded-xl bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 font-sans font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                            >
-                              <Search className="w-3.5 h-3.5" />
-                              <span>Find Existing</span>
-                            </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {payMethods.includes('credit') && (
+                    isOneTime ? (
+                      <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 space-y-2">
+                        <div className="flex items-start gap-2.5">
+                          <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                          <div>
+                            <div className="text-xs font-sans font-bold text-amber-900 dark:text-amber-200">
+                              Walk-in Retail Customer Selected
+                            </div>
+                            <p className="text-[11px] font-sans text-amber-700 dark:text-amber-300 mt-0.5">
+                              Walk-in retail sales cannot buy on debt. Please register this customer or select an existing customer account to log this debt.
+                            </p>
                           </div>
                         </div>
-                      ) : (
-                        <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5" />
-                              Debt Grace Period
-                            </span>
-                            <span className="font-mono font-bold text-xs text-amber-900 dark:text-amber-200">
-                              {creditTermDays} Days
-                            </span>
-                          </div>
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setIsAddCustomerOpen(true)}
+                            className="flex-1 py-2 px-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" weight="bold" />
+                            <span>Add New Customer</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCustomerOpen(true)}
+                            className="flex-1 py-2 px-3 rounded-xl bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 font-sans font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                          >
+                            <Search className="w-3.5 h-3.5" />
+                            <span>Find Existing</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5" />
+                            Debt Grace Period
+                          </span>
+                          <span className="font-mono font-bold text-xs text-amber-900 dark:text-amber-200">
+                            {creditTermDays} Days
+                          </span>
+                        </div>
 
-                          {/* Quick Days Selector */}
-                          <div className="grid grid-cols-4 gap-1.5">
-                            {[7, 14, 21, 30].map(days => (
-                              <button
-                                key={days}
-                                type="button"
-                                onClick={() => setCreditTermDays(days)}
-                                className={`py-1 px-1.5 rounded-lg text-[11px] font-mono font-bold border transition-all cursor-pointer ${creditTermDays === days
-                                  ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
-                                  : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-amber-400'
-                                  }`}
-                              >
-                                {days}d
-                              </button>
-                            ))}
-                          </div>
-
-                          {/* Custom Days Input */}
-                          <div className="flex items-center gap-2">
-                            <label className="text-[10px] uppercase font-bold text-slate-500 shrink-0">Custom Days:</label>
-                            <input
-                              type="number"
-                              min="1"
-                              max="365"
-                              value={creditTermDays}
-                              onChange={e => setCreditTermDays(Math.max(1, parseInt(e.target.value) || 1))}
-                              className="w-20 px-2 py-1 text-xs font-mono font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                            />
-                            <span className="text-[11px] text-slate-500 font-medium">days from {showBackdate ? 'sale date' : 'today'}</span>
-                          </div>
-
-                          {/* Live Due Date Badge */}
-                          <div className="text-[11px] font-sans text-slate-700 dark:text-slate-300 flex items-center justify-between pt-1.5 border-t border-amber-500/20">
-                            <span className="text-slate-500">Due Date:</span>
-                            <span className="font-bold text-amber-800 dark:text-amber-300 font-mono">
-                              {formatDepotDate(effectiveDueDate.toISOString())}
-                            </span>
-                          </div>
-
-                          <div className="text-[10px] text-slate-500">
-                            New balance: <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{formatNaira(projectedBalance)}</span>
-                          </div>
-
-                          {overLimit && (
-                            <div
-                              className={`text-[11px] font-semibold pt-1 ${overLimitBlocked
-                                ? 'text-rose-600 dark:text-rose-400'
-                                : 'text-amber-600 dark:text-amber-400'
+                        {/* Quick Days Selector */}
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {[7, 14, 21, 30].map(days => (
+                            <button
+                              key={days}
+                              type="button"
+                              onClick={() => setCreditTermDays(days)}
+                              className={`py-1 px-1.5 rounded-lg text-[11px] font-mono font-bold border transition-all cursor-pointer ${creditTermDays === days
+                                ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
+                                : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-amber-400'
                                 }`}
                             >
-                              {overLimitBlocked
-                                ? '⚠ Over debt limit — owner approval required.'
-                                : '⚠ Over debt limit (owner override).'}
-                            </div>
-                          )}
+                              {days}d
+                            </button>
+                          ))}
                         </div>
-                      )
-                    )}
 
-                    {isSplitPay && (
-                      <div
-                        className={`p-2.5 rounded-xl border text-xs font-sans flex items-center justify-between ${isSplitBalanced
-                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-bold'
+                        {/* Custom Days Input */}
+                        <div className="flex items-center gap-2">
+                          <label className="text-[10px] uppercase font-bold text-slate-500 shrink-0">Custom Days:</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="365"
+                            value={creditTermDays}
+                            onChange={e => setCreditTermDays(Math.max(1, parseInt(e.target.value) || 1))}
+                            className="w-20 px-2 py-1 text-xs font-mono font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                          />
+                          <span className="text-[11px] text-slate-500 font-medium">days from {showBackdate ? 'sale date' : 'today'}</span>
+                        </div>
+
+                        {/* Live Due Date Badge */}
+                        <div className="text-[11px] font-sans text-slate-700 dark:text-slate-300 flex items-center justify-between pt-1.5 border-t border-amber-500/20">
+                          <span className="text-slate-500">Due Date:</span>
+                          <span className="font-bold text-amber-800 dark:text-amber-300 font-mono">
+                            {formatDepotDate(effectiveDueDate.toISOString())}
+                          </span>
+                        </div>
+
+                        <div className="text-[10px] text-slate-500">
+                          New balance: <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{formatNaira(projectedBalance)}</span>
+                        </div>
+
+                        {overLimit && (
+                          <div
+                            className={`text-[11px] font-semibold pt-1 ${overLimitBlocked
+                              ? 'text-rose-600 dark:text-rose-400'
+                              : 'text-amber-600 dark:text-amber-400'
+                              }`}
+                          >
+                            {overLimitBlocked
+                              ? '⚠ Over debt limit — owner approval required.'
+                              : '⚠ Over debt limit (owner override).'}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  )}
+
+                  {isSplitPay && (
+                    <div
+                      className={`p-2.5 rounded-xl border text-xs font-sans flex items-center justify-between ${isSplitBalanced
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-bold'
+                        : splitRemaining > 0
+                          ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-900/60 text-amber-800 dark:text-amber-300'
+                          : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900/60 text-rose-800 dark:text-rose-300 font-bold'
+                        }`}
+                    >
+                      <span>
+                        {isSplitBalanced
+                          ? '✓ Fully Balanced (100%)'
                           : splitRemaining > 0
-                            ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-900/60 text-amber-800 dark:text-amber-300'
-                            : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900/60 text-rose-800 dark:text-rose-300 font-bold'
-                          }`}
-                      >
-                        <span>
-                          {isSplitBalanced
-                            ? '✓ Fully Balanced (100%)'
-                            : splitRemaining > 0
-                              ? 'Remaining to allocate:'
-                              : 'Exceeds sale total by:'}
-                        </span>
-                        <span className="font-mono font-bold tabular-nums">
-                          {isSplitBalanced
-                            ? formatNaira(cartTotal)
-                            : splitRemaining > 0
-                              ? formatNaira(splitRemaining)
-                              : `+${formatNaira(splitOver)}`}
-                        </span>
-                      </div>
-                    )}
+                            ? 'Remaining to allocate:'
+                            : 'Exceeds sale total by:'}
+                      </span>
+                      <span className="font-mono font-bold tabular-nums">
+                        {isSplitBalanced
+                          ? formatNaira(cartTotal)
+                          : splitRemaining > 0
+                            ? formatNaira(splitRemaining)
+                            : `+${formatNaira(splitOver)}`}
+                      </span>
+                    </div>
+                  )}
 
-                    {!isSplitPay && cartTotal > 0 && (
-                      <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-900/60 text-xs font-sans text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
-                        <span>Full payment via {getPaymentModeTheme(payMethods[0]).label}</span>
-                        <span className="font-mono font-bold tabular-nums">{formatNaira(cartTotal)}</span>
-                      </div>
-                    )}
-                  </div>
+                  {!isSplitPay && cartTotal > 0 && (
+                    <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-900/60 text-xs font-sans text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
+                      <span>Full payment via {getPaymentModeTheme(payMethods[0]).label}</span>
+                      <span className="font-mono font-bold tabular-nums">{formatNaira(cartTotal)}</span>
+                    </div>
+                  )}
+                </div>
 
                 <input
                   value={note}
