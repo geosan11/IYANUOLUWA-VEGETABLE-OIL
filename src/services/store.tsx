@@ -101,6 +101,10 @@ import {
   toSalePaymentLegs,
   toSaleRow,
   toTankRow,
+  fromOrderRow,
+  mergeTankRows,
+  attachAllocationsToOrders,
+  toAllocationDrafts,
   LEDGER_PULL_COLUMNS
 } from './ledger';
 import type { LedgerDraft, LedgerSnapshot, LedgerTable } from './ledger';
@@ -832,12 +836,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // keeps working exactly as it does today.
       if (!(await isLedgerSchemaReady())) return;
 
-      const [remoteCustomers, remoteTanks, remoteSales, remoteOrders, remotePayments] = await Promise.all([
+      const [remoteCustomers, remoteTanks, remoteSales, remoteOrders, remotePayments, remoteAllocations] = await Promise.all([
         pullLedgerTable<Customer>('customers', LEDGER_PULL_COLUMNS.customers, { column: 'created_at' }),
         pullLedgerTable<Tank>('tanks', LEDGER_PULL_COLUMNS.tanks, { column: 'date' }),
         pullLedgerTable<Sale>('sales', LEDGER_PULL_COLUMNS.sales, { column: 'date' }),
         pullLedgerTable<Order>('orders', LEDGER_PULL_COLUMNS.orders, { column: 'date' }),
-        pullLedgerTable<Payment>('payments', LEDGER_PULL_COLUMNS.payments, { column: 'date' })
+        pullLedgerTable<Payment>('payments', LEDGER_PULL_COLUMNS.payments, { column: 'date' }),
+        pullLedgerTable<{ order_id: string; tank_id: string; drawn_litres: number; draw_sequence?: number }>(
+          'order_tank_allocations',
+          LEDGER_PULL_COLUMNS.order_tank_allocations
+        )
       ]);
       if (cancelled) return;
 
@@ -889,9 +897,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // Parents before children — orders.sale_id → sales (0019), and both
       // orders.customer_id and payments.customer_id → customers.
       const customersMerged = await syncTable('customers', 'customers', remoteCustomers, local.customers, toCustomerRow);
-      const tanksMerged = await syncTable('tanks', 'stock intakes', remoteTanks, local.tanks, toTankRow);
+      const tanksMerged = remoteTanks
+        ? mergeTankRows(remoteTanks, local.tanks)
+        : local.tanks;
+      if (remoteTanks) {
+        const localOnlyTanks = tanksMerged.filter(t => !remoteTanks.some(r => r.id === t.id));
+        await upload('tanks', 'stock intakes', localOnlyTanks, toTankRow);
+      }
       const salesMerged = await syncTable('sales', 'sales', remoteSales, local.sales, toSaleRow);
-      const ordersMerged = await syncTable('orders', 'sale lines', remoteOrders, local.orders, toOrderRow);
+      const ordersPulled = remoteOrders ? remoteOrders.map(fromOrderRow) : null;
+      const ordersStitched = ordersPulled && remoteAllocations
+        ? attachAllocationsToOrders(ordersPulled, remoteAllocations)
+        : ordersPulled;
+      const ordersMerged = await syncTable('orders', 'sale lines', ordersStitched, local.orders.map(fromOrderRow), toOrderRow);
       const paymentsMerged = await syncTable('payments', 'payments', remotePayments, local.payments, toPaymentRow);
 
       // Tender legs for sales that existed only here, once their parent sales
@@ -901,6 +919,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           toSalePaymentLegs(sale, local.orders.filter(o => o.sale_id === sale.id))
         );
         await upload('sale_payments', 'tender legs', legs, (draft: LedgerDraft) => draft.row);
+      }
+      if (remoteOrders) {
+        const localOnlyLines = localOnlyOf(remoteOrders, local.orders);
+        const allocDrafts = toAllocationDrafts(localOnlyLines);
+        await upload('order_tank_allocations', 'tank draws', allocDrafts, (draft: LedgerDraft) => draft.row);
       }
 
       if (cancelled) return;
@@ -997,6 +1020,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     for (const saleId of touchedSaleIds) {
       const sale = allSales.find(s => s.id === saleId);
       if (sale) drafts.push(...toSalePaymentLegs(sale, allOrders.filter(o => o.sale_id === saleId)));
+    }
+    const touchedOrderIds = new Set(drafts.filter(d => d.table === 'orders').map(d => d.id));
+    if (touchedOrderIds.size > 0) {
+      drafts.push(...toAllocationDrafts(allOrders.filter(o => touchedOrderIds.has(o.id))));
     }
 
     // The baseline only advances once the rows are actually in the queue: if
@@ -1121,18 +1148,33 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     pumpsSyncedRef.current = true;
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase!
+      let data: Pump[] | null = null;
+      let { data: pumpRows, error } = await supabase!
         .from('pumps')
-        .select('id, label, product_id, last_meter_reading, hub_id')
+        .select('id, label, product_id, last_meter_reading, physical_tank_id, hub_id')
         .order('label', { ascending: true });
+      if (error && /physical_tank_id/i.test(error.message)) {
+        const fallback = await supabase!
+          .from('pumps')
+          .select('id, label, product_id, last_meter_reading, hub_id')
+          .order('label', { ascending: true });
+        pumpRows = fallback.data as typeof pumpRows;
+        error = fallback.error;
+      }
       if (cancelled) return;
       if (error) {
         console.error('[store] Failed to load pumps from database:', error.message);
         return;
       }
-      const remote = (data as Pump[]) ?? [];
+      data = (pumpRows as Pump[]) ?? [];
+      const remote = data ?? [];
       const remoteIds = new Set(remote.map(p => p.id));
       setPumps(prevLocal => {
+        const localById = new Map(prevLocal.map(p => [p.id, p]));
+        const merged = remote.map(r => ({
+          ...r,
+          physical_tank_id: r.physical_tank_id || localById.get(r.id)?.physical_tank_id || null
+        }));
         const localOnly = prevLocal.filter(p => !remoteIds.has(p.id));
         if (localOnly.length > 0) {
           queueMasterWrites(localOnly.map(p => ({
@@ -1143,11 +1185,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               label: p.label,
               product_id: p.product_id || null,
               last_meter_reading: p.last_meter_reading,
+              physical_tank_id: p.physical_tank_id || null,
               hub_id: p.hub_id || null
             }
           })));
         }
-        return [...remote, ...localOnly];
+        return [...merged, ...localOnly];
       });
     })();
     return () => {
@@ -1166,7 +1209,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     let cancelled = false;
     (async () => {
       const [productsRes, varietiesRes] = await Promise.all([
-        supabase!.from('products').select('id, name, supply_model, litres_per_ton, litres_per_keg, keg_sell_price, color_light, color_dark'),
+        supabase!.from('products').select('id, name, supply_model, litres_per_ton, litres_per_keg, keg_sell_price, color_light, color_dark, pack_config'),
         supabase!.from('product_varieties').select('id, product_id, name, sort_order').order('sort_order', { ascending: true })
       ]);
       if (cancelled) return;
@@ -1184,7 +1227,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         list.push({ id: v.id, name: v.name });
         varietiesByProduct.set(v.product_id, list);
       }
-      type RemoteProductRow = Omit<Product, 'varieties' | 'pack_config'>;
+      type RemoteProductRow = Omit<Product, 'varieties' | 'pack_config'> & { pack_config?: Product['pack_config'] };
       const remoteRows = (productsRes.data as RemoteProductRow[]) ?? [];
       const remoteIds = new Set(remoteRows.map(r => r.id));
 
@@ -1193,10 +1236,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const merged: Product[] = remoteRows.map(row => {
           const localMatch = localById.get(row.id);
           const defaults = DEFAULT_PRODUCTS.find(dp => dp.id === row.id);
+          const remotePacks = Array.isArray(row.pack_config) ? row.pack_config : [];
           return {
             ...row,
             varieties: varietiesByProduct.get(row.id) ?? localMatch?.varieties ?? defaults?.varieties ?? [{ id: `${row.id}-standard`, name: 'Standard' }],
-            pack_config: localMatch?.pack_config ?? defaults?.pack_config ?? []
+            pack_config: remotePacks.length > 0 ? remotePacks : (localMatch?.pack_config ?? defaults?.pack_config ?? [])
           };
         });
         const localOnly = prevLocal.filter(p => !remoteIds.has(p.id));
@@ -1215,7 +1259,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 litres_per_keg: p.litres_per_keg,
                 keg_sell_price: p.keg_sell_price,
                 color_light: p.color_light,
-                color_dark: p.color_dark
+                color_dark: p.color_dark,
+                pack_config: p.pack_config ?? []
               }
             })),
             ...localOnly.flatMap(p =>
@@ -1476,9 +1521,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true };
   };
 
-  const getTargetHubId = () => {
+  const getTargetHubId = (): string | undefined => {
     if (activeHubId !== 'all') return activeHubId;
-    return currentUser.hub_id || hubs[0]?.id || '';
+    return currentUser.hub_id || hubs[0]?.id || undefined;
   };
 
   // Scoped views for the active hub (or consolidated across all if 'all')
@@ -2035,7 +2080,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
       }
 
-      const draw = executeFifoTankDraw(workingTanks, line.productId, priced.litres);
+      const pump = line.pumpId ? pumps.find(p => p.id === line.pumpId) : undefined;
+      const draw = priced.litres > 0
+        ? executeFifoTankDraw(workingTanks, line.productId, priced.litres, {
+          physicalTankId: pump?.physical_tank_id || null
+        })
+        : { success: true as const, allocations: [] as { tankId: string; drawnLitres: number }[], primaryTankId: null as string | null, updatedTanks: workingTanks, errorMessage: undefined as string | undefined };
       if (!draw.success) {
         return { success: false, error: `Line ${i + 1}: ${draw.errorMessage || 'insufficient tank stock'}` };
       }
@@ -2340,11 +2390,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
     }
 
-    // Restore drawn litres to their source tanks.
+    // Restore drawn litres to their source tanks. After a DB pull, split
+    // allocations may be missing — fall back to the first-tank column plus
+    // the line's litres so stock is not left drawn.
     const restore: Record<string, number> = {};
     for (const line of saleLines) {
-      for (const alloc of line.tank_allocations || []) {
-        restore[alloc.tank_id] = (restore[alloc.tank_id] || 0) + alloc.litres;
+      const allocs = line.tank_allocations || [];
+      if (allocs.length > 0) {
+        for (const alloc of allocs) {
+          restore[alloc.tank_id] = (restore[alloc.tank_id] || 0) + alloc.litres;
+        }
+      } else if (line.source_tank_id && Number(line.litres) > 0) {
+        restore[line.source_tank_id] = (restore[line.source_tank_id] || 0) + Number(line.litres);
       }
     }
     setTanks(prev =>
@@ -2472,7 +2529,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const litresDelta = Number((priced.litres - line.litres).toFixed(2));
     let nextAllocations = line.tank_allocations || [];
     if (litresDelta > 0.001) {
-      const draw = executeFifoTankDraw(tanks, line.product_id, litresDelta);
+      const pump = line.pump_id ? pumps.find(p => p.id === line.pump_id) : undefined;
+      const draw = executeFifoTankDraw(tanks, line.product_id, litresDelta, {
+        physicalTankId: pump?.physical_tank_id || null
+      });
       if (!draw.success) return { success: false, error: draw.errorMessage || 'Not enough tank stock for the increase' };
       const updatedMap = new Map(draw.updatedTanks.map(t => [t.id, t]));
       setTanks(prev => prev.map(t => updatedMap.get(t.id) || t));
@@ -2983,10 +3043,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true, pumpReading: resetReading };
   };
 
-  // 9b. Pumps CRUD (named register). Note: `physical_tank_id` has no column
-  // on the `pumps` table yet (schema gap #14 in supabase/SCHEMA.md, deferred
-  // there as low-value) — kept fully working in local state, just not sent
-  // to Supabase until that column exists.
+  // 9b. Pumps CRUD (named register). `physical_tank_id` is on `pumps` from
+  // migration 0025 — the meter screen and FIFO draw both read it.
   const addPump = (data: { label: string; productId?: string; openingReading?: number; physicalTankId?: string | null; hubId?: string }) => {
     const newPump: Pump = {
       id: `p-${Date.now()}`,
@@ -3002,31 +3060,34 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       label: newPump.label,
       product_id: newPump.product_id || null,
       last_meter_reading: newPump.last_meter_reading,
+      physical_tank_id: newPump.physical_tank_id || null,
       hub_id: newPump.hub_id || null
     });
     return newPump;
   };
 
   const updatePump = (pumpId: string, updates: { label?: string; product_id?: string | null; physical_tank_id?: string | null; hub_id?: string }) => {
-    setPumps(prev =>
-      prev.map(p =>
-        p.id === pumpId
-          ? {
-            ...p,
-            label: updates.label !== undefined ? updates.label.trim() || p.label : p.label,
-            product_id: updates.product_id !== undefined ? updates.product_id || undefined : p.product_id,
-            physical_tank_id: updates.physical_tank_id !== undefined ? updates.physical_tank_id || null : p.physical_tank_id,
-            hub_id: updates.hub_id !== undefined ? updates.hub_id : p.hub_id
-          }
-          : p
-      )
-    );
-    queueMasterWrite('pumps', { id: pumpId }, {
-      id: pumpId,
-      ...(updates.label !== undefined && { label: updates.label.trim() || undefined }),
-      ...(updates.product_id !== undefined && { product_id: updates.product_id || null }),
-      ...(updates.hub_id !== undefined && { hub_id: updates.hub_id || null })
-    });
+    const current = pumps.find(p => p.id === pumpId);
+    const next = current
+      ? {
+        ...current,
+        label: updates.label !== undefined ? updates.label.trim() || current.label : current.label,
+        product_id: updates.product_id !== undefined ? updates.product_id || undefined : current.product_id,
+        physical_tank_id: updates.physical_tank_id !== undefined ? updates.physical_tank_id || null : current.physical_tank_id,
+        hub_id: updates.hub_id !== undefined ? updates.hub_id : current.hub_id
+      }
+      : null;
+    setPumps(prev => prev.map(p => (p.id === pumpId && next ? next : p)));
+    if (next) {
+      queueMasterWrite('pumps', { id: pumpId }, {
+        id: pumpId,
+        label: next.label,
+        product_id: next.product_id || null,
+        last_meter_reading: next.last_meter_reading,
+        physical_tank_id: next.physical_tank_id || null,
+        hub_id: next.hub_id || null
+      });
+    }
   };
 
   const deletePump = (pumpId: string) => {
@@ -3179,7 +3240,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             litres_per_keg: newProduct.litres_per_keg,
             keg_sell_price: newProduct.keg_sell_price,
             color_light: newProduct.color_light,
-            color_dark: newProduct.color_dark
+            color_dark: newProduct.color_dark,
+            pack_config: newProduct.pack_config ?? []
           }
         },
         ...varieties.map((v, i) => ({
@@ -3193,7 +3255,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // 11b. Update Product (name, supply_model, varieties, pack_config, …).
-  // `pack_config` has no database column — local-only, never sent.
   const updateProduct = (productId: string, updates: Partial<Product>) => {
     // `products_bulk_needs_lpt` requires a density on every bulk_truck product,
     // so clearing one used to be rejected by the database and then reverted on
@@ -3239,7 +3300,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             litres_per_keg: full.litres_per_keg,
             keg_sell_price: full.keg_sell_price,
             color_light: full.color_light,
-            color_dark: full.color_dark
+            color_dark: full.color_dark,
+            pack_config: full.pack_config ?? []
           }
         });
       }

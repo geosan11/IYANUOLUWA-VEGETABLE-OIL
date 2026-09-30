@@ -61,6 +61,7 @@ These files define the Postgres target the app has migrated onto.
 | `supabase/migrations/0022_payments.sql` | `payments` — the customer-receipt table the app's `Payment` type has needed since it was introduced (a live REST probe returned 404 for both `payments` and `payment_allocations`: neither has ever existed). Deliberately a different grain from 0007's `sale_payments`: one receipt, allocated across many sale lines via an `applied_to` jsonb column (not normalised into `payment_allocations` yet), with `overpayment_to_credit` covering the change pushed to store credit. RLS: read-all + staff insert/update + hub isolation, and no DELETE — a voided receipt stays visible as the correction trail. |
 | `supabase/migrations/0023_default_litres_per_ton_not_invented.sql` | Changes `app_settings.default_litres_per_ton`'s database default from `1075` to `0`. 0016 stamped one palm-oil-typical ratio onto every depot, so a new settings row (or any insert omitting the column) converted tons with a figure the owner never chose — 1,075 L/ton is not a universal conversion. `0` matches the app's own "not configured" semantics (`resolveLitresPerTon` falls through on 0). Stored values are left alone: a seeded 1075 and a typed 1075 are indistinguishable, so clearing it stays an owner decision in Settings → Density & Conversions. |
 | `supabase/migrations/0024_inventory_grant_products.sql` | Widens only `products`/`product_varieties`' write policies from `app_can_operate('settings')` (0011) to `app_can_operate('inventory') or app_can_operate('settings')`. Both tables are edited from the Inventory screen, whose client gate is `isOwner \|\| canOperate('inventory')`, while 0020 gave `pack_prices` — the other half of that same screen — an `'inventory'` check: a member granted Inventory but not Settings could open the screen and save a price, then have the product/variety save it belongs to rejected by RLS. Nothing else moves — suppliers/tanks/pumps/`app_settings` stay settings-granted, accounts/hubs/reset stay owner-only. |
+| `supabase/migrations/0025_pump_tank_and_pack_config.sql` | `pumps.physical_tank_id` FK → `physical_tanks`, and `products.pack_config` jsonb so pack sizes and the pump→tank link survive a reload and reach other devices. |
 | *(no `seed.sql`)* | `supabase/seed.sql` has been **deleted**. It seeded a two-product catalogue (`veg` / `red`, with 1,075 L/ton and 25 L kegs), rate cards, expense categories and the singleton `app_settings` row — invented commercial figures that then had to be unwound from the live database by `0012`/`0013`. A new install now starts genuinely empty: the owner adds products, keg sizes, densities and prices in Settings/Inventory, and `app_settings` starts at 0/blank, which the app reads as "not configured" rather than a real magnitude. Migrations alone are enough — `supabase db reset` / `migration up` need no seed step. |
 | `supabase/functions/create-staff-account/` | Edge Function (in active use): owner sets a username + password directly for a new team member, no email required — maps the username to a synthetic address under the hood. Deploy: `supabase functions deploy create-staff-account`. |
 | `supabase/functions/invite-user/` | Edge Function (built, not currently wired into the UI): sends a real Supabase auth invite email to a new team member and sets their role/hub/screen access. Deploy: `supabase functions deploy invite-user` — see `supabase/functions/README.md`. |
@@ -126,6 +127,7 @@ stored · **null** = nullable column.
 | litres_per_keg | litres_per_keg | numeric(10,2) | per-product |
 | keg_sell_price | keg_sell_price | numeric(12,2) **null** | NULL = container not sold outright |
 | varieties[] | → `product_varieties` | — | child table, not a column |
+| pack_config | pack_config | jsonb | which pack sizes this product sells (0025); `[]` = none yet |
 | color_light / color_dark | color_light / color_dark | text | hex strings |
 | — | created_at / updated_at | timestamptz | |
 
@@ -192,6 +194,7 @@ stored · **null** = nullable column.
 | label | label | text | |
 | product_id? | product_id | text **null** | **FK** → products(id) SET NULL |
 | last_meter_reading | last_meter_reading | numeric(14,2) | monotonic odometer cache |
+| physical_tank_id? | physical_tank_id | text **null** | **FK** → physical_tanks(id) SET NULL (0025) |
 
 ### `PumpReading` → `pump_readings`
 | id | id | text PK | `'pr-1'`, `'pr-<ts>'` |
@@ -395,7 +398,7 @@ all computed at read time in `businessLogic.ts` / `store.tsx`.
 | 11 | **`orders.source_tank_id` is also the only thing linking an order to a *physical* tank / supplier.** With #1 fixed the join path is order → allocation → tank → physical_tank / supplier. | **OK** — covered by `order_tank_allocations`. | — |
 | 12 | **Credit-limit / discount overrides are not recorded.** The app blocks a below-rate-card sale unless a `discount_reason` is typed, but there is no approver, no over-limit approval record. | **Deferred** — `approve_credit_override()` RPC stub in `0002`; add `orders.override_approved_by uuid`, `orders.override_approved_at timestamptz`. | — |
 | 13 | **`resetToSeedData()` ("factory reset")** is a client action that wipes localStorage. | **Deferred** — `factory_reset()` owner-only `SECURITY DEFINER` RPC stub in `0002`. | — |
-| 14 | **No product ↔ physical_tank ↔ pump wiring table.** Which pump draws which physical tank is implied by naming only. | **Deferred / low value.** | `pump_tank_links(pump_id, physical_tank_id, primary key(pump_id, physical_tank_id))` if it ever matters. |
+| 14 | **No product ↔ physical_tank ↔ pump wiring table.** Which pump draws which physical tank is implied by naming only. | **Done (0025)** — `pumps.physical_tank_id` FK → `physical_tanks`. One pump, one yard tank. FIFO draws that tank's lots (plus untagged legacy lots) and will not drain a sibling tank. | — |
 
 ---
 

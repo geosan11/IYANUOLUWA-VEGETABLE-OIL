@@ -520,28 +520,36 @@ export function calculateKegInventory(
 
 /**
  * 3. FIFO TANK DRAW (on every order)
- * Draw from oldest tank (by date) for that product first.
- * If not enough, drain to zero and pull remainder from next oldest.
- * If total remaining across all tanks < required litres -> reject order.
+ * Draw from oldest lot (by date) for that product first.
+ * If a yard tank is named, only lots sitting in that tank (plus any untagged
+ * legacy lots) are used — oil filled into Tank 2 is not sold off Tank 1.
+ * If not enough, drain to zero and pull remainder from the next oldest.
+ * If total remaining across eligible lots < required litres -> reject order.
  */
 export function executeFifoTankDraw(
   tanks: Tank[],
   productId: string,
-  requiredLitres: number
+  requiredLitres: number,
+  opts?: { physicalTankId?: string | null }
 ): TankDrawResult {
-  const productTanks = tanks
-    .filter(t => t.product_id === productId && t.remaining_litres > 0)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()); // Oldest first
+  const ofProduct = tanks.filter(t => t.product_id === productId && t.remaining_litres > 0);
+  const requestedTank = (opts?.physicalTankId || '').trim() || null;
+  const productTanks = (
+    requestedTank
+      ? ofProduct.filter(t => t.physical_tank_id === requestedTank || !t.physical_tank_id)
+      : ofProduct
+  ).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const totalAvailable = productTanks.reduce((sum, t) => sum + t.remaining_litres, 0);
 
   if (totalAvailable < requiredLitres - 0.001) {
+    const where = requestedTank ? ' in the selected yard tank' : ' across active tanks';
     return {
       success: false,
       allocations: [],
       primaryTankId: null,
       updatedTanks: tanks,
-      errorMessage: `Insufficient stock! Total remaining across active tanks is ${totalAvailable.toFixed(1)}L, but ${requiredLitres.toFixed(1)}L is required.`
+      errorMessage: `Insufficient stock! Total remaining${where} is ${totalAvailable.toFixed(1)}L, but ${requiredLitres.toFixed(1)}L is required.`
     };
   }
 

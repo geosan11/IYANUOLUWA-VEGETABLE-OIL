@@ -274,7 +274,7 @@ export const TruckIntakeScreen: React.FC = () => {
 
     try {
       if (isBulkTruck) {
-        const parsedTons = parseInt(tons, 10);
+        const parsedTons = parseFromCommas(tons);
         if (!parsedTons || parsedTons <= 0) {
           setErrorMessage('Please enter a valid tonnage for bulk offload.');
           showToast('error', 'Please enter a valid tonnage for bulk offload.');

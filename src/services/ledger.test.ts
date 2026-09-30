@@ -33,7 +33,12 @@ import {
   toPaymentRow,
   toSalePaymentLegs,
   toSaleRow,
-  toTankRow
+  toTankRow,
+  fromOrderRow,
+  mergeTankRows,
+  toAllocationDrafts,
+  attachAllocationsToOrders,
+  LEDGER_CONFLICT
 } from './ledger';
 import type { LedgerTable } from './ledger';
 import type { Customer, Order, Payment, Sale, Tank } from '../types';
@@ -224,6 +229,8 @@ function mappedRowFor(table: LedgerTable): Record<string, unknown> {
       return toSaleRow(SAMPLE_SALE);
     case 'orders':
       return toOrderRow(SAMPLE_LINE);
+    case 'order_tank_allocations':
+      return toAllocationDrafts([{ ...SAMPLE_LINE, tank_allocations: [{ tank_id: SAMPLE_TANK.id, litres: 750 }] }])[0].row;
     case 'sale_payments':
       return toSalePaymentLegs(SAMPLE_SALE, [SAMPLE_LINE])[0].row;
     case 'payments':
@@ -256,6 +263,7 @@ const WRITE_ONLY: Record<LedgerTable, string[]> = {
   tanks: [],
   sales: [],
   orders: ['unit', 'rate', 'discount_reason'],
+  order_tank_allocations: [],
   sale_payments: [],
   payments: []
 };
@@ -280,7 +288,16 @@ for (const table of LEDGER_PUSH_ORDER) {
 // TEST: flush order is FK order
 // ---------------------------------------------------------------------------
 const pushOrder = LEDGER_PUSH_ORDER;
-assert(pushOrder.length === 6, 'Push order: lists each of the six ledger tables once');
+assert(pushOrder.length === 7, 'Push order: lists each of the seven ledger tables once');
+assert(
+  pushOrder.indexOf('orders') < pushOrder.indexOf('order_tank_allocations'),
+  'Push order: lines before tank draws (order_tank_allocations.order_id → orders)'
+);
+assert(
+  pushOrder.indexOf('tanks') < pushOrder.indexOf('order_tank_allocations'),
+  'Push order: lots before tank draws (order_tank_allocations.tank_id → tanks)'
+);
+assert(LEDGER_CONFLICT.order_tank_allocations === 'order_id,tank_id', 'Conflict: tank draws upsert on (order_id, tank_id)');
 assert(
   pushOrder.indexOf('customers') < pushOrder.indexOf('sales'),
   'Push order: customers before sales (sales.customer_id → customers)'
@@ -318,7 +335,7 @@ assert(
 );
 assert(
   lineRow.discount_reason === SAMPLE_LINE.price_adjust_reason &&
-    lineRow.price_adjust_reason === SAMPLE_LINE.price_adjust_reason,
+  lineRow.price_adjust_reason === SAMPLE_LINE.price_adjust_reason,
   'toOrderRow: an override reason fills both the new and the legacy reason column'
 );
 assert(
@@ -335,7 +352,7 @@ assert(
 );
 assert(
   toOrderRow({ ...SAMPLE_LINE, container_mode: undefined as unknown as Order['container_mode'] }).container_mode ===
-    'none',
+  'none',
   'toOrderRow: an unset container mode defaults to none'
 );
 assert(
@@ -520,7 +537,7 @@ assert(ledgerOutboxCount() === 0, 'Outbox: starts empty');
 
 assert(
   enqueueLedgerRows(diffLedgerRows('customers', undefined, [SAMPLE_CUSTOMER], toCustomerRow)) === 1 &&
-    ledgerOutboxCount() === 1,
+  ledgerOutboxCount() === 1,
   'Outbox: a queued row is persisted and counted'
 );
 
@@ -594,6 +611,35 @@ const refusedWarnings = captureWarnings(() => {
 assert(refused === 0, 'Outbox: a refused storage write reports 0, so the caller does not advance its baseline');
 assert(refusedWarnings.length === 1, 'Outbox: the refused write warns instead of failing silently');
 assert(ledgerOutboxCount() === 0, 'Outbox: ... and the lost rows are not reported as queued');
+
+// ---------------------------------------------------------------------------
+// TEST: pull mapping, tank merge, allocation drafts
+// ---------------------------------------------------------------------------
+const pulledLine = fromOrderRow({ ...SAMPLE_LINE, line_amount: undefined as unknown as number, amount: 75000 });
+assert(pulledLine.line_amount === 75000 && pulledLine.amount === 75000, 'fromOrderRow: a DB row with only `amount` still totals ₦75,000');
+
+const localSold: Tank = { ...SAMPLE_TANK, remaining_litres: 100 };
+const remoteFull: Tank = { ...SAMPLE_TANK, remaining_litres: 200 };
+const mergedSold = mergeTankRows([remoteFull], [localSold]);
+assert(mergedSold[0].remaining_litres === 100, 'Tank merge: unsynced local sales keep the lower remaining, not the full remote lot');
+
+const allocDrafts = toAllocationDrafts([
+  { ...SAMPLE_LINE, tank_allocations: [{ tank_id: SAMPLE_TANK.id, litres: 750 }] }
+]);
+assert(allocDrafts.length === 1 && allocDrafts[0].table === 'order_tank_allocations', 'Allocations: one draw produces one child row');
+assert(
+  allocDrafts[0].row.order_id === SAMPLE_LINE.id && allocDrafts[0].row.tank_id === SAMPLE_TANK.id,
+  'Allocations: child row names the line and the lot'
+);
+
+const stitched = attachAllocationsToOrders(
+  [{ ...SAMPLE_LINE, tank_allocations: null, source_tank_id: null }],
+  [{ order_id: SAMPLE_LINE.id, tank_id: SAMPLE_TANK.id, drawn_litres: 750, draw_sequence: 1 }]
+);
+assert(
+  stitched[0].tank_allocations?.[0].tank_id === SAMPLE_TANK.id && stitched[0].source_tank_id === SAMPLE_TANK.id,
+  'Allocations: a pull reattaches the draw onto the line'
+);
 
 // ---------------------------------------------------------------------------
 // TEST: no client configured — "no answer" must never look like "no rows"

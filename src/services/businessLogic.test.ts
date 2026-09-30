@@ -186,6 +186,18 @@ assert(
 const failDraw = executeFifoTankDraw(mockTanks, 'veg', 1500);
 assert(failDraw.success === false, 'FIFO Tank Draw: hard stop when stock is insufficient (1200 available vs 1500 requested)');
 
+const taggedTanks: Tank[] = [
+  { ...mockTanks[0], physical_tank_id: 'pt-1' },
+  { ...mockTanks[1], physical_tank_id: 'pt-2' }
+];
+const drawTank2 = executeFifoTankDraw(taggedTanks, 'veg', 100, { physicalTankId: 'pt-2' });
+assert(drawTank2.success === true, 'FIFO by yard tank: draws from the named tank');
+assert(drawTank2.allocations.length === 1 && drawTank2.allocations[0].tankId === 'tank-2', 'FIFO by yard tank: Tank 2 oil is not taken from Tank 1');
+assert(drawTank2.updatedTanks[1].remaining_litres === 700, 'FIFO by yard tank: only Tank 2 remaining drops');
+assert(drawTank2.updatedTanks[0].remaining_litres === 400, 'FIFO by yard tank: Tank 1 remaining is untouched');
+const stealBlocked = executeFifoTankDraw(taggedTanks, 'veg', 900, { physicalTankId: 'pt-2' });
+assert(stealBlocked.success === false, 'FIFO by yard tank: refuses to drain a different tank when the named one is short');
+
 // 4. CUSTOMER CREDIT & AGING RULES
 const sampleCustomer: Customer = {
   id: 'c-test',

@@ -36,6 +36,7 @@ export type LedgerTable =
   | 'tanks'
   | 'sales'
   | 'orders'
+  | 'order_tank_allocations'
   | 'sale_payments'
   | 'payments';
 
@@ -43,7 +44,8 @@ export type LedgerTable =
  * Flush order is FK order, not alphabetical: every constraint points backwards,
  * so parents must reach the database before children or the child insert is
  * rejected. `orders.sale_id` → `sales` (0019), `orders.customer_id` →
- * `customers`, `sale_payments.sale_id` → `sales` (0019), `payments.customer_id`
+ * `customers`, `order_tank_allocations.order_id` → `orders` and `.tank_id` →
+ * `tanks` (0001), `sale_payments.sale_id` → `sales` (0019), `payments.customer_id`
  * → `customers` (0022).
  */
 export const LEDGER_PUSH_ORDER: LedgerTable[] = [
@@ -51,9 +53,23 @@ export const LEDGER_PUSH_ORDER: LedgerTable[] = [
   'tanks',
   'sales',
   'orders',
+  'order_tank_allocations',
   'sale_payments',
   'payments'
 ];
+
+/** Conflict target for each table's upsert — the PRIMARY KEY, except
+ *  `order_tank_allocations` whose id is a server identity and whose natural
+ *  key is (order_id, tank_id). */
+export const LEDGER_CONFLICT: Record<LedgerTable, string> = {
+  customers: 'id',
+  tanks: 'id',
+  sales: 'id',
+  orders: 'id',
+  order_tank_allocations: 'order_id,tank_id',
+  sale_payments: 'id',
+  payments: 'id'
+};
 
 /** A row on its way to the database: which table, which id, which columns. */
 export interface LedgerDraft {
@@ -117,7 +133,7 @@ export function isLedgerSchemaReady(): Promise<boolean> {
       schemaReady = false;
       console.warn(
         '[ledger] The ledger tables are not in the database yet (migrations 0019-0022 unapplied). ' +
-          'Sales, orders, payments and customers stay on this device until they are applied.'
+        'Sales, orders, payments and customers stay on this device until they are applied.'
       );
       return false;
     }
@@ -259,7 +275,7 @@ export async function flushLedgerOutbox(): Promise<LedgerFlushResult> {
       .from(table)
       .upsert(
         retryable.map(r => r.row),
-        { onConflict: 'id' }
+        { onConflict: LEDGER_CONFLICT[table] }
       );
 
     if (upsertError) {
@@ -268,7 +284,7 @@ export async function flushLedgerOutbox(): Promise<LedgerFlushResult> {
       for (const r of retryable) {
         const { error: singleError } = await supabase
           .from(table)
-          .upsert([r.row], { onConflict: 'id' });
+          .upsert([r.row], { onConflict: LEDGER_CONFLICT[table] });
 
         if (singleError) {
           error = singleError.message;
@@ -485,6 +501,99 @@ export function toOrderRow(o: Order) {
 }
 
 /**
+ * Postgres stores the line total as `amount`. The rest of the app totals
+ * `line_amount`. After a pull the two must be the same number or every
+ * screen that sums `line_amount` shows ₦0.
+ */
+export function fromOrderRow(row: Partial<Order> & { amount?: number; line_amount?: number }): Order {
+  const amount = num(row.line_amount ?? row.amount);
+  return {
+    ...(row as Order),
+    line_amount: amount,
+    amount
+  };
+}
+
+/**
+ * FIFO split draws. Outbox id is derived so re-pushing a sale upserts the
+ * same legs instead of inserting duplicates. The table's own id is a
+ * server identity — we never send it.
+ */
+export function allocationOutboxId(orderId: string, tankId: string): string {
+  return `ota-${orderId}-${tankId}`;
+}
+
+export function toAllocationDrafts(lines: Order[]): LedgerDraft[] {
+  const drafts: LedgerDraft[] = [];
+  for (const line of lines) {
+    if (line.voided) continue;
+    const legs = line.tank_allocations || [];
+    legs.forEach((alloc, index) => {
+      if (!(Number(alloc.litres) > 0) || !alloc.tank_id) return;
+      const id = allocationOutboxId(line.id, alloc.tank_id);
+      drafts.push({
+        table: 'order_tank_allocations',
+        id,
+        row: {
+          order_id: line.id,
+          tank_id: alloc.tank_id,
+          drawn_litres: num(alloc.litres),
+          remaining_after_draw: null,
+          draw_sequence: index + 1
+        }
+      });
+    });
+  }
+  return drafts;
+}
+
+export function attachAllocationsToOrders(
+  orders: Order[],
+  allocations: { order_id: string; tank_id: string; drawn_litres: number; draw_sequence?: number }[]
+): Order[] {
+  if (allocations.length === 0) return orders;
+  const byOrder = new Map<string, { tank_id: string; litres: number; seq: number }[]>();
+  for (const a of allocations) {
+    const list = byOrder.get(a.order_id) ?? [];
+    list.push({ tank_id: a.tank_id, litres: num(a.drawn_litres), seq: a.draw_sequence ?? 1 });
+    byOrder.set(a.order_id, list);
+  }
+  return orders.map(o => {
+    const legs = byOrder.get(o.id);
+    if (!legs) return o;
+    const sorted = [...legs].sort((a, b) => a.seq - b.seq);
+    return {
+      ...o,
+      tank_allocations: sorted.map(l => ({ tank_id: l.tank_id, litres: l.litres })),
+      source_tank_id: o.source_tank_id || sorted[0]?.tank_id || null
+    };
+  });
+}
+
+/**
+ * First-sync merge for stock lots. The database winning on id used to restore
+ * a tank's remaining litres after this device had already sold from it (the
+ * sale might still upload, the tank looked full, and the same oil could be
+ * sold twice). Keep the lower remaining of the two copies; keep the higher
+ * received so a tons-lift on this device is not thrown away.
+ */
+export function mergeTankRows(remote: Tank[], local: Tank[]): Tank[] {
+  const localById = new Map(local.map(t => [t.id, t]));
+  const remoteIds = new Set(remote.map(t => t.id));
+  const merged = remote.map(r => {
+    const l = localById.get(r.id);
+    if (!l) return r;
+    return {
+      ...r,
+      remaining_litres: Math.min(num(l.remaining_litres), num(r.remaining_litres)),
+      received_litres: Math.max(num(l.received_litres), num(r.received_litres)),
+      physical_tank_id: r.physical_tank_id || l.physical_tank_id || null
+    };
+  });
+  return [...merged, ...local.filter(t => !remoteIds.has(t.id))];
+}
+
+/**
  * Tender legs for one sale (0007's `sale_payments`, FK'd to `sales` by 0019).
  *
  * A split sale writes one leg per split; anything else writes a single leg for
@@ -575,5 +684,7 @@ export const LEDGER_PULL_COLUMNS: Record<LedgerTable, string> = {
     'created_at, updated_at',
   payments:
     'id, customer_id, amount, method, date, applied_to, overpayment_to_credit, source, ' +
-    'recorded_by, note, voided, voided_at, void_reason, hub_id, created_at, updated_at'
+    'recorded_by, note, voided, voided_at, void_reason, hub_id, created_at, updated_at',
+  order_tank_allocations:
+    'order_id, tank_id, drawn_litres, remaining_after_draw, draw_sequence, created_at, updated_at'
 };
