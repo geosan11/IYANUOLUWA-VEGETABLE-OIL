@@ -420,6 +420,12 @@ assert(zeroLegs.length === 0, 'Tender legs: a zero-amount leg is not written at 
 const lineLessLegs = toSalePaymentLegs({ ...SAMPLE_SALE, payment_method: 'cash', payment_splits: undefined }, []);
 assert(lineLessLegs.length === 0, 'Tender legs: a sale whose lines total zero writes no tender');
 
+const voidedLineLegs = toSalePaymentLegs(
+  { ...SAMPLE_SALE, payment_method: 'cash', payment_splits: undefined },
+  [{ ...SAMPLE_LINE, amount: 50000, line_amount: 50000, voided: true }]
+);
+assert(voidedLineLegs.length === 0, 'Tender legs: voided lines are excluded from tender legs');
+
 // ---------------------------------------------------------------------------
 // TEST: sale header, receipt, intake and customer mappers
 // ---------------------------------------------------------------------------
@@ -622,6 +628,16 @@ const localSold: Tank = { ...SAMPLE_TANK, remaining_litres: 100 };
 const remoteFull: Tank = { ...SAMPLE_TANK, remaining_litres: 200 };
 const mergedSold = mergeTankRows([remoteFull], [localSold]);
 assert(mergedSold[0].remaining_litres === 100, 'Tank merge: unsynced local sales keep the lower remaining, not the full remote lot');
+
+const localLifted: Tank = { ...SAMPLE_TANK, received_litres: 32250, remaining_litres: 32250 };
+const remoteOldKegs: Tank = { ...SAMPLE_TANK, received_litres: 50, remaining_litres: 50 };
+const mergedLifted = mergeTankRows([remoteOldKegs], [localLifted]);
+assert(mergedLifted[0].received_litres === 32250, 'Tank merge: lifted received litres is preserved');
+assert(mergedLifted[0].remaining_litres === 32250, 'Tank merge: tons-lifted remaining litres is not wiped down to unlifted remote kegs');
+
+const localLiftedSold: Tank = { ...SAMPLE_TANK, received_litres: 32250, remaining_litres: 32050 };
+const mergedLiftedSold = mergeTankRows([remoteOldKegs], [localLiftedSold]);
+assert(mergedLiftedSold[0].remaining_litres === 32050, 'Tank merge: sales from lifted stock preserve the draw delta');
 
 const allocDrafts = toAllocationDrafts([
   { ...SAMPLE_LINE, tank_allocations: [{ tank_id: SAMPLE_TANK.id, litres: 750 }] }

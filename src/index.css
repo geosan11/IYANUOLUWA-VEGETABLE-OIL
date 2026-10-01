@@ -91,6 +91,11 @@
     @apply font-heading font-bold text-lg text-slate-900 dark:text-white tracking-tight;
   }
 
+  /* Screen-level page title — one size/weight across operations screens */
+  .depot-page-title {
+    @apply text-xl sm:text-2xl font-heading font-bold text-slate-900 dark:text-white tracking-tight;
+  }
+
   /* High-Contrast Badges for Light & Dark */
   .badge-emerald {
     @apply bg-emerald-100/90 text-emerald-900 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300/90 dark:border-emerald-700/50 font-semibold;

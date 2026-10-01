@@ -15,7 +15,7 @@ export const StaffManagementScreen: React.FC = () => {
           <UserPlus className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
         </div>
         <div>
-          <h1 className="text-xl font-heading font-bold text-slate-900 dark:text-white leading-tight">
+          <h1 className="depot-page-title leading-tight">
             Staff Management
           </h1>
           <p className="text-xs font-sans text-slate-500 dark:text-slate-400">

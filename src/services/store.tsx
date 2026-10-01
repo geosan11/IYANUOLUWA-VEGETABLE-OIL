@@ -105,7 +105,8 @@ import {
   mergeTankRows,
   attachAllocationsToOrders,
   toAllocationDrafts,
-  LEDGER_PULL_COLUMNS
+  LEDGER_PULL_COLUMNS,
+  LEDGER_CONFLICT
 } from './ledger';
 import type { LedgerDraft, LedgerSnapshot, LedgerTable } from './ledger';
 import {
@@ -866,7 +867,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         toRow: (row: T) => Record<string, unknown>
       ) => {
         if (rows.length === 0) return;
-        const { error } = await supabase!.from(table).upsert(rows.map(toRow), { onConflict: 'id' });
+        const { error } = await supabase!.from(table).upsert(rows.map(toRow), { onConflict: LEDGER_CONFLICT[table] });
         if (error) {
           console.error(`[ledger] Failed to upload local-only ${label}:`, error.message);
           showToast(
@@ -2527,7 +2528,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Reconcile the tank draw for the change in litres.
     const litresDelta = Number((priced.litres - line.litres).toFixed(2));
-    let nextAllocations = line.tank_allocations || [];
+    let nextAllocations = line.tank_allocations && line.tank_allocations.length > 0
+      ? line.tank_allocations
+      : line.source_tank_id && Number(line.litres) > 0
+        ? [{ tank_id: line.source_tank_id, litres: Number(line.litres) }]
+        : [];
     if (litresDelta > 0.001) {
       const pump = line.pump_id ? pumps.find(p => p.id === line.pump_id) : undefined;
       const draw = executeFifoTankDraw(tanks, line.product_id, litresDelta, {
@@ -2551,6 +2556,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           giveBack -= take;
         }
         if (a.litres - take > 0.001) kept.push({ tank_id: a.tank_id, litres: Number((a.litres - take).toFixed(2)) });
+      }
+      if (giveBack > 0.001 && line.source_tank_id) {
+        restore[line.source_tank_id] = (restore[line.source_tank_id] || 0) + giveBack;
+        giveBack = 0;
       }
       setTanks(prev =>
         prev.map(t => (restore[t.id] ? { ...t, remaining_litres: t.remaining_litres + restore[t.id] } : t))
@@ -3398,7 +3407,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // 12c. Per-product pack-size list + returnable / container-price config.
   const updateProductPackConfig = (productId: string, config: ProductPackConfig[]) => {
+    const current = products.find(p => p.id === productId);
     setProducts(prev => prev.map(p => (p.id === productId ? { ...p, pack_config: config } : p)));
+    if (current) {
+      queueMasterWrite('products', { id: productId }, {
+        id: productId,
+        name: current.name,
+        supply_model: current.supply_model,
+        litres_per_ton: current.litres_per_ton,
+        litres_per_keg: current.litres_per_keg,
+        keg_sell_price: current.keg_sell_price,
+        color_light: current.color_light,
+        color_dark: current.color_dark,
+        pack_config: config
+      });
+    }
   };
 
   // 13. Update Settings

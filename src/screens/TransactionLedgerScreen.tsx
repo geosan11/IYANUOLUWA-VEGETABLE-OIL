@@ -159,8 +159,9 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
     for (const sale of sales) {
       const lines = orders.filter(o => o.sale_id === sale.id);
       if (lines.length === 0) continue;
-      const total = lines.reduce((s, l) => s + l.line_amount, 0);
-      const outstanding = lines.reduce((s, l) => s + Math.max(0, l.line_amount - (l.paid_amount || 0)), 0);
+      const activeLines = sale.voided ? lines : lines.filter(l => !l.voided);
+      const total = activeLines.reduce((s, l) => s + (Number(l.line_amount ?? l.amount) || 0), 0);
+      const outstanding = activeLines.reduce((s, l) => s + Math.max(0, (Number(l.line_amount ?? l.amount) || 0) - (l.paid_amount || 0)), 0);
       const cust = customers.find(c => c.id === sale.customer_id);
       const agentName = cust ? cust.name : (sale.customer_id === ONE_TIME_CUSTOMER_ID ? 'Walk-in Retail' : 'Walk-in');
       const isAgent = cust?.type === 'agent';
@@ -173,9 +174,8 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
         auditIds: [sale.id, ...lines.map(l => l.id)],
         date: sale.date,
         title: custName(sale.customer_id),
-        subtitle: `${lines.length} item${lines.length === 1 ? '' : 's'} · ${sale.payment_method === 'split' ? 'Split payment' : sale.payment_method}${
-          sale.payment_method === 'credit' && outstanding > 0.01 ? ` · owes ${formatNaira(outstanding)}` : ''
-        }`,
+        subtitle: `${activeLines.length} item${activeLines.length === 1 ? '' : 's'} · ${sale.payment_method === 'split' ? 'Split payment' : sale.payment_method}${sale.payment_method === 'credit' && outstanding > 0.01 ? ` · owes ${formatNaira(outstanding)}` : ''
+          }`,
         amount: total,
         amountLabel: formatNaira(total),
         tone: 'in',
@@ -402,7 +402,8 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
   const reprintSale = (sale: Sale, lines: Order[]) => {
     const customer = customers.find(c => c.id === sale.customer_id);
     if (!customer) return;
-    const first = lines[0];
+    const first = lines?.[0];
+    if (!first) return;
     const receipt: ReceiptData = {
       receiptNumber: `REC-${sale.id.replace(/^sale-/, '')}`,
       type: 'order',
@@ -449,7 +450,7 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
             <ScrollText className="w-5 h-5 text-brand-600 dark:text-brand-400" />
           </div>
           <div>
-            <h1 className="text-lg font-heading font-bold text-slate-900 dark:text-white leading-tight">Transactions</h1>
+            <h1 className="depot-page-title leading-tight">Transaction Ledger</h1>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Everything in and out, newest first — with date, time and an edit trail.
             </p>
@@ -492,9 +493,8 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                   key={m}
                   type="button"
                   onClick={() => setPaymentModeFilter(isActive ? 'all' : m)}
-                  className={`w-full flex justify-between items-center px-1.5 py-0.5 rounded transition-all cursor-pointer ${
-                    isActive ? `${theme.onDarkBgCls} ring-1 ${theme.borderCls} font-black` : 'hover:bg-white/5'
-                  }`}
+                  className={`w-full flex justify-between items-center px-1.5 py-0.5 rounded transition-all cursor-pointer ${isActive ? `${theme.onDarkBgCls} ring-1 ${theme.borderCls} font-black` : 'hover:bg-white/5'
+                    }`}
                 >
                   <span className={`font-sans font-bold text-[11px] uppercase tracking-wider ${theme.onDarkTextCls}`}>{lbl}:</span>
                   <span className={`font-mono text-sm font-black tabular-nums ${theme.onDarkTextCls}`}>{formatNaira(val)}</span>
@@ -573,11 +573,10 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
             <button
               key={s.id}
               onClick={() => setScope(s.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-semibold border flex items-center gap-1.5 ${
-                scope === s.id
+              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-semibold border flex items-center gap-1.5 ${scope === s.id
                   ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
                   : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800'
-              }`}
+                }`}
             >
               {s.id === 'custom' && <CalendarBlank className="w-3.5 h-3.5" weight={scope === 'custom' ? 'bold' : 'thin'} />}
               {s.label}
@@ -588,11 +587,10 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
             <button
               key={k.id}
               onClick={() => setKindFilter(k.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-semibold border ${
-                kindFilter === k.id
+              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-semibold border ${kindFilter === k.id
                   ? 'bg-brand-500 text-slate-950 border-brand-500'
                   : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800'
-              }`}
+                }`}
             >
               {k.label}
             </button>
@@ -608,15 +606,14 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                 key={pm.id}
                 type="button"
                 onClick={() => setPaymentModeFilter(pm.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold border flex items-center gap-1.5 transition-all ${
-                  isSelected
+                className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold border flex items-center gap-1.5 transition-all ${isSelected
                     ? theme
                       ? theme.buttonActiveCls
                       : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white shadow-sm'
                     : theme
-                    ? `bg-white dark:bg-slate-900 ${theme.textCls} ${theme.borderCls} hover:border-current`
-                    : 'bg-white dark:bg-slate-900 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 border-slate-200 dark:border-slate-800'
-                }`}
+                      ? `bg-white dark:bg-slate-900 ${theme.textCls} ${theme.borderCls} hover:border-current`
+                      : 'bg-white dark:bg-slate-900 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 border-slate-200 dark:border-slate-800'
+                  }`}
               >
                 {theme ? (
                   <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : theme.dotCls} shrink-0`} />
@@ -632,11 +629,10 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
           <div className="relative group inline-block">
             <button
               type="button"
-              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold border flex items-center gap-1.5 transition-all cursor-pointer ${
-                varietyFilter !== 'all'
+              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold border flex items-center gap-1.5 transition-all cursor-pointer ${varietyFilter !== 'all'
                   ? 'bg-brand-500 text-slate-950 border-brand-500 shadow-sm'
                   : 'bg-white dark:bg-slate-900 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 border-slate-200 dark:border-slate-800'
-              }`}
+                }`}
             >
               <Jar className="w-3.5 h-3.5" weight={varietyFilter !== 'all' ? 'fill' : 'bold'} />
               <span>{varietyFilter !== 'all' ? (allVarieties.find(v => v.id === varietyFilter)?.name || 'Variety') : 'Varieties'}</span>
@@ -647,11 +643,10 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                 <button
                   type="button"
                   onClick={() => setVarietyFilter('all')}
-                  className={`w-full text-left px-3 py-1.5 text-xs font-sans font-semibold flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer ${
-                    varietyFilter === 'all'
+                  className={`w-full text-left px-3 py-1.5 text-xs font-sans font-semibold flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer ${varietyFilter === 'all'
                       ? 'text-brand-600 dark:text-brand-400 font-bold bg-brand-50/70 dark:bg-brand-950/40'
                       : 'text-slate-700 dark:text-slate-300'
-                  }`}
+                    }`}
                 >
                   <span>All Varieties</span>
                   {varietyFilter === 'all' && <Check className="w-3.5 h-3.5" weight="bold" />}
@@ -662,11 +657,10 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
                     key={v.id}
                     type="button"
                     onClick={() => setVarietyFilter(v.id)}
-                    className={`w-full text-left px-3 py-1.5 text-xs font-sans flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer ${
-                      varietyFilter === v.id
+                    className={`w-full text-left px-3 py-1.5 text-xs font-sans flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer ${varietyFilter === v.id
                         ? 'text-brand-600 dark:text-brand-400 font-bold bg-brand-50/70 dark:bg-brand-950/40'
                         : 'text-slate-700 dark:text-slate-300'
-                    }`}
+                      }`}
                   >
                     <div className="truncate">
                       <span className="font-semibold block truncate">{v.name}</span>
@@ -683,11 +677,10 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
           <button
             type="button"
             onClick={() => setDiscountOnly(d => !d)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold border flex items-center gap-1.5 transition-all cursor-pointer ${
-              discountOnly
+            className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold border flex items-center gap-1.5 transition-all cursor-pointer ${discountOnly
                 ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
                 : 'bg-white dark:bg-slate-900 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 border-slate-200 dark:border-slate-800'
-            }`}
+              }`}
             title="Filter transactions with price adjustments or discounts"
           >
             <Tag className="w-3.5 h-3.5" weight={discountOnly ? 'fill' : 'bold'} />
@@ -752,295 +745,293 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
           </div>
         </div>
         <div className="depot-card rounded-2xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs border-collapse">
-            <thead className="bg-gray-50 dark:bg-slate-950 border-b-2 border-slate-200 dark:border-slate-800">
-              <tr className="text-[10px] font-sans font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-                <th className="text-left px-3 py-2 whitespace-nowrap w-[88px]">Date</th>
-                <th className="text-left px-3 py-2 whitespace-nowrap">Type</th>
-                <th className="text-left px-3 py-2 whitespace-nowrap">Customer</th>
-                <th className="text-left px-3 py-2 whitespace-nowrap">Payment</th>
-                <th className="text-left px-3 py-2">Details</th>
-                <th className="text-right px-3 py-2 whitespace-nowrap">Amount</th>
-                <th className="text-right px-2 py-2 whitespace-nowrap w-px"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/70">
-              {scopedRows.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="py-10 text-center text-xs text-slate-400">
-                    Nothing in this window.
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse">
+              <thead className="bg-gray-50 dark:bg-slate-950 border-b-2 border-slate-200 dark:border-slate-800">
+                <tr className="text-[10px] font-sans font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  <th className="text-left px-3 py-2 whitespace-nowrap w-[88px]">Date</th>
+                  <th className="text-left px-3 py-2 whitespace-nowrap">Type</th>
+                  <th className="text-left px-3 py-2 whitespace-nowrap">Customer</th>
+                  <th className="text-left px-3 py-2 whitespace-nowrap">Payment</th>
+                  <th className="text-left px-3 py-2">Details</th>
+                  <th className="text-right px-3 py-2 whitespace-nowrap">Amount</th>
+                  <th className="text-right px-2 py-2 whitespace-nowrap w-px"></th>
                 </tr>
-              )}
-              {scopedRows.map(row => {
-                const { Icon, badge, label } = KIND_META[row.kind];
-                const showAudit = auditFor === row.id;
-                const rowAudits = auditLog.filter(a => row.auditIds.includes(a.entity_id));
-                return (
-                  <React.Fragment key={row.id}>
-                    <tr className={`group border-l-[3px] ${row.voided ? 'border-l-slate-300 dark:border-l-slate-700 opacity-50' : `${KIND_META[row.kind].barCls} hover:bg-gray-50 dark:hover:bg-slate-800/30`}`}>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/70">
+                {scopedRows.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="py-10 text-center text-xs text-slate-400">
+                      Nothing in this window.
+                    </td>
+                  </tr>
+                )}
+                {scopedRows.map(row => {
+                  const { Icon, badge, label } = KIND_META[row.kind];
+                  const showAudit = auditFor === row.id;
+                  const rowAudits = auditLog.filter(a => row.auditIds.includes(a.entity_id));
+                  return (
+                    <React.Fragment key={row.id}>
+                      <tr className={`group border-l-[3px] ${row.voided ? 'border-l-slate-300 dark:border-l-slate-700 opacity-50' : `${KIND_META[row.kind].barCls} hover:bg-gray-50 dark:hover:bg-slate-800/30`}`}>
 
-                      {/* DATE & TIME — compact single cell */}
-                      <td className="px-3 py-2 align-middle whitespace-nowrap w-[88px]">
-                        <div className="font-mono tabular-nums text-[11px] font-semibold text-slate-700 dark:text-slate-300">
-                          {formatDepotDate(row.date)}
-                        </div>
-                        <div className="font-mono tabular-nums text-[10px] text-slate-400 dark:text-slate-500">
-                          {formatDepotTime(row.date)}
-                        </div>
-                      </td>
-
-                      {/* TYPE — icon + label badge, voided tag below */}
-                      <td className="px-3 py-2 align-middle whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-sans font-bold uppercase tracking-wide ${badge}`}>
-                          <Icon className="w-3 h-3 shrink-0" />
-                          {label}
-                        </span>
-                        {row.voided && (
-                          <div className="mt-0.5">
-                            <span className="text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400">
-                              {row.kind === 'sale' ? 'Returned' : 'Voided'}
-                            </span>
+                        {/* DATE & TIME — compact single cell */}
+                        <td className="px-3 py-2 align-middle whitespace-nowrap w-[88px]">
+                          <div className="font-mono tabular-nums text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                            {formatDepotDate(row.date)}
                           </div>
-                        )}
-                      </td>
+                          <div className="font-mono tabular-nums text-[10px] text-slate-400 dark:text-slate-500">
+                            {formatDepotTime(row.date)}
+                          </div>
+                        </td>
 
-                      {/* CUSTOMER — name prominent, phone + tags tiny */}
-                      <td className="px-3 py-2 align-middle max-w-[140px]">
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <span className={`text-[12px] font-sans font-bold text-slate-900 dark:text-white leading-tight ${row.voided ? 'line-through' : ''}`}>
-                            {row.agentName || row.title}
+                        {/* TYPE — icon + label badge, voided tag below */}
+                        <td className="px-3 py-2 align-middle whitespace-nowrap">
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-sans font-bold uppercase tracking-wide ${badge}`}>
+                            <Icon className="w-3 h-3 shrink-0" />
+                            {label}
                           </span>
-                          {row.isAgent && (
-                            <span className="text-[9px] font-extrabold uppercase tracking-wide px-1 py-px rounded bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 border border-amber-200 dark:border-amber-700">
-                              Agent
-                            </span>
-                          )}
-                          {row.customerType === 'corporate' && (
-                            <span className="text-[9px] font-bold uppercase tracking-wide px-1 py-px rounded bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                              Corp
-                            </span>
-                          )}
-                        </div>
-                        {row.customerPhone && row.customerPhone !== '—' && (
-                          <div className="text-[10px] font-mono text-slate-400 dark:text-slate-500 leading-tight mt-px">
-                            {row.customerPhone}
-                          </div>
-                        )}
-                      </td>
-
-                      {/* PAYMENT MODE — compact badge; split shows a stacked "Split" + which methods composed it */}
-                      <td className="px-3 py-2 align-middle whitespace-nowrap">
-                        {row.paymentMethod === 'split' ? (() => {
-                          const theme = getPaymentModeTheme('split');
-                          const legMethods = Array.from(
-                            new Set((row.paymentSplits || []).map(sp => PAYMENT_MODE_META[sp.method]?.label || sp.method))
-                          );
-                          return (
-                            <div className={`inline-flex flex-col items-center gap-0.5 px-2 py-1 rounded-md border text-center ${theme.badgeCls}`}>
-                              <span className="inline-flex items-center gap-1 text-[10px] font-sans font-extrabold uppercase tracking-wide">
-                                <Lightning className="w-3 h-3 shrink-0" weight="bold" />
-                                Split
+                          {row.voided && (
+                            <div className="mt-0.5">
+                              <span className="text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400">
+                                {row.kind === 'sale' ? 'Returned' : 'Voided'}
                               </span>
-                              {legMethods.length > 0 && (
-                                <span className="text-[9px] font-sans font-semibold opacity-80 leading-none">
-                                  {legMethods.join(' & ')}
-                                </span>
-                              )}
                             </div>
-                          );
-                        })() : row.paymentMethod ? (() => {
-                          const meta = PAYMENT_MODE_META[row.paymentMethod];
-                          const theme = getPaymentModeTheme(row.paymentMethod);
-                          const MIcon = meta?.Icon || CreditCard;
-                          return (
-                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-sans font-bold border ${theme.badgeCls}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${theme.dotCls} shrink-0`} />
-                              <MIcon className="w-3 h-3 shrink-0" weight="bold" />
-                              <span>{meta?.label || theme.label}</span>
-                            </span>
-                          );
-                        })() : (
-                          <span className="text-slate-300 dark:text-slate-600 text-[10px]">—</span>
-                        )}
-                      </td>
-
-                      {/* DETAILS — title + subtitle + staff inline and tiny */}
-                      <td className="px-3 py-2 align-middle min-w-[160px] max-w-[220px]">
-                        <div className={`text-[11px] font-sans font-semibold text-slate-800 dark:text-slate-200 leading-tight ${row.voided ? 'line-through' : ''}`}>
-                          {row.kind === 'sale'
-                            ? (row.lines ? `${row.lines.length} item${row.lines.length === 1 ? '' : 's'}` : 'Sale order')
-                            : row.title}
-                        </div>
-                        <div className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight truncate max-w-[200px]">
-                          {row.subtitle}
-                        </div>
-                        {row.staffName && (
-                          <div className="flex items-center gap-0.5 mt-0.5">
-                            <UserCheck className="w-2.5 h-2.5 text-brand-500 shrink-0" weight="bold" />
-                            <span className="text-[10px] font-sans text-slate-400 dark:text-slate-500">
-                              {row.staffName}
-                            </span>
-                          </div>
-                        )}
-                      </td>
-
-                      {/* AMOUNT — stays prominent */}
-                      <td className="px-3 py-2 align-middle text-right whitespace-nowrap">
-                        <span className={`text-[13px] font-mono font-extrabold tabular-nums ${
-                          row.voided
-                            ? 'text-slate-400 line-through'
-                            : row.tone === 'out'
-                            ? 'text-rose-600 dark:text-rose-400'
-                            : row.tone === 'neutral'
-                            ? 'text-slate-400'
-                            : 'text-emerald-700 dark:text-emerald-400'
-                        }`}>
-                          {row.amountLabel}
-                        </span>
-                      </td>
-
-                      {/* ACTIONS — tiny icon-only buttons */}
-                      <td className="px-2 py-2 align-middle text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-0.5">
-                          {rowAudits.length > 0 && (
-                            <button
-                              onClick={() => setAuditFor(showAudit ? null : row.id)}
-                              className={`p-1 rounded border transition-all ${
-                                showAudit
-                                  ? 'bg-brand-50 dark:bg-brand-950/40 border-brand-300 text-brand-600'
-                                  : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                              }`}
-                              title="History"
-                            >
-                              <History className="w-3 h-3" weight="bold" />
-                            </button>
                           )}
-                          {row.kind === 'sale' && row.sale && row.lines && !row.voided && (
-                            <button
-                              onClick={() => reprintSale(row.sale!, row.lines!)}
-                              className="p-1 rounded border bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                              title="Reprint"
-                            >
-                              <Printer className="w-3 h-3" />
-                            </button>
-                          )}
-                          {isOwner && !row.voided && (
-                            <button
-                              onClick={() => setEditTarget(row)}
-                              className="p-1 rounded border bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
-                              title="Edit"
-                            >
-                              <Pencil className="w-3 h-3" />
-                            </button>
-                          )}
-                          {isOwner && !row.voided && (row.kind === 'sale' || row.kind === 'payment' || row.kind === 'expense') && (
-                            <button
-                              onClick={() => setVoidTarget(row)}
-                              className="p-1 rounded border bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
-                              title={row.kind === 'sale' ? 'Return Sale' : 'Void'}
-                            >
-                              {row.kind === 'sale' ? <Undo2 className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-
-                    {/* Sale line breakdown — always shown, aligned under the Details column */}
-                    {row.lines && row.lines.length > 0 && (
-                      <tr>
-                        <td className="p-0" />
-                        <td colSpan={3} className="pb-2 pt-0.5 bg-gray-50/70 dark:bg-slate-950/40" />
-                        <td colSpan={3} className="px-3 pb-2 pt-0.5 bg-gray-50/70 dark:bg-slate-950/40">
-                          <div className="space-y-1">
-                            {row.lines.map(l => (
-                              <div key={l.id} className="flex items-center justify-between text-[11px] font-sans text-slate-600 dark:text-slate-400">
-                                <span className="truncate">
-                                  {l.qty} × {packShort(l.pack_size_id)} · {prodName(l.product_id)}{l.variety_name ? ` / ${l.variety_name}` : ''}
-                                  {l.container_mode === 'taken' && ' · keg taken'}
-                                  {l.container_mode === 'bought' && ' · keg bought'}
-                                  {l.price_adjusted && ` · adj: ${l.price_adjust_reason || 'price changed'}`}
-                                </span>
-                                <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 shrink-0 ml-2">
-                                  {formatNaira(l.line_amount)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
                         </td>
-                      </tr>
-                    )}
 
-                    {/* Payment applied-to breakdown — always shown, aligned under the Details column */}
-                    {row.kind === 'payment' && row.payment && (
-                      <tr>
-                        <td className="p-0" />
-                        <td colSpan={3} className="pb-2 pt-0.5 bg-gray-50/70 dark:bg-slate-950/40" />
-                        <td colSpan={3} className="px-3 pb-2 pt-0.5 bg-gray-50/70 dark:bg-slate-950/40">
-                          <div className="space-y-1">
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Applied to</div>
-                            {row.payment.applied_to.length === 0 && row.payment.overpayment_to_credit <= 0 && (
-                              <div className="text-[11px] text-slate-400">Nothing on record.</div>
+                        {/* CUSTOMER — name prominent, phone + tags tiny */}
+                        <td className="px-3 py-2 align-middle max-w-[140px]">
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <span className={`text-[12px] font-sans font-bold text-slate-900 dark:text-white leading-tight ${row.voided ? 'line-through' : ''}`}>
+                              {row.agentName || row.title}
+                            </span>
+                            {row.isAgent && (
+                              <span className="text-[9px] font-extrabold uppercase tracking-wide px-1 py-px rounded bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 border border-amber-200 dark:border-amber-700">
+                                Agent
+                              </span>
                             )}
-                            {row.payment.applied_to.map(a => {
-                              const line = orders.find(o => o.id === a.order_id);
-                              return (
-                                <div key={a.order_id} className="flex items-center justify-between text-[11px] font-sans text-slate-600 dark:text-slate-400">
-                                  <span className="truncate">
-                                    {line ? `${line.qty} × ${packShort(line.pack_size_id)} · ${prodName(line.product_id)} / ${line.variety_name}` : `Sale line ${a.order_id}`}
+                            {row.customerType === 'corporate' && (
+                              <span className="text-[9px] font-bold uppercase tracking-wide px-1 py-px rounded bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                Corp
+                              </span>
+                            )}
+                          </div>
+                          {row.customerPhone && row.customerPhone !== '—' && (
+                            <div className="text-[10px] font-mono text-slate-400 dark:text-slate-500 leading-tight mt-px">
+                              {row.customerPhone}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* PAYMENT MODE — compact badge; split shows a stacked "Split" + which methods composed it */}
+                        <td className="px-3 py-2 align-middle whitespace-nowrap">
+                          {row.paymentMethod === 'split' ? (() => {
+                            const theme = getPaymentModeTheme('split');
+                            const legMethods = Array.from(
+                              new Set((row.paymentSplits || []).map(sp => PAYMENT_MODE_META[sp.method]?.label || sp.method))
+                            );
+                            return (
+                              <div className={`inline-flex flex-col items-center gap-0.5 px-2 py-1 rounded-md border text-center ${theme.badgeCls}`}>
+                                <span className="inline-flex items-center gap-1 text-[10px] font-sans font-extrabold uppercase tracking-wide">
+                                  <Lightning className="w-3 h-3 shrink-0" weight="bold" />
+                                  Split
+                                </span>
+                                {legMethods.length > 0 && (
+                                  <span className="text-[9px] font-sans font-semibold opacity-80 leading-none">
+                                    {legMethods.join(' & ')}
                                   </span>
-                                  <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 shrink-0 ml-2">{formatNaira(a.amount)}</span>
-                                </div>
-                              );
-                            })}
-                            {row.payment.overpayment_to_credit > 0 && (
-                              <div className="flex justify-between text-[11px] text-emerald-600 dark:text-emerald-400">
-                                <span>Overpayment → store credit</span>
-                                <span className="font-mono font-semibold ml-2">{formatNaira(row.payment.overpayment_to_credit)}</span>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-
-                    {/* Audit trail */}
-                    {showAudit && (
-                      <tr>
-                        <td colSpan={7} className="px-3 pb-2 pt-1 bg-gray-50/70 dark:bg-slate-950/40">
-                          <div className="space-y-1">
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Edit history</div>
-                            {rowAudits.map(a => (
-                              <div key={a.id} className="text-[10px] text-slate-500 dark:text-slate-400">
-                                <span className="font-semibold capitalize text-slate-600 dark:text-slate-300">{a.action}</span>
-                                {' · '}{formatDepotDate(a.at)} {formatDepotTime(a.at)} · {a.actor_name || a.actor_role}
-                                {a.reason ? ` · "${a.reason}"` : ''}
-                                {a.changes.length > 0 && (
-                                  <div className="pl-2 font-mono text-slate-400 text-[10px]">
-                                    {a.changes.map((c, i) => (
-                                      <div key={i}>{c.field}: {String(c.old)} → {String(c.new)}</div>
-                                    ))}
-                                  </div>
                                 )}
                               </div>
-                            ))}
-                            <button type="button" onClick={() => setAuditFor(null)}
-                              className="text-[10px] font-sans font-semibold text-slate-400 hover:text-slate-600 mt-0.5">
-                              collapse
-                            </button>
+                            );
+                          })() : row.paymentMethod ? (() => {
+                            const meta = PAYMENT_MODE_META[row.paymentMethod];
+                            const theme = getPaymentModeTheme(row.paymentMethod);
+                            const MIcon = meta?.Icon || CreditCard;
+                            return (
+                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-sans font-bold border ${theme.badgeCls}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${theme.dotCls} shrink-0`} />
+                                <MIcon className="w-3 h-3 shrink-0" weight="bold" />
+                                <span>{meta?.label || theme.label}</span>
+                              </span>
+                            );
+                          })() : (
+                            <span className="text-slate-300 dark:text-slate-600 text-[10px]">—</span>
+                          )}
+                        </td>
+
+                        {/* DETAILS — title + subtitle + staff inline and tiny */}
+                        <td className="px-3 py-2 align-middle min-w-[160px] max-w-[220px]">
+                          <div className={`text-[11px] font-sans font-semibold text-slate-800 dark:text-slate-200 leading-tight ${row.voided ? 'line-through' : ''}`}>
+                            {row.kind === 'sale'
+                              ? (row.lines ? `${row.lines.length} item${row.lines.length === 1 ? '' : 's'}` : 'Sale order')
+                              : row.title}
+                          </div>
+                          <div className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight truncate max-w-[200px]">
+                            {row.subtitle}
+                          </div>
+                          {row.staffName && (
+                            <div className="flex items-center gap-0.5 mt-0.5">
+                              <UserCheck className="w-2.5 h-2.5 text-brand-500 shrink-0" weight="bold" />
+                              <span className="text-[10px] font-sans text-slate-400 dark:text-slate-500">
+                                {row.staffName}
+                              </span>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* AMOUNT — stays prominent */}
+                        <td className="px-3 py-2 align-middle text-right whitespace-nowrap">
+                          <span className={`text-[13px] font-mono font-extrabold tabular-nums ${row.voided
+                              ? 'text-slate-400 line-through'
+                              : row.tone === 'out'
+                                ? 'text-rose-600 dark:text-rose-400'
+                                : row.tone === 'neutral'
+                                  ? 'text-slate-400'
+                                  : 'text-emerald-700 dark:text-emerald-400'
+                            }`}>
+                            {row.amountLabel}
+                          </span>
+                        </td>
+
+                        {/* ACTIONS — tiny icon-only buttons */}
+                        <td className="px-2 py-2 align-middle text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-0.5">
+                            {rowAudits.length > 0 && (
+                              <button
+                                onClick={() => setAuditFor(showAudit ? null : row.id)}
+                                className={`p-1 rounded border transition-all ${showAudit
+                                    ? 'bg-brand-50 dark:bg-brand-950/40 border-brand-300 text-brand-600'
+                                    : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                                  }`}
+                                title="History"
+                              >
+                                <History className="w-3 h-3" weight="bold" />
+                              </button>
+                            )}
+                            {row.kind === 'sale' && row.sale && row.lines && row.lines.length > 0 && !row.voided && (
+                              <button
+                                onClick={() => reprintSale(row.sale!, row.lines!)}
+                                className="p-1 rounded border bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                                title="Reprint"
+                              >
+                                <Printer className="w-3 h-3" />
+                              </button>
+                            )}
+                            {isOwner && !row.voided && (
+                              <button
+                                onClick={() => setEditTarget(row)}
+                                className="p-1 rounded border bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-brand-600 dark:hover:text-brand-400"
+                                title="Edit"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                            )}
+                            {isOwner && !row.voided && (row.kind === 'sale' || row.kind === 'payment' || row.kind === 'expense') && (
+                              <button
+                                onClick={() => setVoidTarget(row)}
+                                className="p-1 rounded border bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
+                                title={row.kind === 'sale' ? 'Return Sale' : 'Void'}
+                              >
+                                {row.kind === 'sale' ? <Undo2 className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table>
+
+                      {/* Sale line breakdown — always shown, aligned under the Details column */}
+                      {row.lines && row.lines.length > 0 && (
+                        <tr>
+                          <td className="p-0" />
+                          <td colSpan={3} className="pb-2 pt-0.5 bg-gray-50/70 dark:bg-slate-950/40" />
+                          <td colSpan={3} className="px-3 pb-2 pt-0.5 bg-gray-50/70 dark:bg-slate-950/40">
+                            <div className="space-y-1">
+                              {row.lines.map(l => (
+                                <div key={l.id} className="flex items-center justify-between text-[11px] font-sans text-slate-600 dark:text-slate-400">
+                                  <span className="truncate">
+                                    {l.qty} × {packShort(l.pack_size_id)} · {prodName(l.product_id)}{l.variety_name ? ` / ${l.variety_name}` : ''}
+                                    {l.container_mode === 'taken' && ' · keg taken'}
+                                    {l.container_mode === 'bought' && ' · keg bought'}
+                                    {l.price_adjusted && ` · adj: ${l.price_adjust_reason || 'price changed'}`}
+                                  </span>
+                                  <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 shrink-0 ml-2">
+                                    {formatNaira(l.line_amount)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* Payment applied-to breakdown — always shown, aligned under the Details column */}
+                      {row.kind === 'payment' && row.payment && (
+                        <tr>
+                          <td className="p-0" />
+                          <td colSpan={3} className="pb-2 pt-0.5 bg-gray-50/70 dark:bg-slate-950/40" />
+                          <td colSpan={3} className="px-3 pb-2 pt-0.5 bg-gray-50/70 dark:bg-slate-950/40">
+                            <div className="space-y-1">
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Applied to</div>
+                              {row.payment.applied_to.length === 0 && row.payment.overpayment_to_credit <= 0 && (
+                                <div className="text-[11px] text-slate-400">Nothing on record.</div>
+                              )}
+                              {row.payment.applied_to.map(a => {
+                                const line = orders.find(o => o.id === a.order_id);
+                                return (
+                                  <div key={a.order_id} className="flex items-center justify-between text-[11px] font-sans text-slate-600 dark:text-slate-400">
+                                    <span className="truncate">
+                                      {line ? `${line.qty} × ${packShort(line.pack_size_id)} · ${prodName(line.product_id)} / ${line.variety_name}` : `Sale line ${a.order_id}`}
+                                    </span>
+                                    <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 shrink-0 ml-2">{formatNaira(a.amount)}</span>
+                                  </div>
+                                );
+                              })}
+                              {row.payment.overpayment_to_credit > 0 && (
+                                <div className="flex justify-between text-[11px] text-emerald-600 dark:text-emerald-400">
+                                  <span>Overpayment → store credit</span>
+                                  <span className="font-mono font-semibold ml-2">{formatNaira(row.payment.overpayment_to_credit)}</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* Audit trail */}
+                      {showAudit && (
+                        <tr>
+                          <td colSpan={7} className="px-3 pb-2 pt-1 bg-gray-50/70 dark:bg-slate-950/40">
+                            <div className="space-y-1">
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Edit history</div>
+                              {rowAudits.map(a => (
+                                <div key={a.id} className="text-[10px] text-slate-500 dark:text-slate-400">
+                                  <span className="font-semibold capitalize text-slate-600 dark:text-slate-300">{a.action}</span>
+                                  {' · '}{formatDepotDate(a.at)} {formatDepotTime(a.at)} · {a.actor_name || a.actor_role}
+                                  {a.reason ? ` · "${a.reason}"` : ''}
+                                  {a.changes.length > 0 && (
+                                    <div className="pl-2 font-mono text-slate-400 text-[10px]">
+                                      {a.changes.map((c, i) => (
+                                        <div key={i}>{c.field}: {String(c.old)} → {String(c.new)}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                              <button type="button" onClick={() => setAuditFor(null)}
+                                className="text-[10px] font-sans font-semibold text-slate-400 hover:text-slate-600 mt-0.5">
+                                collapse
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
       </div>{/* end #ledger-print-area */}
 
       {voidTarget && (
@@ -1052,8 +1043,8 @@ export const TransactionLedgerScreen: React.FC<Props> = ({ onNavigate }) => {
               voidTarget.kind === 'sale'
                 ? voidSale(voidTarget.entityId, reason)
                 : voidTarget.kind === 'payment'
-                ? voidPayment(voidTarget.entityId, reason)
-                : voidExpense(voidTarget.entityId, reason);
+                  ? voidPayment(voidTarget.entityId, reason)
+                  : voidExpense(voidTarget.entityId, reason);
             if (r.success) {
               showToast('success', voidTarget.kind === 'sale'
                 ? `Sale returned: ${voidTarget.title}.`
@@ -1268,11 +1259,10 @@ const EditModal: React.FC<{
                   <button
                     key={m}
                     onClick={() => setContainerMode(m)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold border capitalize ${
-                      containerMode === m
+                    className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold border capitalize ${containerMode === m
                         ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
                         : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800'
-                    }`}
+                      }`}
                   >
                     {m}
                   </button>

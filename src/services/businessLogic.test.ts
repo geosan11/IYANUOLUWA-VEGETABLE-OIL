@@ -281,6 +281,20 @@ const overPaymentResult = applyFifoPayment(sampleOrders, 'c-test', 100000);
 assert(overPaymentResult.totalApplied === 72000, 'FIFO Overpayment: total applied is exactly open balance ₦72,000');
 assert(overPaymentResult.unappliedLeftover === 28000, 'FIFO Overpayment: reported ₦28,000 unapplied leftover');
 
+// Orders with only line_amount (no amount field) must not produce NaN
+const lineAmountOnlyOrders = [
+  mkOrder({ id: 'o-la-1', customer_id: 'c-test-la', product_id: 'veg', qty: 1, litres: 0, amount: undefined as unknown as number, line_amount: 30000, payment_method: 'credit', date: '2026-09-01T00:00:00Z', due_date: '2026-09-15T00:00:00Z' })
+];
+const laCustomer = { ...sampleCustomer, id: 'c-test-la' };
+const laStats = calculateCustomerStats(laCustomer, lineAmountOnlyOrders, [], refDate);
+assert(laStats.currentBalance === 30000 && !isNaN(laStats.currentBalance), 'Customer Balance: handles order with only line_amount without NaN');
+
+const laPayment = applyFifoPayment(lineAmountOnlyOrders, 'c-test-la', 10000);
+assert(laPayment.totalApplied === 10000 && !isNaN(laPayment.totalApplied), 'FIFO Payment: handles order with only line_amount without NaN');
+
+const laStatement = buildCustomerStatement(laCustomer, lineAmountOnlyOrders, [], [], []);
+assert(laStatement.length === 1 && laStatement[0].debit === 30000 && !isNaN(laStatement[0].runningBalance), 'Customer Statement: handles order with only line_amount without NaN');
+
 // 6. KEG INVENTORY SUMMARY
 const kegSummary = calculateKegInventory(500, sampleOrders, sampleKegReturns);
 assert(kegSummary.totalCompanyKegs === 500, 'Keg Inventory: total fleet = 500');
@@ -766,7 +780,7 @@ assert(keepDigitsAndDecimal('12,450.5') === '12450.5', 'keepDigitsAndDecimal: st
 assert(keepDigitsAndDecimal('abc') === '', 'keepDigitsAndDecimal: non-numeric input becomes empty');
 
 // ---------------------------------------------------------------------------
-// TEST: Shift operating schedule and 3-pump closing readings volume calculation
+// TEST: Shift operating schedule and closing meter readings volume calculation
 // ---------------------------------------------------------------------------
 const testOpeningReadings = { 'p-1': 12450, 'p-2': 8920, 'p-3': 5310 };
 const testClosingReadings = { 'p-1': 12850, 'p-2': 9220, 'p-3': 5310 };

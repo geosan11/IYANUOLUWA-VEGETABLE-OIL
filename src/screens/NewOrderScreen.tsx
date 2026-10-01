@@ -602,7 +602,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
           !l.kegOnly &&
           l.pumpId === pumpKey
       );
-      if (existing) {
+      if (existing && existing.unitPrice === priced.unitPrice) {
         return prev.map(l => (l.key === existing.key ? repriceDraft(l, { qty: l.qty + 1 }) : l));
       }
       return [
@@ -826,7 +826,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
       const res = startShift({
         cashierName: cashier,
         openingFloat: 0,
-        notes: 'Morning shift opened with verified pump readings',
+        notes: 'Morning shift opened with verified meter readings',
         openingReadings: readings
       });
       if (!res.success) {
@@ -840,7 +840,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
         failGate(res.error || 'Could not save the readings.');
         return;
       }
-      showToast('success', 'Opening pump readings saved.');
+      showToast('success', 'Opening meter readings saved.');
     }
   };
 
@@ -969,15 +969,15 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
             <span className="w-8 h-8 rounded-xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-brand-600 dark:text-brand-400 shrink-0">
               <GasPump className="w-4 h-4" weight="bold" />
             </span>
-            <span>{!activeShift ? 'Start Shift & Input Pump Readings' : 'Input Opening Pump Readings'}</span>
+            <span>{!activeShift ? 'Start shift & enter meter readings' : 'Enter opening meter readings'}</span>
           </span>
         }
         subtitle={
           <div className="space-y-1 mt-0.5">
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {!activeShift
-                ? 'Please enter opening pump readings to start sales.'
-                : `Shift active. Verify pump readings to unlock the sales terminal.`}
+                ? 'Enter opening meter readings on each yard tank to start sales.'
+                : `Shift active. Confirm meter readings to unlock the sales terminal.`}
             </p>
             <div className="flex flex-wrap items-center gap-2 pt-0.5">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[11px] font-semibold">
@@ -1012,6 +1012,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     type="text"
                     readOnly
                     disabled
+                    aria-label="Cashier or staff on duty"
                     value={currentCashierName}
                     className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-not-allowed select-none shadow-2xs"
                   />
@@ -1025,10 +1026,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
             <div className="flex items-center justify-between">
               <div className="text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
                 <GasPump className="w-4 h-4 text-brand-500" weight="bold" />
-                <span>Tank meter readings ({targetPumps.length} active tanks)</span>
+                <span>Yard tank meters ({targetPumps.length} {targetPumps.length === 1 ? 'pump' : 'pumps'})</span>
               </div>
               <span className="text-[11px] font-mono text-slate-500">
-                Check physical pump counter
+                Check physical meter
               </span>
             </div>
 
@@ -1050,7 +1051,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           <span className="truncate">{tankName}</span>
                         </div>
                         <div className="text-xs font-mono text-slate-500 flex items-center gap-1.5 mt-0.5">
-                          <span>Inspect physical pump meter</span>
+                          <span>Inspect physical meter</span>
                         </div>
                       </div>
                     </div>
@@ -1061,10 +1062,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           type="text"
                           inputMode="numeric"
                           required
+                          aria-label={`Meter reading for ${tankName}`}
                           value={gateInputs[p.id] ?? ''}
                           onChange={e => setGateInputs(prev => ({ ...prev, [p.id]: formatWithCommas(e.target.value) }))}
                           placeholder="Enter meter reading..."
-                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-sm font-mono font-black text-slate-900 dark:text-white tabular-nums focus:outline-none focus:border-brand-500 shadow-2xs pr-8"
+                          className="depot-input w-full px-3 py-2 pr-8 text-sm font-mono font-bold tabular-nums"
                         />
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">
                           L
@@ -1108,7 +1110,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
               </div>
               <div>
                 <div className="text-slate-900 dark:text-white font-heading font-black text-base sm:text-lg tracking-tight">
-                  Take Pump Readings & End Shift
+                  Record meters & end shift
                 </div>
                 <div className="text-xs text-slate-500 dark:text-slate-400 font-sans mt-0.5">
                   Complete meter reconciliation and cash drawer handover
@@ -1128,7 +1130,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
               </span>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 font-sans font-semibold text-xs">
                 <GasPump className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                <span>{targetPumps.length} Active {targetPumps.length === 1 ? 'Tank' : 'Tanks'}</span>
+                <span>{targetPumps.length} {targetPumps.length === 1 ? 'pump' : 'pumps'}</span>
               </span>
             </div>
           }
@@ -1143,10 +1145,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                   </span>
                   <div>
                     <h3 className="text-sm font-heading font-bold text-slate-900 dark:text-white">
-                      Physical Pump Meter Readings
+                      Physical meter readings
                     </h3>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans">
-                      Inspect pump physical counters and enter the exact numerical digits
+                      Inspect each pump meter and enter the digits on the counter
                     </p>
                   </div>
                 </div>
@@ -1190,7 +1192,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           value={currentInput}
                           onChange={e => setCloseShiftPumpInputs(prev => ({ ...prev, [p.id]: formatWithCommas(e.target.value) }))}
                           placeholder="Enter current meter..."
-                          className="w-full pl-3.5 pr-8 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-sm font-mono font-black text-slate-900 dark:text-white tabular-nums focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-inner"
+                          className="depot-input w-full pl-3.5 pr-8 py-2.5 text-sm font-mono font-bold tabular-nums"
                         />
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">
                           L
@@ -1235,7 +1237,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                     value={closeShiftCashCounted}
                     onChange={e => setCloseShiftCashCounted(formatWithCommas(e.target.value))}
                     placeholder="Type actual cash counted in till (e.g. 500,000)..."
-                    className="w-full pl-9 pr-14 py-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white font-mono tabular-nums text-lg font-black focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-inner"
+                    className="depot-input w-full pl-9 pr-14 py-3 font-mono tabular-nums text-lg font-bold"
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">NGN</span>
                 </div>
@@ -1360,6 +1362,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                 <input
                   type="text"
                   value={txnSearch}
+                  aria-label="Search previous transactions by customer or order"
                   onChange={e => setTxnSearch(e.target.value)}
                   placeholder="Search previous transactions by customer or order..."
                   className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-sans focus:outline-none focus:border-brand-500"
@@ -1551,6 +1554,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                           setCustomerSearch('');
                         }}
                         placeholder="Search previous customer..."
+                        aria-label="Search registered customer"
                         className="w-full pl-7 pr-3 py-1 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] font-sans font-bold focus:outline-none focus:border-brand-500 shadow-2xs"
                       />
 
@@ -1919,13 +1923,13 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                                           </span>
                                         )}
                                         {selected && (
-                                          <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-xs z-10">
+                                          <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-brand-500 text-slate-950 flex items-center justify-center shadow-xs z-10">
                                             <Check className="w-2 h-2" weight="bold" />
                                           </span>
                                         )}
                                         <div className="flex flex-col items-center justify-center gap-1 p-1 pb-0.5 min-h-[48px]">
                                           <span className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors shrink-0 ${selected
-                                            ? 'bg-brand-500 text-white shadow-xs'
+                                            ? 'bg-brand-500 text-slate-950 shadow-xs'
                                             : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                                             }`}>
                                             <Icon className="w-3 h-3" weight={selected ? 'fill' : 'duotone'} />
@@ -2064,7 +2068,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                               value={formatWithCommas(l.unitPrice)}
                               onChange={e => updateLinePrice(l.key, e.target.value)}
                               aria-label={`Unit price for ${l.productName}`}
-                              className="w-24 pl-5 pr-2 py-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono font-bold text-xs text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                              className="depot-input w-24 pl-5 pr-2 py-1 min-h-0 rounded-md font-mono font-bold text-xs"
                             />
                           </div>
 
@@ -2458,7 +2462,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({ onNavigate }) =>
                 <button
                   onClick={completeSale}
                   disabled={lines.length === 0 || overLimitBlocked || products.length === 0}
-                  className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-sans font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25 active:scale-[0.99] transition-all"
+                  className="w-full py-3 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-sans font-bold text-sm flex items-center justify-center gap-2 shadow-md shadow-brand-500/20 active:scale-[0.99] transition-all"
                 >
                   <Check className="w-4 h-4" weight="bold" /> Complete sale · {formatNaira(cartTotal)}
                   <ChevronRight className="w-4 h-4" weight="bold" />

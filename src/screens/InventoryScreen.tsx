@@ -267,8 +267,8 @@ export const InventoryScreen: React.FC = () => {
   };
 
   const handleSaveContainerPrices = () => {
-    const numOutright = parseFloat(outrightKegPrice) || 0;
-    const numDeposit = parseFloat(kegDepositPrice) || 0;
+    const numOutright = parseFromCommas(outrightKegPrice) || 0;
+    const numDeposit = parseFromCommas(kegDepositPrice) || 0;
     updateSettings({
       outright_keg_price: numOutright,
       keg_deposit_price: numDeposit
@@ -308,7 +308,7 @@ export const InventoryScreen: React.FC = () => {
             <Boxes className="w-5 h-5 text-brand-600 dark:text-brand-400" />
           </div>
           <div>
-            <h1 className="text-lg font-heading font-bold text-slate-900 dark:text-white leading-tight">Inventory & pricing</h1>
+            <h1 className="depot-page-title leading-tight">Products & Pricing</h1>
             <p className="text-[12px] text-slate-500 dark:text-slate-400">
               Pack-size price matrix, container rules, {kegSizeLabel}fleet pricing and stock.
             </p>
@@ -347,11 +347,10 @@ export const InventoryScreen: React.FC = () => {
             <button
               key={p.id}
               onClick={() => onSelectProduct(p.id)}
-              className={`px-3.5 py-2 rounded-xl text-[13px] font-sans font-semibold border transition-colors ${
-                p.id === activeProduct.id
+              className={`px-3.5 py-2 rounded-xl text-[13px] font-sans font-semibold border transition-colors ${p.id === activeProduct.id
                   ? 'bg-brand-500 text-slate-950 border-brand-500 font-bold shadow-xs'
                   : 'bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-              }`}
+                }`}
             >
               {p.name}
             </button>
@@ -390,11 +389,10 @@ export const InventoryScreen: React.FC = () => {
           <button
             key={id}
             onClick={() => setTab(id)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-sans font-semibold transition-colors ${
-              tab === id
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-sans font-semibold transition-colors ${tab === id
                 ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-            }`}
+              }`}
           >
             <Icon className="w-3.5 h-3.5" weight={tab === id ? 'bold' : 'thin'} /> {label}
           </button>
@@ -486,11 +484,10 @@ export const InventoryScreen: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setProductFormSupplyModel('bulk_truck')}
-                  className={`p-3 rounded-xl border text-left transition-all ${
-                    productFormSupplyModel === 'bulk_truck'
+                  className={`p-3 rounded-xl border text-left transition-all ${productFormSupplyModel === 'bulk_truck'
                       ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500 text-amber-950 dark:text-amber-200 shadow-xs'
                       : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
-                  }`}
+                    }`}
                 >
                   <div className="font-heading font-bold text-[13px]">Bulk Yard Tank</div>
                   <div className="text-[11px] font-sans mt-0.5 opacity-80">
@@ -501,11 +498,10 @@ export const InventoryScreen: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setProductFormSupplyModel('pre_kegged')}
-                  className={`p-3 rounded-xl border text-left transition-all ${
-                    productFormSupplyModel === 'pre_kegged'
+                  className={`p-3 rounded-xl border text-left transition-all ${productFormSupplyModel === 'pre_kegged'
                       ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-950 dark:text-rose-200 shadow-xs'
                       : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
-                  }`}
+                    }`}
                 >
                   <div className="font-heading font-bold text-[13px]">Pre-Kegged Jerrycans</div>
                   <div className="text-[11px] font-sans mt-0.5 opacity-80">
@@ -596,238 +592,235 @@ const PriceMatrix: React.FC<{
   onAddPack,
   onDeleteVariety
 }) => {
-  const sizes = PACK_SIZES.filter(s => enabledSizeIds.has(s.id));
-  const availableSizesToAdd = PACK_SIZES.filter(s => !enabledSizeIds.has(s.id));
-  const key = (varietyId: string, sizeId: string, tier: CustomerType) =>
-    `${product.id}|${varietyId}|${sizeId}|${tier}`;
+    const sizes = PACK_SIZES.filter(s => enabledSizeIds.has(s.id));
+    const availableSizesToAdd = PACK_SIZES.filter(s => !enabledSizeIds.has(s.id));
+    const key = (varietyId: string, sizeId: string, tier: CustomerType) =>
+      `${product.id}|${varietyId}|${sizeId}|${tier}`;
 
-  const cellValue = (sizeId: string, tier: CustomerType) => {
-    const k = key(activeVarietyId, sizeId, tier);
-    if (k in edits) return edits[k];
-    const p = lookupPackPrice(packPrices, product.id, activeVarietyId, sizeId, tier);
-    return p === null ? '' : formatWithCommas(p);
-  };
+    const cellValue = (sizeId: string, tier: CustomerType) => {
+      const k = key(activeVarietyId, sizeId, tier);
+      if (k in edits) return edits[k];
+      const p = lookupPackPrice(packPrices, product.id, activeVarietyId, sizeId, tier);
+      return p === null ? '' : formatWithCommas(p);
+    };
 
-  const dirty = Object.keys(edits).length > 0;
+    const dirty = Object.keys(edits).length > 0;
 
-  const handleClearCurrentPrices = () => {
-    const curVarName = product.varieties.find(v => v.id === activeVarietyId)?.name || 'current variety';
-    const ok = window.confirm(`Clear all entered prices for "${product.name}" (${curVarName})?`);
-    if (!ok) return;
+    const handleClearCurrentPrices = () => {
+      const curVarName = product.varieties.find(v => v.id === activeVarietyId)?.name || 'current variety';
+      const ok = window.confirm(`Clear all entered prices for "${product.name}" (${curVarName})?`);
+      if (!ok) return;
 
-    const cleared: Record<string, string> = {};
-    for (const size of sizes) {
-      for (const tier of TIERS) {
-        cleared[key(activeVarietyId, size.id, tier)] = '';
-      }
-    }
-    setEdits(prev => ({ ...prev, ...cleared }));
-  };
-
-  const handleSave = () => {
-    const rows: PackPrice[] = [];
-    for (const variety of product.varieties) {
+      const cleared: Record<string, string> = {};
       for (const size of sizes) {
         for (const tier of TIERS) {
-          const k = key(variety.id, size.id, tier);
-          const raw = k in edits ? edits[k] : lookupPackPrice(packPrices, product.id, variety.id, size.id, tier);
-          const num = parseFromCommas(raw);
-          if (Number.isFinite(num) && num > 0) {
-            rows.push({ product_id: product.id, variety_id: variety.id, pack_size_id: size.id, tier, price: num });
+          cleared[key(activeVarietyId, size.id, tier)] = '';
+        }
+      }
+      setEdits(prev => ({ ...prev, ...cleared }));
+    };
+
+    const handleSave = () => {
+      const rows: PackPrice[] = [];
+      for (const variety of product.varieties) {
+        for (const size of sizes) {
+          for (const tier of TIERS) {
+            const k = key(variety.id, size.id, tier);
+            const raw = k in edits ? edits[k] : lookupPackPrice(packPrices, product.id, variety.id, size.id, tier);
+            const num = parseFromCommas(raw);
+            if (Number.isFinite(num) && num > 0) {
+              rows.push({ product_id: product.id, variety_id: variety.id, pack_size_id: size.id, tier, price: num });
+            }
           }
         }
       }
-    }
-    // Only priced cells are sent, so the grid goes with them: it is what tells
-    // the store which cells were CLEARED (a blanked cell is "no price", and the
-    // row is deleted rather than saved as ₦0).
-    onSave(rows, {
-      product_id: product.id,
-      variety_ids: product.varieties.map(v => v.id),
-      pack_size_ids: sizes.map(s => s.id)
-    });
-  };
+      // Only priced cells are sent, so the grid goes with them: it is what tells
+      // the store which cells were CLEARED (a blanked cell is "no price", and the
+      // row is deleted rather than saved as ₦0).
+      onSave(rows, {
+        product_id: product.id,
+        variety_ids: product.varieties.map(v => v.id),
+        pack_size_ids: sizes.map(s => s.id)
+      });
+    };
 
-  if (sizes.length === 0) {
-    return (
-      <div className="p-5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[13px] text-amber-800 dark:text-amber-300 space-y-3">
-        <p>This product currently sells no pack sizes.</p>
-        {availableSizesToAdd.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-xs">Add a pack size:</span>
-            <select
-              aria-label="Choose a pack size to add"
-              value=""
-              onChange={e => {
-                if (e.target.value) onAddPack(e.target.value);
-              }}
-              className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-xs font-semibold cursor-pointer"
-            >
-              <option value="" disabled>Select pack size to add…</option>
-              {availableSizesToAdd.map(s => (
-                <option key={s.id} value={s.id}>
-                  {s.label} ({s.litres} L)
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      {/* Variety pills & Pack management */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] font-sans uppercase font-bold tracking-wider text-slate-400 mr-1">
-            Variety:
-          </span>
-          {product.varieties.map(v => (
-            <div
-              key={v.id}
-              className={`inline-flex items-center rounded-lg border transition-colors overflow-hidden ${
-                v.id === activeVarietyId
-                  ? 'border-slate-900 dark:border-white bg-slate-900 dark:bg-white text-white dark:text-slate-900'
-                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => onSelectVariety(v.id)}
-                className="px-3 py-1.5 text-[12px] font-sans font-semibold cursor-pointer"
+    if (sizes.length === 0) {
+      return (
+        <div className="p-5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[13px] text-amber-800 dark:text-amber-300 space-y-3">
+          <p>This product currently sells no pack sizes.</p>
+          {availableSizesToAdd.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-xs">Add a pack size:</span>
+              <select
+                aria-label="Choose a pack size to add"
+                value=""
+                onChange={e => {
+                  if (e.target.value) onAddPack(e.target.value);
+                }}
+                className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-xs font-semibold cursor-pointer"
               >
-                {v.name}
-              </button>
-              {product.varieties.length > 1 && (
+                <option value="" disabled>Select pack size to add…</option>
+                {availableSizesToAdd.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.label} ({s.litres} L)
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        {/* Variety pills & Pack management */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-sans uppercase font-bold tracking-wider text-slate-400 mr-1">
+              Variety:
+            </span>
+            {product.varieties.map(v => (
+              <div
+                key={v.id}
+                className={`inline-flex items-center rounded-lg border transition-colors overflow-hidden ${v.id === activeVarietyId
+                    ? 'border-slate-900 dark:border-white bg-slate-900 dark:bg-white text-white dark:text-slate-900'
+                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'
+                  }`}
+              >
                 <button
                   type="button"
-                  onClick={() => onDeleteVariety(v.id, v.name)}
-                  title={`Delete variety "${v.name}"`}
-                  className={`px-1.5 py-1.5 transition-colors cursor-pointer border-l ${
-                    v.id === activeVarietyId
-                      ? 'border-slate-700 dark:border-slate-200 text-slate-400 dark:text-slate-500 hover:text-rose-400 dark:hover:text-rose-600'
-                      : 'border-slate-200 dark:border-slate-800 text-slate-400 hover:text-rose-600'
-                  }`}
+                  onClick={() => onSelectVariety(v.id)}
+                  className="px-3 py-1.5 text-[12px] font-sans font-semibold cursor-pointer"
                 >
-                  <Trash className="w-3 h-3" />
+                  {v.name}
                 </button>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Add Pack Size selector if there are inactive pack sizes */}
-        {availableSizesToAdd.length > 0 && (
-          <div className="relative">
-            <select
-              aria-label="Add a pack size"
-              value=""
-              onChange={e => {
-                if (e.target.value) {
-                  onAddPack(e.target.value);
-                }
-              }}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-sans font-semibold border border-slate-200 dark:border-slate-700 cursor-pointer"
-            >
-              <option value="" disabled>+ Add pack size…</option>
-              {availableSizesToAdd.map(s => (
-                <option key={s.id} value={s.id}>
-                  {s.label} ({s.litres} L)
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
-
-      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-        <table className="w-full text-[13px]">
-          <thead className="bg-slate-100 dark:bg-slate-950 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-sans">
-            <tr>
-              <th className="text-left px-3 py-2.5">Pack size</th>
-              {TIERS.map(t => (
-                <th key={t} className="text-right px-3 py-2.5 capitalize">{t}</th>
-              ))}
-              <th className="text-center px-3 py-2.5 w-16">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-            {sizes.map(size => (
-              <tr key={size.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-900/40 group">
-                <td className="px-3 py-2.5 font-sans font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
-                  {size.label}
-                </td>
-                {TIERS.map(tier => {
-                  const val = cellValue(size.id, tier);
-                  const numericVal = parseFromCommas(val);
-                  const perLitre = numericVal ? Math.round(numericVal / (packLitres(size.id) || 1)) : 0;
-                  return (
-                    <td key={tier} className="px-3 py-2 text-right">
-                      <div className="relative w-32 ml-auto">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[13px] font-bold">₦</span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={val}
-                          onChange={e =>
-                            setEdits(prev => ({ ...prev, [key(activeVarietyId, size.id, tier)]: formatWithCommas(e.target.value) }))
-                          }
-                          placeholder="set price"
-                          className={`w-full pl-6 pr-2 py-2 rounded-lg bg-white dark:bg-slate-900 border text-right font-mono tabular-nums font-bold text-[13px] focus:outline-none focus:border-brand-500 ${
-                            val ? 'border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white' : 'border-amber-300 dark:border-amber-700'
-                          }`}
-                        />
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-mono mt-0.5 pr-1">
-                        {perLitre ? `≈ ₦${perLitre.toLocaleString()}/L` : '—'}
-                      </div>
-                    </td>
-                  );
-                })}
-                <td className="px-3 py-2 text-center whitespace-nowrap">
+                {product.varieties.length > 1 && (
                   <button
                     type="button"
-                    onClick={() => onDeletePack(size.id, size.label)}
-                    className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                    title={`Delete ${size.label} pack from ${product.name}`}
+                    onClick={() => onDeleteVariety(v.id, v.name)}
+                    title={`Delete variety "${v.name}"`}
+                    className={`px-1.5 py-1.5 transition-colors cursor-pointer border-l ${v.id === activeVarietyId
+                        ? 'border-slate-700 dark:border-slate-200 text-slate-400 dark:text-slate-500 hover:text-rose-400 dark:hover:text-rose-600'
+                        : 'border-slate-200 dark:border-slate-800 text-slate-400 hover:text-rose-600'
+                      }`}
                   >
-                    <Trash className="w-4 h-4" />
+                    <Trash className="w-3 h-3" />
                   </button>
-                </td>
-              </tr>
+                )}
+              </div>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-        <p className="text-[11px] text-slate-500">
-          Prices are per pack, per customer tier. Empty cells are treated as “not priced” and block the sale.
-        </p>
-        <div className="flex items-center gap-2 self-end sm:self-auto">
-          <button
-            type="button"
-            onClick={handleClearCurrentPrices}
-            className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[12px] font-sans font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-            title="Clear all price values for this variety list"
-          >
-            <Trash className="w-3.5 h-3.5" />
-            <span>Clear list prices</span>
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!dirty}
-            className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-sans font-bold text-[13px] flex items-center gap-2 shadow-sm cursor-pointer"
-          >
-            <Save className="w-4 h-4" weight="bold" /> Save prices
-          </button>
+          {/* Add Pack Size selector if there are inactive pack sizes */}
+          {availableSizesToAdd.length > 0 && (
+            <div className="relative">
+              <select
+                aria-label="Add a pack size"
+                value=""
+                onChange={e => {
+                  if (e.target.value) {
+                    onAddPack(e.target.value);
+                  }
+                }}
+                className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-sans font-semibold border border-slate-200 dark:border-slate-700 cursor-pointer"
+              >
+                <option value="" disabled>+ Add pack size…</option>
+                {availableSizesToAdd.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.label} ({s.litres} L)
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+          <table className="w-full text-[13px]">
+            <thead className="bg-slate-100 dark:bg-slate-950 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-sans">
+              <tr>
+                <th className="text-left px-3 py-2.5">Pack size</th>
+                {TIERS.map(t => (
+                  <th key={t} className="text-right px-3 py-2.5 capitalize">{t}</th>
+                ))}
+                <th className="text-center px-3 py-2.5 w-16">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              {sizes.map(size => (
+                <tr key={size.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-900/40 group">
+                  <td className="px-3 py-2.5 font-sans font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                    {size.label}
+                  </td>
+                  {TIERS.map(tier => {
+                    const val = cellValue(size.id, tier);
+                    const numericVal = parseFromCommas(val);
+                    const perLitre = numericVal ? Math.round(numericVal / (packLitres(size.id) || 1)) : 0;
+                    return (
+                      <td key={tier} className="px-3 py-2 text-right">
+                        <div className="relative w-32 ml-auto">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[13px] font-bold">₦</span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={val}
+                            onChange={e =>
+                              setEdits(prev => ({ ...prev, [key(activeVarietyId, size.id, tier)]: formatWithCommas(e.target.value) }))
+                            }
+                            placeholder="set price"
+                            className={`w-full pl-6 pr-2 py-2 rounded-lg bg-white dark:bg-slate-900 border text-right font-mono tabular-nums font-bold text-[13px] focus:outline-none focus:border-brand-500 ${val ? 'border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white' : 'border-amber-300 dark:border-amber-700'
+                              }`}
+                          />
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono mt-0.5 pr-1">
+                          {perLitre ? `≈ ₦${perLitre.toLocaleString()}/L` : '—'}
+                        </div>
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-2 text-center whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => onDeletePack(size.id, size.label)}
+                      className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                      title={`Delete ${size.label} pack from ${product.name}`}
+                    >
+                      <Trash className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+          <p className="text-[11px] text-slate-500">
+            Prices are per pack, per customer tier. Empty cells are treated as “not priced” and block the sale.
+          </p>
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <button
+              type="button"
+              onClick={handleClearCurrentPrices}
+              className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[12px] font-sans font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Clear all price values for this variety list"
+            >
+              <Trash className="w-3.5 h-3.5" />
+              <span>Clear list prices</span>
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!dirty}
+              className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-sans font-bold text-[13px] flex items-center gap-2 shadow-sm cursor-pointer"
+            >
+              <Save className="w-4 h-4" weight="bold" /> Save prices
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 /* ------------------------------------------------------------------ */
 

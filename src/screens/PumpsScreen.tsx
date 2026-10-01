@@ -192,8 +192,8 @@ export const PumpsScreen: React.FC = () => {
             <Fuel className="w-5 h-5 text-purple-600 dark:text-purple-400" />
           </div>
           <div>
-            <h1 className="text-xl font-heading font-bold text-slate-900 dark:text-white leading-tight">
-              Dispense Pumps & Meter Audits
+            <h1 className="depot-page-title leading-tight">
+              Pumps & meter audits
             </h1>
             <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
               Mechanical odometer readings, morning vs evening counts, and cashier sales reconciliation.
@@ -452,7 +452,7 @@ export const PumpsScreen: React.FC = () => {
                     <div key={r.id} className="flex items-center justify-between text-xs py-1.5 border-b border-slate-100 dark:border-slate-800/70 last:border-0">
                       <span className="text-slate-600 dark:text-slate-300 font-sans">
                         {r.is_reset && (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-[10px] font-bold uppercase mr-1.5">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded badge-sky text-[10px] font-bold uppercase mr-1.5">
                             <ArrowsClockwise className="w-3 h-3" /> Reset
                           </span>
                         )}
@@ -608,11 +608,11 @@ export const PumpsScreen: React.FC = () => {
         <Modal
           isOpen
           onClose={() => setResetTarget(null)}
-          title={<span className="flex items-center gap-2"><ArrowsClockwise className="w-4 h-4 text-blue-500" /> Reset Meter — {resetTarget.label}</span>}
+          title={<span className="flex items-center gap-2"><ArrowsClockwise className="w-4 h-4 text-brand-600" /> Reset meter — {resetTarget.label}</span>}
         >
           {resetStep === 'form' ? (
             <div className="space-y-3">
-              <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 text-xs font-sans">
+              <div className="p-3 rounded-xl bg-brand-50 dark:bg-brand-950/30 border border-brand-200 dark:border-brand-800 text-brand-900 dark:text-brand-200 text-xs font-sans">
                 Use this when the meter's been rubbed off / zeroed for a new batch, or the physical unit was replaced.
                 Both numbers below are saved to history — nothing is lost, and every future reading is compared against
                 the new value, not the old one.
@@ -657,7 +657,7 @@ export const PumpsScreen: React.FC = () => {
                 <button onClick={() => setResetTarget(null)} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-sm font-sans font-semibold">
                   Cancel
                 </button>
-                <button onClick={proceedToResetConfirm} className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-sans font-bold">
+                <button onClick={proceedToResetConfirm} className="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-sm font-sans font-bold">
                   Continue
                 </button>
               </div>
@@ -674,7 +674,7 @@ export const PumpsScreen: React.FC = () => {
                 </div>
                 <div className="flex justify-between px-3 py-2">
                   <span className="text-slate-500">Resets to</span>
-                  <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{Number(resetReading).toLocaleString()} L</span>
+                  <span className="font-mono font-bold text-brand-700 dark:text-brand-400">{Number(resetReading).toLocaleString()} L</span>
                 </div>
                 <div className="px-3 py-2">
                   <span className="text-slate-500 block text-xs mb-0.5">Reason</span>
@@ -686,7 +686,7 @@ export const PumpsScreen: React.FC = () => {
                 <button onClick={() => setResetStep('form')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-sm font-sans font-semibold">
                   Go back
                 </button>
-                <button onClick={submitReset} className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-sans font-bold">
+                <button onClick={submitReset} className="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-sm font-sans font-bold">
                   Yes, rub off &amp; reset
                 </button>
               </div>

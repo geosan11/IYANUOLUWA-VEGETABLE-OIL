@@ -142,10 +142,10 @@ export const TruckIntakeScreen: React.FC = () => {
   // Live calculation metrics for bulk truck
   const bulkMetrics = useMemo(() => {
     return calculateIntakeMetrics(
-      parseInt(tons, 10) || 0,
+      parseFromCommas(tons) || 0,
       litresPerTon,
       parseFromCommas(actualKegs) || 0,
-      parseInt(leftoverLitres, 10) || 0,
+      parseFromCommas(leftoverLitres) || 0,
       kegInventory.kegsAtDepot,
       litresPerKeg,
       settings.truck_shortfall_threshold
@@ -237,7 +237,7 @@ export const TruckIntakeScreen: React.FC = () => {
   };
 
   const handleAdjustTons = (delta: number) => {
-    const curr = parseInt(tons, 10) || 0;
+    const curr = parseFromCommas(tons) || 0;
     const next = Math.max(1, curr + delta);
     setTons(next.toString());
   };
@@ -290,7 +290,7 @@ export const TruckIntakeScreen: React.FC = () => {
           spaceNote: spaceNote.trim() || undefined,
           tons: parsedTons,
           actualKegs: parseFromCommas(actualKegs) || 0,
-          leftoverLitres: parseInt(leftoverLitres, 10) || 0,
+          leftoverLitres: parseFromCommas(leftoverLitres) || 0,
           date: fromDatetimeLocalValue(intakeDateInput)
         });
 
@@ -388,8 +388,8 @@ export const TruckIntakeScreen: React.FC = () => {
               Inbound Logistics &amp; Stock Delivery
             </span>
           </div>
-          <h1 className="text-2xl font-heading font-extrabold text-slate-900 dark:text-white tracking-tight">
-            Truck Delivery Intake
+          <h1 className="depot-page-title">
+            Truck Intake
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Log incoming bulk oil deliveries and verify against supplier waybill.
@@ -1338,7 +1338,7 @@ export const TruckIntakeScreen: React.FC = () => {
 
         const drawnOrders = selectedTank
           ? orders
-            .filter(o => o.product_id === selectedTank.product_id)
+            .filter(o => !o.voided && (o.tank_allocations?.some(a => a.tank_id === selectedTank.id) || o.source_tank_id === selectedTank.id))
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
             .slice(0, 8)
           : [];
@@ -1417,27 +1417,29 @@ export const TruckIntakeScreen: React.FC = () => {
                     <div className="space-y-2">
                       {drawnOrders.map(order => {
                         const cust = customers.find(c => c.id === order.customer_id);
-                        return (
-                          <div
-                            key={order.id}
-                            className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs"
-                          >
-                            <div className="space-y-0.5">
-                              <div className="font-sans font-bold text-slate-900 dark:text-slate-200">
-                                {cust?.name || 'Customer'}
+                            const drawnLitres = order.tank_allocations?.find(a => a.tank_id === selectedTank.id)?.litres
+                              ?? (order.source_tank_id === selectedTank.id ? (order.litres || 0) : (order.litres || 0));
+                            return (
+                              <div
+                                key={order.id}
+                                className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs"
+                              >
+                                <div className="space-y-0.5">
+                                  <div className="font-sans font-bold text-slate-900 dark:text-slate-200">
+                                    {cust?.name || 'Customer'}
+                                  </div>
+                                  <div className="text-xs text-slate-500 font-mono">
+                                    {formatDepotDate(order.date)} {formatDepotTime(order.date)} · {order.qty} pack{order.qty === 1 ? '' : 's'} · {order.payment_method}
+                                  </div>
+                                </div>
+                                <div className="text-right font-mono">
+                                  <span className="font-black text-slate-900 dark:text-slate-100 block">
+                                    -{drawnLitres.toLocaleString()} L
+                                  </span>
+                                  <span className="text-xs text-slate-500 uppercase font-sans font-semibold">Dispensed</span>
+                                </div>
                               </div>
-                              <div className="text-xs text-slate-500 font-mono">
-                                {formatDepotDate(order.date)} {formatDepotTime(order.date)} · {order.qty} pack{order.qty === 1 ? '' : 's'} · {order.payment_method}
-                              </div>
-                            </div>
-                            <div className="text-right font-mono">
-                              <span className="font-black text-slate-900 dark:text-slate-100 block">
-                                -{(order.litres || 0).toLocaleString()} L
-                              </span>
-                              <span className="text-xs text-slate-500 uppercase font-sans font-semibold">Dispensed</span>
-                            </div>
-                          </div>
-                        );
+                            );
                       })}
                     </div>
                   ) : (

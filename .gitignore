@@ -40,3 +40,12 @@ find_survivors.py
 head_de.ts
 recover.py
 recover2.py
+
+# Playwright QA artifacts — kept out of the repo on purpose:
+#   * the HTML report and traces echo BASE_URL, which carries the _vercel_share token
+#   * playwright/.auth/user.json holds live Supabase access/refresh tokens
+/playwright-report/
+/test-results/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

@@ -273,8 +273,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       setIsStartShiftModalOpen(false);
       setStartNotesInput('');
       setPumpOpeningInputs({});
-      setShiftFeedback('New shift opened successfully with verified pump readings.');
-      showToast('success', 'New shift opened successfully with verified pump readings.');
+      setShiftFeedback('New shift opened with verified meter readings.');
+      showToast('success', 'New shift opened with verified meter readings.');
       setTimeout(() => setShiftFeedback(null), 4000);
     } else {
       failShift(res.error || 'Could not start the shift.');
@@ -426,7 +426,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     <div className="space-y-6 pb-20">
       {/* WELCOME BANNER */}
       <div>
-        <h1 className="text-xl sm:text-2xl font-heading font-bold text-slate-900 dark:text-white">
+        <h1 className="depot-page-title">
           {greeting}, {currentUser.full_name?.split(' ')[0] || 'there'}
         </h1>
         <p className="text-xs sm:text-sm font-sans text-slate-500 dark:text-slate-400 mt-0.5">
@@ -803,10 +803,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             </div>
             <div>
               <h3 className="text-base font-heading font-bold text-slate-900 dark:text-white">
-                Dispense Pumps &amp; Meter Readings
+                Pumps &amp; meter readings
               </h3>
               <p className="text-xs font-sans text-slate-500 dark:text-slate-400">
-                Pump meter readings to verify oil dispensed against sales.
+                Pump meters verify oil dispensed against sales.
               </p>
             </div>
           </div>
@@ -815,7 +815,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             onClick={() => onNavigate('pumps')}
             className="text-xs font-sans font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 self-start sm:self-auto"
           >
-            <span>Record Pump Reading</span>
+            <span>Record meter reading</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -1445,11 +1445,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
               />
             </div>
 
-            {/* Mandatory Opening Pump Meter Readings */}
+            {/* Mandatory opening meter readings */}
             <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
               <div className="flex items-center justify-between">
                 <div className="text-xs font-sans font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                  Opening tank meter readings ({pumps.length}) *
+                  Opening meter readings ({pumps.length}) *
                 </div>
                 <span className="text-xs font-mono text-slate-400">
                   Check physical counter
@@ -1472,7 +1472,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                         value={pumpOpeningInputs[p.id] ?? ''}
                         onChange={e => setPumpOpeningInputs(prev => ({ ...prev, [p.id]: formatWithCommas(e.target.value) }))}
                         placeholder="Enter meter reading..."
-                        className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                        className="depot-input w-full px-2.5 py-1.5 min-h-0 text-xs font-mono font-bold"
                       />
                     </div>
                   );
@@ -1496,7 +1496,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 text-xs font-sans font-semibold rounded-xl bg-brand-600 hover:bg-brand-700 text-white shadow-sm flex items-center gap-1.5 transition-colors"
+                className="px-4 py-2 text-xs font-sans font-semibold rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 shadow-sm flex items-center gap-1.5 transition-colors"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 Open Shift
@@ -1527,7 +1527,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             {pumps.length > 0 && (
               <div className="space-y-2">
                 <label className="block text-xs font-sans font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                  Closing tank meter readings
+                  Closing meter readings
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   {pumps.map((p, idx) => {
@@ -1544,7 +1544,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                           value={pumpClosingInputs[p.id] ?? ''}
                           onChange={e => setPumpClosingInputs(prev => ({ ...prev, [p.id]: formatWithCommas(e.target.value) }))}
                           placeholder="Enter closing meter..."
-                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono font-bold text-slate-900 dark:text-white tabular-nums"
+                          className="depot-input w-full px-2.5 py-1.5 min-h-0 text-xs font-mono font-bold tabular-nums"
                         />
                       </div>
                     );
@@ -1677,7 +1677,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 text-xs font-sans font-semibold rounded-xl bg-brand-600 hover:bg-brand-700 text-white shadow-sm flex items-center gap-1.5 transition-colors"
+                className="px-4 py-2 text-xs font-sans font-semibold rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 shadow-sm flex items-center gap-1.5 transition-colors"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 Confirm & Close Shift

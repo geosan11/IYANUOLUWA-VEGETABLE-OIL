@@ -673,7 +673,7 @@ export const SettingsScreen: React.FC = () => {
     if (denyIfNoSettingsAccess()) return;
 
     if (!pumpLabelInput.trim()) {
-      alert('Please enter a pump name or label.');
+      showNotification('Please enter a pump name or label.', 'error');
       return;
     }
 
@@ -690,7 +690,7 @@ export const SettingsScreen: React.FC = () => {
         label: pumpLabelInput.trim(),
         productId: pumpProductIdInput || undefined,
         physicalTankId: pumpTankIdInput || null,
-        openingReading: parseFloat(pumpReadingInput) || 0,
+        openingReading: numberOrBlank(pumpReadingInput, 0),
         hubId: pumpHubIdInput
       });
       showNotification(`New pump "${pumpLabelInput.trim()}" registered and ready.`);
@@ -701,13 +701,13 @@ export const SettingsScreen: React.FC = () => {
   const handleDeletePumpAction = (pump: Pump) => {
     if (denyIfNoSettingsAccess()) return;
     if (pumps.length <= 1) {
-      alert('A depot must maintain at least one operational dispensing pump.');
+      showNotification('A depot must maintain at least one operational dispensing pump.', 'error');
       return;
     }
     if (window.confirm(`Are you sure you want to remove ${pump.label}?`)) {
       const res = deletePump(pump.id);
       if (!res.success) {
-        alert(res.error || 'Could not delete this pump.');
+        showNotification(res.error || 'Could not delete this pump.', 'error');
       } else {
         showNotification(`Pump "${pump.label}" has been removed.`);
       }
@@ -1440,7 +1440,7 @@ export const SettingsScreen: React.FC = () => {
                   />
                   <button
                     type="submit"
-                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-sans font-bold text-xs shrink-0"
+                    className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-xs shrink-0"
                   >
                     Add Tank
                   </button>
@@ -1478,7 +1478,7 @@ export const SettingsScreen: React.FC = () => {
                     onClick={() => {
                       if (denyIfNoSettingsAccess()) return;
                       if (suppliers.length <= 1) {
-                        alert('At least one supplier must remain in the depot system.');
+                        showNotification('At least one supplier must remain in the depot system.', 'error');
                         return;
                       }
                       if (window.confirm(`Delete supplier "${s.name}"?`)) {
@@ -1667,7 +1667,7 @@ export const SettingsScreen: React.FC = () => {
                     />
                   </div>
                   <p className="text-[11px] font-sans text-slate-500 mt-1">
-                    Expected time cashier opens counter and takes opening 3-pump readings.
+                    Expected time cashier opens the counter and takes opening meter readings.
                   </p>
                 </div>
 
@@ -1706,10 +1706,10 @@ export const SettingsScreen: React.FC = () => {
                   />
                   <div className="text-xs">
                     <span className="font-bold text-slate-900 dark:text-white block">
-                      Mandatory 3-Pump Opening Meter Readings (Lock Sales Screen)
+                      Mandatory opening meter readings (lock sales)
                     </span>
                     <span className="text-slate-500 dark:text-slate-400">
-                      Cashiers cannot enter new sales until meter readings for Pump 1, Pump 2, and Pump 3 are entered and verified.
+                      Cashiers cannot enter new sales until every registered pump has an opening meter reading.
                     </span>
                   </div>
                 </label>
@@ -1723,10 +1723,10 @@ export const SettingsScreen: React.FC = () => {
                   />
                   <div className="text-xs">
                     <span className="font-bold text-slate-900 dark:text-white block">
-                      Mandatory 3-Pump Closing Meter Readings (Volume Reconciliation)
+                      Mandatory closing meter readings (volume reconciliation)
                     </span>
                     <span className="text-slate-500 dark:text-slate-400">
-                      Cashiers must log closing pump readings to compute litres dispensed before the shift can be closed.
+                      Cashiers must log closing meter readings to compute litres dispensed before the shift can be closed.
                     </span>
                   </div>
                 </label>
@@ -1738,7 +1738,7 @@ export const SettingsScreen: React.FC = () => {
               className="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-sans font-bold text-[13px] shadow-sm transition-all active:scale-95 flex items-center gap-2"
             >
               <Save className="w-4 h-4" />
-              <span>Save Shift Schedule & Float</span>
+              <span>Save shift schedule</span>
             </button>
           </form>
 

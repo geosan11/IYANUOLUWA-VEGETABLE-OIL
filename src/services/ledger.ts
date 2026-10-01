@@ -583,10 +583,14 @@ export function mergeTankRows(remote: Tank[], local: Tank[]): Tank[] {
   const merged = remote.map(r => {
     const l = localById.get(r.id);
     if (!l) return r;
+    const drawnL = Math.max(0, num(l.received_litres) - num(l.remaining_litres));
+    const drawnR = Math.max(0, num(r.received_litres) - num(r.remaining_litres));
+    const maxReceived = Math.max(num(l.received_litres), num(r.received_litres));
+    const maxDrawn = Math.max(drawnL, drawnR);
     return {
       ...r,
-      remaining_litres: Math.min(num(l.remaining_litres), num(r.remaining_litres)),
-      received_litres: Math.max(num(l.received_litres), num(r.received_litres)),
+      received_litres: maxReceived,
+      remaining_litres: Number(Math.max(0, maxReceived - maxDrawn).toFixed(2)),
       physical_tank_id: r.physical_tank_id || l.physical_tank_id || null
     };
   });
@@ -606,7 +610,8 @@ export function mergeTankRows(remote: Tank[], local: Tank[]): Tank[] {
  * history. There is no leg at all for a sale whose lines total zero.
  */
 export function toSalePaymentLegs(s: Sale, lines: Order[]): LedgerDraft[] {
-  const total = round2(lines.reduce((sum, l) => sum + num(l.line_amount ?? l.amount), 0));
+  const activeLines = lines.filter(l => !l.voided);
+  const total = round2(activeLines.reduce((sum, l) => sum + num(l.line_amount ?? l.amount), 0));
   const splits = s.payment_splits ?? [];
   const legs =
     splits.length > 0

@@ -22,13 +22,13 @@ import {
   UserCheck,
   Users
 } from '@phosphor-icons/react';
-import { ONE_TIME_CUSTOMER_ID } from '../constants/config';
+import { EXPENSE_CATEGORIES, ONE_TIME_CUSTOMER_ID } from '../constants/config';
 
 export const ExpensesScreen: React.FC = () => {
   const { expenses, todayStats, addExpense, customers, currentUser, customerStatsMap } = useStore();
   const { showToast } = useToast();
 
-  const [category, setCategory] = useState<string>('Diesel/Fuel');
+  const [category, setCategory] = useState<string>(EXPENSE_CATEGORIES[0]);
   const [customCategory, setCustomCategory] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
   const [note, setNote] = useState<string>('');
@@ -113,10 +113,10 @@ export const ExpensesScreen: React.FC = () => {
       {/* Top Banner & Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div>
-          <h2 className="text-[24px] font-heading font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+          <h1 className="depot-page-title flex items-center gap-2">
             <ReceiptText className="w-5 h-5 text-slate-600 dark:text-slate-300" />
             <span>Expenses</span>
-          </h2>
+          </h1>
           <p className="text-[14px] font-sans text-slate-500 dark:text-slate-400 mt-1">
             Log and track what the depot spends each day.
           </p>
@@ -175,7 +175,7 @@ export const ExpensesScreen: React.FC = () => {
               Expense Category
             </label>
             <div className="flex flex-wrap gap-2">
-              {['Diesel/Fuel', 'Transport & Logistics', 'Depot Maintenance', 'Demurrage', 'Security & Wages', 'Utility / Power', 'Other'].map(cat => (
+              {[...EXPENSE_CATEGORIES, 'Other'].map(cat => (
                 <button
                   type="button"
                   key={cat}
@@ -183,11 +183,10 @@ export const ExpensesScreen: React.FC = () => {
                     setCategory(cat);
                     setCustomCategory('');
                   }}
-                  className={`px-3 py-1.5 rounded-xl text-[13px] font-sans transition-all ${
-                    category === cat && !customCategory
-                      ? 'bg-brand-500 text-slate-950 font-bold shadow-sm'
-                      : 'bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-[13px] font-sans transition-all ${category === cat && !customCategory
+                    ? 'bg-brand-500 text-slate-950 font-bold shadow-sm'
+                    : 'bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
+                    }`}
                 >
                   {cat}
                 </button>
@@ -331,7 +330,7 @@ export const ExpensesScreen: React.FC = () => {
                     {(() => {
                       const sel = customers.find(c => c.id === chargedCustomerId);
                       if (!sel) return null;
-                      const added = parseFloat(amount) || 0;
+                      const added = parseFromCommas(amount);
                       const currDebt = customerStatsMap[sel.id]?.currentBalance || 0;
                       const newBal = currDebt + added;
                       return (
@@ -352,11 +351,10 @@ export const ExpensesScreen: React.FC = () => {
               type="button"
               onClick={() => setShowDatePicker(v => !v)}
               aria-pressed={showDatePicker}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-sans font-bold transition-all active:scale-95 ${
-                showDatePicker
-                  ? 'bg-brand-50 dark:bg-brand-950/40 border-brand-300 dark:border-brand-800 text-brand-700 dark:text-brand-400'
-                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
-              }`}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-sans font-bold transition-all active:scale-95 ${showDatePicker
+                ? 'bg-brand-50 dark:bg-brand-950/40 border-brand-300 dark:border-brand-800 text-brand-700 dark:text-brand-400'
+                : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                }`}
             >
               <ClockCounterClockwise className="w-3.5 h-3.5" weight="bold" />
               <span>{showDatePicker ? 'Using a specific date & time' : 'Backdate this voucher'}</span>

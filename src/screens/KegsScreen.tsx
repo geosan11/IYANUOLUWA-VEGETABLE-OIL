@@ -185,7 +185,7 @@ export const KegsScreen: React.FC = () => {
 
   const handleQuickReturn = (customerId: string) => {
     setLogErrorMsg(null);
-    const qty = parseInt(returnCustomerInputs[customerId] || '0', 10);
+    const qty = Math.floor(parseFromCommas(returnCustomerInputs[customerId] || '0'));
     if (qty <= 0) return;
 
     const buckets = packBuckets(customerId);
@@ -213,7 +213,7 @@ export const KegsScreen: React.FC = () => {
   const handleDetailPanelReturn = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeCustomer) return;
-    const qty = parseInt(detailReturnQty, 10) || 0;
+    const qty = Math.floor(parseFromCommas(detailReturnQty));
     if (qty <= 0) return;
 
     setLogErrorMsg(null);
@@ -270,10 +270,10 @@ export const KegsScreen: React.FC = () => {
       {/* Top Banner & Title */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl depot-card border border-slate-200 dark:border-slate-800 shadow-card-light dark:shadow-card-dark">
         <div>
-          <h2 className="text-xl font-heading font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+          <h1 className="depot-page-title flex items-center gap-2">
             <Package className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-            <span>Keg Containers & Fleet Asset Tracker</span>
-          </h2>
+            <span>Kegs Ledger</span>
+          </h1>
           <p className="text-xs font-sans text-slate-500 dark:text-slate-400 mt-1">
             Track company-owned jerrycans on loan with customers, available stock, and returned kegs.
           </p>
@@ -409,11 +409,10 @@ export const KegsScreen: React.FC = () => {
                     key={cnt}
                     type="button"
                     onClick={() => setFleetInput(String(cnt))}
-                    className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold border transition-colors cursor-pointer ${
-                      parseInt(fleetInput, 10) === cnt
+                    className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold border transition-colors cursor-pointer ${parseInt(fleetInput, 10) === cnt
                         ? 'bg-amber-500 text-slate-950 border-amber-500'
                         : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
-                    }`}
+                      }`}
                   >
                     {cnt}
                   </button>
@@ -458,37 +457,32 @@ export const KegsScreen: React.FC = () => {
 
         {/* 3. Physical Kegs at Depot Yard */}
         <div
-          className={`p-5 rounded-2xl depot-card border shadow-card-light dark:shadow-card-dark flex flex-col justify-between transition-all ${
-            kegInventory.isDepotStockCritical
+          className={`p-5 rounded-2xl depot-card border shadow-card-light dark:shadow-card-dark flex flex-col justify-between transition-all ${kegInventory.isDepotStockCritical
               ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-600/60'
               : 'border-slate-200 dark:border-slate-800'
-          }`}
+            }`}
         >
           <div className="flex items-center justify-between mb-2">
             <span
-              className={`text-xs font-sans font-medium uppercase tracking-wider ${
-                kegInventory.isDepotStockCritical ? 'text-rose-700 dark:text-rose-300 font-bold' : 'text-slate-500 dark:text-slate-400'
-              }`}
+              className={`text-xs font-sans font-medium uppercase tracking-wider ${kegInventory.isDepotStockCritical ? 'text-rose-700 dark:text-rose-300 font-bold' : 'text-slate-500 dark:text-slate-400'
+                }`}
             >
               Kegs In Store
             </span>
             <RotateCcw
-              className={`w-4 h-4 ${
-                kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400 animate-pulse' : 'text-slate-500 dark:text-slate-400'
-              }`}
+              className={`w-4 h-4 ${kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400 animate-pulse' : 'text-slate-500 dark:text-slate-400'
+                }`}
             />
           </div>
           <div
-            className={`text-3xl font-mono tabular-nums font-bold leading-tight ${
-              kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-slate-100'
-            }`}
+            className={`text-3xl font-mono tabular-nums font-bold leading-tight ${kegInventory.isDepotStockCritical ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-slate-100'
+              }`}
           >
             {kegInventory.kegsAtDepot} <span className="text-sm font-sans font-normal text-slate-500 dark:text-slate-400">ready to fill</span>
           </div>
           <div
-            className={`text-xs font-sans mt-2 ${
-              kegInventory.isDepotStockCritical ? 'text-rose-700 dark:text-rose-300 font-bold' : 'text-slate-500 dark:text-slate-400'
-            }`}
+            className={`text-xs font-sans mt-2 ${kegInventory.isDepotStockCritical ? 'text-rose-700 dark:text-rose-300 font-bold' : 'text-slate-500 dark:text-slate-400'
+              }`}
           >
             {kegInventory.isDepotStockCritical
               ? `CRITICAL ALERT: Stock < ${settings.kegs_at_depot_low_threshold}`
@@ -581,11 +575,10 @@ export const KegsScreen: React.FC = () => {
                       aria-label={`${cust.name}, ${cust.balance} unreturned kegs`}
                       onClick={() => setSelectedCustomerId(cust.id)}
                       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedCustomerId(cust.id); } }}
-                      className={`cursor-pointer transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 ${
-                        isSelected
+                      className={`cursor-pointer transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 ${isSelected
                           ? 'bg-amber-500/10 border-l-4 border-amber-500 font-medium'
                           : 'hover:bg-slate-50/80 dark:hover:bg-slate-900/50 border-l-4 border-transparent'
-                      }`}
+                        }`}
                     >
                       <td className="px-4 py-3 font-sans">
                         <div className="font-heading font-semibold text-sm text-slate-900 dark:text-slate-200">
@@ -603,11 +596,10 @@ export const KegsScreen: React.FC = () => {
                       </td>
                       <td className="px-3 py-3 text-center font-bold">
                         <span
-                          className={`px-2 py-0.5 rounded text-xs font-mono tabular-nums ${
-                            cust.balance > 0
+                          className={`px-2 py-0.5 rounded text-xs font-mono tabular-nums ${cust.balance > 0
                               ? 'badge-amber'
                               : 'badge-muted'
-                          }`}
+                            }`}
                         >
                           {cust.balance}
                         </span>
@@ -655,11 +647,10 @@ export const KegsScreen: React.FC = () => {
 
                 <div className="flex items-center gap-2">
                   <span
-                    className={`px-2.5 py-1 rounded-lg text-xs font-mono tabular-nums font-bold ${
-                      cust.balance > 0
+                    className={`px-2.5 py-1 rounded-lg text-xs font-mono tabular-nums font-bold ${cust.balance > 0
                         ? 'badge-amber'
                         : 'badge-muted'
-                    }`}
+                      }`}
                   >
                     {cust.balance} Out
                   </span>
@@ -681,11 +672,10 @@ export const KegsScreen: React.FC = () => {
                     {activeCustomer.name}
                   </h3>
                   <span
-                    className={`px-2.5 py-1 rounded-full text-xs font-semibold font-sans uppercase tracking-wider ${
-                      activeStats.balance > 0
+                    className={`px-2.5 py-1 rounded-full text-xs font-semibold font-sans uppercase tracking-wider ${activeStats.balance > 0
                         ? 'badge-amber'
                         : 'badge-emerald'
-                    }`}
+                      }`}
                   >
                     {activeStats.balance > 0 ? `${activeStats.balance} Kegs Due` : 'Account Settled'}
                   </span>

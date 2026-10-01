@@ -193,7 +193,7 @@ export const AIAdvisorScreen: React.FC = () => {
           {!isSupabaseConfigured && (
             <button
               onClick={() => setUserRole('owner')}
-              className="w-full py-3 px-4 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
+              className="w-full py-3 px-4 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
             >
               <ShieldCheck className="w-4 h-4" />
               Switch to Owner / Admin Mode
@@ -253,7 +253,7 @@ export const AIAdvisorScreen: React.FC = () => {
             <div className="w-8 h-8 rounded-xl bg-brand-500/15 text-brand-600 dark:text-brand-400 flex items-center justify-center font-bold">
               <Sparkles className="w-4 h-4" />
             </div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            <h1 className="depot-page-title">
               Executive AI Operations Advisor
             </h1>
           </div>
@@ -414,11 +414,10 @@ export const AIAdvisorScreen: React.FC = () => {
               </span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
-                    decision.priority.includes('P1')
-                      ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400'
-                      : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400'
-                  }`}>
+                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${decision.priority.includes('P1')
+                    ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400'
+                    : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400'
+                    }`}>
                     {decision.priority}
                   </span>
                   <span className="font-bold text-sm text-slate-900 dark:text-white">
@@ -522,11 +521,10 @@ export const AIAdvisorScreen: React.FC = () => {
               key={prompt.text}
               onClick={() => handleSendChat(prompt.text)}
               disabled={isChatLoading}
-              className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors disabled:opacity-50 text-xs flex items-center gap-1.5 ${
-                prompt.isWeb
-                  ? 'bg-amber-950/40 hover:bg-amber-900/60 text-amber-300 border border-amber-600/40'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/80'
-              }`}
+              className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors disabled:opacity-50 text-xs flex items-center gap-1.5 ${prompt.isWeb
+                ? 'bg-amber-950/40 hover:bg-amber-900/60 text-amber-300 border border-amber-600/40'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/80'
+                }`}
             >
               {prompt.isWeb && <Globe className="w-3 h-3 text-amber-400" />}
               <span>{prompt.text}</span>
@@ -542,11 +540,10 @@ export const AIAdvisorScreen: React.FC = () => {
               className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
             >
               <div
-                className={`max-w-[90%] p-3 rounded-xl leading-relaxed whitespace-pre-line ${
-                  msg.role === 'user'
-                    ? 'bg-brand-600 text-white font-medium'
-                    : 'bg-slate-800 text-slate-200 border border-slate-700/50'
-                }`}
+                className={`max-w-[90%] p-3 rounded-xl leading-relaxed whitespace-pre-line ${msg.role === 'user'
+                  ? 'bg-brand-600 text-white font-medium'
+                  : 'bg-slate-800 text-slate-200 border border-slate-700/50'
+                  }`}
               >
                 {msg.text}
               </div>

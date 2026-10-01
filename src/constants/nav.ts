@@ -36,7 +36,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'intake', label: 'Truck Intake', icon: Truck },
   { id: 'kegs', label: 'Kegs Ledger', icon: Package },
   { id: 'inventory', label: 'Products & Pricing', icon: Stack, adminOnly: true },
-  { id: 'expenses', label: 'Expenses & Float', icon: Invoice },
+  { id: 'expenses', label: 'Expenses', icon: Invoice },
   { id: 'ai-advisor', label: 'AI Advisor', icon: Sparkle, adminOnly: true },
   { id: 'staff', label: 'Staff Management', icon: UserPlus, adminOnly: true, ownerOnly: true },
   { id: 'settings', label: 'Settings', icon: Gear, adminOnly: true }

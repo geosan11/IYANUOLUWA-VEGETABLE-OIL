@@ -254,11 +254,14 @@ export function calculateCustomerStats(
 
   // Open credit orders where amount > paid_amount and payment_method is credit or split with unpaid balance
   const openOrders = customerOrders.filter(
-    o => (o.payment_method === 'credit' || o.payment_method === 'split') && (o.amount - (o.paid_amount || 0)) > 0.01
+    o => {
+      const lineAmt = Number(o.line_amount ?? o.amount) || 0;
+      return (o.payment_method === 'credit' || o.payment_method === 'split') && (lineAmt - (o.paid_amount || 0)) > 0.01;
+    }
   );
 
   const currentBalance = openOrders.reduce(
-    (sum, o) => sum + (o.amount - (o.paid_amount || 0)),
+    (sum, o) => sum + ((Number(o.line_amount ?? o.amount) || 0) - (o.paid_amount || 0)),
     0
   );
 
@@ -420,8 +423,8 @@ export function buildCustomerStatement(
   for (const ev of events) {
     if (ev.kind === 'sale') {
       const lines = saleGroups.get(ev.saleId) || [];
-      const total = round2(lines.reduce((s, l) => s + l.line_amount, 0));
-      const paid = round2(lines.reduce((s, l) => s + (l.paid_amount || 0), 0));
+      const total = round2(lines.reduce((s, l) => s + (Number(l.line_amount ?? l.amount) || 0), 0));
+      const paid = round2(lines.reduce((s, l) => s + (Number(l.paid_amount) || 0), 0));
       const isCredit = lines[0].payment_method === 'credit' || (lines[0].payment_method === 'split' && (total - paid) > 0.01);
       const kegsTaken = lines.reduce((s, l) => s + (l.container_mode === 'taken' ? Number(l.qty || 0) : 0), 0);
       kegBalance += kegsTaken;
@@ -606,7 +609,10 @@ export function applyFifoPayment(
 
   // Get this customer's open credit orders sorted by due_date ascending (oldest due first)
   const customerCreditOrders = updatedOrders
-    .filter(o => o.customer_id === customerId && !o.voided && (o.payment_method === 'credit' || o.payment_method === 'split') && (o.amount - (o.paid_amount || 0)) > 0.001)
+    .filter(o => {
+      const lineAmt = Number(o.line_amount ?? o.amount) || 0;
+      return o.customer_id === customerId && !o.voided && (o.payment_method === 'credit' || o.payment_method === 'split') && (lineAmt - (o.paid_amount || 0)) > 0.001;
+    })
     .sort((a, b) => {
       const timeA = a.due_date ? new Date(a.due_date).getTime() : new Date(a.date).getTime();
       const timeB = b.due_date ? new Date(b.due_date).getTime() : new Date(b.date).getTime();
@@ -616,18 +622,21 @@ export function applyFifoPayment(
   for (const order of customerCreditOrders) {
     if (remainingPayment <= 0) break;
 
-    const outstanding = order.amount - (order.paid_amount || 0);
+    const lineAmt = Number(order.line_amount ?? order.amount) || 0;
+    const outstanding = lineAmt - (order.paid_amount || 0);
     const toApply = Math.min(remainingPayment, outstanding);
     const previousPaid = order.paid_amount || 0;
     const newPaid = Number((previousPaid + toApply).toFixed(2));
-    const isFullyPaid = newPaid >= order.amount - 0.01;
+    const isFullyPaid = newPaid >= lineAmt - 0.01;
 
     order.paid_amount = newPaid;
+    order.amount = lineAmt;
+    order.line_amount = lineAmt;
     remainingPayment = Number((remainingPayment - toApply).toFixed(2));
 
     appliedOrders.push({
       orderId: order.id,
-      originalAmount: order.amount,
+      originalAmount: lineAmt,
       previousPaid,
       amountApplied: Number(toApply.toFixed(2)),
       newPaidAmount: newPaid,
